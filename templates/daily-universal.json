@@ -1,0 +1,176 @@
+{
+  "name": "Universal Daily Routine",
+  "description": "Executes daily Pro Skips (Hard, Magna, Manacura, Primal, Regalia, Halo, Primarch, Showdown, Clash, Dragon, Eternals, Ennead), Rupie Gacha, Skyscope Missions, and Casino Exchange until all are finished",
+  "mode": "routine",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/extra",
+  "supporterPriority": [
+    "Hades",
+    "Bahamut",
+    "Zeus",
+    "Lucifer"
+  ],
+  "speedProfile": "fast",
+  "defaultRuns": 1,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "autoBerry": true,
+  "autoReplenishAp": true,
+  "autoReplenishEp": true,
+  "steps": [
+    {
+      "id": "step_1",
+      "name": "Navigate to https://game.granbluefantasy.jp/#quest/extra",
+      "code": "navigate",
+      "action": "navigate",
+      "target": "https://game.granbluefantasy.jp/#quest/extra"
+    },
+    {
+      "id": "step_2",
+      "name": "Do Until Finish (daily_hard_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_hard_pro",
+      "tag": "daily_hard_pro"
+    },
+    {
+      "id": "step_3",
+      "name": "Do Until Finish (daily_magna_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_magna_pro",
+      "tag": "daily_magna_pro"
+    },
+    {
+      "id": "step_4",
+      "name": "Do Until Finish (daily_manacura_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_manacura_pro",
+      "tag": "daily_manacura_pro"
+    },
+    {
+      "id": "step_5",
+      "name": "Do Until Finish (daily_primal_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_primal_pro",
+      "tag": "daily_primal_pro"
+    },
+    {
+      "id": "step_6",
+      "name": "Do Until Finish (daily_regalia_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_regalia_pro",
+      "tag": "daily_regalia_pro"
+    },
+    {
+      "id": "step_7",
+      "name": "Do Until Finish (daily_halo_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_halo_pro",
+      "tag": "daily_halo_pro"
+    },
+    {
+      "id": "step_8",
+      "name": "Do Until Finish (daily_primarch_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_primarch_pro",
+      "tag": "daily_primarch_pro"
+    },
+    {
+      "id": "step_9",
+      "name": "Do Until Finish (daily_showdown_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_showdown_pro",
+      "tag": "daily_showdown_pro"
+    },
+    {
+      "id": "step_10",
+      "name": "Do Until Finish (daily_clash_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_clash_pro",
+      "tag": "daily_clash_pro"
+    },
+    {
+      "id": "step_11",
+      "name": "Do Until Finish (daily_dragon_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_dragon_pro",
+      "tag": "daily_dragon_pro"
+    },
+    {
+      "id": "step_12",
+      "name": "Do Until Finish (daily_eternals_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_eternals_pro",
+      "tag": "daily_eternals_pro"
+    },
+    {
+      "id": "step_13",
+      "name": "Do Until Finish (daily_ennead_pro)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_ennead_pro",
+      "tag": "daily_ennead_pro"
+    },
+    {
+      "id": "step_14",
+      "name": "Navigate to https://game.granbluefantasy.jp/#gacha/normal",
+      "code": "navigate",
+      "action": "navigate",
+      "target": "https://game.granbluefantasy.jp/#gacha/normal"
+    },
+    {
+      "id": "step_15",
+      "name": "Do Until Finish (daily_rupie)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_rupie",
+      "tag": "daily_rupie"
+    },
+    {
+      "id": "step_16",
+      "name": "Navigate to https://game.granbluefantasy.jp/#mission",
+      "code": "navigate",
+      "action": "navigate",
+      "target": "https://game.granbluefantasy.jp/#mission"
+    },
+    {
+      "id": "step_17",
+      "name": "Do Until Finish (daily_skyscope)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_skyscope",
+      "tag": "daily_skyscope"
+    },
+    {
+      "id": "step_18",
+      "name": "Navigate to https://game.granbluefantasy.jp/#casino/exchange",
+      "code": "navigate",
+      "action": "navigate",
+      "target": "https://game.granbluefantasy.jp/#casino/exchange"
+    },
+    {
+      "id": "step_19",
+      "name": "Do Until Finish (daily_casino)",
+      "code": "do_until_finish",
+      "action": "do_until_finish",
+      "target": "daily_casino",
+      "tag": "daily_casino"
+    },
+    {
+      "id": "step_20",
+      "name": "Dismiss All Popups and Modals",
+      "code": "dismiss_popups",
+      "action": "dismiss_popups"
+    }
+  ]
+}

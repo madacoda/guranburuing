@@ -1,0 +1,59 @@
+# ==============================================================================
+# Granblue Fantasy Remote Controller & Automation System - Git Ignore Policy
+# Gold Industry Standard Security & Hygiene Configuration
+# ==============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build outputs & TypeScript Cache
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# Environment & Sensitive Credentials (STRICTLY FORBIDDEN FROM REPO)
+.env
+.env.*
+!.env.example
+accounts.config.json
+accounts*.json
+!accounts.config.example.json
+
+# Local Chromium & Isolated Browser Profiles
+.gbf-*-profile/
+.gbf-profiles/
+*.sqlite
+*.db
+*.leveldb
+
+# Runtime Artifacts & Failure Captures
+artifacts/*
+!artifacts/.gitkeep
+scratch/
+
+# Runtime Logs & Telemetry Data
+logs/*
+!logs/.gitkeep
+*.log
+*.jsonl
+
+# Screenshots & Media Captures
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+
+# OS Metadata & Editor Artifacts
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

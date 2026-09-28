@@ -1,0 +1,81 @@
+{
+  "name": "GB Farm - Proto Bahamut HL",
+  "description": "PBHL Gold Bar rotation: Quick Call -> Summon 2 -> C4S1 -> C3S1 -> C2S1 -> Attack -> Reload -> Attack -> Reload (Exit if 1.8M honors)",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 4,
+  "targetScore": 1800000,
+  "logPath": "logs/gb-pbhl.md",
+  "supporterPriority": ["Hades", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 1000,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "summon",
+      "slot": 2,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1800000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1800000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

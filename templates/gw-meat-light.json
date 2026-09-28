@@ -1,0 +1,30 @@
+{
+  "name": "GW Meat Farm - Light EX+",
+  "description": "0-button EX+ Meat farming rotation: Quick Call -> F5 -> Attack -> F5 -> Confirm",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/947551/1/0",
+  "supporterPriority": ["Zeus", "Lucifer"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 100,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

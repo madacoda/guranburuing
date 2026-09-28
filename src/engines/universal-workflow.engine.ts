@@ -1,0 +1,4315 @@
+// src/engines/universal-workflow.engine.ts
+import { Page, HTTPResponse } from 'puppeteer-core';
+import fs from 'fs';
+import path from 'path';
+import { SentinelWatchdog } from '../sentinel-watchdog.js';
+import { AlertRelay } from '../alert-relay.js';
+import { DropLogger } from './drop-logger.js';
+import { ProSkipEngine } from './pro-skip.engine.js';
+import {
+  humanizedClick,
+  humanReactionDelay,
+  randomDelay,
+  logNormalDelay,
+  sampleGaussian,
+  setSpeedProfile
+} from '../human-motor.js';
+import {
+  WorkflowTemplate,
+  WorkflowStep,
+  WorkflowRunResult,
+  WorkflowSummary
+} from '../types/workflow.types.js';
+
+export interface WorkflowLoopOptions {
+  runs?: number;
+  autoReplenishAp?: boolean;
+  autoReplenishEp?: boolean;
+  logPath?: string;
+  onProgress?: (result: WorkflowRunResult) => void;
+}
+
+export class UniversalWorkflowEngine {
+  private stopRequested = false;
+  private totalGoldBarsAccumulated = 0;
+  private totalHonorsAccumulated = 0;
+  private totalLootItemsAccumulated = 0;
+  private currentRaidId: string = 'N/A';
+  private currentScore = 0;
+  private currentTurn = 1;
+  private dropLogger?: DropLogger;
+  private alertRelay = new AlertRelay();
+  private joinedInCurrentBatch = 0;
+  private currentBatchThreshold = 3;
+  private latestRewardData: any = null;
+  private responseListenerInitialized = false;
+  private currentLogPath = 'logs/workflow.md';
+  private currentDropLogPath?: string;
+  private currentWorkflowLogPath = 'logs/workflow.md';
+  private currentBattleHadGoldBar = false;
+  private totalCompletedRuns = 0;
+  private dailyCatalogCache: any[] | null = null;
+  private totalJoinedAndClearedBattles = 0;
+  private lastStartFailureWasRaidLimit = false;
+
+  constructor(
+    private page: Page,
+    private sentinel: SentinelWatchdog,
+    private template: WorkflowTemplate,
+    private accountId: string
+  ) {
+    setSpeedProfile(template.speedProfile || 'fast');
+    this.currentBatchThreshold = this.calculateNextBatchThreshold();
+    this.setupResponseListener();
+  }
+
+  public updatePage(newPage: Page): void {
+    console.log(`[Workflow] 🔄 Re-binding active page for [${this.accountId}] following CDP reconnect.`);
+    this.page = newPage;
+    this.responseListenerInitialized = false;
+    this.setupResponseListener();
+  }
+
+  public async ensureViewportAndMobile(): Promise<void> {
+    try {
+      await this.page.setViewport({
+        width: 480,
+        height: 960,
+        deviceScaleFactor: 1,
+        isMobile: true,
+        hasTouch: true
+      });
+    } catch (err: any) {
+      console.warn('[Workflow] Notice setting viewport:', err.message);
+    }
+  }
+
+  public requestStop(): void {
+    console.log(`\n[Workflow] 🛑 Graceful stop requested for [${this.accountId}]. Finishing active run...`);
+    this.stopRequested = true;
+  }
+
+  /**
+   * Sets up real-time telemetry interceptor to track ground-truth turn count,
+   * honors, raid IDs, and reward drops across combat JSON payloads.
+   */
+  private setupResponseListener(): void {
+    if (this.responseListenerInitialized) return;
+    this.responseListenerInitialized = true;
+
+    this.page.on('response', async (res: HTTPResponse) => {
+      const url = res.url();
+
+      try {
+        // 1. Initial Raid State or Mid-battle Re-sync
+        if (
+          url.includes('/quest/raid_info') ||
+          url.includes('start.json') ||
+          url.includes('raid_battle.json')
+        ) {
+          const json = await res.json().catch(() => null);
+          if (json) {
+            if (json.raid_id) this.currentRaidId = String(json.raid_id);
+            const serverPoint =
+              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
+              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null) ??
+              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
+              (typeof json.player?.point === 'number' && json.player.point > 0 ? json.player.point : null);
+            if (serverPoint !== null) this.currentScore = Math.max(this.currentScore, serverPoint);
+            if (json.turn !== undefined) this.currentTurn = Number(json.turn);
+            else if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+          }
+        }
+
+        // 2. Normal Attack Result
+        if (url.includes('normal_attack_result.json')) {
+          const json = await res.json().catch(() => null);
+          if (json) {
+            const directPoint =
+              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
+              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
+              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null) ??
+              (typeof json.player?.point === 'number' && json.player.point > 0 ? json.player.point : null);
+
+            if (directPoint !== null) {
+              this.currentScore = Math.max(this.currentScore, directPoint);
+            } else {
+              const turnDmg = this.extractTurnDamage(json);
+              if (turnDmg > 0) {
+                const turnHonors = Math.floor(turnDmg / 1000);
+                this.currentScore += turnHonors;
+              }
+            }
+            if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+            else if (json.turn !== undefined) this.currentTurn = Number(json.turn);
+          }
+        }
+
+        // 3. Ability Result
+        if (url.includes('ability_result.json')) {
+          const json = await res.json().catch(() => null);
+          if (json) {
+            const abilityPoint =
+              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
+              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
+              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null);
+            if (abilityPoint !== null) this.currentScore = Math.max(this.currentScore, abilityPoint);
+            if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+          }
+        }
+
+        // 4. Summon Result
+        if (url.includes('summon_result.json')) {
+          const json = await res.json().catch(() => null);
+          if (json) {
+            const summonPoint =
+              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
+              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
+              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null);
+            if (summonPoint !== null) this.currentScore = Math.max(this.currentScore, summonPoint);
+            if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+          }
+        }
+
+        // 5. Battle Result & Rewards
+        if (
+          url.includes('resultmulti') ||
+          url.includes('result_multi') ||
+          url.includes('/result/data') ||
+          url.includes('/result/content') ||
+          url.includes('reward.json')
+        ) {
+          const json = await res.json().catch(() => null);
+          if (json) {
+            this.latestRewardData = json;
+            const resPoint =
+              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
+              (typeof json.point === 'number' && json.point > 0 ? json.point : null) ??
+              (typeof json.total_point === 'number' && json.total_point > 0 ? json.total_point : null);
+            if (resPoint !== null) this.currentScore = Math.max(this.currentScore, resPoint);
+
+            // Check if encoded HTML contains honors
+            if (typeof json.data === 'string') {
+              try {
+                const decoded = decodeURIComponent(json.data);
+                const match = decoded.match(/class=["'](?:prt-user-point|txt-user-point)["'][^>]*>.*?([0-9,]+)/i);
+                if (match && match[1]) {
+                  const num = parseInt(match[1].replace(/,/g, ''), 10);
+                  if (!isNaN(num) && num > 0) this.currentScore = Math.max(this.currentScore, num);
+                }
+              } catch {}
+            }
+
+            this.checkForGoldBarDrop(json);
+          }
+        }
+      } catch {
+        // Silently ignore parsing errors on interrupted responses during navigation
+      }
+    });
+  }
+
+  /**
+   * Traverses battle scenario AST to aggregate total damage dealt by player this turn.
+   */
+  public extractTurnDamage(data: any): number {
+    if (!data || !Array.isArray(data.scenario)) return 0;
+    let turnDamage = 0;
+
+    const traverse = (node: any) => {
+      if (!node) return;
+      if (typeof node === 'number') {
+        if (node > 0 && node < 100000000 && Number.isFinite(node)) {
+          turnDamage += node;
+        }
+        return;
+      }
+      if (Array.isArray(node)) {
+        for (const item of node) traverse(item);
+        return;
+      }
+      if (typeof node === 'object') {
+        for (const [key, val] of Object.entries(node)) {
+          if (key === 'damage' || key === 'value' || key === 'val' || key === 'total_damage') {
+            if (typeof val === 'number' && val > 0 && val < 100000000) {
+              turnDamage += val;
+            } else if (Array.isArray(val) || typeof val === 'object') {
+              traverse(val);
+            }
+          } else if (key === 'list') {
+            traverse(val);
+          }
+        }
+      }
+    };
+
+    for (const s of data.scenario) {
+      if (!s) continue;
+      // Skip healing, boss gauges, and incoming enemy damage
+      if (s.cmd === 'heal' || s.cmd === 'boss_gauge' || s.cmd === 'special' || s.cmd === 'special_npc') continue;
+      if (s.from === 'boss' || s.from === 'enemy' || s.target === 'player' || s.to === 'player' || s.name === 'player') continue;
+
+      if (s.cmd === 'attack' || s.cmd === 'damage') {
+        if (s.damage !== undefined) traverse(s.damage);
+        if (s.list !== undefined) traverse(s.list);
+      }
+    }
+
+    return turnDamage;
+  }
+
+  /**
+   * Synchronizes ground-truth honors from DOM and window/stage client state.
+   */
+  public async syncCurrentHonors(): Promise<number> {
+    try {
+      const pageScore = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        const pJsn = stage?.pJsnData;
+
+        // 1. Direct server user_point from stage.pJsnData
+        if (pJsn?.user_point !== undefined) {
+          const pt = Number(pJsn.user_point);
+          if (!isNaN(pt) && pt > 0) return pt;
+        }
+
+        // 2. Direct server point_info from stage.pJsnData
+        if (pJsn?.point_info?.user_point !== undefined) {
+          const pt = Number(pJsn.point_info.user_point);
+          if (!isNaN(pt) && pt > 0) return pt;
+        }
+
+        // 3. stage.gGameStatus.player.point
+        if (stage?.gGameStatus?.player?.point !== undefined) {
+          const pt = Number(stage.gGameStatus.player.point);
+          if (!isNaN(pt) && pt > 0) return pt;
+        }
+
+        // 4. In raid & result DOM elements (.txt-user-point, .prt-user-point, .txt-point, .prt-point, .prt-point-info)
+        const pointEls = Array.from(document.querySelectorAll('.txt-user-point, .prt-user-point, .txt-point, .prt-point, .prt-point-info .txt-point'));
+        for (const el of pointEls) {
+          const text = (el as HTMLElement).innerText || '';
+          const match = text.match(/(?:honors|貢献度|point)?\s*[:：]?\s*([0-9,]+)\s*(?:pt)?/i);
+          if (match && match[1]) {
+            const num = parseInt(match[1].replace(/,/g, ''), 10);
+            if (!isNaN(num) && num > 0) return num;
+          }
+        }
+
+        // 5. Look for any element displaying honors / points (e.g. "... pt")
+        const ptElements = Array.from(document.querySelectorAll('.prt-raid-info *, .cnt-raid-info *, .prt-result-cnt *'));
+        for (const el of ptElements) {
+          const text = (el as HTMLElement).innerText?.trim() || '';
+          if (text.includes('pt') && text.length < 25) {
+            const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(num) && num > 0) return num;
+          }
+        }
+
+        return 0;
+      }).catch(() => 0);
+
+      if (pageScore > this.currentScore) {
+        this.currentScore = pageScore;
+      }
+      return this.currentScore;
+    } catch {
+      return this.currentScore;
+    }
+  }
+
+  /**
+   * Checks reward payload for Gold Bar (item_id 20004) or Blue Chests.
+   */
+  private checkForGoldBarDrop(payload: any): boolean {
+    let found = false;
+
+    const checkItem = (item: any) => {
+      if (!item) return;
+      const itemId = String(item.item_id || item.id || '');
+      const itemName = String(item.name || item.item_name || '');
+      if (itemId === '20004' || itemName.includes('Gold Bar') || itemName.includes('ヒヒイロカネ')) {
+        found = true;
+      }
+    };
+
+    if (payload.rewards) {
+      if (Array.isArray(payload.rewards.reward_list)) {
+        payload.rewards.reward_list.forEach(checkItem);
+      }
+      if (payload.rewards.special) {
+        checkItem(payload.rewards.special);
+      }
+    }
+
+    if (Array.isArray(payload.reward_list)) {
+      payload.reward_list.forEach(checkItem);
+    }
+
+    if (found) {
+      this.currentBattleHadGoldBar = true;
+      this.totalGoldBarsAccumulated++;
+      this.broadcastGoldBarFound();
+    }
+
+    return found;
+  }
+
+  private broadcastGoldBarFound(): void {
+    console.log(`\n========================================================================`);
+    console.log(`  🌟🌟🌟 [GOLD BAR FOUND!] Account: [${this.accountId}] 🌟🌟🌟`);
+    console.log(`========================================================================\n`);
+
+    // Terminal audible bell
+    process.stdout.write('\x07\x07\x07');
+
+    this.page.screenshot().then(buf => {
+      this.alertRelay.sendEmergencyAlert(
+        `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]! Total GB this session: ${this.totalGoldBarsAccumulated}`,
+        Buffer.from(buf)
+      );
+    }).catch(() => null);
+  }
+
+  private calculateNextBatchThreshold(): number {
+    if (this.template.batchClaimSize && this.template.batchClaimSize > 0) {
+      return Math.min(3, Math.max(1, this.template.batchClaimSize));
+    }
+    const min = Math.max(1, Math.min(this.template.minBatchClaim || 2, 3));
+    const max = Math.max(min, Math.min(this.template.maxBatchClaim || 3, 3));
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /**
+   * Runs the automated workflow loop.
+   */
+  public async runLoop(options: WorkflowLoopOptions = {}): Promise<WorkflowSummary> {
+    const {
+      runs = this.template.defaultRuns || 100,
+      autoReplenishAp = this.template.autoElixir !== false,
+      autoReplenishEp = this.template.autoBerry !== false,
+      logPath = this.template.logPath,
+      onProgress
+    } = options;
+
+    const startTime = Date.now();
+    let totalCompleted = 0;
+    this.stopRequested = false;
+    this.totalGoldBarsAccumulated = 0;
+    this.totalHonorsAccumulated = 0;
+    this.totalLootItemsAccumulated = 0;
+    this.joinedInCurrentBatch = 0;
+    this.totalJoinedAndClearedBattles = 0;
+    this.lastStartFailureWasRaidLimit = false;
+
+    const isAssistRaid = this.template.questUrl.includes('assist');
+
+    // Canonical drop log resolution (for Gold Bar ledger & raid statistics)
+    let dropLogPath: string | undefined = logPath || this.template.logPath;
+    if (!dropLogPath) {
+      const lowerName = this.template.name.toLowerCase();
+      if (lowerName.includes('akasha') || this.template.raidSlot === 3) {
+        dropLogPath = 'logs/gb-akasha.md';
+      } else if (lowerName.includes('pbhl') || this.template.raidSlot === 4) {
+        dropLogPath = 'logs/gb-pbhl.md';
+      } else if (lowerName.includes('go') || lowerName.includes('grand order') || this.template.raidSlot === 2) {
+        dropLogPath = 'logs/gb-go.md';
+      } else if (isAssistRaid) {
+        dropLogPath = 'logs/gb-farm.md';
+      }
+    }
+
+    const workflowSlug = this.template.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const workflowLogPath = `logs/workflow-${this.accountId}-${workflowSlug}.md`;
+    this.currentWorkflowLogPath = workflowLogPath;
+    this.currentDropLogPath = dropLogPath;
+    const activeLogPath = dropLogPath || workflowLogPath;
+    this.currentLogPath = activeLogPath;
+
+    // Initialize DropLogger if dropLogPath resolved
+    if (dropLogPath) {
+      this.ensureLogDirExists(dropLogPath);
+      this.dropLogger = new DropLogger(path.resolve(process.cwd(), dropLogPath), this.template.name);
+      const initialStats = this.dropLogger.getStats();
+      console.log(`[Workflow] Drop Logger active: ${dropLogPath} (${initialStats.totalBattles} historical battles, ${initialStats.goldBars} Gold Bars, dry streak: ${initialStats.currentDryStreak})`);
+    }
+
+    this.ensureLogDirExists(workflowLogPath);
+
+    console.log(`\n========================================================================`);
+    console.log(`     Universal Workflow Engine: ${this.template.name}`);
+    console.log(`     Account:                   [${this.accountId}]`);
+    console.log(`========================================================================`);
+    console.log(`Target Runs:          ${runs === Infinity ? 'Continuous / Loop (Ctrl+C to stop)' : runs}`);
+    console.log(`Quest URL:            ${this.template.questUrl}`);
+    console.log(`Mode:                 ${isAssistRaid ? 'Multi-Raid Assist / Backup Farmer' : 'Single Quest / Supporter Runner'}`);
+    console.log(`Total Steps:          ${this.template.steps.length}`);
+    console.log(`Speed Profile:        ${(this.template.speedProfile || 'fast').toUpperCase()}`);
+    console.log(`Human Motor:          ${this.template.humanMotor !== false ? 'Enabled (Gaussian Jitter & Log-Normal Delays)' : 'Disabled'}`);
+    console.log(`Stop on CAPTCHA:      ${this.template.stopOnCaptcha !== false ? 'Enabled (Hard-Freeze & Alert)' : 'Disabled'}`);
+    console.log(`Auto Half-Elixir:     ${autoReplenishAp ? 'Enabled' : 'Disabled'}`);
+    console.log(`Auto Soul-Berry:      ${autoReplenishEp ? 'Enabled' : 'Disabled'}`);
+    if (isAssistRaid) {
+      console.log(`Batch Claim Window:   Randomized ${this.template.minBatchClaim || 3} - ${this.template.maxBatchClaim || 5} raids (First batch: ${this.currentBatchThreshold})`);
+    }
+    if (dropLogPath) {
+      console.log(`Drop Log (Gold Bars): ${dropLogPath}`);
+    }
+    console.log(`Workflow Log:         ${workflowLogPath}`);
+    console.log(`========================================================================\n`);
+
+    // Clean up any lingering popups or unfinished battles on startup
+    await this.resolveLingeringState();
+
+    // Check and clear pre-existing pending battles before starting session
+    // Critical for Guild Wars (GW / Unite and Fight) where having any unclaimed battle strictly blocks starting quests
+    const isGw = this.template.name.toLowerCase().includes('gw') || this.template.questUrl.includes('teamraid') || this.template.questUrl.includes('event');
+    if (isAssistRaid || isGw) {
+      console.log('[Workflow] 🛡️ Verifying zero pending/unclaimed battles exist before starting runs...');
+      await this.claimPendingBattles(activeLogPath, 0, this.template.questUrl);
+    }
+
+    let consecutiveStartFailures = 0;
+    const MAX_START_FAILURES = 3;
+
+    while (totalCompleted < runs && !this.stopRequested) {
+      const runNumber = totalCompleted + 1;
+      const runStart = Date.now();
+      this.currentScore = 0;
+      this.currentTurn = 1;
+      this.currentBattleHadGoldBar = false;
+      this.totalCompletedRuns = totalCompleted;
+
+      // Check proactive pending battle batch limit in assist mode
+      if (isAssistRaid && this.joinedInCurrentBatch >= this.currentBatchThreshold) {
+        console.log(`\n[Workflow] Batch claim threshold (${this.currentBatchThreshold}) reached. Claiming pending battles...`);
+        await this.claimPendingBattles(activeLogPath, totalCompleted);
+        this.joinedInCurrentBatch = 0;
+        this.currentBatchThreshold = this.calculateNextBatchThreshold();
+        console.log(`[Workflow] Next pending claim scheduled in ${this.currentBatchThreshold} raids.\n`);
+      }
+
+      if (this.stopRequested) break;
+
+      console.log(`------------------------------------------------------------------------`);
+      console.log(`[${this.accountId}] [Run ${runNumber}] Initiating Workflow Run...`);
+      console.log(`------------------------------------------------------------------------`);
+
+      try {
+        // Routine Mode: Directly navigate if questUrl provided and execute pipeline without raid/supporter initialization
+        if (this.template.mode === 'routine') {
+          if (this.template.questUrl && !this.template.questUrl.includes('#mypage')) {
+            const currentHash = await this.page.evaluate(() => window.location.hash);
+            const targetHash = this.template.questUrl.includes('#') ? '#' + this.template.questUrl.split('#')[1] : this.template.questUrl;
+            if (!currentHash.includes(targetHash)) {
+              console.log(`[${this.accountId}] [Run ${runNumber}] Navigating to routine URL: ${this.template.questUrl}`);
+              await this.page.evaluate((url: string) => { window.location.href = url; }, this.template.questUrl).catch(() => null);
+              await logNormalDelay(600, 0.2);
+            }
+          }
+
+          const pipelineSuccess = await this.executeStepPipeline(runNumber);
+          const durationMs = Date.now() - runStart;
+          totalCompleted++;
+
+          const result: WorkflowRunResult = {
+            runNumber,
+            status: pipelineSuccess ? 'SUCCESS' : 'FAILED',
+            durationMs,
+            supporterName: 'N/A (Routine Mode)',
+            honors: 0,
+            message: `Routine run ${runNumber} completed in ${(durationMs / 1000).toFixed(1)}s`
+          };
+
+          this.appendRunLog(workflowLogPath, result);
+          console.log(`[${this.accountId}] [Run ${runNumber}] Routine run finished in ${(durationMs / 1000).toFixed(1)}s (Total Completed: ${totalCompleted}/${runs})\n`);
+          if (onProgress) onProgress(result);
+          continue;
+        }
+
+        // Step 1: Supporter Selection & Quest Start
+        const questStarted = await this.selectSupporterAndStartQuest(autoReplenishAp, autoReplenishEp, activeLogPath, totalCompleted);
+        if (!questStarted) {
+          if (this.stopRequested) break;
+          if (this.lastStartFailureWasRaidLimit) {
+            this.lastStartFailureWasRaidLimit = false;
+            consecutiveStartFailures = 0;
+            continue;
+          }
+          consecutiveStartFailures++;
+
+          // Assert safety / check CAPTCHA immediately
+          if (this.template.stopOnCaptcha !== false) {
+            await this.sentinel.assertSafe();
+          }
+
+          // Perform on-screen failure diagnosis
+          const diag = await this.diagnoseQuestStartFailure(runNumber);
+          console.warn(`\n[${this.accountId}] [Run ${runNumber}] ⚠️ Failed to start quest (Attempt ${consecutiveStartFailures}/${MAX_START_FAILURES})`);
+          if (diag.reason) {
+            console.warn(`[Diagnostic] Probable Cause: ${diag.reason}`);
+          }
+          if (diag.popupText) {
+            console.warn(`[Diagnostic] Screen Text: "${diag.popupText.replace(/\s+/g, ' ')}"`);
+          }
+
+          // Intercept 3-raid backup limit: do NOT penalize consecutive start failures!
+          if (diag.isRaidBackupLimit) {
+            console.log(`\n[Workflow] 🛡️ 3-Raid Backup Limit intercepted! Resetting failure counter and resolving lingering raids...`);
+            consecutiveStartFailures = 0;
+            await this.resolveLingeringRaidLimit(logPath, totalCompleted);
+            continue;
+          }
+
+          if (consecutiveStartFailures >= MAX_START_FAILURES) {
+            console.error(`\n========================================================================`);
+            console.error(`  🚨 WORKFLOW HALTED: QUEST START FAILED ${consecutiveStartFailures} CONSECUTIVE TIMES`);
+            console.error(`========================================================================`);
+            console.error(`Account:      [${this.accountId}]`);
+            console.error(`Quest:        ${this.template.questUrl}`);
+            console.error(`Reason:       ${diag.reason || 'Modal / obstruction blocking quest start'}`);
+            if (diag.capturePath) {
+              console.error(`Screenshot:   ${diag.capturePath}`);
+            }
+            console.error(`Current URL:  ${this.page.url()}`);
+            console.error(`========================================================================\n`);
+
+            process.stdout.write('\x07\x07\x07');
+
+            if (diag.isCaptcha) {
+              console.log('[Workflow] ⏱️ Waiting for user to solve CAPTCHA in browser (up to 5m)...');
+              const solved = await this.sentinel.waitForUserToSolveCaptcha(300000);
+              if (solved) {
+                consecutiveStartFailures = 0;
+                continue;
+              }
+            }
+
+            break;
+          }
+
+          console.warn(`Retrying in 2.5s...\n`);
+          await new Promise(r => setTimeout(r, 2500));
+          continue;
+        }
+
+        consecutiveStartFailures = 0;
+
+        this.joinedInCurrentBatch++;
+
+        // Step 2: Execute Step Pipeline
+        const pipelineSuccess = await this.executeStepPipeline(runNumber);
+        if (!pipelineSuccess) {
+          console.warn(`[${this.accountId}] [Run ${runNumber}] Step pipeline exited early. Resolving battle state...`);
+        }
+
+        // Step 3: Resolve Result Screen & Collect Metrics
+        await this.handleConfirmResult();
+
+        const durationMs = Date.now() - runStart;
+        totalCompleted++;
+        this.totalHonorsAccumulated += this.currentScore;
+        this.totalJoinedAndClearedBattles++;
+        await this.checkFiveBattleMilestone(activeLogPath, totalCompleted);
+
+        const result: WorkflowRunResult = {
+          runNumber,
+          status: 'SUCCESS',
+          durationMs,
+          supporterName: 'Selected Supporter',
+          honors: this.currentScore,
+          message: `Cleared in ${(durationMs / 1000).toFixed(1)}s`
+        };
+
+        // Record in DropLogger if assist mode or drop logger active
+        if (this.dropLogger && (isAssistRaid || dropLogPath)) {
+          const targetMet = this.template.targetScore ? this.currentScore >= this.template.targetScore : true;
+          this.dropLogger.logBattle({
+            raidId: this.currentRaidId,
+            turns: this.currentTurn,
+            honors: this.currentScore,
+            targetMet,
+            hasGoldBar: this.currentBattleHadGoldBar
+          });
+        }
+
+        this.appendRunLog(workflowLogPath, result);
+        console.log(`[${this.accountId}] [Run ${runNumber}] Cleared in ${(durationMs / 1000).toFixed(1)}s | Honors: ${this.currentScore.toLocaleString()} pt (Total Session: ${this.totalHonorsAccumulated.toLocaleString()} pt)\n`);
+
+        if (onProgress) onProgress(result);
+
+      } catch (err: any) {
+        const isSentinelHalt = err.message?.includes('SENTINEL') || (await this.sentinel.inspectForVerification());
+        if (isSentinelHalt) {
+          console.error(`\n========================================================================`);
+          console.error(`  🚨 WORKFLOW HARD-FROZEN BY SAFETY SENTINEL: CAPTCHA DETECTED`);
+          console.error(`========================================================================`);
+          console.error(`👉 Automation is strictly paused to protect your account.`);
+          console.error(`👉 Please solve the puzzle manually in your browser.`);
+          console.error(`👉 Once solved, the engine will automatically resume your runs.`);
+          console.error(`========================================================================\n`);
+
+          process.stdout.write('\x07\x07\x07');
+          const solved = await this.sentinel.waitForUserToSolveCaptcha(600000); // Wait up to 10 minutes for human solution
+          if (solved) {
+            console.log(`[${this.accountId}] ✅ CAPTCHA solved by operator! Resuming in 3s...\n`);
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          } else {
+            console.error(`[${this.accountId}] 🛑 Manual verification wait timed out or aborted. Stopping workflow.`);
+            break;
+          }
+        }
+
+        console.error(`[${this.accountId}] [Run ${runNumber}] Error: ${err.message}`);
+        await this.resolveLingeringState();
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    // Final pending battles sweep in assist mode
+    if (isAssistRaid && this.joinedInCurrentBatch > 0) {
+      console.log('\n[Workflow] Final sweep: Claiming remaining pending battles...');
+      await this.claimPendingBattles(activeLogPath, totalCompleted);
+    }
+
+    const totalDurationMs = Date.now() - startTime;
+    const avgSec = totalCompleted > 0 ? (totalDurationMs / totalCompleted / 1000) : 0;
+
+    console.log(`\n========================================================================`);
+    console.log(`                      Workflow Execution Summary                        `);
+    console.log(`========================================================================`);
+    console.log(`Template:                 ${this.template.name}`);
+    console.log(`Account:                  ${this.accountId}`);
+    console.log(`Total Battles Cleared:    ${totalCompleted}`);
+    console.log(`Total Honors Earned:      ${this.totalHonorsAccumulated.toLocaleString()} pt`);
+    if (this.totalGoldBarsAccumulated > 0) {
+      console.log(`🌟 Total Gold Bars:       ${this.totalGoldBarsAccumulated}`);
+    }
+    console.log(`Average Time Per Run:     ${avgSec.toFixed(1)}s`);
+    console.log(`Total Session Duration:   ${(totalDurationMs / 1000 / 60).toFixed(1)} minutes`);
+    if (dropLogPath) {
+      console.log(`Drop Log (Gold Bars):     ${dropLogPath}`);
+    }
+    console.log(`Workflow Execution Log:   ${workflowLogPath}`);
+    console.log(`========================================================================\n`);
+
+    return {
+      templateName: this.template.name,
+      accountId: this.accountId,
+      totalRunsCompleted: totalCompleted,
+      totalDurationMs,
+      averageDurationSec: avgSec,
+      logPath: dropLogPath || workflowLogPath
+    };
+  }
+
+  /**
+   * Executes the sequential step pipeline defined in the template.
+   */
+  private async executeStepPipeline(runNumber: number): Promise<boolean> {
+    for (let i = 0; i < this.template.steps.length; i++) {
+      const step = this.template.steps[i];
+      if (this.stopRequested) return false;
+
+      // Check CAPTCHA Sentinel before executing action
+      if (this.template.stopOnCaptcha !== false) {
+        await this.sentinel.assertSafe();
+      }
+
+      // Check early score termination condition
+      if (this.template.targetScore && this.currentScore >= this.template.targetScore) {
+        console.log(`[Run ${runNumber}] Target score reached (${this.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Terminating combat pipeline early.`);
+        return true;
+      }
+
+      // Check explicit exit_if_score step
+      if (step.code === 'exit_if_score' || step.action === 'exit_if_score') {
+        const threshold = step.targetScore || this.template.targetScore || 1480000;
+        if (this.currentScore >= threshold) {
+          console.log(`[Run ${runNumber}] Honor threshold met (${this.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat pipeline early.`);
+          return true;
+        }
+        console.log(`[Run ${runNumber}] Current honors (${this.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing pipeline...`);
+        continue;
+      }
+
+      console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
+
+      const success = await this.executeSingleStep(step, i + 1, runNumber);
+      if (!success && !step.optional) {
+        console.warn(`[Run ${runNumber}] Step ${i + 1} (${step.code || step.action}) failed all attempts.`);
+        if (await this.isBattleEnded()) {
+          console.log(`[Run ${runNumber}] Battle already concluded. Proceeding to result resolution.`);
+          return true;
+        }
+        await this.resolveLingeringState();
+        return false;
+      }
+
+      if (step.delayAfterMs && step.delayAfterMs > 0) {
+        await new Promise(r => setTimeout(r, step.delayAfterMs));
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Executes a single workflow step with type-safe action dispatch.
+   */
+  private async executeSingleStep(step: WorkflowStep, stepNum: number, runNumber: number): Promise<boolean> {
+    const actionCode = step.code || step.action;
+
+    switch (actionCode) {
+      case 'tap_ready':
+        return await this.handleTapReady(step);
+
+      case 'quick_call':
+        return await this.handleQuickCall(step);
+
+      case 'attack':
+        return await this.handleAttack(step);
+
+      case 'reload':
+      case 'f5':
+        return await this.handleReload(step);
+
+      case 'skill':
+        return await this.handleSkill(step);
+
+      case 'summon':
+        return await this.handleSummon(step);
+
+      case 'target_enemy':
+        return await this.handleTargetEnemy(step);
+
+      case 'heal':
+        return await this.handleHeal(step);
+
+      case 'backup_request':
+        return await this.handleBackupRequest();
+
+      case 'exit_if_score':
+        return await this.handleExitIfScore(step);
+
+      case 'wait_turn':
+        return await this.handleWaitTurn(step);
+
+      case 'repeat':
+        return await this.handleRepeat(step, runNumber);
+
+      case 'auto':
+        return await this.handleAuto(step);
+
+      case 'guard':
+        return await this.handleGuard(step);
+
+      case 'navigate':
+        if (step.target) {
+          await this.page.evaluate((url: string) => { window.location.href = url; }, step.target).catch(() => null);
+        }
+        return true;
+
+      case 'click':
+        return await this.handleClick(step);
+
+      case 'touch_tap':
+        if (step.x !== undefined && step.y !== undefined) {
+          await this.page.touchscreen.tap(step.x, step.y).catch(() => null);
+          await this.page.mouse.click(step.x, step.y).catch(() => null);
+        }
+        return true;
+
+      case 'wait':
+        {
+          const waitMs = step.ms || step.delayAfterMs || 500;
+          await new Promise(r => setTimeout(r, waitMs));
+        }
+        return true;
+
+      case 'wait_random':
+      case 'wait_randomize':
+        {
+          const min = step.minMs || 300;
+          const max = step.maxMs || 800;
+          const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+          await new Promise(r => setTimeout(r, delay));
+        }
+        return true;
+
+      case 'wait_network':
+        if (step.waitForNetwork) {
+          await this.waitForNetworkResponse(step.waitForNetwork, step.timeoutMs || 5000);
+        }
+        return true;
+
+      case 'wait_element':
+        if (step.target) {
+          await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 5000 }).catch(() => null);
+        }
+        return true;
+
+      case 'eval':
+        if (step.script) {
+          await this.page.evaluate((js: string) => {
+            try { return (window as any).eval(js); } catch { return null; }
+          }, step.script).catch(() => null);
+        }
+        return true;
+
+      case 'confirm_result':
+        return await this.handleConfirmResult();
+
+      case 'loop_while':
+        return await this.handleLoopWhile(step, runNumber);
+
+      case 'loop_until':
+        return await this.handleLoopUntil(step, runNumber);
+
+      case 'skip_story_scene':
+        return await this.handleSkipStoryScene(step);
+
+      case 'pro_skip_favorites':
+        return await this.handleProSkipFavorites(step);
+
+      case 'dismiss_popups':
+        return await this.handleDismissPopups(step);
+
+      case 'do_until_finish':
+      case 'run_daily_target':
+        return await this.handleDoUntilFinish(step, runNumber);
+
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * Executes a loop_while block of subSteps while selector exists and is visible.
+   */
+  private async handleLoopWhile(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    const selector = step.target || step.conditionElement;
+    if (!selector || !step.subSteps || step.subSteps.length === 0) return true;
+    const maxLoops = step.maxLoops || 50;
+
+    console.log(`[Workflow] 🔄 Starting loop_while: "${selector}" (max loops: ${maxLoops})...`);
+
+    for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
+      if (this.stopRequested) return false;
+      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
+
+      // Check if element exists and is visible on page (with initial settle window for AJAX mounting)
+      let exists = false;
+      const waitLimit = loopIdx === 0 ? 3500 : 600;
+      const tCheckStart = Date.now();
+      while (Date.now() - tCheckStart < waitLimit) {
+        exists = await this.page.evaluate((sel: string) => {
+          const el = document.querySelector(sel) as HTMLElement;
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        }, selector).catch(() => false);
+
+        if (exists) break;
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      if (!exists) {
+        console.log(`[Workflow] ⏹️ loop_while condition met: element "${selector}" no longer present/visible. Loop completed at cycle ${loopIdx}.`);
+        break;
+      }
+
+      console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Target "${selector}" active. Executing sub-steps...`);
+
+      for (let s = 0; s < step.subSteps.length; s++) {
+        const sub = step.subSteps[s];
+        const ok = await this.executeSingleStep(sub, s + 1, runNumber);
+        if (!ok && !sub.optional) {
+          console.warn(`[Workflow] Sub-step ${s + 1} (${sub.code}) failed inside loop_while.`);
+          return false;
+        }
+      }
+
+      await logNormalDelay(300, 0.15);
+    }
+
+    return true;
+  }
+
+  /**
+   * Executes a loop_until block of subSteps until selector appears and is visible.
+   */
+  private async handleLoopUntil(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    const selector = step.target || step.conditionElement;
+    if (!selector || !step.subSteps || step.subSteps.length === 0) return true;
+    const maxLoops = step.maxLoops || 50;
+
+    console.log(`[Workflow] 🔄 Starting loop_until: "${selector}" (max loops: ${maxLoops})...`);
+
+    for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
+      if (this.stopRequested) return false;
+      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
+
+      const exists = await this.page.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement;
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      }, selector).catch(() => false);
+
+      if (exists) {
+        console.log(`[Workflow] ⏹️ loop_until target "${selector}" reached. Exiting loop at cycle ${loopIdx}.`);
+        break;
+      }
+
+      console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Target not yet met. Executing sub-steps...`);
+
+      for (let s = 0; s < step.subSteps.length; s++) {
+        const sub = step.subSteps[s];
+        const ok = await this.executeSingleStep(sub, s + 1, runNumber);
+        if (!ok && !sub.optional) {
+          return false;
+        }
+      }
+
+      await logNormalDelay(300, 0.15);
+    }
+
+    return true;
+  }
+
+  /**
+   * Fast-skips story dialogues, scene cutscenes, dialogue selections, and confirms dialog skips.
+   */
+  private async handleSkipStoryScene(step: WorkflowStep): Promise<boolean> {
+    const timeoutMs = step.timeoutMs || 10000;
+    console.log(`[Workflow] 📖 Fast-skipping story scene (timeout: ${timeoutMs}ms)...`);
+    const tStart = Date.now();
+
+    while (Date.now() - tStart < timeoutMs) {
+      if (this.stopRequested) return false;
+      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
+
+      // Check if scene has already concluded (redirected to result, supporter, or list)
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('result') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#raid')) {
+        break;
+      }
+
+      // Check and execute scene progression actions
+      const actionTaken = await this.page.evaluate(() => {
+        const $ = (window as any).$ || (window as any).Zepto;
+
+        // 1. Skip confirmation popup: ".pop-skip .btn-usual-ok", ".btn-skip-ok", ".btn-scene-skip"
+        const skipOkBtn = document.querySelector('.pop-skip .btn-usual-ok, .btn-skip-ok, .pop-skip .btn-skip-confirm, .pop-usual .btn-usual-ok, .btn-scene-skip, .pop-synopsis .btn-scene-skip, .pop-usual .btn-scene-skip') as HTMLElement;
+        if (skipOkBtn && skipOkBtn.offsetParent !== null) {
+          if ($) $(skipOkBtn).trigger('tap');
+          skipOkBtn.click();
+          return 'confirmed_skip_modal';
+        }
+
+        // 2. Story scene SKIP button: ".btn-skip", ".prt-scene-setting .btn-skip", "[data-action='skip']"
+        const skipBtn = document.querySelector('.btn-skip:not(.btn-scene-skip), .prt-scene-setting .btn-skip, [data-action="skip"]') as HTMLElement;
+        if (skipBtn && skipBtn.offsetParent !== null) {
+          if ($) $(skipBtn).trigger('tap');
+          skipBtn.click();
+          return 'clicked_skip_button';
+        }
+
+        // 3. Dialogue choice inside story: ".prt-selection .btn-selection", ".btn-command"
+        const choiceBtn = document.querySelector('.prt-selection .btn-selection, .btn-selection, .prt-balloon .btn-usual-ok') as HTMLElement;
+        if (choiceBtn && choiceBtn.offsetParent !== null) {
+          if ($) $(choiceBtn).trigger('tap');
+          choiceBtn.click();
+          return 'selected_choice';
+        }
+
+        // 4. Scene canvas or stage active: tap to awaken HUD
+        const sceneCanvas = document.querySelector('canvas#canvas, canvas#cjs-canvas, .prt-scene-comment, .cnt-quest-scene') as HTMLElement;
+        if (sceneCanvas && sceneCanvas.offsetParent !== null) {
+          return 'canvas_ready';
+        }
+
+        return null;
+      });
+
+      if (actionTaken === 'confirmed_skip_modal') {
+        console.log('[Workflow] Confirmed story skip dialog.');
+        await logNormalDelay(600, 0.2);
+        break;
+      } else if (actionTaken === 'clicked_skip_button') {
+        console.log('[Workflow] Clicked story Skip button.');
+        await logNormalDelay(400, 0.2);
+        continue;
+      } else if (actionTaken === 'selected_choice') {
+        console.log('[Workflow] Selected story dialogue option.');
+        await logNormalDelay(350, 0.15);
+        continue;
+      } else if (actionTaken === 'canvas_ready') {
+        // Tap screen to display HUD / skip button
+        await this.page.touchscreen.tap(240, 360).catch(() => null);
+        await logNormalDelay(350, 0.2);
+      } else {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
+    // Dismiss any post-scene reward dialogues (crystals, EXP, unlocked skills)
+    await this.handleDismissPopups(step);
+    return true;
+  }
+
+  /**
+   * Executes all pinned Favorite Pro Skips via ProSkipEngine with full hybrid/DOM and AP handling.
+   */
+  private async handleProSkipFavorites(step: WorkflowStep): Promise<boolean> {
+    console.log(`[Workflow] ⚡ Running Daily Favorites Pro Skips via ProSkipEngine...`);
+    const autoReplenish = this.template.autoElixir !== false;
+    const proSkipEngine = new ProSkipEngine(this.page, this.sentinel);
+    const results = await proSkipEngine.runFavoritesProSkips(autoReplenish);
+
+    let clearedCount = 0;
+    for (const r of results) {
+      if (r.status === 'SUCCESS' || r.status === 'ALREADY_CLEARED') {
+        clearedCount++;
+      }
+    }
+    console.log(`[Workflow] 🏁 Daily Favorites complete: ${clearedCount}/${results.length} pro skips processed.`);
+    return true;
+  }
+
+  /**
+   * Dismisses all active popups, result overlays, error notifications, and modals.
+   */
+  private async handleDismissPopups(step?: WorkflowStep): Promise<boolean> {
+    const maxIterations = 5;
+    for (let i = 0; i < maxIterations; i++) {
+      const dismissed = await this.page.evaluate(() => {
+        const selectors = [
+          '.pop-usual .btn-usual-ok',
+          '.pop-usual .btn-usual-cancel',
+          '.pop-usual .btn-usual-close',
+          '.pop-level-up .btn-usual-ok',
+          '.common-pop-error .btn-usual-ok',
+          '.common-pop-error .btn-usual-close',
+          '.js-pop-skyscope-achieved .btn-usual-close',
+          '.btn-result-close',
+          '.btn-usual-close',
+          '.prt-popup-footer .btn-usual-ok',
+          '.prt-popup-footer .btn-usual-close',
+          '.prt-popup-header .btn-usual-close',
+          '.pop-synopsis.pop-show .btn-usual-ok',
+          '.pop-synopsis.pop-show .btn-usual-cancel'
+        ];
+
+        for (const sel of selectors) {
+          const els = Array.from(document.querySelectorAll(sel));
+          for (const el of els) {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden') {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(el).trigger('tap');
+              (el as HTMLElement).click();
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      if (!dismissed) break;
+      await logNormalDelay(250, 0.15);
+    }
+    return true;
+  }
+
+  /**
+   * Retrieves a task definition from data/index.json dailyCatalog by tag or id.
+   */
+  private getDailyCatalogTask(tagOrId: string): any | null {
+    try {
+      if (!this.dailyCatalogCache) {
+        const catalogPath = path.resolve(process.cwd(), 'data', 'index.json');
+        if (fs.existsSync(catalogPath)) {
+          const raw = JSON.parse(fs.readFileSync(catalogPath, 'utf-8'));
+          this.dailyCatalogCache = raw.dailyCatalog?.tasks || [];
+        } else {
+          this.dailyCatalogCache = [];
+        }
+      }
+      return (this.dailyCatalogCache || []).find((t: any) => t.tag === tagOrId || t.id === tagOrId) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Navigates to target page or hash if not already active.
+   */
+  private async navigateIfNeeded(targetUrl: string): Promise<void> {
+    const currentUrl = this.page.url();
+    const hash = targetUrl.includes('#') ? targetUrl.substring(targetUrl.indexOf('#')) : null;
+
+    if (hash && currentUrl.includes(hash)) {
+      return;
+    }
+
+    console.log(`[Workflow] 🧭 Navigating to: ${targetUrl}...`);
+    await this.page.evaluate((dest: string) => {
+      if (dest.startsWith('#')) {
+        window.location.hash = dest;
+      } else if (dest.includes('#')) {
+        const h = dest.substring(dest.indexOf('#'));
+        window.location.hash = h;
+      } else {
+        window.location.href = dest;
+      }
+    }, targetUrl).catch(() => null);
+
+    await this.sentinel.assertSafe();
+    await logNormalDelay(600, 0.2);
+    await this.handleDismissPopups();
+  }
+
+  /**
+   * Evaluates whether a target element or quest is finished today.
+   */
+  private async evaluateTargetFinished(selector: string): Promise<boolean> {
+    return await this.page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLElement;
+      if (!el) {
+        return false;
+      }
+
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      const isVisible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+
+      const classes = el.className || '';
+      const text = (el.innerText || '').trim();
+      const limitedCount = el.getAttribute('data-limited_count');
+      const isCleared = el.getAttribute('data-cleared');
+      const exchangeLimit = el.getAttribute('data-exchange-limit');
+
+      // 1. Explicit GBF zero-remaining attributes
+      if (limitedCount === '0' || isCleared === '1' || exchangeLimit === '0') return true;
+
+      // 2. Element disabled classes
+      if (classes.includes('is-completed') || classes.includes('btn-disable') || classes.includes('btn-cleared')) return true;
+      if (classes.includes('disable') && !classes.includes('btn-enable')) return true;
+
+      // 3. Text patterns indicating completion
+      if (/\b0\s*\/\s*\d+/.test(text)) return true;
+      if (/completed|finished|達成済み|本日分終了|残り\s*0\s*個|0\s*left/i.test(text)) return true;
+
+      // 4. Button disabled attribute
+      if ((el as HTMLButtonElement).disabled) return true;
+
+      return false;
+    }, selector).catch(() => false);
+  }
+
+  /**
+   * Handles AP recovery modal if present, consuming Half-Elixir if autoElixir is permitted.
+   */
+  private async handleApRecoveryModal(): Promise<boolean> {
+    const recoveryNeeded = await this.page.evaluate(() => {
+      const modal = document.querySelector('.pop-usual .btn-use-item, .pop-show .btn-use-item, .btn-use-item');
+      return !!modal;
+    }).catch(() => false);
+
+    if (!recoveryNeeded) return false;
+
+    if (this.template.autoElixir === false) {
+      console.warn('[Workflow] AP recovery modal detected, but autoElixir is disabled.');
+      await this.page.evaluate(() => {
+        const cancelBtn = document.querySelector('.pop-usual .btn-usual-cancel, .pop-show .btn-usual-cancel') as HTMLElement;
+        if (cancelBtn) cancelBtn.click();
+      }).catch(() => null);
+      return false;
+    }
+
+    console.log('[Workflow] 🧪 AP recovery needed. Consuming Half-Elixir...');
+    await this.page.evaluate(() => {
+      const useBtn = document.querySelector('.pop-usual .btn-use-item, .pop-show .btn-use-item, .btn-use-item') as HTMLElement;
+      if (useBtn) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(useBtn).trigger('tap');
+        useBtn.click();
+      }
+    }).catch(() => null);
+
+    await logNormalDelay(400, 0.15);
+
+    // Confirm item usage
+    await this.page.evaluate(() => {
+      const okBtn = document.querySelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok') as HTMLElement;
+      if (okBtn) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(okBtn).trigger('tap');
+        okBtn.click();
+      }
+    }).catch(() => null);
+
+    await logNormalDelay(400, 0.15);
+    await this.sentinel.assertSafe();
+    return true;
+  }
+
+  /**
+   * Ensures the Cygames Pro Quest List modal (.pop-pro-quest-list) is open on #quest/extra.
+   */
+  private async ensureProListModalOpen(): Promise<boolean> {
+    const isAlreadyOpen = await this.page.evaluate(() => {
+      const modal = document.querySelector('.pop-pro-quest-list.pop-show') as HTMLElement;
+      return !!(modal && modal.offsetParent !== null && window.getComputedStyle(modal).display !== 'none');
+    }).catch(() => false);
+
+    if (isAlreadyOpen) return true;
+
+    // Await pro button on #quest/extra or #quest if page is still rendering
+    await this.page.waitForSelector('.btn-pro-list, .btn-pro-quest, #js-pro-list-button .btn-pro-list, .prt-pro-list-wrapper .btn-pro-list, [data-location-id="pro_quest"]', { visible: true, timeout: 3500 }).catch(() => null);
+
+    // Look for .btn-pro-list on #quest/extra or #quest
+    const opened = await this.page.evaluate(() => {
+      const btn = document.querySelector('.btn-pro-list, .btn-pro-quest, #js-pro-list-button .btn-pro-list, .prt-pro-list-wrapper .btn-pro-list, [data-location-id="pro_quest"]') as HTMLElement;
+      if (btn) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(btn).trigger('tap');
+        btn.click();
+        return true;
+      }
+      return false;
+    }).catch(() => false);
+
+    if (!opened) {
+      return false;
+    }
+
+    // Await modal appearance
+    await this.page.waitForSelector('.pop-pro-quest-list.pop-show', { visible: true, timeout: 5000 }).catch(() => null);
+    await logNormalDelay(400, 0.15);
+    return true;
+  }
+
+  /**
+   * Closes the Pro Quest List modal if it is currently open.
+   */
+  private async closeProListModalIfOpen(): Promise<void> {
+    await this.page.evaluate(() => {
+      const closeBtn = document.querySelector('.pop-pro-quest-list .btn-usual-close') as HTMLElement;
+      if (closeBtn) closeBtn.click();
+    }).catch(() => null);
+    await logNormalDelay(250, 0.1);
+  }
+
+  /**
+   * Automated Pro Skip execution targeting specific catalog item or selector.
+   * Handles opening the Cygames Pro Quest List modal (.pop-pro-quest-list), switching
+   * tabs (normal, high, extra), checking completion (0/N), AP replenishment, supporter start,
+   * and result dismissal.
+   */
+  private async executeAutomatedProSkip(task: any, selector?: string): Promise<boolean> {
+    const qId = task?.questId;
+    const chId = task?.chapterId;
+    const proChId = task?.proChapterId;
+    const qName = task?.name || qId || 'Pro Skip';
+    console.log(`[Workflow] ⚡ Checking Pro Skip: "${qName}"...`);
+
+    const currentUrl = this.page.url();
+    const isQuestExtra = currentUrl.includes('#quest/extra');
+
+    if (isQuestExtra) {
+      // 1. Open Pro List modal if not open
+      const modalReady = await this.ensureProListModalOpen();
+      if (!modalReady) {
+        console.warn(`[Workflow] Could not open Pro Quest List modal on #quest/extra`);
+        return false;
+      }
+
+      // 2. Find quest button across tabs (normal, high, extra) and trigger skip click
+      const itemState = await this.page.evaluate(async (questId, chapterId, questName, proChapterId) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        const tabs = Array.from(document.querySelectorAll('.pop-pro-quest-list .btn-quest-type')) as HTMLElement[];
+        const numTabs = tabs.length > 0 ? tabs.length : 1;
+
+        const matchBanner = () => {
+          const activeStage = document.querySelector('.pop-pro-quest-list .prt-stage-quest.active') ||
+                              document.querySelector('.pop-pro-quest-list .prt-stage-quest');
+          const banners = Array.from((activeStage || document).querySelectorAll('.prt-quest-banner')) as HTMLElement[];
+          for (const b of banners) {
+            const bQuestId = b.getAttribute('data-quest-id');
+            const btn = b.querySelector('.btn-set-quest') as HTMLElement;
+            const bChapterId = btn?.getAttribute('data-chapter-id');
+            const bProChapterId = btn?.getAttribute('data-pro-chapter-id') || b.getAttribute('data-pro-chapter-id');
+            const bName = (b.getAttribute('data-chapter-name') || b.querySelector('.txt-quest-name')?.textContent || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const qLower = (questName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            const isMatch = (questId && bQuestId === questId) ||
+                            (chapterId && bChapterId === chapterId) ||
+                            (proChapterId && bProChapterId === proChapterId) ||
+                            (qLower && (bName.includes(qLower) || qLower.includes(bName))) ||
+                            (questId === '305321' && (bName.includes('atum') || bName.includes('ennead')));
+
+            if (isMatch) {
+              return { banner: b, btn };
+            }
+          }
+          return null;
+        };
+
+        for (let t = 0; t < numTabs; t++) {
+          if (tabs[t]) {
+            if ($) $(tabs[t]).trigger('tap');
+            tabs[t].click();
+            await new Promise(r => setTimeout(r, 350));
+          }
+
+          const matched = matchBanner();
+          if (matched) {
+            const { banner, btn } = matched;
+            const isLocked = !!banner.querySelector('.ico-lock, .prt-lock, .btn-lock') ||
+                             banner.classList.contains('is-locked') ||
+                             banner.classList.contains('lock') ||
+                             btn?.classList.contains('btn-lock') ||
+                             banner.getAttribute('data-is-lock') === '1';
+
+            const limited = btn?.getAttribute('data-limited_count');
+            const isCleared = banner.classList.contains('onm-mask') ||
+                              !!banner.querySelector('.ico-cleared, .prt-cleared') ||
+                              (btn?.classList.contains('disable') && !isLocked) ||
+                              btn?.classList.contains('has-error') ||
+                              btn?.classList.contains('is-completed') ||
+                              limited === '0';
+
+            let clicked = false;
+            if (!isLocked && !isCleared && btn) {
+              if ($) $(btn).trigger('tap');
+              btn.click();
+              clicked = true;
+            }
+
+            return {
+              found: true,
+              isLocked,
+              isCleared,
+              clicked
+            };
+          }
+        }
+
+        return { found: false, isLocked: false, isCleared: false, clicked: false };
+      }, qId, chId, qName, proChId);
+
+      if (!itemState.found) {
+        console.warn(`[Workflow] ⚠️ Quest "${qName}" (ID: ${qId}) not found in Pro Quest List modal.`);
+        await this.closeProListModalIfOpen();
+        return true;
+      }
+
+      if (itemState.isCleared) {
+        console.log(`[Workflow] ✅ "${qName}" is already cleared today.`);
+        await this.closeProListModalIfOpen();
+        return true;
+      }
+
+      if (itemState.isLocked) {
+        console.warn(`[Workflow] ⚠️ "${qName}" is locked (prerequisites not met on this account). Skipping...`);
+        await this.closeProListModalIfOpen();
+        return true;
+      }
+
+      if (!itemState.clicked) {
+        console.warn(`[Workflow] Quest button for "${qName}" was not clickable. Skipping...`);
+        await this.closeProListModalIfOpen();
+        return true;
+      }
+
+      await logNormalDelay(500, 0.15);
+      await this.sentinel.assertSafe();
+
+      // 4. Handle Phase 1 confirmation modal (.pop-pro-quest-skip)
+      const confirmOk = await this.page.waitForSelector('.pop-pro-quest-skip .btn-usual-ok, .pop-usual .btn-usual-ok', { visible: true, timeout: 6000 }).catch(() => null);
+      if (confirmOk) {
+        console.log(`[Workflow] Confirming skip dialog for "${qName}"...`);
+        await this.page.evaluate(() => {
+          const okBtn = document.querySelector('.pop-pro-quest-skip .btn-usual-ok, .pop-usual .btn-usual-ok') as HTMLElement;
+          if (okBtn) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(okBtn).trigger('tap');
+            okBtn.click();
+          }
+        });
+        await logNormalDelay(500, 0.15);
+      }
+
+      // 5. Check AP recovery modal
+      await this.handleApRecoveryModal();
+
+      // 6. Handle Phase 2 supporter screen (.se-quest-start)
+      const startOk = await this.page.waitForSelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok[data-type-id="28"]', { visible: true, timeout: 8000 }).catch(() => null);
+      if (startOk) {
+        console.log(`[Workflow] Confirming final skip start on supporter screen (.se-quest-start)...`);
+        await this.page.evaluate(() => {
+          const startBtn = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok[data-type-id="28"]') as HTMLElement;
+          if (startBtn) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(startBtn).trigger('tap');
+            startBtn.click();
+          }
+        });
+      }
+
+      // 7. Await result resolution (#result_pro_quest_skip)
+      console.log(`[Workflow] Awaiting result for "${qName}"...`);
+      await this.page.waitForFunction(() => {
+        return window.location.hash.includes('result_pro_quest_skip') ||
+               !!document.querySelector('.pop-exp, .prt-result-head');
+      }, { timeout: 12000 }).catch(() => null);
+
+      console.log(`[Workflow] 🎉 "${qName}" Pro Skip successfully cleared!`);
+      await logNormalDelay(800, 0.2);
+
+      // 8. Dismiss reward popups
+      await this.handleDismissPopups();
+
+      // 9. Safely return to #quest/extra for the next pro skip
+      await this.navigateIfNeeded('https://game.granbluefantasy.jp/#quest/extra');
+      return true;
+    }
+
+    // Fallback: If on #quest favorites list
+    const favState = await this.page.evaluate((questId, chapterId, questName) => {
+      const cards = Array.from(document.querySelectorAll('.prt-noindex-list .prt-list-contents, .cnt-quest .prt-list-contents'));
+      for (const c of cards) {
+        const proEl = c.querySelector('[data-pro-quest-skip="true"]') || (c.getAttribute('data-pro-quest-skip') === 'true' ? c : null);
+        if (!proEl) continue;
+        const qId = proEl.getAttribute('data-quest-id') || c.getAttribute('data-quest-id');
+        const chId = proEl.getAttribute('data-pro-chapter-id') || c.getAttribute('data-pro-chapter-id');
+        const name = c.getAttribute('data-quest-name') || proEl.getAttribute('data-quest-name') || c.querySelector('.txt-quest-title')?.textContent?.trim();
+
+        if ((questId && qId === questId) || (chapterId && chId === chapterId) || (questName && name?.includes(questName))) {
+          const limited = proEl.getAttribute('data-limited_count') || c.getAttribute('data-limited_count');
+          return {
+            found: true,
+            isCleared: limited === '0' || c.classList.contains('is-completed') || c.classList.contains('disable')
+          };
+        }
+      }
+      return { found: false, isCleared: false };
+    }, qId, chId, qName);
+
+    if (favState.found && favState.isCleared) {
+      console.log(`[Workflow] ✅ "${qName}" is already cleared in Favorites.`);
+      return true;
+    }
+
+    // Default DOM click fallback
+    const sel = selector || task?.selector || '.btn-pro-skip';
+    return await this.executeGenericClickUntilFinish(sel);
+  }
+
+  /**
+   * Automated 100-Draw Rupie Gacha execution.
+   * Handles:
+   * 1. Navigation directly to #gacha/normal
+   * 2. Finding and clicking the 100-Draw button (.btn-lupi.multi[data-count="100"])
+   * 3. Confirming expenditure modal (.btn-usual-ok)
+   * 4. Fast-forwarding animation and dismissing result screen
+   */
+  private async executeAutomatedRupieGacha(task: any, selector?: string): Promise<boolean> {
+    console.log('[Workflow] 🎁 Checking Daily 100-Draw Rupie Gacha...');
+
+    // 1. Ensure navigation directly to #gacha/normal
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes('#gacha/normal') && !currentUrl.includes('gacha/normal')) {
+      console.log('[Workflow] 🧭 Navigating to #gacha/normal...');
+      await this.page.evaluate(() => {
+        window.location.hash = '#gacha/normal';
+      });
+      await logNormalDelay(1500, 0.2);
+    }
+
+    // Wait for the gacha container or .btn-lupi to appear
+    await this.page.waitForSelector('.btn-lupi, [class*="btn-lupi"], .cnt-gacha, #gacha', { timeout: 8000 }).catch(() => null);
+    await logNormalDelay(600, 0.15);
+
+    // 2. Evaluate draw state on #gacha/normal
+    const drawState = await this.page.evaluate((userSel?: string) => {
+      const $ = (window as any).$ || (window as any).Zepto;
+
+      // Check global completion text first
+      const bodyText = document.body.innerText || '';
+      if (bodyText.includes('本日分終了') || bodyText.includes('0/100') || bodyText.includes('100/100') || /0\s*left|Limit Reached/i.test(bodyText)) {
+        return { status: 'already_drawn', reason: 'completion_text' };
+      }
+
+      // Locate the 100-Draw button:
+      // Exact element: <div class="btn-lupi multi free" data-id="6002" data-count="100">
+      let btn100 = (
+        document.querySelector('.btn-lupi[data-count="100"]') ||
+        document.querySelector('.btn-lupi.multi') ||
+        document.querySelector('.btn-lupi[data-id="6002"]') ||
+        document.querySelector('.btn-lupi.free') ||
+        document.querySelector('.btn-lupi') ||
+        (userSel ? document.querySelector(userSel) : null) ||
+        document.querySelector('.btn-draw-100, .btn-multi-draw, .btn-draw')
+      ) as HTMLElement;
+
+      if (!btn100) {
+        // Fallback: search by text for 100 draws
+        const candidates = Array.from(document.querySelectorAll('.btn-draw, [class*="btn"], div, a')) as HTMLElement[];
+        for (const c of candidates) {
+          const t = (c.innerText || '').trim();
+          if (
+            t.includes('100回引く') ||
+            t.includes('100連') ||
+            t.includes('100回') ||
+            t.includes('まとめて引く') ||
+            t.includes('Draw 100') ||
+            t.includes('100 Draws') ||
+            t.includes('Draw Max')
+          ) {
+            btn100 = c;
+            break;
+          }
+        }
+      }
+
+      if (!btn100) {
+        return { status: 'not_found', reason: 'btn_lupi_missing' };
+      }
+
+      // Check if button is disabled or 0 remaining
+      const classes = btn100.className || '';
+      const count = btn100.getAttribute('data-count');
+      const countZeroEl = btn100.querySelector('.txt-gacha-count .count-0');
+      const countOneEl = btn100.querySelector('.txt-gacha-count .count-1');
+      const btnText = btn100.innerText || '';
+
+      if (
+        classes.includes('disable') ||
+        classes.includes('is-completed') ||
+        classes.includes('btn-disable') ||
+        (btn100 as HTMLButtonElement).disabled ||
+        count === '0' ||
+        (countZeroEl && !countOneEl && !count) ||
+        btnText.includes('本日分終了') ||
+        btnText.includes('0/100')
+      ) {
+        return { status: 'already_drawn', reason: 'button_disabled_or_zero_count' };
+      }
+
+      // Scroll into view if needed
+      btn100.scrollIntoView({ behavior: 'instant', block: 'center' });
+
+      // Click button
+      if ($) $(btn100).trigger('tap');
+      btn100.click();
+      return { status: 'clicked', label: btnText || '100-Draw Rupie (.btn-lupi)' };
+    }, selector);
+
+    console.log(`[Workflow] Rupie Draw evaluation: ${JSON.stringify(drawState)}`);
+
+    if (drawState.status === 'already_drawn') {
+      console.log(`[Workflow] ✅ Rupie Gacha already drawn today (${drawState.reason}).`);
+      return true;
+    }
+
+    if (drawState.status === 'not_found') {
+      console.warn(`[Workflow] ⚠️ Could not find .btn-lupi on #gacha/normal. Retrying on next loop...`);
+      return false;
+    }
+
+    if (drawState.status === 'clicked') {
+      console.log(`[Workflow] Clicked Rupie 100-Draw. Confirming modal...`);
+      await logNormalDelay(800, 0.15);
+
+      // Confirm modal (e.g. pop-usual, pop-show)
+      const confirmOk = await this.page.waitForSelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-settle, .btn-ok', { visible: true, timeout: 5000 }).catch(() => null);
+      if (confirmOk) {
+        await this.page.evaluate(() => {
+          const okBtn = document.querySelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-settle, .btn-ok') as HTMLElement;
+          if (okBtn) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(okBtn).trigger('tap');
+            okBtn.click();
+          }
+        });
+      }
+
+      // Wait for gacha result screen or animation
+      await logNormalDelay(1500, 0.2);
+
+      // Fast-forward / skip animation by clicking on the canvas/stage if present
+      await this.page.evaluate(() => {
+        const stage = document.querySelector('#stage, canvas, .cnt-gacha') as HTMLElement;
+        if (stage) stage.click();
+      }).catch(() => null);
+
+      await logNormalDelay(1000, 0.2);
+
+      // Wait for gacha result screen / close button
+      await this.page.waitForFunction(() => {
+        const hash = window.location.hash || '';
+        return hash.includes('result') || !!document.querySelector('.prt-result, .pop-gacha-result, .btn-result-close, .btn-usual-ok');
+      }, { timeout: 12000 }).catch(() => null);
+
+      console.log('[Workflow] 🎉 Rupie 100-Draw successfully completed!');
+      await logNormalDelay(800, 0.2);
+      await this.handleDismissPopups();
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Automated Skyscope Daily Missions claim execution.
+   */
+  private async executeAutomatedSkyscopeMission(task: any, selector?: string): Promise<boolean> {
+    console.log('[Workflow] 🎯 Checking Skyscope Daily Missions...');
+    await logNormalDelay(600, 0.15);
+
+    const claimSelector = selector || '.btn-claim-all, .btn-receive-all, .prt-mission-complete .btn-receive-all, [data-action="claim-all"], .btn-all-receive';
+    const claimState = await this.page.evaluate((sel: string) => {
+      const btn = document.querySelector(sel) as HTMLElement;
+      if (!btn || btn.offsetParent === null) return 'none_claimable';
+      const classes = btn.className || '';
+      if (classes.includes('disable')) return 'none_claimable';
+      const $ = (window as any).$ || (window as any).Zepto;
+      if ($) $(btn).trigger('tap');
+      btn.click();
+      return 'claimed';
+    }, claimSelector).catch(() => 'error');
+
+    if (claimState === 'none_claimable' || claimState === 'error') {
+      console.log('[Workflow] ✅ No unclaimed Skyscope missions pending.');
+      return true;
+    }
+
+    if (claimState === 'claimed') {
+      console.log('[Workflow] Claimed pending Skyscope missions. Dismissing rewards...');
+      await logNormalDelay(600, 0.2);
+      await this.handleDismissPopups();
+      return true;
+    }
+
+    return true;
+  }
+
+  /**
+   * Automated Casino daily item exchange execution.
+   * Exchanges Half-Elixirs and Soul Berries up to daily cap.
+   */
+  private async executeAutomatedCasinoExchange(task: any, selector?: string): Promise<boolean> {
+    console.log('[Workflow] 🎰 Checking Casino Daily Recovery Items Exchange...');
+
+    // 1. Ensure navigation to #casino/exchange
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes('casino/exchange')) {
+      await this.navigateIfNeeded('https://game.granbluefantasy.jp/#casino/exchange');
+      await logNormalDelay(1500, 0.2);
+    }
+
+    // 2. Check and exchange available daily items (Half-Elixir, Soul Berry)
+    const exchangeResult = await this.page.evaluate(() => {
+      const $ = (window as any).$ || (window as any).Zepto;
+      const items = Array.from(document.querySelectorAll('.prt-item, .prt-exchange-item, .prt-trade-item, .lis-item'));
+
+      for (const item of items) {
+        const text = (item.textContent || '').trim();
+        const isTarget = text.includes('Half Elixir') || text.includes('Soul Berry') ||
+                         text.includes('エリクシールハーフ') || text.includes('ソウルシード');
+        if (!isTarget) continue;
+
+        const btn = item.querySelector('.btn-exchange, .btn-trade, [data-action="exchange"]') as HTMLElement;
+        if (!btn || btn.offsetParent === null) continue;
+
+        const isDisabled = btn.classList.contains('disable') || text.includes('0 left') || text.includes('残り0') || text.includes('0/100');
+        if (!isDisabled) {
+          if ($) $(btn).trigger('tap');
+          btn.click();
+          return { itemFound: true, itemName: text.includes('Elixir') || text.includes('エリクシール') ? 'Half-Elixir' : 'Soul Berry' };
+        }
+      }
+
+      return { itemFound: false, itemName: '' };
+    }).catch(() => ({ itemFound: false, itemName: '' }));
+
+    if (!exchangeResult.itemFound) {
+      console.log('[Workflow] ✅ Casino daily exchanges already completed (0 stock remaining).');
+      return true; // All items fully exchanged
+    }
+
+    console.log(`[Workflow] Exchanging daily stock for "${exchangeResult.itemName}"...`);
+    await logNormalDelay(600, 0.15);
+
+    // Max quantity slider / button
+    await this.page.evaluate(() => {
+      const maxBtn = document.querySelector('.btn-max, .btn-use-max, .btn-trade-max') as HTMLElement;
+      if (maxBtn) maxBtn.click();
+    }).catch(() => null);
+    await logNormalDelay(400, 0.1);
+
+    // Click confirm / OK
+    await this.page.evaluate(() => {
+      const okBtn = document.querySelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-settle') as HTMLElement;
+      if (okBtn) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(okBtn).trigger('tap');
+        okBtn.click();
+      }
+    }).catch(() => null);
+    await logNormalDelay(800, 0.2);
+
+    // Dismiss any success popups
+    await this.handleDismissPopups();
+
+    // Return false so next loop cycle exchanges remaining item (e.g. Soul Berry after Half-Elixir)
+    return false;
+  }
+
+  /**
+   * Generic fallback click and modal dismissal.
+   */
+  private async executeGenericClickUntilFinish(selector?: string): Promise<boolean> {
+    if (!selector) return true;
+    const clicked = await this.page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLElement;
+      if (el && el.offsetParent !== null) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(el).trigger('tap');
+        el.click();
+        return true;
+      }
+      return false;
+    }, selector).catch(() => false);
+
+    if (clicked) {
+      await logNormalDelay(400, 0.15);
+      await this.handleDismissPopups();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Universal Daily & Workflow Handler:
+   * Executes a task or sequence of subSteps repeatedly until completion criteria are fulfilled.
+   * Can resolve predefined data tags from data/index.json (e.g. daily_magna_pro, daily_rupie, daily_skyscope)
+   * or navigate to arbitrary pages and interact with selectors until finished (data-limited_count="0", .is-completed, disabled).
+   */
+  private async handleDoUntilFinish(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    const tag = step.tag || step.target;
+    const task = tag ? this.getDailyCatalogTask(tag) : null;
+
+    const taskName = task?.name || step.name || tag || step.target || 'Custom Daily Target';
+    const targetUrl = step.page || task?.pageUrl;
+    const targetSelector = step.target && step.target !== tag ? step.target : (task?.selector || step.target);
+    const maxLoops = step.maxLoops || 20;
+
+    console.log(`[Workflow] 🔄 Starting do_until_finish: "${taskName}" (max loops: ${maxLoops})...`);
+
+    // 1. Navigation if page specified and not already on it
+    if (targetUrl) {
+      await this.navigateIfNeeded(targetUrl);
+    }
+
+    // 2. Loop until finished
+    for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
+      if (this.stopRequested) return false;
+      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
+
+      // Check if target is completed (skip for automated routines as their handlers manage inspection internally)
+      const isAutomatedRoutine = task && ['pro_skip', 'gacha', 'mission', 'shop', 'casino'].includes(task.category);
+      if (targetSelector && !isAutomatedRoutine) {
+        const isFinished = await this.evaluateTargetFinished(targetSelector);
+        if (isFinished) {
+          console.log(`[Workflow] 🏁 do_until_finish: "${taskName}" is completed! (cycle ${loopIdx + 1})`);
+          await this.handleDismissPopups();
+          return true;
+        }
+      }
+
+      // If user provided explicit subSteps, execute them
+      if (step.subSteps && step.subSteps.length > 0) {
+        console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Executing ${step.subSteps.length} sub-steps for "${taskName}"...`);
+        for (let s = 0; s < step.subSteps.length; s++) {
+          const sub = step.subSteps[s];
+          const ok = await this.executeSingleStep(sub, s + 1, runNumber);
+          if (!ok && !sub.optional) {
+            console.warn(`[Workflow] Sub-step ${s + 1} (${sub.code}) failed inside do_until_finish.`);
+            return false;
+          }
+        }
+        await logNormalDelay(400, 0.15);
+        continue;
+      }
+
+      // If no subSteps provided, execute automated category routine
+      const category = task?.category || 'custom';
+      console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Executing built-in routine for category "${category}"...`);
+
+      let cycleSuccess = false;
+      if (category === 'pro_skip') {
+        cycleSuccess = await this.executeAutomatedProSkip(task, targetSelector);
+      } else if (category === 'gacha') {
+        cycleSuccess = await this.executeAutomatedRupieGacha(task, targetSelector);
+      } else if (category === 'mission') {
+        cycleSuccess = await this.executeAutomatedSkyscopeMission(task, targetSelector);
+      } else if (category === 'shop' || category === 'casino') {
+        cycleSuccess = await this.executeAutomatedCasinoExchange(task, targetSelector);
+      } else {
+        cycleSuccess = await this.executeGenericClickUntilFinish(targetSelector);
+      }
+
+      if (cycleSuccess) {
+        console.log(`[Workflow] 🏁 do_until_finish: "${taskName}" verified complete.`);
+        return true;
+      }
+
+      await logNormalDelay(500, 0.15);
+    }
+
+    console.log(`[Workflow] ⏹️ do_until_finish reached max loops (${maxLoops}) for "${taskName}".`);
+    await this.handleDismissPopups();
+    return true;
+  }
+
+  /**
+   * Executes a repeat block of subSteps.
+   */
+  private async handleRepeat(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    if (!step.subSteps || step.subSteps.length === 0) return true;
+    const count = step.repeatCount || 1;
+
+    for (let r = 0; r < count; r++) {
+      if (this.stopRequested) return false;
+      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
+
+      if (this.template.targetScore && this.currentScore >= this.template.targetScore) {
+        console.log(`[Repeat Block] Target score reached (${this.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Exiting repeat block.`);
+        return true;
+      }
+
+      if (await this.isBattleEnded()) {
+        console.log('[Repeat Block] Battle concluded during repeat loop. Exiting block.');
+        return true;
+      }
+
+      for (let s = 0; s < step.subSteps.length; s++) {
+        const sub = step.subSteps[s];
+        const ok = await this.executeSingleStep(sub, s + 1, runNumber);
+        if (!ok && !sub.optional) return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Evaluates early exit condition based on current honors.
+   */
+  private async handleExitIfScore(step: WorkflowStep): Promise<boolean> {
+    const threshold = step.targetScore || this.template.targetScore || 1480000;
+    if (this.currentScore >= threshold) {
+      console.log(`[Combat] Honor threshold met (${this.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat.`);
+      return true;
+    }
+    return true;
+  }
+
+  /**
+   * Waits until the combat turn counter reaches targetTurn.
+   */
+  private async handleWaitTurn(step: WorkflowStep): Promise<boolean> {
+    const targetTurn = step.condition?.value || 2;
+    const start = Date.now();
+    while (Date.now() - start < (step.timeoutMs || 10000)) {
+      if (this.stopRequested) return false;
+      if (await this.isBattleEnded()) return true;
+      if (this.currentTurn >= targetTurn) return true;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return false;
+  }
+
+  /**
+   * Selects an enemy target index (1, 2, or 3).
+   */
+  private async handleTargetEnemy(step: WorkflowStep): Promise<boolean> {
+    const enemyIdx = step.enemyIndex || 1;
+    const selector = `.lis-enemy[pos="${enemyIdx - 1}"], .btn-enemy-${enemyIdx}, .prt-targeting[pos="${enemyIdx - 1}"]`;
+
+    const enemyEl = await this.page.waitForSelector(selector, { visible: true, timeout: 3000 }).catch(() => null);
+    if (enemyEl) {
+      await humanizedClick(this.page, enemyEl);
+      await logNormalDelay(150, 0.1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Uses temporary potion (Green, Blue, or Elixir).
+   */
+  private async handleHeal(step: WorkflowStep): Promise<boolean> {
+    const pType = step.potionType || 'green';
+
+    // 1. Open temporary item tray
+    const tempTrayBtn = await this.page.$('.btn-temporary, .btn-item');
+    if (tempTrayBtn) {
+      await humanizedClick(this.page, tempTrayBtn);
+      await humanReactionDelay(120, 0.1);
+    }
+
+    // 2. Click potion item
+    const itemSelector = pType === 'green'
+      ? '.lis-item[item-id="1"], .btn-item-small'
+      : pType === 'blue'
+      ? '.lis-item[item-id="2"], .btn-item-all'
+      : '.lis-item[item-id="3"], .btn-item-elixir';
+
+    const potionBtn = await this.page.waitForSelector(itemSelector, { visible: true, timeout: 2500 }).catch(() => null);
+    if (potionBtn) {
+      await humanizedClick(this.page, potionBtn);
+      // 3. Confirm usage OK if present
+      const okBtn = await this.page.waitForSelector('.btn-usual-ok.btn-item-use, .btn-usual-ok.se-use', { visible: true, timeout: 1500 }).catch(() => null);
+      if (okBtn) await humanizedClick(this.page, okBtn);
+      await logNormalDelay(250, 0.1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Sends a backup request to everyone in multi-raids.
+   */
+  private async handleBackupRequest(): Promise<boolean> {
+    const assistBtn = await this.page.$('.btn-assist, .btn-request');
+    if (assistBtn) {
+      await humanizedClick(this.page, assistBtn);
+      await humanReactionDelay(150, 0.1);
+
+      const requestAllBtn = await this.page.waitForSelector('.btn-assist-all, .btn-usual-ok', { visible: true, timeout: 2000 }).catch(() => null);
+      if (requestAllBtn) {
+        await humanizedClick(this.page, requestAllBtn);
+        await logNormalDelay(200, 0.1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Closes any open character ability drawer, skill details popup, target selection, or lingering modals.
+   */
+  private async dismissCombatDrawersAndPopups(): Promise<boolean> {
+    try {
+      const dismissed = await this.page.evaluate(() => {
+        let acted = false;
+
+        // 1. Dismiss any open modal / popup dialog (.pop-usual, .prt-popup-header .btn-close, etc.)
+        const popBtns = Array.from(document.querySelectorAll(
+          '.pop-usual .btn-close, .pop-usual .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close, .btn-usual-close, .prt-popup-footer .btn-usual-ok'
+        )) as HTMLElement[];
+        for (const btn of popBtns) {
+          if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(btn).trigger('tap');
+            btn.click();
+            acted = true;
+          }
+        }
+
+        // 2. Close character ability drawer if open (Back button)
+        const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+        if (backBtn && backBtn.offsetParent !== null && window.getComputedStyle(backBtn).display !== 'none') {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(backBtn).trigger('tap');
+          backBtn.click();
+          acted = true;
+        }
+
+        // 3. Clear READY screen if present
+        const readyEl = document.querySelector('.prt-ready, #ready') as HTMLElement;
+        if (readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none') {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(readyEl).trigger('tap');
+          readyEl.click();
+          acted = true;
+        }
+
+        return acted;
+      });
+
+      // If canvas READY overlay is active, discard it immediately with a physical touch tap
+      const hasReady = await this.page.evaluate(() => {
+        const ready = document.querySelector('.prt-ready, #ready');
+        return !!ready && (ready as HTMLElement).offsetWidth > 0;
+      }).catch(() => false);
+
+      if (hasReady) {
+        const vp = this.page.viewport() || { width: 480, height: 960 };
+        const cx = Math.round(vp.width * 0.5);
+        const cy = Math.round(vp.height * 0.35);
+        await this.page.touchscreen.tap(cx, cy).catch(() => null);
+        await this.page.mouse.click(cx, cy).catch(() => null);
+        await logNormalDelay(100, 0.1);
+      }
+
+      if (dismissed) {
+        await logNormalDelay(150, 0.12);
+      }
+      return dismissed;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Waits for combat input readiness (verifies that stage locks and animation flags have cleared).
+   * Accurately recognizes readiness whether on the main combat HUD, inside an open ability drawer,
+   * or during character command mode without false display-off timeouts.
+   */
+  private async waitForCombatInputReady(timeoutMs = 6000): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.stopRequested) return false;
+      if (await this.isBattleEnded()) return true;
+
+      const isReady = await this.page.evaluate(() => {
+        // 1. Must not have turn processing popup blocking input
+        const pop = document.querySelector('.pop-usual, .prt-popup-header');
+        if (pop && (pop as HTMLElement).offsetParent !== null) {
+          const text = (pop as HTMLElement).innerText || '';
+          if (text.includes('Processing') || text.includes('処理中') || text.includes('Wait') || text.includes('wait')) {
+            return false;
+          }
+        }
+
+        const stage = (window as any).stage;
+        const lock = stage?.gGameStatus?.lock === true;
+        const attacking = stage?.gGameStatus?.attacking === true;
+        const animation = stage?.gGameStatus?.animation === true;
+        if (lock || attacking || animation) return false;
+
+        // 2. Ready if attack button is on and visible
+        const atkBtn = document.querySelector('.btn-attack-start.display-on') as HTMLElement;
+        if (atkBtn && atkBtn.offsetWidth > 0) return true;
+
+        // 3. Ready if character ability drawer is open and Back button is active
+        const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+        if (backBtn && backBtn.offsetWidth > 0 && window.getComputedStyle(backBtn).display !== 'none') return true;
+
+        // 4. Ready if character portraits are initialized, stage status exists, and ready screen is gone
+        const chara = document.querySelector('.lis-character0.btn-command-character, .lis-character0') as HTMLElement;
+        const readyEl = document.querySelector('.prt-ready, #ready') as HTMLElement;
+        const hasReady = readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none';
+        if (chara && chara.offsetWidth > 0 && !hasReady && stage?.gGameStatus) return true;
+
+        // 5. Ready if Quick Summon is ready
+        const qsBtn = document.querySelector('.btn-quick-summon.qs-ready') as HTMLElement;
+        if (qsBtn && qsBtn.offsetWidth > 0) return true;
+
+        return false;
+      }).catch(() => false);
+
+      if (isReady) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  }
+
+  /**
+   * Triggers a character skill (Character 1-4, Skill 1-4) with state-aware tray handling.
+   */
+  private async handleSkill(step: WorkflowStep): Promise<boolean> {
+    const char = step.character || 1;
+    const skill = step.skill || 1;
+    const skillSelector = `.ability-character-num-${char}-${skill}`;
+
+    // 1. Proactively dismiss any open character ability drawers, popups, or canvas READY overlays
+    await this.dismissCombatDrawersAndPopups();
+
+    // 2. Wait for combat state to be ready (lock === false and not attacking)
+    await this.waitForCombatInputReady(5000);
+    if (await this.isBattleEnded()) return true;
+
+    // 3. Check if the target skill button is currently visible & mounted with positive layout dimensions
+    let isVisible = await this.page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLElement;
+      return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
+    }, skillSelector).catch(() => false);
+
+    // 3. If skill button is not visible, we must open or switch to this character's ability drawer
+    if (!isVisible) {
+      // If another character's ability drawer is currently open (Back button visible), close it first
+      await this.page.evaluate(() => {
+        const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+        if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(back).trigger('tap');
+          back.click();
+        }
+      }).catch(() => null);
+
+      await logNormalDelay(150, 0.12);
+
+      const charIdx = char - 1;
+      // Target ONLY the clickable character portrait, NEVER the parent column container!
+      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}`;
+
+      // Find character portrait
+      let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: 5000 }).catch(() => null);
+      if (!charBtn) {
+        // Clear canvas or drawer if portrait was obscured
+        await this.page.touchscreen.tap(240, 260).catch(() => null);
+        await logNormalDelay(200, 0.15);
+        charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: 3000 }).catch(() => null);
+      }
+
+      if (charBtn) {
+        // Physical click + Zepto tap event trigger on character portrait
+        await humanizedClick(this.page, charBtn);
+        await charBtn.evaluate((el: any) => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) {
+            $(el).trigger('tap');
+            $(el).trigger('click');
+          }
+          el.click();
+        }).catch(() => null);
+
+        await logNormalDelay(250, 0.12);
+      } else {
+        console.warn(`[Combat] Character portrait for C${char} not found!`);
+        if (!step.optional) return false;
+      }
+
+      // Wait for the skill button to become visible inside the opened drawer
+      isVisible = await this.page.waitForFunction((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement;
+        return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
+      }, { timeout: 3000 }, skillSelector).then(() => true).catch(() => false);
+
+      if (!isVisible) {
+        // Secondary attempt: dismiss any canvas overlay, re-tap character portrait
+        console.log(`[Combat] Skill C${char}S${skill} not visible on first tap, re-tapping character portrait...`);
+        await this.page.touchscreen.tap(240, 260).catch(() => null);
+        await logNormalDelay(150, 0.1);
+
+        const retryCharBtn = await this.page.$(charSelector);
+        if (retryCharBtn) {
+          await humanizedClick(this.page, retryCharBtn);
+          await retryCharBtn.evaluate((el: any) => {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) {
+              $(el).trigger('tap');
+              $(el).trigger('click');
+            }
+            el.click();
+          }).catch(() => null);
+          await logNormalDelay(350, 0.15);
+        }
+
+        isVisible = await this.page.waitForFunction((sel: string) => {
+          const el = document.querySelector(sel) as HTMLElement;
+          return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
+        }, { timeout: 3500 }, skillSelector).then(() => true).catch(() => false);
+      }
+    }
+
+    // 4. Retrieve visible skill button handle
+    const skillBtn = await this.page.waitForSelector(skillSelector, { visible: true, timeout: 3000 }).catch(() => null);
+    if (!skillBtn) {
+      console.warn(`[Combat] Skill C${char}S${skill} could not be made visible!`);
+      return step.optional ? true : false;
+    }
+
+    // 5. Check if skill is on cooldown / disabled / empty
+    const isUnavailable = await this.page.evaluate((el: any) => {
+      return el.classList.contains('btn-ability-unavailable') ||
+             el.classList.contains('disabled') ||
+             el.classList.contains('empty');
+    }, skillBtn).catch(() => false);
+
+    if (isUnavailable) {
+      if (step.optional) {
+        console.log(`[Combat] Skill C${char}S${skill} is on cooldown or unavailable (optional: skipped).`);
+        return true;
+      }
+      console.warn(`[Combat] Skill C${char}S${skill} is on cooldown!`);
+      return true;
+    }
+
+    // 6. Arm network response promise for ability_result.json
+    const netPromise = this.waitForNetworkResponse('ability_result.json', 3500);
+
+    // 7. Click the skill button (both physical CDP click + Zepto tap event)
+    await humanizedClick(this.page, skillBtn);
+    await skillBtn.evaluate((el: any) => {
+      const $ = (window as any).$ || (window as any).Zepto;
+      if ($) $(el).trigger('tap');
+    }).catch(() => null);
+
+    // If ability confirmation modal appears (for accounts with ability confirmation enabled in GBF settings)
+    const confirmBtn = await this.page.waitForSelector('.btn-usual-ok.btn-ability-use, .pop-usual .btn-usual-ok, .btn-usual-ok.se-ability-use', {
+      visible: true,
+      timeout: 350
+    }).catch(() => null);
+    if (confirmBtn) {
+      await humanizedClick(this.page, confirmBtn);
+      await confirmBtn.evaluate((el: any) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(el).trigger('tap');
+      }).catch(() => null);
+      await logNormalDelay(100, 0.1);
+    }
+
+    // 8. Handle targeted skill (e.g. single-target ally buff like Florence S1 on MC)
+    if (step.targetCharacter) {
+      const targetIdx = step.targetCharacter - 1;
+      const targetSelector = `.pop-usual .lis-character${targetIdx}.btn-command-character, .lis-character${targetIdx}.btn-command-character.front-member, .prt-popup-body .lis-character${targetIdx}, .pop-usual .lis-character${targetIdx}`;
+
+      const targetEl = await this.page.waitForSelector(targetSelector, { visible: true, timeout: 5000 }).catch(() => null);
+      if (targetEl) {
+        await logNormalDelay(150, 0.12);
+        await humanizedClick(this.page, targetEl);
+        await targetEl.evaluate((el: any) => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(el).trigger('tap');
+        }).catch(() => null);
+        await logNormalDelay(200, 0.15);
+      } else {
+        console.warn(`[Combat] Target selection modal for Char ${step.targetCharacter} not found!`);
+      }
+    }
+
+    // 9. Wait for ability_result.json from the server
+    await netPromise;
+
+    // 10. Wait for combat lock to release before next step (critical for multi-casts like Blitz Burst x3)
+    await this.waitForCombatInputReady(4000);
+    await logNormalDelay(80, 0.15);
+
+    // Dismiss any remaining modal backdrop/popups
+    await this.page.evaluate(() => {
+      const modalClose = document.querySelector('.pop-usual .btn-close, .prt-popup-header .btn-close, .pop-usual .btn-usual-ok, .pop-usual .btn-usual-cancel') as HTMLElement;
+      if (modalClose && modalClose.offsetParent !== null && window.getComputedStyle(modalClose).display !== 'none') {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(modalClose).trigger('tap');
+        modalClose.click();
+      }
+    }).catch(() => null);
+
+    return true;
+  }
+
+  /**
+   * Invokes a specific summon slot.
+   */
+  private async handleSummon(step: WorkflowStep): Promise<boolean> {
+    const slot = step.slot || 1;
+
+    await this.waitForCombatInputReady(4000);
+    if (await this.isBattleEnded()) return true;
+
+    // Open summon tray
+    const summonTrayBtn = await this.page.$('.btn-summon-available, .btn-command-summon');
+    if (summonTrayBtn) {
+      await humanizedClick(this.page, summonTrayBtn);
+      await humanReactionDelay(150, 0.1);
+    }
+
+    // Click summon slot (matches pos="2", pos="1", or .btn-summon-use)
+    const summonSlot = await this.page.waitForSelector(`.lis-summon[pos="${slot}"], .lis-summon[pos="${slot - 1}"], .btn-summon-use[pos="${slot}"]`, { visible: true, timeout: 3000 }).catch(() => null);
+    if (summonSlot) {
+      const netPromise = step.waitForNetwork ? this.waitForNetworkResponse(step.waitForNetwork, 4000) : Promise.resolve(true);
+      await humanizedClick(this.page, summonSlot);
+
+      // Click confirm summon OK if present
+      const okBtn = await this.page.waitForSelector('.btn-usual-ok.btn-summon-use, .pop-summon-detail .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, .btn-summon-use, .btn-call, .se-summon-call', { visible: true, timeout: 1500 }).catch(() => null);
+      if (okBtn) await humanizedClick(this.page, okBtn);
+
+      await netPromise;
+      await this.waitForCombatInputReady(4000);
+      return true;
+    }
+
+    return step.optional ? true : false;
+  }
+
+  /**
+   * Toggles Full Auto / Semi Auto.
+   */
+  private async handleAuto(step: WorkflowStep): Promise<boolean> {
+    const autoBtn = await this.page.waitForSelector('.btn-auto', { visible: true, timeout: 3000 }).catch(() => null);
+    if (autoBtn) {
+      await humanizedClick(this.page, autoBtn);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Toggles guard (V2).
+   */
+  private async handleGuard(step: WorkflowStep): Promise<boolean> {
+    const target = step.target || 'all';
+    if (target === 'all') {
+      const guardAllBtn = await this.page.$('.btn-guard-all');
+      if (guardAllBtn) {
+        await humanizedClick(this.page, guardAllBtn);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Taps the READY screen overlay to trigger Quick Summon (Turn 0) or Attack (Turn 1).
+   * Features responsive visual/DOM/network validation and an automatic reload retry fail-safe.
+   */
+  private async handleTapReady(step: WorkflowStep): Promise<boolean> {
+    const targetNet = step.waitForNetwork || null;
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (this.stopRequested) return false;
+
+      // 1. Ensure battle stage is mounted
+      await this.waitForBattleToMount(10000);
+
+      // 2. Check if battle concluded
+      if (await this.isBattleEnded()) return true;
+
+      // Settle briefly for canvas event listeners
+      await logNormalDelay(120, 0.1);
+
+      // Setup network listener if waitForNetwork is defined
+      const networkPromise = targetNet ? this.waitForNetworkResponse(targetNet, 2200) : Promise.resolve(true);
+
+      const x = Math.round(240 + sampleGaussian(0, 15));
+      const y = Math.round(260 + sampleGaussian(0, 15));
+
+      // 3. Physical touch tap + mouse click on READY screen
+      await this.page.touchscreen.tap(x, y).catch(() => null);
+      await this.page.mouse.click(x, y).catch(() => null);
+
+      // 4. Zepto tap on element to ensure Backbone triggers
+      await this.page.evaluate((tapX, tapY) => {
+        const el = document.elementFromPoint(tapX, tapY) || document.querySelector('.prt-ready, #ready, canvas, .cnt-raid');
+        if (el) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(el).trigger('tap');
+          (el as HTMLElement).click();
+        }
+        const auto = document.querySelector('.btn-auto, #btn-auto') as HTMLElement;
+        if (auto && auto.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(auto).trigger('tap');
+          auto.click();
+        }
+      }, x, y).catch(() => null);
+
+      if (!targetNet) return true;
+
+      // 5. Await network confirmation
+      let confirmed = await networkPromise;
+
+      // 6. If not immediately confirmed, attempt fallback button triggers
+      if (!confirmed) {
+        if (targetNet.includes('summon')) {
+          const qsPromise = this.waitForNetworkResponse('summon_result.json', 1200);
+          const qsBtn = await this.page.$('.btn-quick-summon.qs-ready, .btn-quick-summon, #js-btn-quick-summon');
+          if (qsBtn) {
+            const box = await qsBtn.boundingBox();
+            if (box && box.width > 0) {
+              const tapX = Math.round(box.x + box.width / 2 + sampleGaussian(0, 3));
+              const tapY = Math.round(box.y + box.height / 2 + sampleGaussian(0, 2));
+              await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
+              await this.page.mouse.click(tapX, tapY).catch(() => null);
+            }
+            await qsBtn.evaluate((el: any) => {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(el).trigger('tap');
+              el.click();
+            }).catch(() => null);
+          }
+          confirmed = await qsPromise;
+        } else if (targetNet.includes('attack')) {
+          const atkPromise = this.waitForNetworkResponse('normal_attack_result.json', 1200);
+          const atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start');
+          if (atkBtn) {
+            const box = await atkBtn.boundingBox();
+            if (box && box.width > 0) {
+              const tapX = Math.round(box.x + box.width / 2 + sampleGaussian(0, 3));
+              const tapY = Math.round(box.y + box.height / 2 + sampleGaussian(0, 2));
+              await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
+              await this.page.mouse.click(tapX, tapY).catch(() => null);
+            }
+            await atkBtn.evaluate((el: any) => {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(el).trigger('tap');
+              el.click();
+            }).catch(() => null);
+          }
+          confirmed = await atkPromise;
+        }
+      }
+
+      // Check client-side visual / state indicators
+      const isClientConfirmed = await this.page.evaluate(() => {
+        const autoBtn = document.querySelector('.btn-auto, #btn-auto');
+        const isAutoActive = autoBtn ? (autoBtn.classList.contains('display-on') || autoBtn.classList.contains('active')) : false;
+        const stage = (window as any).stage;
+        const isLocked = stage?.gGameStatus?.lock === true;
+        const isFinish = stage?.gGameStatus?.finish === true;
+        return isAutoActive || isLocked || isFinish;
+      }).catch(() => false);
+
+      if (confirmed || isClientConfirmed) {
+        return true;
+      }
+
+      // Fail-safe reload
+      if (attempt < maxRetries) {
+        console.warn(`[Combat] [tap_ready] Tap unacknowledged (${targetNet}). Reloading (Attempt ${attempt}/${maxRetries})...`);
+        await Promise.all([
+          this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => null),
+          this.page.evaluate(() => window.location.reload()).catch(() => null)
+        ]);
+        await logNormalDelay(150, 0.1);
+        await this.checkAndDismissProcessingTurnPopup();
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Executes Quick Call button directly.
+   */
+  private async handleQuickCall(step: WorkflowStep): Promise<boolean> {
+    await this.waitForCombatInputReady(4000);
+    const qBtn = await this.page.waitForSelector('.btn-quick-summon, #js-btn-quick-summon', { visible: true, timeout: 3000 }).catch(() => null);
+    if (qBtn) {
+      const netPromise = this.waitForNetworkResponse(step.waitForNetwork || 'summon_result.json', 3500);
+      await humanizedClick(this.page, qBtn);
+      await qBtn.evaluate((el: any) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(el).trigger('tap');
+      }).catch(() => null);
+      await netPromise;
+      // Wait for summon animation to finish or combat controls to unlock
+      await this.waitForCombatInputReady(5000);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Executes Attack action with ability drawer dismissal, dynamic coordinate targeting,
+   * network confirmation (normal_attack_result.json), and an automated retry loop.
+   */
+  private async handleAttack(step: WorkflowStep): Promise<boolean> {
+    const targetNet = step.waitForNetwork || 'normal_attack_result.json';
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (this.stopRequested) return false;
+      if (await this.isBattleEnded()) return true;
+
+      // 1. Proactively dismiss any open character ability drawers, skill modals, or popups
+      await this.dismissCombatDrawersAndPopups();
+
+      // 2. Wait for combat input readiness
+      await this.waitForCombatInputReady(4000);
+      if (await this.isBattleEnded()) return true;
+
+      // 3. Locate visible Attack button (.btn-attack-start.display-on)
+      let atkBtn = await this.page.waitForSelector('.btn-attack-start.display-on, .btn-attack-start', {
+        visible: true,
+        timeout: 3000
+      }).catch(() => null);
+
+      // If attack button is still obscured or has display-off, attempt drawer close again
+      if (!atkBtn) {
+        await this.dismissCombatDrawersAndPopups();
+        atkBtn = await this.page.waitForSelector('.btn-attack-start.display-on, .btn-attack-start', {
+          visible: true,
+          timeout: 2500
+        }).catch(() => null);
+      }
+
+      // 4. Arm network promise for attack resolution
+      const netPromise = this.waitForNetworkResponse(targetNet, 2500);
+
+      // 5. Trigger attack via native touch/mouse at bounding box + Zepto tap
+      let tapped = false;
+      if (atkBtn) {
+        const box = await atkBtn.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          const tapX = Math.round(box.x + box.width / 2 + sampleGaussian(0, 3));
+          const tapY = Math.round(box.y + box.height / 2 + sampleGaussian(0, 2));
+          await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
+          await this.page.mouse.click(tapX, tapY).catch(() => null);
+          tapped = true;
+        } else {
+          await humanizedClick(this.page, atkBtn);
+          tapped = true;
+        }
+
+        // Zepto tap event trigger
+        await atkBtn.evaluate((el: any) => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(el).trigger('tap');
+          el.click();
+        }).catch(() => null);
+      }
+
+      if (!tapped) {
+        // Fallback: tap center-screen attack area dynamically calculated from viewport
+        const vp = this.page.viewport() || { width: 480, height: 960 };
+        const fallbackX = Math.round((vp.width * 0.55) + sampleGaussian(0, 8));
+        const fallbackY = Math.round((vp.height * 0.40) + sampleGaussian(0, 8));
+        await this.page.touchscreen.tap(fallbackX, fallbackY).catch(() => null);
+        await this.page.mouse.click(fallbackX, fallbackY).catch(() => null);
+      }
+
+      // 6. Await network resolution
+      const resolved = await netPromise;
+
+      // Check client-side state in case response was already consumed
+      const isClientAttacking = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        return gStatus?.attacking === true || gStatus?.lock === true || gStatus?.finish === true;
+      }).catch(() => false);
+
+      if (resolved || isClientAttacking || await this.isBattleEnded()) {
+        console.log(`[Combat] Attack registered successfully (attempt ${attempt}).`);
+        return true;
+      }
+
+      console.warn(`[Combat] Attack unacknowledged on attempt ${attempt}/${maxAttempts}. Re-checking drawer/modals and retrying...`);
+      await logNormalDelay(200, 0.12);
+    }
+
+    return false;
+  }
+
+  /**
+   * Instant reload (F5) to skip animation frames.
+   */
+  private async handleReload(step: WorkflowStep): Promise<boolean> {
+    await Promise.all([
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
+      this.page.evaluate(() => location.reload()).catch(() => null)
+    ]);
+    await logNormalDelay(150, 0.1);
+    await this.checkAndDismissProcessingTurnPopup();
+    await this.waitForBattleToMount(8000);
+    await this.checkAndDismissProcessingTurnPopup();
+
+    // Immediately clear canvas READY overlay if present
+    await this.page.touchscreen.tap(240, 260).catch(() => null);
+    await this.page.mouse.click(240, 260).catch(() => null);
+    await logNormalDelay(150, 0.1);
+
+    // Sync authoritative ground-truth honors from stage/DOM
+    await this.syncCurrentHonors();
+
+    return true;
+  }
+
+  /**
+   * Clicks an arbitrary selector.
+   */
+  private async handleClick(step: WorkflowStep): Promise<boolean> {
+    if (!step.target) return false;
+    const el = await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 3000 }).catch(() => null);
+    if (el) {
+      await humanizedClick(this.page, el);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Confirms result, dismisses processing popups, syncs final honors,
+   * and cleanly transitions out of combat to quest/assist URL.
+   */
+  private async handleConfirmResult(): Promise<boolean> {
+    await this.checkAndDismissProcessingTurnPopup();
+
+    // 1. Sync honors from active battle before result screen
+    await this.syncCurrentHonors();
+
+    // 2. Wait up to 3500ms for reload to settle into result screen, supporter, or quest
+    const tStart = Date.now();
+    while (Date.now() - tStart < 3500) {
+      if (await this.isBattleEnded()) break;
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    // 3. Dismiss result screen OK buttons
+    await this.page.evaluate(() => {
+      const okBtns = Array.from(document.querySelectorAll('.btn-usual-ok, .btn-settle, .btn-usual-close, .pop-raid-result .btn-usual-ok')) as HTMLElement[];
+      for (const btn of okBtns) {
+        if (btn.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(btn).trigger('tap');
+          btn.click();
+        }
+      }
+    }).catch(() => null);
+
+    // 4. Final honor sync from settled result screen if present
+    await this.syncCurrentHonors();
+
+    // 5. In assist raid mode (e.g. multi-raid rotator / gb-farm), if the raid is still ongoing (#raid_multi),
+    // cleanly retreat back to #quest/assist so the slot is freed and we don't linger on #raid_multi
+    const isAssistRaid = this.template.questUrl.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
+    if (isAssistRaid) {
+      const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+      if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(curHash)) {
+        console.log('[Workflow] Multi-raid rotation burst completed. Returning to #quest/assist for next raid...');
+        await this.page.evaluate(() => { window.location.hash = '#quest/assist'; }).catch(() => null);
+        await logNormalDelay(800, 0.15);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Claims ALL pending/unclaimed battles at #quest/assist/unclaimed/0/0 until none remain,
+   * checks for Gold Bar drops, and cleanly returns to returnUrl (or assist/quest URL).
+   */
+  public async claimPendingBattles(logPath: string, currentRuns: number, returnUrl?: string): Promise<number> {
+    let claimedCount = 0;
+    const maxClaims = 50; // Safety cap to avoid infinite loops
+
+    try {
+      console.log('[Workflow] Checking and clearing ALL unclaimed battles (#quest/assist/unclaimed/0/0)...');
+
+      // Navigate to #quest/assist/unclaimed/0/0
+      await this.page.goto('https://game.granbluefantasy.jp/#quest/assist/unclaimed/0/0', { waitUntil: 'domcontentloaded' }).catch(() => null);
+      await logNormalDelay(1200, 0.15);
+
+      while (claimedCount < maxClaims && !this.stopRequested) {
+        // Ensure we are on the unclaimed battles page
+        const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+        if (!curHash.includes('unclaimed')) {
+          await this.page.goto('https://game.granbluefantasy.jp/#quest/assist/unclaimed/0/0', { waitUntil: 'domcontentloaded' }).catch(() => null);
+          await logNormalDelay(1200, 0.15);
+        }
+
+        // Check if there are no pending battles
+        const status = await this.page.evaluate(() => {
+          const bodyText = document.body.innerText || '';
+          const noListEl = document.querySelector('.txt-no-list');
+          const hasNoneText = (
+            bodyText.includes("aren't any pending") ||
+            bodyText.includes("aren't any pending battles") ||
+            bodyText.includes('未確認バトルはありません') ||
+            bodyText.includes('No pending battles')
+          );
+          const cards = document.querySelectorAll(
+            '#prt-unclaimed-list .btn-multi-raid, #prt-unclaimed-list [data-href*="result_multi"], .cnt-quest-unclaimed .btn-multi-raid, .cnt-quest-unclaimed .lis-raid, .prt-raid-list .btn-multi-raid'
+          );
+          const hasVisibleCards = Array.from(cards).some(c => (c as HTMLElement).offsetParent !== null);
+          return {
+            hasNone: (noListEl !== null && hasNoneText) || (!hasVisibleCards && hasNoneText),
+            hasVisibleCards,
+            cardCount: cards.length
+          };
+        }).catch(() => ({ hasNone: true, hasVisibleCards: false, cardCount: 0 }));
+
+        if (status.hasNone || (!status.hasVisibleCards && status.cardCount === 0)) {
+          if (claimedCount > 0) {
+            console.log(`[Workflow] 🎉 All unclaimed battles successfully cleared! Total claimed: ${claimedCount}.`);
+          } else {
+            console.log('[Workflow] No unclaimed battles found. Account clean.');
+          }
+          break;
+        }
+
+        console.log(`[Workflow] Found unclaimed battle(s) (${status.cardCount} remaining). Claiming battle #${claimedCount + 1}...`);
+
+        // Click the first available unclaimed battle card
+        const clicked = await this.page.evaluate(() => {
+          const card = document.querySelector(
+            '#prt-unclaimed-list .btn-multi-raid, #prt-unclaimed-list [data-href*="result_multi"], .cnt-quest-unclaimed .btn-multi-raid, .cnt-quest-unclaimed .lis-raid, .prt-raid-list .btn-multi-raid'
+          ) as HTMLElement;
+          if (card && card.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(card).trigger('tap');
+            card.click();
+            return true;
+          }
+          return false;
+        }).catch(() => false);
+
+        if (!clicked) {
+          // Fallback: look for any element with data-href containing result_multi
+          const hrefClicked = await this.page.evaluate(() => {
+            const el = document.querySelector('[data-href*="result_multi"]') as HTMLElement;
+            if (el) {
+              const href = el.getAttribute('data-href');
+              if (href) {
+                window.location.hash = href;
+                return true;
+              }
+            }
+            return false;
+          }).catch(() => false);
+
+          if (!hrefClicked) {
+            console.log('[Workflow] No clickable unclaimed card found. Finishing claim loop.');
+            break;
+          }
+        }
+
+        // Wait for result screen (#result_multi or #result)
+        const tWait = Date.now();
+        let resultLoaded = false;
+        while (Date.now() - tWait < 8000) {
+          if (this.stopRequested) break;
+          const isResult = await this.page.evaluate(() => {
+            const hash = window.location.hash;
+            return hash.includes('result') || !!document.querySelector('.pop-raid-result, .prt-result-head, .cnt-result, #cnt-result');
+          }).catch(() => false);
+
+          if (isResult) {
+            resultLoaded = true;
+            break;
+          }
+          await new Promise(r => setTimeout(r, 200));
+        }
+
+        // Allow result settlement and check for Gold Bar drop
+        await logNormalDelay(800, 0.15);
+        if (this.latestRewardData && this.checkForGoldBarDrop(this.latestRewardData)) {
+          if (this.dropLogger) {
+            this.dropLogger.recordPendingGoldBar();
+          }
+        }
+
+        // Sync and log settled honors for the claimed raid
+        const claimedHonors = await this.syncCurrentHonors();
+        if (claimedHonors > 0) {
+          console.log(`[Workflow] Claimed Battle #${claimedCount + 1} settled with ${claimedHonors.toLocaleString()} honors.`);
+        }
+
+        // Dismiss result popups / modals
+        await this.page.evaluate(() => {
+          const ok = document.querySelector(
+            '.pop-usual .btn-usual-ok, .btn-usual-ok, .btn-settle, .btn-result-close, .btn-control.location-href'
+          ) as HTMLElement;
+          if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
+            ok.click();
+          }
+        }).catch(() => null);
+
+        claimedCount++;
+        await logNormalDelay(500, 0.12);
+
+        // Re-navigate to unclaimed battles list to check/claim next
+        await this.page.goto('https://game.granbluefantasy.jp/#quest/assist/unclaimed/0/0', { waitUntil: 'domcontentloaded' }).catch(() => null);
+        await logNormalDelay(1000, 0.15);
+      }
+
+      // Determine return navigation URL
+      const finalReturnUrl = returnUrl || (this.template.questUrl.includes('assist') ? 'https://game.granbluefantasy.jp/#quest/assist' : this.template.questUrl);
+      if (finalReturnUrl) {
+        console.log(`[Workflow] Clean return to: ${finalReturnUrl}`);
+        const returnHash = finalReturnUrl.split('#')[1] || '';
+        const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+        // If target is quest/assist, ensure we are NOT lingering on 'unclaimed'
+        const isTargetAssist = returnHash === 'quest/assist';
+        const alreadyThere = isTargetAssist
+          ? ((currentHash === '#quest/assist' || currentHash === '#quest/assist/index') && !currentHash.includes('unclaimed'))
+          : currentHash.includes(returnHash);
+
+        if (!alreadyThere) {
+          await Promise.all([
+            this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
+            this.page.evaluate((url: string) => {
+              window.location.href = url;
+              window.location.reload();
+            }, finalReturnUrl).catch(() => null)
+          ]);
+          await logNormalDelay(800, 0.15);
+        }
+      }
+
+    } catch (err: any) {
+      console.warn('[Workflow] Notice claiming pending battles:', err.message);
+    }
+
+    return claimedCount;
+  }
+
+  /**
+   * Detects if a "pending battle" or "unclaimed battle" popup modal is currently displayed
+   * (e.g. in Guild Wars or assist raid joining), dismisses it, clears ALL unclaimed battles,
+   * and returns to the target quest URL.
+   * Returns true if a pending battle modal was detected and handled.
+   */
+  private async detectAndHandlePendingBattleModal(logPath: string, currentRuns: number): Promise<boolean> {
+    const modalType = await this.page.evaluate(() => {
+      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+      if (!modal || (modal as HTMLElement).offsetParent === null) return null;
+      const text = ((modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '').toLowerCase();
+      const rawText = (modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '';
+
+      const isThreeRaidLimit = (
+        text.includes('three raid') ||
+        text.includes('up to three') ||
+        text.includes('provide backup in up to') ||
+        text.includes('only provide backup') ||
+        text.includes('3 battles') ||
+        text.includes('3 raid') ||
+        text.includes('participating in 3') ||
+        text.includes('more than 3') ||
+        text.includes('up to 3') ||
+        rawText.includes('3件まで') ||
+        rawText.includes('同時に参戦できる') ||
+        rawText.includes('参戦中') ||
+        rawText.includes('3件')
+      );
+      if (isThreeRaidLimit) return 'ACTIVE_RAID_LIMIT_3';
+
+      const isPending = (
+        text.includes('pending') ||
+        text.includes('unclaimed') ||
+        rawText.includes('未確認') ||
+        text.includes('five or more') ||
+        rawText.includes('5件')
+      );
+      if (isPending) return 'PENDING_MODAL';
+
+      return null;
+    }).catch(() => null);
+
+    if (!modalType) {
+      return false;
+    }
+
+    // Dismiss the popup
+    await this.dismissPopupModal();
+    await logNormalDelay(400, 0.1);
+
+    if (modalType === 'ACTIVE_RAID_LIMIT_3') {
+      console.warn('[Workflow] ⚠️ Active backup limit popup detected! Resolving lingering raids...');
+      this.lastStartFailureWasRaidLimit = true;
+      await this.resolveLingeringRaidLimit(logPath, currentRuns);
+      return true;
+    }
+
+    console.warn('[Workflow] ⚠️ Pending/Unclaimed battle popup detected! Clearing all unclaimed battles...');
+    // Clear ALL unclaimed battles and return cleanly to target quest URL
+    const returnUrl = this.template.questUrl.includes('assist') ? 'https://game.granbluefantasy.jp/#quest/assist' : this.template.questUrl;
+    await this.claimPendingBattles(logPath, currentRuns, returnUrl);
+
+    return true;
+  }
+
+  /**
+   * Waits until the battle HUD and canvas are fully mounted after quest start or reload.
+   * Fast-fails early if a pending battle popup is detected.
+   */
+  private async waitForBattleToMount(timeoutMs = 12000): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.stopRequested) return false;
+      try {
+        const check = await this.page.evaluate(() => {
+          const hash = window.location.hash;
+          const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
+          const stage = (window as any).stage;
+          const hasGameStatus = !!stage?.gGameStatus;
+          const isRes = hash.includes('result') || !!document.querySelector('.pop-raid-result');
+          const hasReadyStage = isCombatHash && hasGameStatus && !!document.querySelector('.lis-character0, .btn-attack-start.display-on, .btn-quick-summon.qs-ready');
+          if (hasReadyStage || isRes) {
+            return 'MOUNTED';
+          }
+
+          // Check if pending/unclaimed battle popup or raid limit popup appeared
+          const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+          if (modal && (modal as HTMLElement).offsetParent !== null) {
+            const text = ((modal as HTMLElement).innerText || '').toLowerCase();
+            const rawText = (modal as HTMLElement).innerText || '';
+            if (
+              text.includes('three raid') ||
+              text.includes('up to three') ||
+              text.includes('provide backup in up to') ||
+              text.includes('only provide backup') ||
+              text.includes('pending') ||
+              text.includes('unclaimed') ||
+              rawText.includes('未確認') ||
+              rawText.includes('参戦中') ||
+              rawText.includes('同時に参戦できる') ||
+              rawText.includes('3件') ||
+              text.includes('3 battles')
+            ) {
+              return 'PENDING_MODAL';
+            }
+          }
+
+          return null;
+        });
+
+        if (check === 'MOUNTED') {
+          await logNormalDelay(150, 0.1);
+          return true;
+        }
+        if (check === 'PENDING_MODAL') {
+          return false;
+        }
+      } catch {
+        // Safe navigation context handling
+      }
+      await new Promise(r => setTimeout(r, 120));
+    }
+    return false;
+  }
+
+  /**
+   * Performs deep on-screen failure diagnosis when a quest fails to start.
+   * Checks for CAPTCHA/Access Verification, item shortages (Meat/AP), and in-game error modals.
+   */
+  private async diagnoseQuestStartFailure(runNumber: number): Promise<{
+    reason: string;
+    popupText?: string;
+    isCaptcha: boolean;
+    isOutOfMeat: boolean;
+    isOutOfAp: boolean;
+    isRaidBackupLimit: boolean;
+    capturePath?: string;
+  }> {
+    let reason = 'Unknown quest start obstruction';
+    let popupText = '';
+    let isCaptcha = false;
+    let isOutOfMeat = false;
+    let isOutOfAp = false;
+    let isRaidBackupLimit = false;
+    let capturePath: string | undefined;
+
+    try {
+      // 1. Check CAPTCHA / Access Verification
+      isCaptcha = await this.sentinel.inspectForVerification();
+      if (isCaptcha) {
+        reason = 'Access Verification / CAPTCHA challenge is blocking the screen';
+      }
+
+      // 2. Inspect active popups, headers, and visible body text
+      const screenInfo = await this.page.evaluate(() => {
+        const pop = document.querySelector('.pop-usual, .common-pop-error, .prt-popup-body, .cnt-error');
+        const text = (pop as HTMLElement)?.innerText?.trim() || '';
+        const bodyText = document.body.innerText || '';
+        return { text, bodyText };
+      }).catch(() => ({ text: '', bodyText: '' }));
+
+      popupText = screenInfo.text;
+      const combined = (screenInfo.text + ' ' + screenInfo.bodyText).toLowerCase();
+      const rawCombined = screenInfo.text + ' ' + screenInfo.bodyText;
+
+      if (!isCaptcha) {
+        if (
+          combined.includes('three raid') ||
+          combined.includes('up to three') ||
+          combined.includes('provide backup in up to') ||
+          combined.includes('only provide backup') ||
+          combined.includes('3 battles') ||
+          combined.includes('3 raid') ||
+          combined.includes('participating in 3') ||
+          combined.includes('more than 3') ||
+          combined.includes('up to 3') ||
+          rawCombined.includes('3件まで') ||
+          rawCombined.includes('同時に参戦できる') ||
+          rawCombined.includes('参戦中') ||
+          rawCombined.includes('3件')
+        ) {
+          isRaidBackupLimit = true;
+          reason = `In-game modal detected: "${popupText.replace(/\s+/g, ' ') || 'Raids You can only provide backup in up to three raid battles at once.'}"`;
+        } else if (combined.includes('access verification') || combined.includes('verify access') || combined.includes('画像認証') || combined.includes('認証')) {
+          isCaptcha = true;
+          reason = 'Access Verification / CAPTCHA challenge detected';
+        } else if (combined.includes('not enough required items') || combined.includes('トレジャーが足りません') || combined.includes('chunky meat') || combined.includes('お肉')) {
+          isOutOfMeat = true;
+          reason = 'Insufficient Meat / Treasure to host this raid (Chunky Meat / 肉 depleted)';
+        } else if (combined.includes('not enough ap') || combined.includes('apが不足') || combined.includes('half elixir')) {
+          isOutOfAp = true;
+          reason = 'Insufficient AP / Half-Elixirs depleted';
+        } else if (combined.includes('battle has already ended') || combined.includes('ended') || combined.includes('終了')) {
+          reason = 'Previous battle concluded or raid no longer available';
+        } else if (popupText) {
+          reason = `In-game modal detected: "${popupText.substring(0, 80)}"`;
+        }
+      }
+
+      // 3. Capture emergency screenshot to artifacts/captures
+      const capDir = path.resolve(process.cwd(), 'artifacts/captures');
+      if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
+      capturePath = path.resolve(capDir, `quest-start-failed-run${runNumber}-${Date.now()}.png`);
+      await this.page.screenshot({ path: capturePath, fullPage: false }).catch(() => null);
+
+    } catch (err: any) {
+      console.warn('[Diagnostic] Error during failure diagnosis:', err.message);
+    }
+
+    return { reason, popupText, isCaptcha, isOutOfMeat, isOutOfAp, isRaidBackupLimit, capturePath };
+  }
+
+  /**
+   * Navigates to quest supporter URL, selects supporter, and ensures battle HUD is mounted.
+   */
+  private async selectSupporterAndStartQuest(
+    autoReplenishAp: boolean,
+    autoReplenishEp: boolean,
+    logPath = this.currentLogPath,
+    currentRuns = this.totalCompletedRuns
+  ): Promise<boolean> {
+    const targetUrl = this.template.questUrl;
+
+    if (this.template.stopOnCaptcha !== false) {
+      await this.sentinel.assertSafe();
+    }
+
+    // Check if lingering in an actual unfinished battle (e.g. #raid/12345 or #battle/12345)
+    // Note: Do NOT match #quest/supporter_raid or #quest/assist as active combat!
+    const initHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+    const isActualBattle = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash);
+    if (isActualBattle) {
+      console.log(`[Workflow] Existing battle detected (${initHash}). Resolving prior battle...`);
+      await this.resolveLingeringState();
+    }
+
+    // If targetUrl is an assist / raid finder URL
+    if (targetUrl.includes('assist')) {
+      const targetSlots = this.template.raidSlots || (this.template.raidSlot ? [this.template.raidSlot] : [4, 3, 2]);
+      return await this.joinAssistRaidAndStartQuest(targetSlots, autoReplenishEp, logPath, currentRuns);
+    }
+
+    // Standard quest navigation
+    const targetHash = targetUrl.split('#')[1] || '';
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes(targetHash)) {
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
+        this.page.evaluate((url: string) => {
+          window.location.href = url;
+          window.location.reload();
+        }, targetUrl).catch(() => null)
+      ]);
+      await logNormalDelay(350, 0.1);
+    }
+
+    const start = Date.now();
+    while (Date.now() - start < 10000) {
+      if (this.stopRequested) return false;
+
+      if (this.template.stopOnCaptcha !== false) {
+        await this.sentinel.assertSafe();
+      }
+
+      // Check if pending battle popup modal is currently displayed
+      if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
+        continue;
+      }
+
+      // 1. Auto-selected supporter popup with OK button (.btn-usual-ok.se-quest-start)
+      const autoOk = await this.page.evaluate(() => {
+        const ok = document.querySelector('.btn-usual-ok.se-quest-start') as HTMLElement;
+        if (ok && ok.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(ok).trigger('tap');
+          ok.click();
+          return true;
+        }
+        return false;
+      }).catch(() => false);
+
+      if (autoOk) {
+        const mounted = await this.waitForBattleToMount(12000);
+        if (mounted) return true;
+        if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
+          continue;
+        }
+        return false;
+      }
+
+      // 2. AP replenishment popup
+      if (autoReplenishAp) {
+        const apHandled = await this.page.evaluate(() => {
+          const elixirBtn = document.querySelector('.btn-use-item.btn-usual-use, .btn-usual-ok.se-use') as HTMLElement;
+          if (elixirBtn && elixirBtn.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(elixirBtn).trigger('tap');
+            elixirBtn.click();
+            return true;
+          }
+          return false;
+        }).catch(() => false);
+
+        if (apHandled) {
+          await logNormalDelay(400, 0.1);
+          continue;
+        }
+      }
+
+      // 3. Supporter card selection
+      const cardClicked = await this.page.evaluate((priorities: string[]) => {
+        const cards = Array.from(document.querySelectorAll('.prt-supporter-attribute.support-list .lis-supporter, .prt-supporter-detail')) as HTMLElement[];
+        for (const card of cards) {
+          if (card.offsetParent === null) continue;
+          const text = card.textContent || '';
+          for (const p of priorities) {
+            if (text.toLowerCase().includes(p.toLowerCase())) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(card).trigger('tap');
+              card.click();
+              return true;
+            }
+          }
+        }
+        if (cards.length > 0 && cards[0].offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(cards[0]).trigger('tap');
+          cards[0].click();
+          return true;
+        }
+        return false;
+      }, this.template.supporterPriority || ['Zeus', 'Lucifer']).catch(() => false);
+
+      if (cardClicked) {
+        await logNormalDelay(350, 0.1);
+        if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
+          continue;
+        }
+        continue;
+      }
+
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    return false;
+  }
+
+  /**
+   * Finds, joins, and starts a Backup Request raid from #quest/assist with multi-slot rotation.
+   */
+  private async joinAssistRaidAndStartQuest(
+    slots: number | number[],
+    autoReplenishEp: boolean,
+    logPath = this.currentLogPath,
+    currentRuns = this.totalCompletedRuns
+  ): Promise<boolean> {
+    const slotList = Array.isArray(slots) ? slots : [slots];
+
+    // Check if pending battles limit modal is shown
+    await this.checkAndClearPendingBattles(logPath, currentRuns);
+
+    // Navigate to #quest/assist if not already there (or if left on unclaimed/supporter_raid/other)
+    const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+    const isOnAssistFinder = (currentHash === '#quest/assist' || currentHash === '#quest/assist/index') && !currentHash.includes('unclaimed');
+    if (!isOnAssistFinder) {
+      console.log('[Workflow] Navigating to Backup Requests (#quest/assist)...');
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
+        this.page.evaluate(() => {
+          window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
+          window.location.reload();
+        }).catch(() => null)
+      ]);
+      await logNormalDelay(1000, 0.15);
+    }
+
+    // Check lingering active raids badge prior to searching
+    const lingeringCount = await this.getLingeringJoinedRaidCount();
+    if (lingeringCount >= 3) {
+      console.warn(`[Workflow] ⚠️ Active backup limit detected prior to search (${lingeringCount}/3 raids in progress).`);
+      this.lastStartFailureWasRaidLimit = true;
+      await this.resolveLingeringRaidLimit(logPath, currentRuns);
+      return false;
+    }
+
+    // Switch to Finder tab (#tab-search)
+    const finderTab = await this.page.waitForSelector('#tab-search, .btn-tabs#tab-search', { visible: true, timeout: 5000 }).catch(() => null);
+    if (finderTab) {
+      const isActive = await this.page.evaluate((el: any) => el.classList.contains('active'), finderTab);
+      if (!isActive) {
+        await humanizedClick(this.page, finderTab);
+        await logNormalDelay(600, 0.15);
+      }
+    }
+
+    // Scan slots for eligible candidate
+    const t0 = Date.now();
+    const maxSearchMs = 30000;
+    let raidClicked = false;
+    let slotCycleIndex = 0;
+
+    while (Date.now() - t0 < maxSearchMs && !raidClicked && !this.stopRequested) {
+      const currentSlot = slotList[slotCycleIndex % slotList.length];
+      slotCycleIndex++;
+
+      // 1. Activate the slot button (.btn-search-switch.slot${currentSlot})
+      const slotBtn = await this.page.waitForSelector(`.btn-search-switch.slot${currentSlot}, [data-slot="${currentSlot}"].btn-search-switch`, { visible: true, timeout: 2500 }).catch(() => null);
+      if (slotBtn) {
+        const isSlotActive = await this.page.evaluate((el: any) => el.classList.contains('active'), slotBtn).catch(() => false);
+        if (!isSlotActive) {
+          console.log(`[Workflow] Switching to Slot ${currentSlot}...`);
+          await humanizedClick(this.page, slotBtn);
+          await logNormalDelay(500, 0.12);
+        }
+      }
+
+      // Check full/ended raid popup
+      await this.dismissFullOrEndedRaidPopup();
+
+      // 2. Scan cards in #prt-search-list
+      const candidate = await this.page.evaluate((minHp: number, maxP: number) => {
+        const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid'));
+        const parsed = cards.map((c, i) => {
+          const el = c as HTMLElement;
+          if (el.offsetParent === null) return null;
+
+          const gauge = el.querySelector('.prt-raid-gauge-inner') as HTMLElement;
+          const hpWidth = gauge?.style?.width || '0%';
+          const hpPct = parseFloat(hpWidth) || 0;
+
+          const playerEl = el.querySelector('.prt-flees-in') as HTMLElement;
+          const playerText = playerEl ? (playerEl.innerText || '') : '';
+          const match = playerText.match(/(\d+)\s*\/\s*(\d+)/);
+          const players = match ? parseInt(match[1], 10) : 0;
+          const maxPlayers = match ? parseInt(match[2], 10) : 30;
+
+          const raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || '';
+          const rect = el.getBoundingClientRect();
+
+          return {
+            index: i,
+            raidId,
+            hpPct,
+            players,
+            maxPlayers,
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+          };
+        }).filter(Boolean) as any[];
+
+        if (parsed.length === 0) return null;
+
+        // Filter by minHp (if configured) and maxPlayers
+        const eligible = parsed.filter(c => c.hpPct >= minHp && c.players <= maxP);
+        if (eligible.length > 0) {
+          // Sort by highest HP percentage first, then least players
+          eligible.sort((a, b) => b.hpPct - a.hpPct || a.players - b.players);
+          return eligible[0];
+        }
+
+        // Fallback: pick the highest HP card available if any exist
+        parsed.sort((a, b) => b.hpPct - a.hpPct);
+        return parsed[0];
+      }, this.template.minHpPct || 0, this.template.maxPlayers || 30).catch(() => null);
+
+      if (candidate) {
+        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30}). Joining...`);
+
+        const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid');
+        const targetCard = cardElements[candidate.index];
+        if (targetCard) {
+          await humanizedClick(this.page, targetCard);
+        } else {
+          await this.page.touchscreen.tap(candidate.x, candidate.y).catch(() => null);
+        }
+        raidClicked = true;
+        break;
+      }
+
+      // If all slots checked in this pass, click search refresh if available
+      if (slotCycleIndex % slotList.length === 0) {
+        const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
+        if (refreshBtn) {
+          await humanizedClick(this.page, refreshBtn);
+          await logNormalDelay(1000, 0.15);
+        } else {
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      } else {
+        await logNormalDelay(350, 0.1);
+      }
+    }
+
+    if (!raidClicked) {
+      console.warn('[Workflow] No eligible raid found within search window.');
+      return false;
+    }
+
+    // 1. Await transition: either #quest/supporter_raid mounts OR a popup modal appears
+    const transitionState = await this.waitForSupporterOrModal(10000);
+    if (transitionState === 'FULL_OR_ENDED') {
+      console.warn('[Workflow] Raid was already full or ended. Retrying next search...');
+      return false;
+    }
+    if (transitionState === 'ACTIVE_RAID_LIMIT_3') {
+      console.warn('[Workflow] ⚠️ Active raid limit reached (3 simultaneous battles in progress).');
+      this.lastStartFailureWasRaidLimit = true;
+      await this.resolveLingeringRaidLimit(logPath, currentRuns);
+      return false;
+    }
+    if (transitionState === 'PENDING_LIMIT') {
+      console.warn('[Workflow] Pending battle limit reached. Clearing all unclaimed battles...');
+      await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+      return false;
+    }
+    if (transitionState === 'DIRECT_COMBAT') {
+      return await this.waitForBattleToMount(12000);
+    }
+    if (transitionState === 'TIMEOUT') {
+      console.warn('[Workflow] Supporter screen navigation timed out.');
+      return false;
+    }
+
+    // 2. Select Supporter Summon by priority
+    const suppSelected = await this.selectSupporterCard(this.template.supporterPriority || ['Hades', 'Bahamut', 'Zeus', 'Lucifer', 'Kaguya']);
+    if (!suppSelected) {
+      console.warn('[Workflow] Could not select supporter summon.');
+      return false;
+    }
+
+    // 3. Confirm Party & Start Quest (handling Soul Berry EP replenishment if needed)
+    return await this.confirmPartyAndStartRaid(autoReplenishEp, logPath, currentRuns);
+  }
+
+  /**
+   * Intelligently waits for at least one active raid slot to free up when the 3-raid limit is hit.
+   * Backwards-compatible method that delegates to performPassiveWaitCycle.
+   */
+  private async waitForActiveRaidSlot(maxWaitSec = 90): Promise<boolean> {
+    return await this.performPassiveWaitCycle(this.template.logPath || 'logs/workflow.md', 0);
+  }
+
+  /**
+   * Reads the current number of joined/in-progress raids from the Recent/Joined tab badge (#tab-multi).
+   * Returns 0-3 (or -1 if unable to read).
+   */
+  public async getLingeringJoinedRaidCount(): Promise<number> {
+    try {
+      return await this.page.evaluate(() => {
+        const multiTab = document.querySelector('#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"]');
+        if (multiTab) {
+          const badge = multiTab.querySelector('.prt-badge, .ico-badge, .cnt-badge');
+          if (badge) {
+            const num = parseInt(badge.textContent || '0', 10);
+            return isNaN(num) ? 0 : num;
+          }
+          return 0;
+        }
+        return -1;
+      });
+    } catch {
+      return -1;
+    }
+  }
+
+  /**
+   * Intelligently resolves the 3-raid backup limit when hit:
+   * 1. Checks/clears any already completed pending battles.
+   * 2. High chance (~80%): Navigates to #quest/assist -> Recent/Joined tab, selects raid with
+   *    highest HP / fewer players, rejoins, uses random buff skills + attack + reload,
+   *    helps for 5s - 20s (or until clear), and rechecks lingering count.
+   * 3. Low chance (~20%): Passive wait for 0.5 - 15 minutes, polling every 12-15s to claim
+   *    completed battles until a slot frees up.
+   * 4. Enforces pending battle check every 5 joined and cleared battles.
+   */
+  public async resolveLingeringRaidLimit(logPath = this.currentLogPath, currentRuns = this.totalCompletedRuns): Promise<boolean> {
+    console.log(`\n========================================================================`);
+    console.log(`[Workflow] 🛡️ Resolving 3-Raid Backup Limit on Account [${this.accountId}]`);
+    console.log(`========================================================================`);
+
+    // 1. Proactively dismiss any open modal
+    await this.dismissPopupModal();
+
+    // 2. Check and claim any pending battles that may have already finished
+    const initialClaimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+    if (initialClaimed > 0) {
+      this.totalJoinedAndClearedBattles += initialClaimed;
+      console.log(`[Workflow] 🎉 Initial sweep claimed ${initialClaimed} pending battle(s).`);
+      await this.checkFiveBattleMilestone(logPath, currentRuns);
+    }
+
+    // 3. Check lingering count
+    let lingeringCount = await this.getLingeringJoinedRaidCount();
+    if (lingeringCount >= 0 && lingeringCount < 3) {
+      console.log(`[Workflow] ✅ Active raids in progress dropped to ${lingeringCount}/3. Slot freed up!`);
+      this.joinedInCurrentBatch = lingeringCount;
+      return true;
+    }
+
+    // 4. Decide strategy: ~80% Active Assist Helper, ~20% Passive Wait
+    const shouldActivelyHelp = Math.random() < 0.80;
+
+    if (shouldActivelyHelp) {
+      console.log(`[Workflow] ⚔️ Strategy chosen: ACTIVE ASSIST (~80% probability).`);
+      const assisted = await this.performActiveAssistCycle(logPath, currentRuns);
+      if (assisted) return true;
+      // If active assist didn't free a slot (e.g. raid was still bulky), fall back to passive wait
+    } else {
+      console.log(`[Workflow] ⏳ Strategy chosen: PASSIVE WAIT (~20% probability).`);
+    }
+
+    // Passive Wait (also fallback if active assist didn't free slot)
+    return await this.performPassiveWaitCycle(logPath, currentRuns);
+  }
+
+  /**
+   * Performs an active assist on a lingering raid:
+   * - Navigates to #quest/assist -> Recent/Joined tab
+   * - Scans joined raids, picks the one with most HP / fewer players
+   * - Rejoins raid, uses random buff skills + attack + reload for 5s - 20s
+   * - If clear detected, records settlement and checks 5-battle milestone
+   * - Rechecks lingering count at #quest/assist
+   */
+  private async performActiveAssistCycle(logPath: string, currentRuns: number): Promise<boolean> {
+    try {
+      // 1. Ensure we are on #quest/assist
+      const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+      if (!curHash.includes('quest/assist') || curHash.includes('unclaimed')) {
+        await Promise.all([
+          this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
+          this.page.evaluate(() => {
+            window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
+            window.location.reload();
+          }).catch(() => null)
+        ]);
+        await logNormalDelay(1000, 0.15);
+      }
+
+      // 2. Switch to Recent / Joined tab (#tab-multi)
+      await this.switchToRecentJoinedTab();
+      await logNormalDelay(600, 0.15);
+
+      // 3. Scan joined raid cards
+      const candidates = await this.scanJoinedRaidCards();
+      if (candidates.length === 0) {
+        console.log('[Workflow] No active joined raids found on Recent tab. Checking pending claims...');
+        await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+        return true;
+      }
+
+      // 4. Sort by most HP first, then fewer players
+      candidates.sort((a, b) => {
+        const hpDiff = b.hpPct - a.hpPct;
+        if (Math.abs(hpDiff) > 2) return hpDiff;
+        return a.players - b.players;
+      });
+
+      const selected = candidates[0];
+      console.log(`[Workflow] ⚔️ Selected lingering raid to help: "${selected.questName || 'Unknown'}" (HP: ${selected.hpPct}%, Players: ${selected.players}/${selected.maxPlayers}, ID: ${selected.raidId})`);
+
+      // 5. Click the raid card to rejoin
+      await this.clickJoinedRaidCard(selected);
+
+      // 6. Wait for battle HUD or result
+      const mountState = await this.waitForBattleToMountOrResult(12000);
+
+      if (mountState === 'RESULT') {
+        console.log('[Workflow] 🎉 Lingering raid was already completed! Resolving result...');
+        await this.handleConfirmResult();
+        this.totalJoinedAndClearedBattles++;
+        await this.checkFiveBattleMilestone(logPath, currentRuns);
+      } else if (mountState === 'MOUNTED') {
+        // In combat: assist for 5s - 20s
+        const helpDurationMs = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+        console.log(`[Workflow] ⚔️ Assisting in lingering battle for ${(helpDurationMs / 1000).toFixed(1)}s (buffs -> attack -> reload)...`);
+        const tStart = Date.now();
+
+        // Step A: Click random buff skill
+        if (!await this.isBattleEnded()) {
+          const randChar = Math.floor(Math.random() * 3) + 1; // Character 1, 2, or 3
+          const randSkill = Math.floor(Math.random() * 4) + 1; // Skill 1, 2, 3, or 4
+          console.log(`[Workflow] Using random buff skill (C${randChar}S${randSkill})...`);
+          await this.handleSkill({
+            code: 'skill',
+            character: randChar,
+            skill: randSkill,
+            optional: true
+          });
+          await logNormalDelay(350, 0.15);
+        }
+
+        // Step B: Attack
+        if (!await this.isBattleEnded()) {
+          console.log('[Workflow] Triggering attack in lingering raid...');
+          await this.handleAttack({
+            code: 'attack',
+            waitForNetwork: 'normal_attack_result.json'
+          });
+          await logNormalDelay(250, 0.12);
+        }
+
+        // Step C: Reload
+        if (!await this.isBattleEnded()) {
+          console.log('[Workflow] Reloading after attack...');
+          await this.handleReload({ code: 'reload' });
+          await this.waitForCombatInputReady(4000).catch(() => null);
+        }
+
+        // Step D: Spend remaining time in the 5s - 20s window monitoring if battle clears
+        const remainingMs = helpDurationMs - (Date.now() - tStart);
+        if (remainingMs > 500) {
+          const deadline = Date.now() + remainingMs;
+          while (Date.now() < deadline && !this.stopRequested) {
+            if (await this.isBattleEnded()) break;
+            await new Promise(r => setTimeout(r, 800));
+          }
+        }
+
+        // Check if battle cleared
+        if (await this.isBattleEnded()) {
+          console.log('[Workflow] 🎉 Lingering raid cleared while assisting!');
+          await this.handleConfirmResult();
+          this.totalJoinedAndClearedBattles++;
+          await this.checkFiveBattleMilestone(logPath, currentRuns);
+        }
+      }
+
+      // 7. Return to #quest/assist and check lingering count
+      console.log('[Workflow] Returning to Backup Requests (#quest/assist) to recheck lingering slots...');
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
+        this.page.evaluate(() => {
+          window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
+          window.location.reload();
+        }).catch(() => null)
+      ]);
+      await logNormalDelay(1000, 0.15);
+
+      const lingeringRemaining = await this.getLingeringJoinedRaidCount();
+      if (lingeringRemaining >= 0 && lingeringRemaining < 3) {
+        console.log(`[Workflow] ✅ Lingering raids reduced to ${lingeringRemaining}/3. Slot freed up! Resuming primary GB farm...`);
+        this.joinedInCurrentBatch = lingeringRemaining;
+        return true;
+      }
+
+      console.log(`[Workflow] Lingering raids still at ${lingeringRemaining}/3.`);
+      return false;
+    } catch (err: any) {
+      console.warn('[Workflow] Notice during active assist cycle:', err.message);
+      return false;
+    }
+  }
+
+  /**
+   * Performs passive wait for lingering raids to clear:
+   * - Random duration between 0.5 min (30s) and up to 15 min (900s)
+   * - Periodically checks and claims pending battles every 12-15s
+   * - Early exits as soon as any battle is claimed or lingering badge < 3
+   */
+  private async performPassiveWaitCycle(logPath: string, currentRuns: number): Promise<boolean> {
+    // Random wait between 30s and up to 15m (typically 45s-180s, occasional longer wait)
+    const isLongWait = Math.random() < 0.12;
+    const waitSeconds = isLongWait
+      ? Math.floor(Math.random() * (900 - 180 + 1)) + 180
+      : Math.floor(Math.random() * (180 - 30 + 1)) + 30;
+
+    const t0 = Date.now();
+    const maxWaitMs = waitSeconds * 1000;
+    let pollCount = 0;
+
+    console.log(`[Workflow] ⏳ Waiting up to ${(waitSeconds / 60).toFixed(1)}m (${waitSeconds}s) for participants to clear active raids...`);
+
+    while (Date.now() - t0 < maxWaitMs && !this.stopRequested) {
+      pollCount++;
+      const pollDelay = Math.floor(Math.random() * 3000) + 12000; // 12-15s poll interval
+      await new Promise(r => setTimeout(r, pollDelay));
+      if (this.stopRequested) return false;
+
+      console.log(`[Workflow] [Wait Poll #${pollCount}] Checking if any lingering battle concluded...`);
+      const claimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+      if (claimed > 0) {
+        this.totalJoinedAndClearedBattles += claimed;
+        console.log(`[Workflow] 🎉 Raid concluded and claimed (${claimed} claimed)! Active slot freed up.`);
+        await this.checkFiveBattleMilestone(logPath, currentRuns);
+        return true;
+      }
+
+      const activeCount = await this.getLingeringJoinedRaidCount();
+      if (activeCount >= 0 && activeCount < 3) {
+        console.log(`[Workflow] ✅ Active battles in progress dropped to ${activeCount}/3. Slot freed up!`);
+        this.joinedInCurrentBatch = activeCount;
+        return true;
+      }
+    }
+
+    console.log(`[Workflow] Passive wait interval (${waitSeconds}s) finished. Rechecking state...`);
+    return true;
+  }
+
+  /**
+   * Switches to the Recent / Joined raids tab (#tab-multi) on #quest/assist.
+   */
+  private async switchToRecentJoinedTab(): Promise<void> {
+    await this.page.evaluate(() => {
+      const tabs = Array.from(document.querySelectorAll(
+        '#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"], .tab-multi, .tab-recent, .tab-joined, .btn-tabs'
+      )) as HTMLElement[];
+      for (const t of tabs) {
+        const text = (t.innerText || t.textContent || '').toLowerCase();
+        const id = t.id || '';
+        const dataTab = t.getAttribute('data-tab') || '';
+        if (
+          id === 'tab-multi' ||
+          dataTab === 'multi' ||
+          dataTab === 'recent' ||
+          dataTab === 'joined' ||
+          text.includes('joined') ||
+          text.includes('recent') ||
+          text.includes('参戦中')
+        ) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(t).trigger('tap');
+          t.click();
+          return true;
+        }
+      }
+      return false;
+    }).catch(() => false);
+  }
+
+  /**
+   * Scans joined raid cards inside the Recent / Joined tab panel.
+   */
+  private async scanJoinedRaidCards(): Promise<Array<{
+    index: number;
+    raidId: string;
+    questName: string;
+    hpPct: number;
+    players: number;
+    maxPlayers: number;
+    x: number;
+    y: number;
+  }>> {
+    return await this.page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll(
+        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .cnt-quest-assist .btn-multi-raid, #prt-search-list ~ .prt-raid-list .btn-multi-raid'
+      )) as HTMLElement[];
+
+      const validCards = cards.filter(c => c.offsetParent !== null);
+      const targetCards = validCards.length > 0
+        ? validCards
+        : (Array.from(document.querySelectorAll('.btn-multi-raid.lis-raid, .btn-multi-raid, .lis-raid')) as HTMLElement[]).filter(c => c.offsetParent !== null);
+
+      return targetCards.map((el, i) => {
+        const gauge = el.querySelector('.prt-raid-gauge-inner, .prt-gauge-inner, .prt-hp-gauge-inner') as HTMLElement;
+        const hpWidth = gauge?.style?.width || '100%';
+        const hpPct = parseFloat(hpWidth) || 100;
+
+        const playerEl = el.querySelector('.prt-flees-in, .prt-member, .txt-member, .prt-raid-gauge') as HTMLElement;
+        const playerText = playerEl ? (playerEl.innerText || '') : '';
+        const match = playerText.match(/(\d+)\s*\/\s*(\d+)/);
+        const players = match ? parseInt(match[1], 10) : 1;
+        const maxPlayers = match ? parseInt(match[2], 10) : 30;
+
+        const nameEl = el.querySelector('.txt-quest-name, .prt-quest-name, .txt-name, .txt-title') as HTMLElement;
+        const questName = nameEl ? (nameEl.innerText?.trim() || '') : '';
+
+        const raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || el.getAttribute('data-href') || '';
+        const rect = el.getBoundingClientRect();
+
+        return {
+          index: i,
+          raidId,
+          questName,
+          hpPct,
+          players,
+          maxPlayers,
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      });
+    }).catch(() => []);
+  }
+
+  /**
+   * Clicks a joined raid card from the Recent / Joined list to rejoin combat.
+   */
+  private async clickJoinedRaidCard(candidate: { index: number; x: number; y: number }): Promise<void> {
+    const cardElements = await this.page.$$(
+      '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .cnt-quest-assist .btn-multi-raid, .btn-multi-raid.lis-raid, .btn-multi-raid, .lis-raid'
+    );
+    const targetEl = cardElements[candidate.index];
+    if (targetEl) {
+      await humanizedClick(this.page, targetEl);
+      await targetEl.evaluate((el: any) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(el).trigger('tap');
+        el.click();
+      }).catch(() => null);
+    } else if (candidate.x > 0 && candidate.y > 0) {
+      await this.page.touchscreen.tap(candidate.x, candidate.y).catch(() => null);
+    }
+  }
+
+  /**
+   * Waits for battle HUD to mount or result screen/modal to appear upon rejoining.
+   */
+  private async waitForBattleToMountOrResult(timeoutMs = 12000): Promise<'MOUNTED' | 'RESULT' | 'TIMEOUT'> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.stopRequested) return 'TIMEOUT';
+      const state = await this.page.evaluate(() => {
+        const hash = window.location.hash;
+        if (hash.includes('result') || document.querySelector('.pop-raid-result, .prt-result-head')) {
+          return 'RESULT';
+        }
+        const modal = document.querySelector('.pop-usual, #pop');
+        if (modal && (modal as HTMLElement).offsetParent !== null) {
+          const text = (modal as HTMLElement).innerText || '';
+          if (text.includes('ended') || text.includes('終了')) {
+            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+            if (ok) ok.click();
+            return 'RESULT';
+          }
+        }
+        const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
+        const stage = (window as any).stage;
+        if (isCombat && stage?.gGameStatus) {
+          return 'MOUNTED';
+        }
+        if (document.querySelector('.lis-character0, .btn-attack-start.display-on')) {
+          return 'MOUNTED';
+        }
+        return null;
+      }).catch(() => null);
+
+      if (state) return state as any;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    return 'TIMEOUT';
+  }
+
+  /**
+   * Proactively dismisses any popup modal visible on page.
+   */
+  private async dismissPopupModal(): Promise<boolean> {
+    return await this.page.evaluate(() => {
+      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+      if (modal && (modal as HTMLElement).offsetParent !== null) {
+        const ok = modal.querySelector('.btn-usual-ok, #pop .btn-usual-ok, .btn-usual-close') as HTMLElement;
+        if (ok) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(ok).trigger('tap');
+          ok.click();
+          return true;
+        }
+      }
+      return false;
+    }).catch(() => false);
+  }
+
+  /**
+   * Guarantees that every 5 battles joined & cleared (primary or assist),
+   * pending battles are checked and swept.
+   */
+  private async checkFiveBattleMilestone(logPath: string, currentRuns: number): Promise<void> {
+    if (this.totalJoinedAndClearedBattles > 0 && this.totalJoinedAndClearedBattles % 5 === 0) {
+      console.log(`\n========================================================================`);
+      console.log(`[Workflow] 🛡️ 5-Battle Milestone Reached (${this.totalJoinedAndClearedBattles} battles joined & cleared)`);
+      console.log(`[Workflow] Checking and sweeping pending battles to avoid GBF 5-battle hard lock...`);
+      console.log(`========================================================================\n`);
+      await this.claimPendingBattles(logPath, currentRuns);
+    }
+  }
+
+  /**
+   * Waits for supporter screen to mount or detects early modal dismissal (room full, ended, limit).
+   */
+  private async waitForSupporterOrModal(timeoutMs = 10000): Promise<'SUPPORTER_READY' | 'FULL_OR_ENDED' | 'PENDING_LIMIT' | 'ACTIVE_RAID_LIMIT_3' | 'DIRECT_COMBAT' | 'TIMEOUT'> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.stopRequested) return 'TIMEOUT';
+
+      const state = await this.page.evaluate(() => {
+        const hash = window.location.hash;
+
+        // 1. Direct combat hash
+        if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash)) {
+          return 'DIRECT_COMBAT';
+        }
+
+        // 2. Check for popups/modals
+        const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+        if (modal && (modal as HTMLElement).offsetParent !== null) {
+          const text = (modal as HTMLElement).innerText || '';
+          if (text.includes('already full') || text.includes('already ended') || text.includes('参加人数') || text.includes('終了')) {
+            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+            if (ok) ok.click();
+            return 'FULL_OR_ENDED';
+          }
+          const rawText = (modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '';
+          const lowerText = text.toLowerCase();
+          const isThreeRaidLimit = (
+            lowerText.includes('three raid') ||
+            lowerText.includes('up to three') ||
+            lowerText.includes('provide backup in up to') ||
+            lowerText.includes('only provide backup') ||
+            lowerText.includes('3 battles') ||
+            lowerText.includes('3 raid') ||
+            lowerText.includes('participating in 3') ||
+            lowerText.includes('more than 3') ||
+            lowerText.includes('up to 3') ||
+            rawText.includes('3件まで') ||
+            rawText.includes('同時に参戦できる') ||
+            rawText.includes('参戦中') ||
+            rawText.includes('3件')
+          );
+          if (isThreeRaidLimit) {
+            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+            if (ok) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(ok).trigger('tap');
+              ok.click();
+            }
+            return 'ACTIVE_RAID_LIMIT_3';
+          }
+          if (
+            lowerText.includes('pending') ||
+            lowerText.includes('unclaimed') ||
+            rawText.includes('未確認') ||
+            lowerText.includes('five or more') ||
+            rawText.includes('5件')
+          ) {
+            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+            if (ok) ok.click();
+            return 'PENDING_LIMIT';
+          }
+        }
+
+        // 3. Supporter raid screen with cards mounted
+        if (hash.includes('supporter_raid') || hash.includes('supporter')) {
+          const suppCards = document.querySelectorAll('.btn-supporter, .lis-supporter, .prt-supporter-attribute .lis-supporter, .prt-supporter-detail');
+          const hasVisibleCards = Array.from(suppCards).some(c => (c as HTMLElement).offsetParent !== null);
+          if (hasVisibleCards) {
+            return 'SUPPORTER_READY';
+          }
+        }
+
+        return null;
+      }).catch(() => null);
+
+      if (state) return state as any;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    return 'TIMEOUT';
+  }
+
+  /**
+   * Scans and selects supporter summon card on #quest/supporter_raid by priority.
+   */
+  private async selectSupporterCard(priorities: string[]): Promise<boolean> {
+    const cardSelected = await this.page.evaluate((priors: string[]) => {
+      const cards = Array.from(document.querySelectorAll(
+        '.btn-supporter, .lis-supporter, .prt-supporter-attribute .lis-supporter, .prt-supporter-detail'
+      )) as HTMLElement[];
+
+      const visibleCards = cards.filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 0);
+      if (visibleCards.length === 0) return false;
+
+      // 1. Match priorities
+      for (const p of priors) {
+        const match = visibleCards.find(c => (c.innerText || c.textContent || '').toLowerCase().includes(p.toLowerCase()));
+        if (match) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(match).trigger('tap');
+          match.click();
+          return true;
+        }
+      }
+
+      // 2. Fallback to first available supporter
+      const first = visibleCards[0];
+      const $ = (window as any).$ || (window as any).Zepto;
+      if ($) $(first).trigger('tap');
+      first.click();
+      return true;
+    }, priorities).catch(() => false);
+
+    if (cardSelected) {
+      await logNormalDelay(400, 0.12);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Confirms party and clicks Quest Start OK button, handling Soul Berry EP replenishment if needed.
+   */
+  private async confirmPartyAndStartRaid(
+    autoReplenishEp: boolean,
+    logPath = this.currentLogPath,
+    currentRuns = this.totalCompletedRuns
+  ): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < 10000) {
+      if (this.stopRequested) return false;
+
+      // Check if pending battle popup modal appeared during party confirmation
+      if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
+        return false;
+      }
+
+      // 1. Check if direct combat already mounted
+      const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+      if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash)) {
+        return await this.waitForBattleToMount(12000);
+      }
+
+      // 2. Handle EP replenishment (Soul Berry) if modal appears
+      const berryModal = await this.page.evaluate((replenish: boolean) => {
+        const berryBtn = document.querySelector('.btn-use-item.btn-usual-use, .btn-usual-ok.se-use') as HTMLElement;
+        if (berryBtn && berryBtn.offsetParent !== null) {
+          if (!replenish) return 'EP_DENIED';
+          berryBtn.click();
+          return 'BERRY_CLICKED';
+        }
+        return null;
+      }, autoReplenishEp).catch(() => null);
+
+      if (berryModal === 'EP_DENIED') {
+        console.warn('[Workflow] EP depleted and autoReplenishEp is disabled.');
+        return false;
+      }
+      if (berryModal === 'BERRY_CLICKED') {
+        await logNormalDelay(350, 0.1);
+        // Confirm Soul Berry usage in confirmation popup
+        const confirmBerry = await this.page.waitForSelector('.pop-usual .btn-usual-ok', { visible: true, timeout: 3000 }).catch(() => null);
+        if (confirmBerry) {
+          await humanizedClick(this.page, confirmBerry);
+          await logNormalDelay(400, 0.1);
+        }
+        continue;
+      }
+
+      // 3. Click Quest Start OK button (.btn-usual-ok.se-quest-start)
+      const startBtn = await this.page.waitForSelector(
+        '.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle',
+        { visible: true, timeout: 1500 }
+      ).catch(() => null);
+
+      if (startBtn) {
+        await humanizedClick(this.page, startBtn);
+        await startBtn.evaluate((el: any) => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(el).trigger('tap');
+          el.click();
+        }).catch(() => null);
+
+        const mounted = await this.waitForBattleToMount(12000);
+        if (mounted) return true;
+        if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
+          return false;
+        }
+        return false;
+      }
+
+      // Check full/ended raid modal
+      if (await this.dismissFullOrEndedRaidPopup()) {
+        console.warn('[Workflow] Raid was full or ended during party confirmation.');
+        return false;
+      }
+
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    return false;
+  }
+
+  private async dismissFullOrEndedRaidPopup(): Promise<boolean> {
+    try {
+      return await this.page.evaluate(() => {
+        const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+        if (!modal) return false;
+        const text = (modal as HTMLElement).innerText || '';
+        if (text.includes('already ended') || text.includes('already full') || text.includes('参加人数') || text.includes('終了')) {
+          const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+          if (ok) ok.click();
+          return true;
+        }
+        return false;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  private async checkAndClearPendingBattles(logPath = this.currentLogPath, currentRuns = this.totalCompletedRuns): Promise<void> {
+    const isLimit = await this.page.evaluate(() => {
+      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+      if (!modal || (modal as HTMLElement).offsetParent === null) return false;
+      const text = ((modal as HTMLElement).innerText || '').toLowerCase();
+      const rawText = (modal as HTMLElement).innerText || '';
+      return (
+        text.includes('three raid') ||
+        text.includes('up to three') ||
+        text.includes('provide backup in up to') ||
+        text.includes('only provide backup') ||
+        text.includes('pending') ||
+        text.includes('unclaimed') ||
+        rawText.includes('未確認') ||
+        text.includes('five or more') ||
+        text.includes('3 battles') ||
+        text.includes('3 raid') ||
+        text.includes('participating in 3') ||
+        text.includes('more than 3') ||
+        text.includes('up to 3') ||
+        rawText.includes('3件まで') ||
+        rawText.includes('同時に参戦できる') ||
+        rawText.includes('参戦中') ||
+        rawText.includes('3件') ||
+        rawText.includes('5件')
+      );
+    }).catch(() => false);
+
+    if (isLimit) {
+      console.log('[Workflow] Raid limit / pending battles modal detected. Clearing all unclaimed battles...');
+      await this.page.evaluate(() => {
+        const ok = document.querySelector('.pop-usual .btn-usual-ok, #pop .btn-usual-ok, .btn-usual-close') as HTMLElement;
+        if (ok) ok.click();
+      }).catch(() => null);
+      await logNormalDelay(400, 0.1);
+      const returnUrl = this.template.questUrl.includes('assist') ? 'https://game.granbluefantasy.jp/#quest/assist' : this.template.questUrl;
+      await this.claimPendingBattles(logPath, currentRuns, returnUrl);
+    }
+  }
+
+  private async resolveLingeringState(): Promise<void> {
+    try {
+      if (await this.sentinel.inspectForVerification()) {
+        console.warn('[Workflow] 🛑 CAPTCHA detected. resolveLingeringState aborted to preserve puzzle for operator.');
+        return;
+      }
+
+      const hasRestartPop = await this.page.evaluate(() => {
+        const pop = document.querySelector('.popRestartQuest, .pop-usual');
+        if (pop && pop.textContent?.includes('in progress')) {
+          const ok = pop.querySelector('.btn-usual-ok') as HTMLElement;
+          if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
+            ok.click();
+            return true;
+          }
+        }
+        return false;
+      }).catch(() => false);
+
+      if (hasRestartPop) {
+        await this.waitForBattleToMount(10000);
+      } else {
+        await this.dismissOpenModals();
+      }
+
+      let attempts = 0;
+      while (attempts < 6) {
+        if (await this.isBattleEnded()) break;
+        const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+        const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
+        if (!isCombat) break;
+
+        // If in multi-raid assist mode, do NOT attack 6 times in a completed burst raid!
+        const isAssistRaid = this.template.questUrl.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
+        if (isAssistRaid) {
+          console.log(`[Workflow] In multi-raid assist mode. Exiting lingering raid (${hash}) to #quest/assist...`);
+          await this.syncCurrentHonors();
+          await this.page.evaluate(() => { window.location.hash = '#quest/assist'; }).catch(() => null);
+          await logNormalDelay(800, 0.15);
+          break;
+        }
+
+        console.log(`[Workflow] Lingering raid detected (${hash}). Resolving battle turn...`);
+        await new Promise(r => setTimeout(r, 200));
+        await this.dismissOpenModals();
+
+        const atkBtn = await this.page.waitForSelector('.btn-attack-start.display-on, .btn-attack-start', { visible: true, timeout: 5000 }).catch(() => null);
+        if (atkBtn) {
+          await humanizedClick(this.page, atkBtn);
+          await this.waitForNetworkResponse('normal_attack_result.json', 3500);
+          await logNormalDelay(400, 0.1);
+        } else {
+          await this.page.touchscreen.tap(260, 380).catch(() => null);
+          await new Promise(r => setTimeout(r, 1000));
+        }
+
+        if (await this.isBattleEnded()) break;
+
+        await Promise.all([
+          this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
+          this.page.evaluate(() => location.reload()).catch(() => null)
+        ]);
+
+        await this.waitForBattleToMount(6000);
+        await this.dismissOpenModals();
+        attempts++;
+      }
+
+      const endHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+      const isStillCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(endHash);
+      if (endHash.includes('result') || isStillCombat) {
+        await this.page.evaluate(() => {
+          const ok = document.querySelector('.btn-usual-ok, .btn-settle') as HTMLElement;
+          if (ok && ok.offsetParent !== null) ok.click();
+          window.location.href = 'https://game.granbluefantasy.jp/#quest/index';
+        }).catch(() => null);
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    } catch {}
+  }
+
+  private async dismissOpenModals(): Promise<boolean> {
+    try {
+      return await this.page.evaluate(() => {
+        let dismissed = false;
+        const btns = Array.from(document.querySelectorAll('.btn-usual-close, .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close')) as HTMLElement[];
+        for (const b of btns) {
+          if (b.offsetParent !== null && window.getComputedStyle(b).display !== 'none') {
+            b.click();
+            dismissed = true;
+          }
+        }
+        return dismissed;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  private async checkAndDismissProcessingTurnPopup(): Promise<boolean> {
+    try {
+      return await this.page.evaluate(() => {
+        const pop = document.querySelector('.pop-usual, .prt-popup-header');
+        if (pop) {
+          const ok = pop.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+          if (ok && ok.offsetParent !== null) {
+            ok.click();
+            return true;
+          }
+        }
+        return false;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  private async isBattleEnded(): Promise<boolean> {
+    try {
+      const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+      if (hash.includes('result') || hash.includes('supporter') || hash.includes('mypage') || hash.includes('quest/index')) {
+        return true;
+      }
+
+      return await this.page.evaluate(() => {
+        if (document.querySelector('.pop-raid-result')) {
+          return true;
+        }
+
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        const pJsn = stage?.pJsnData;
+
+        if (gStatus?.finish || gStatus?.win || gStatus?.lose || pJsn?.finish || pJsn?.is_clear) {
+          return true;
+        }
+
+        const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
+        if (boss?.hp !== undefined && Number(boss.hp) <= 0) {
+          return true;
+        }
+
+        return false;
+      }).catch(() => false);
+    } catch {
+      return false;
+    }
+  }
+
+  private async waitForNetworkResponse(targetSubstring: string, timeoutMs: number): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+      let resolved = false;
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          this.page.off('response', responseHandler);
+          resolve(false);
+        }
+      }, timeoutMs);
+
+      const responseHandler = (res: HTTPResponse) => {
+        if (res.url().includes(targetSubstring)) {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timer);
+            this.page.off('response', responseHandler);
+            resolve(true);
+          }
+        }
+      };
+
+      this.page.on('response', responseHandler);
+    });
+  }
+
+  private ensureLogDirExists(logPath: string): void {
+    const dir = path.dirname(path.resolve(process.cwd(), logPath));
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  private appendRunLog(logPath: string, result: WorkflowRunResult): void {
+    const fullPath = path.resolve(process.cwd(), logPath);
+    if (!fs.existsSync(fullPath)) {
+      fs.writeFileSync(
+        fullPath,
+        `# Workflow Execution Log: ${this.template.name} (${this.accountId})\n\n| Run | Time | Duration | Status | Honors | Notes |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`,
+        'utf-8'
+      );
+    }
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const line = `| ${result.runNumber} | ${timestamp} | ${(result.durationMs / 1000).toFixed(1)}s | ${result.status} | ${result.honors?.toLocaleString() || '0'} | ${result.message} |\n`;
+    fs.appendFileSync(fullPath, line, 'utf-8');
+
+    // Dual structured logging (Gold Industry Standard JSONL event stream)
+    try {
+      const jsonlPath = fullPath.replace(/\.md$/i, '.jsonl');
+      const event = {
+        runNumber: result.runNumber,
+        timestamp: new Date().toISOString(),
+        timeStr: timestamp,
+        durationMs: result.durationMs,
+        status: result.status,
+        honors: result.honors || 0,
+        message: result.message,
+        accountId: this.accountId,
+        templateName: this.template.name
+      };
+      fs.appendFileSync(jsonlPath, JSON.stringify(event) + '\n', 'utf-8');
+    } catch {
+      // Non-critical logging failure
+    }
+  }
+}

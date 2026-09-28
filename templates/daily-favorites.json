@@ -1,0 +1,47 @@
+{
+  "name": "Daily Favorites Pro Skips",
+  "description": "Universal Daily Automation Routine: Navigates to #quest, executes all uncleared Pro Skips pinned in Favorites, replenishes AP if needed, and returns to #mypage",
+  "mode": "routine",
+  "questUrl": "https://game.granbluefantasy.jp/#quest",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 1,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "name": "Navigate to Quest Index",
+      "code": "navigate",
+      "target": "https://game.granbluefantasy.jp/#quest/index"
+    },
+    {
+      "name": "Await Favorites List Mounted",
+      "code": "wait_element",
+      "target": ".prt-noindex-list",
+      "timeoutMs": 6000
+    },
+    {
+      "name": "Execute All Pinned Daily Pro Skips",
+      "code": "pro_skip_favorites"
+    },
+    {
+      "name": "Dismiss Skyscope & Achievement Overlays",
+      "code": "dismiss_popups"
+    },
+    {
+      "name": "Safely Return to MyPage",
+      "code": "navigate",
+      "target": "https://game.granbluefantasy.jp/#mypage"
+    },
+    {
+      "name": "Await MyPage Home Screen",
+      "code": "wait_element",
+      "target": ".cnt-mypage, .prt-user-info",
+      "timeoutMs": 5000
+    },
+    {
+      "name": "Final Popups Sweep",
+      "code": "dismiss_popups"
+    }
+  ]
+}

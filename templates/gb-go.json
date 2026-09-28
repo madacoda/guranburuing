@@ -1,0 +1,70 @@
+{
+  "name": "GB Farm - Grand Order HL",
+  "description": "GOHL Gold Bar rotation: Quick Call -> Skill Burst -> Attack -> Exit if 1.48M -> Attack -> Reload",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 2,
+  "targetScore": 1480000,
+  "logPath": "logs/gb-go.md",
+  "supporterPriority": ["Hades", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 50,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 2,
+      "targetCharacter": 2
+    },
+    {
+      "code": "summon",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1480000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

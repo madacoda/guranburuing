@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GBF Remote Companion</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E14">
+  <style>
+    :root {
+      --bg-main: #0B0E14;
+      --bg-card: #141A24;
+      --text-main: #F0F4F8;
+      --text-muted: #8292A2;
+      --accent: #00F0FF;
+      --accent-glow: rgba(0, 240, 255, 0.25);
+      --danger: #FF0055;
+      --danger-glow: rgba(255, 0, 85, 0.35);
+      --success: #00FF88;
+      --warning: #FFB800;
+      --border: #222C3D;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Header Bar */
+    header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
+    .status-badge { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); }
+    .dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .sentinel-pill { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: rgba(0, 240, 255, 0.15); color: var(--accent); border: 1px solid var(--accent); font-weight: bold; }
+    .sentinel-pill.busy { background: rgba(255, 184, 0, 0.15); color: var(--warning); border-color: var(--warning); }
+
+    /* Live Stream Viewport */
+    .stream-card { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+    .stream-view { width: 100%; height: 210px; background: #000; object-fit: contain; }
+    .stream-footer { width: 100%; display: flex; justify-content: space-between; padding: 8px 12px; font-size: 12px; color: var(--text-muted); }
+
+    /* Quick Macro Grid */
+    .section-title { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+    .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-action { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); border-radius: 10px; padding: 14px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.15s ease; min-height: 48px; }
+    .btn-action:active { transform: scale(0.97); background: var(--border); }
+    .btn-action:disabled { opacity: 0.4; pointer-events: none; }
+    .btn-primary { background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 240, 255, 0.05)); border-color: var(--accent); color: var(--accent); }
+
+    /* Raid Joiner Card */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .input-row { display: flex; gap: 8px; }
+    input[type="text"], select { background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-main); font-size: 14px; font-weight: bold; }
+    input[type="text"] { flex: 1; text-transform: uppercase; }
+    .btn-paste { background: var(--bg-card); border: 1px solid var(--border); color: var(--accent); border-radius: 8px; padding: 0 14px; font-size: 12px; font-weight: bold; cursor: pointer; }
+    .btn-join { background: var(--accent); color: var(--bg-main); border: none; border-radius: 8px; padding: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-join:disabled { opacity: 0.4; }
+
+    /* Emergency Abort */
+    .btn-danger { background: rgba(255, 0, 85, 0.15); border: 1px solid var(--danger); color: var(--danger); border-radius: 10px; padding: 14px; font-weight: 700; font-size: 14px; cursor: pointer; margin-top: auto; }
+
+    /* CAPTCHA Alert Modal */
+    #captcha-modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.94); z-index: 9999; flex-direction: column; padding: 20px; justify-content: center; align-items: center; text-align: center; gap: 16px; border: 4px solid var(--danger); animation: alertPulse 1s infinite alternate; }
+    @keyframes alertPulse { from { border-color: var(--danger); } to { border-color: #55001A; } }
+    #captcha-img { max-width: 100%; max-height: 250px; border-radius: 8px; border: 2px solid var(--danger); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="status-badge">
+      <div class="dot" id="conn-dot"></div>
+      <span id="conn-text">Connecting...</span>
+    </div>
+    <div class="sentinel-pill" id="sentinel-badge">SENTINEL: ARMED</div>
+  </header>
+
+  <!-- Live Screencast Viewport -->
+  <div class="stream-card">
+    <img id="stream-img" class="stream-view" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='60' viewBox='0 0 100 60'><text x='50' y='35' fill='%238292A2' text-anchor='middle' font-size='10'>Connecting Stream...</text></svg>" alt="Live Stream">
+    <div class="stream-footer">
+      <span id="route-text">Route: ---</span>
+      <span id="fps-text">2 FPS (WebP)</span>
+    </div>
+  </div>
+
+  <!-- Daily Pro Skip Grid -->
+  <div class="section-title">Daily Pro Skips</div>
+  <div class="grid-2x2">
+    <button class="btn-action btn-primary action-btn" onclick="triggerDaily('magna_pro')">⚡ Magna Pro</button>
+    <button class="btn-action action-btn" onclick="triggerDaily('hard_pro')">⚔️ Hard Pro</button>
+    <button class="btn-action action-btn" onclick="triggerDaily('manacura_pro')">🛡️ Manacura</button>
+    <button class="btn-action action-btn" onclick="triggerDaily('all')">🌟 All Skips</button>
+  </div>
+
+  <!-- Raid Joiner -->
+  <div class="section-title">Raid Joiner</div>
+  <div class="card">
+    <div class="input-row">
+      <input type="text" id="raid-input" placeholder="8-Char Raid ID" maxlength="8">
+      <button class="btn-paste" onclick="pasteRaidCode()">Paste</button>
+    </div>
+    <div class="input-row">
+      <select id="element-select" style="flex: 1;">
+        <option value="1">🔥 Fire Summon</option>
+        <option value="2">💧 Water Summon</option>
+        <option value="3">🌍 Earth Summon</option>
+        <option value="4" selected>🌪️ Wind Summon</option>
+        <option value="5">✨ Light Summon</option>
+        <option value="6">🌑 Dark Summon</option>
+        <option value="7">⚪ Misc Summon</option>
+      </select>
+    </div>
+    <button class="btn-join action-btn" onclick="joinRaid()">▶ Join Raid & Full Auto</button>
+  </div>
+
+  <!-- Emergency Abort -->
+  <button class="btn-danger" onclick="emergencyStop()">🛑 EMERGENCY STOP ALL AUTOMATION</button>
+
+  <!-- High-Priority CAPTCHA Emergency Modal -->
+  <div id="captcha-modal">
+    <h2 style="color: var(--danger);">🚨 CRITICAL: VERIFICATION DETECTED!</h2>
+    <p style="font-size: 13px; color: var(--text-muted);">Automation has been immediately FROZEN. Solve the puzzle in your browser on desktop.</p>
+    <img id="captcha-img" src="" alt="Captcha Snapshot">
+    <button class="btn-action btn-primary" style="width: 100%;" onclick="dismissCaptcha()">✅ I Have Solved It (Resume)</button>
+  </div>
+
+  <script>
+    let ws;
+    let audioUnlocked = false;
+    let audioCtx = null;
+    let wakeLock = null;
+
+    const token = new URLSearchParams(window.location.search).get('token') || localStorage.getItem('GBF_TOKEN') || 'gbf_secure_remote_token_2026_x89a1';
+    localStorage.setItem('GBF_TOKEN', token);
+
+    // Audio Context Unlock on First User Touch
+    function unlockAudio() {
+      if (!audioUnlocked) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.01);
+        audioUnlocked = true;
+        console.log('[Audio] Web Audio unlocked for emergency alarms.');
+      }
+    }
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+    document.addEventListener('click', unlockAudio, { once: true });
+
+    // Request Screen Wake Lock
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator && !wakeLock) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('[WakeLock] Screen wake lock acquired.');
+        } catch (e) {}
+      }
+    }
+
+    function playAlarmSound() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 1.2);
+    }
+
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws?token=${token}`);
+
+      ws.onopen = () => {
+        document.getElementById('conn-dot').classList.add('connected');
+        document.getElementById('conn-text').innerText = 'Connected';
+        requestWakeLock();
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'EVENT_SCREENCAST_FRAME') {
+          document.getElementById('stream-img').src = msg.data;
+        } else if (msg.type === 'EVENT_TELEMETRY') {
+          document.getElementById('route-text').innerText = `Route: ${msg.data.currentUrl.split('#')[1] || '---'}`;
+          setBusyState(msg.data.busy);
+        } else if (msg.type === 'EVENT_ENGINE_BUSY') {
+          setBusyState(msg.busy);
+        } else if (msg.type === 'EVENT_CAPTCHA_TRIGGERED') {
+          triggerCaptchaAlert(msg.data.screenshotBase64);
+        }
+      };
+
+      ws.onclose = () => {
+        document.getElementById('conn-dot').classList.remove('connected');
+        document.getElementById('conn-text').innerText = 'Disconnected';
+        setTimeout(connect, 2000);
+      };
+    }
+
+    function setBusyState(busy) {
+      const badge = document.getElementById('sentinel-badge');
+      if (busy) {
+        badge.innerText = 'STATUS: BUSY';
+        badge.classList.add('busy');
+      } else {
+        badge.innerText = 'SENTINEL: ARMED';
+        badge.classList.remove('busy');
+      }
+      document.querySelectorAll('.action-btn').forEach(btn => btn.disabled = busy);
+    }
+
+    function triggerDaily(target) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CMD_TRIGGER_DAILY', payload: { target } }));
+      }
+    }
+
+    function joinRaid() {
+      const code = document.getElementById('raid-input').value.trim();
+      const element = parseInt(document.getElementById('element-select').value, 10);
+      if (!code) return alert('Enter a raid code first!');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'CMD_JOIN_RAID',
+          payload: { raidCode: code, element, enableFullAuto: true }
+        }));
+      }
+    }
+
+    async function pasteRaidCode() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('raid-input').value = text.trim().toUpperCase().substring(0, 8);
+      } catch (e) { alert('Clipboard permission denied'); }
+    }
+
+    function emergencyStop() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CMD_EMERGENCY_STOP' }));
+      }
+    }
+
+    function triggerCaptchaAlert(b64) {
+      document.getElementById('captcha-img').src = b64;
+      document.getElementById('captcha-modal').style.display = 'flex';
+      playAlarmSound();
+      if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
+    }
+
+    function dismissCaptcha() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CMD_SOLVE_CAPTCHA_COMPLETE' }));
+      }
+      document.getElementById('captcha-modal').style.display = 'none';
+    }
+
+    connect();
+  </script>
+</body>
+</html>

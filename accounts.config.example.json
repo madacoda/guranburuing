@@ -1,0 +1,28 @@
+[
+  {
+    "id": "acc1",
+    "name": "acc1",
+    "enabled": true,
+    "service": "mobage",
+    "cdpPort": 9222,
+    "profileDir": "C:/Users/YOUR_USER/.gbf-profiles/acc1",
+    "credentials": {
+      "email": "your-acc1-email@example.com",
+      "password": "your-acc1-password"
+    },
+    "proxy": null
+  },
+  {
+    "id": "acc2",
+    "name": "acc2",
+    "enabled": false,
+    "service": "mobage",
+    "cdpPort": 9223,
+    "profileDir": "C:/Users/YOUR_USER/.gbf-profiles/acc2",
+    "credentials": {
+      "email": "your-acc2-email@example.com",
+      "password": "your-acc2-password"
+    },
+    "proxy": null
+  }
+]

@@ -1,0 +1,64 @@
+{
+  "name": "GB Farm - Akasha HL",
+  "description": "Akasha Gold Bar rotation: Quick Call -> Nier S1 -> Death -> Ilsa S1 -> Attack -> Exit if 1.48M -> Attack -> Reload",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 3,
+  "targetScore": 1480000,
+  "logPath": "logs/gb-akasha.md",
+  "supporterPriority": ["Hades", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 50,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "summon",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1480000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "GB Farm - PBHL 0-Button Fast",
+  "description": "Fast 0-button PBHL rotation: Quick Call -> F5 -> Attack -> F5 -> Attack -> F5 -> Confirm",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 4,
+  "logPath": "logs/gb-pbhl.md",
+  "supporterPriority": ["Hades", "Bahamut", "Zeus", "Lucifer"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 50,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

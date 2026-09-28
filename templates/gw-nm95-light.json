@@ -1,0 +1,89 @@
+{
+  "name": "GW NM95 - Light Farm",
+  "description": "GW NM95 Light Florence + Nehan 1T burst: Quick Call -> Summon 2 -> C4S1 -> C3S1,S2,S3 -> C2S1(C1),S2 -> C1S1,S2x3 -> Wait -> Attack -> Reload -> Confirm",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/947581/1/0/10116",
+  "supporterPriority": ["Zeus", "Lucifer"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 50,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "summon",
+      "slot": 2,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 2
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 3
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1,
+      "targetCharacter": 1
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 2
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 2
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 2
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 2
+    },
+    {
+      "code": "wait_random",
+      "minMs": 250,
+      "maxMs": 500
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "delayAfterMs": 1000
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

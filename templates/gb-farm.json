@@ -1,0 +1,71 @@
+{
+  "name": "GB Farm - Multi-Raid Rotator",
+  "description": "Multi-Raid Gold Bar rotation across PBHL (Slot 4), Akasha (Slot 3), and Grand Order HL (Slot 2). Auto-rotates slots, joins best HP raid, and executes high-speed burst.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlots": [4, 3, 2],
+  "raidSlot": 4,
+  "targetScore": 1480000,
+  "logPath": "logs/gb-farm.md",
+  "supporterPriority": ["Hades", "Bahamut", "Zeus", "Lucifer", "Kaguya"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 50,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 2,
+      "targetCharacter": 2
+    },
+    {
+      "code": "summon",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1480000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

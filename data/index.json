@@ -1,0 +1,399 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "gbf-technical-data-compendium",
+  "version": "1.0.0",
+  "generatedAt": "2026-09-23T08:38:00.000Z",
+  "description": "Machine-readable technical catalog of Granblue Fantasy client protocols, raid specifications, combat mechanics, and automation engine configurations.",
+  "endpoints": {
+    "raidInfo": {
+      "path": "/quest/raid_info",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Polls active raid HP percentage, member count, and personal contribution honors."
+    },
+    "raidStart": {
+      "path": "/rest/multiraid/start.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Initializes battle state, character HP, skills, and boss parameters."
+    },
+    "normalAttack": {
+      "path": "/rest/multiraid/normal_attack_result.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Executes turn attack; returns scenario animation and server-resolved outcome."
+    },
+    "ability": {
+      "path": "/rest/multiraid/ability_result.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Activates single character ability. Requires serial execution."
+    },
+    "summon": {
+      "path": "/rest/multiraid/summon_result.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Invokes summon. Limited to once per turn."
+    },
+    "proSkip": {
+      "path": "/quest/pro_skip",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Instant batch resolution of daily Omega/Omega II series quests."
+    },
+    "battleKeyCheck": {
+      "path": "/quest/battle_key_check",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Validates and joins a raid using an 8-character battle key."
+    }
+  },
+  "raids": [
+    {
+      "id": "pbhl",
+      "name": "Prototype Bahamut HL",
+      "japaneseName": "プロトバハムートHL",
+      "nickname": "つよバハ / Tsuno",
+      "questId": "300291",
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 2000000000,
+      "element": "Dark / All",
+      "battleSystem": "V1",
+      "blueChestThreshold": 1480000,
+      "blueChestGuaranteedDamage": 148000000,
+      "goldBrickChance": 0.015,
+      "recommendedTurns": 2
+    },
+    {
+      "id": "akasha",
+      "name": "Akasha HL",
+      "japaneseName": "アーカーシャHL",
+      "nickname": "アーカーシャ",
+      "questId": "300421",
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 1200000000,
+      "element": "Dark",
+      "battleSystem": "V1",
+      "specialPhysics": "Turn Acceleration (1-3 turns per action)",
+      "blueChestThreshold": 1560000,
+      "blueChestGuaranteedDamage": 156000000,
+      "goldBrickChance": 0.012,
+      "recommendedTurns": 3
+    },
+    {
+      "id": "gohl",
+      "name": "Grand Order HL",
+      "japaneseName": "ジ・オーダー・グランデHL",
+      "nickname": "グランデHL / GOHL",
+      "questId": "300411",
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 1350000000,
+      "element": "Light",
+      "battleSystem": "V1",
+      "specialPhysics": "Grand Order Field Buffs",
+      "blueChestThreshold": 1480000,
+      "blueChestGuaranteedDamage": 148000000,
+      "goldBrickChance": 0.012,
+      "recommendedTurns": 1
+    },
+    {
+      "id": "subhl",
+      "name": "Super Ultimate Bahamut",
+      "japaneseName": "スーパーアルティメットバハムート",
+      "nickname": "スパバハ / SUBHL",
+      "questId": "300581",
+      "epCost": 5,
+      "maxPlayers": 6,
+      "bossHp": 3000000000,
+      "element": "All",
+      "battleSystem": "V2",
+      "specialPhysics": "Executive Omens & Executions",
+      "blueChestThreshold": 0,
+      "blueChestGuaranteedDamage": 0,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 15
+    },
+    {
+      "id": "gw_ex_plus",
+      "name": "Guild Wars EX+",
+      "japaneseName": "決戦！星の古戦場 EX+",
+      "nickname": "肉集め / Meat Farming",
+      "questId": "700011",
+      "epCost": 0,
+      "apCost": 30,
+      "maxPlayers": 1,
+      "bossHp": 24000000,
+      "battleSystem": "V1",
+      "blueChestThreshold": 0,
+      "blueChestGuaranteedDamage": 24000000,
+      "recommendedTurns": 1
+    }
+  ],
+  "combatFormulas": {
+    "damageToHonors": {
+      "formula": "Math.floor(damage / 1000)",
+      "sample": "148,000,000 dmg => 1,480,000 honors"
+    },
+    "lockoutSeconds": {
+      "base": 1.0,
+      "hitMultiplier": 0.35,
+      "ougiMultipliers": {
+        "0": 0.0,
+        "1": 4.0,
+        "2": 6.5,
+        "3": 9.0,
+        "4": 13.0,
+        "overBurst": 16.0
+      },
+      "formula": "base + (totalHits * hitMultiplier) + ougiPenalty"
+    }
+  },
+  "domSelectors": {
+    "hud": {
+      "attackButton": ".btn-attack-start",
+      "autoButton": ".btn-auto",
+      "reloadButton": ".btn-usual-reload",
+      "guardButton": ".btn-guard",
+      "commandTop": "#prt-command-top",
+      "raidContainer": "#cnt-raid"
+    },
+    "verification": {
+      "modalContainer": "#cnt-verification",
+      "captchaImage": ".prt-popup-body .img-verify",
+      "captchaOptions": ".prt-popup-body .prt-select-item"
+    },
+    "results": {
+      "resultContainer": "#cnt-result-multi",
+      "blueChest": ".prt-drop-list .prt-box-blue",
+      "goldChest": ".prt-drop-list .prt-box-gold"
+    }
+  },
+  "chromiumOptimizationFlags": [
+    "--disable-gpu-vsync",
+    "--disable-frame-rate-limit",
+    "--limit-fps=15",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-canvas-aa",
+    "--disable-2d-canvas-clip-aa",
+    "--disable-gl-drawing-for-tests",
+    "--enable-low-end-device-mode",
+    "--mute-audio"
+  ],
+  "architectureStandards": {
+    "logDirectory": "logs",
+    "logFormats": ["markdown", "jsonl"],
+    "screenshotDirectory": "scratch/captures",
+    "maxArtifactRetention": 50,
+    "volumes": [
+      { "id": 1, "file": "01_gbf_core_engine_and_client_internals.md", "title": "Core Engine & Client Internals" },
+      { "id": 2, "file": "02_network_protocols_and_rest_api_internals.md", "title": "Network Protocols & REST API Internals" },
+      { "id": 3, "file": "03_combat_mechanics_v1_v2_and_turn_lock_physics.md", "title": "Combat Mechanics & Turn Lock Physics" },
+      { "id": 4, "file": "04_anti_cheat_detection_vectors_and_mitigation.md", "title": "Anti-Cheat Detection Vectors & Mitigation" },
+      { "id": 5, "file": "05_high_performance_farming_blueprints.md", "title": "High-Performance Farming Blueprints" },
+      { "id": 6, "file": "06_system_architecture_and_future_improvements.md", "title": "System Architecture & Technical Improvements" },
+      { "id": 7, "file": "07_architecture_review_and_standards.md", "title": "Architecture Review, Root-Cause Analysis & Gold Standards" }
+    ]
+  },
+  "dailyCatalog": {
+    "description": "Catalog of recurring daily tasks, pro skips, free draws, and mission claims for universal routine automation.",
+    "tasks": [
+      {
+        "id": "hard_pro",
+        "tag": "daily_hard_pro",
+        "name": "Hard+ Pro",
+        "category": "pro_skip",
+        "questId": "305261",
+        "chapterId": "30526",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305261'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30526']",
+        "dailyLimit": 1,
+        "apCost": 180
+      },
+      {
+        "id": "magna_pro",
+        "tag": "daily_magna_pro",
+        "name": "Omega Pro",
+        "category": "pro_skip",
+        "questId": "305441",
+        "chapterId": "30544",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305441'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30544']",
+        "dailyLimit": 1,
+        "apCost": 360
+      },
+      {
+        "id": "manacura_pro",
+        "tag": "daily_manacura_pro",
+        "name": "Omega (Impossible) Pro",
+        "category": "pro_skip",
+        "questId": "305461",
+        "chapterId": "30546",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305461'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30546']",
+        "dailyLimit": 1,
+        "apCost": 360
+      },
+      {
+        "id": "regalia_pro",
+        "tag": "daily_regalia_pro",
+        "name": "Regalia Pro",
+        "category": "pro_skip",
+        "questId": "305561",
+        "chapterId": "30556",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305561'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30556']",
+        "dailyLimit": 1,
+        "apCost": 540
+      },
+      {
+        "id": "primal_pro",
+        "tag": "daily_primal_pro",
+        "name": "Primal Legends Pro",
+        "category": "pro_skip",
+        "questId": "305471",
+        "chapterId": "30547",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305471'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30547']",
+        "dailyLimit": 1,
+        "apCost": 360
+      },
+      {
+        "id": "halo_pro",
+        "tag": "daily_halo_pro",
+        "name": "Angel Halo Pro",
+        "category": "pro_skip",
+        "questId": "305301",
+        "chapterId": "30530",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305301'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30530']",
+        "dailyLimit": 1,
+        "apCost": 150
+      },
+      {
+        "id": "primarch_pro",
+        "tag": "daily_primarch_pro",
+        "name": "Primarch Trials Pro",
+        "category": "pro_skip",
+        "questId": "104081",
+        "chapterId": "10408",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='104081'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10408']",
+        "dailyLimit": 1,
+        "apCost": 160
+      },
+      {
+        "id": "showdown_pro",
+        "tag": "daily_showdown_pro",
+        "name": "Showdown Pro",
+        "category": "pro_skip",
+        "questId": "103951",
+        "chapterId": "10395",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='103951'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10395']",
+        "dailyLimit": 1,
+        "apCost": 180
+      },
+      {
+        "id": "clash_pro",
+        "tag": "daily_clash_pro",
+        "name": "Clash Pro",
+        "category": "pro_skip",
+        "questId": "103991",
+        "chapterId": "10399",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='103991'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10399']",
+        "dailyLimit": 1,
+        "apCost": 360
+      },
+      {
+        "id": "dragon_pro",
+        "tag": "daily_dragon_pro",
+        "name": "Six-Dragon Advent Pro",
+        "category": "pro_skip",
+        "questId": "104111",
+        "chapterId": "10411",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='104111'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10411']",
+        "dailyLimit": 1,
+        "apCost": 960
+      },
+      {
+        "id": "eternals_pro",
+        "tag": "daily_eternals_pro",
+        "name": "Eternals Unlock Treasure Pro",
+        "category": "pro_skip",
+        "questId": "104191",
+        "chapterId": "10419",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='104191'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10419']",
+        "dailyLimit": 1,
+        "apCost": 360
+      },
+      {
+        "id": "ennead_pro",
+        "tag": "daily_ennead_pro",
+        "name": "Ennead Pro",
+        "category": "pro_skip",
+        "questId": "305321",
+        "chapterId": "30532",
+        "proChapterId": "30583",
+        "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+        "selector": ".pop-pro-quest-list [data-quest-id='305321'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30532'], .pop-pro-quest-list .btn-set-quest[data-pro-chapter-id='30583']",
+        "dailyLimit": 1,
+        "apCost": 360
+      },
+      {
+        "id": "rupie_gacha",
+        "tag": "daily_rupie",
+        "name": "Daily 100-Draw Rupie Gacha",
+        "category": "gacha",
+        "pageUrl": "https://game.granbluefantasy.jp/#gacha/normal",
+        "selector": ".btn-lupi.multi, .btn-lupi[data-count='100'], .btn-lupi[data-id='6002'], .btn-lupi, .btn-draw-100",
+        "dailyLimit": 1
+      },
+      {
+        "id": "skyscope_missions",
+        "tag": "daily_skyscope",
+        "name": "Claim Skyscope Daily Missions",
+        "category": "mission",
+        "pageUrl": "https://game.granbluefantasy.jp/#mission",
+        "selector": ".btn-claim-all, .btn-receive-all, .prt-mission-complete",
+        "dailyLimit": 1
+      },
+      {
+        "id": "casino_exchange",
+        "tag": "daily_casino",
+        "name": "Casino Daily Half-Elixir & Berry Exchange",
+        "category": "shop",
+        "pageUrl": "https://game.granbluefantasy.jp/#casino/exchange",
+        "selector": ".btn-exchange",
+        "dailyLimit": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,458 @@
+# Granblue Fantasy Remote Controller & Automation Command Guide
+
+Comprehensive operational guide detailing installation, configuration, launch commands, daily automation routines, Guild War & Nightmare (NM) combat, Gold Bar hunting, daemon deployment, and troubleshooting.
+
+---
+
+## 1. Prerequisites & System Requirements
+
+- **Operating System**: Windows 10/11 (x64)
+- **Primary Runtime**: [Bun](https://bun.sh/) (v1.1+ / v1.3+) strictly enforced across all CLI commands and test suites
+- **Fallback Runtime**: [Node.js](https://nodejs.org/) (v20+)
+- **Browser**: [SRWare Iron (64-Bit)](https://www.srware.net/iron/) or Google Chrome installed in standard paths
+- **Shell**: PowerShell 5.1+ or PowerShell 7+
+- **Process Manager** *(Optional, for background daemon)*: `pm2`
+
+---
+
+## 2. Environment Configuration (`.env`)
+
+Create or update your `.env` file in the project root:
+
+```ini
+# Gateway Server Settings
+PORT=3001
+HOST=0.0.0.0
+AUTH_TOKEN=gbf_secure_remote_token_2026_x89a1
+
+# Chrome DevTools Protocol (CDP)
+CDP_PORT=9222
+
+# Browser Mode: true for silent background, false for visible desktop window
+HEADLESS=true
+
+# Speed Profile: stealth (860ms) | fast (150ms) | turbo (75ms)
+SPEED_PROFILE=fast
+
+# Execution Mode: hybrid (sub-second in-page API) | dom (mouse emulation)
+EXECUTION_MODE=hybrid
+
+# Raid Combat: skip turn animations via quick reload
+COMBAT_AUTO_REFRESH=true
+
+# Auto-launch Chrome/Iron if port 9222 is inactive
+AUTO_LAUNCH_CHROME=true
+
+# Push Notifications (Optional Sentinel CAPTCHA Alerts)
+# TELEGRAM_BOT_TOKEN=
+# TELEGRAM_CHAT_ID=
+# DISCORD_WEBHOOK_URL=
+```
+
+---
+
+## 3. Initial Setup & Authentication
+
+### Step 1: Install Dependencies
+```bash
+bun install
+```
+
+### Step 2: First-Time Account Setup (SRWare Iron or Chrome)
+The bot prioritizes your dedicated **SRWare Iron** browser (`C:\Program Files\SRWare Iron (64-Bit)\iron.exe`), which operates 100% independently from your standard Google Chrome profiles.
+
+```bash
+# Setup / login primary account (acc1):
+bun run account:setup acc1
+
+# Setup / login secondary account (acc2):
+bun run account:setup acc2
+```
+
+1. This opens the browser in **Windowed (Headful)** mode on port 9222 with the account's isolated profile (`~/.gbf-profiles/acc1`).
+2. Log into your Granblue Fantasy account once (Mobage, Google, etc.) and navigate to `#mypage`.
+3. Once verified, session cookies and local storage remain permanently stored. You can run completely **headless** for all future sessions without Chrome collision or file locks.
+
+---
+
+## 4. Launching Browser (CDP Host)
+
+| Command | Description |
+| :--- | :--- |
+| `bun run launch:chrome` | Launches browser with visible GUI window on port 9222 |
+| `bun run launch:chrome:headless` | Launches browser in **New Headless mode** (`--headless=new`) with GPU acceleration & audio muting |
+| `powershell -ExecutionPolicy Bypass -File ./scripts/launch-gbf-chrome.ps1` | Direct PowerShell launcher (reads `HEADLESS` from `.env`) |
+| `powershell -ExecutionPolicy Bypass -File ./scripts/launch-gbf-chrome.ps1 -Headless` | Explicitly forces headless mode |
+
+> [!TIP]
+> If `AUTO_LAUNCH_CHROME=true` in `.env`, you do **not** need to launch the browser manually. Running any CLI command or daemon will automatically boot SRWare Iron / Chrome if port 9222 is inactive.
+
+---
+
+## 5. Universal Daily Automation (`daily`)
+
+The daily automation system runs on the **Universal Workflow Engine**, executing the complete roster of 12 Pro Skips, Free Rupie Gacha, Skyscope Mission Claims, and Casino Recovery Exchanges.
+
+### Standard Daily Commands
+```bash
+# Run daily routine on the default active account
+bun run daily
+
+# Run daily routine on explicit account (acc1)
+bun run daily:acc1
+
+# Run daily routine on secondary account (acc2)
+bun run daily:acc2
+
+# Run sequential daily routines across ALL authenticated accounts
+bun run daily:all
+
+# Run daily routine in a visible GUI browser window
+bun run daily:windowed
+
+# Quick-clear Pro Skips pinned to your in-game Favorites list (#quest)
+bun run daily:favorites
+```
+
+### Automated Sectors & Tasks
+The routine executes sequentially with strict verification (`do_until_finish` verifying `0/N` attempts remaining):
+
+1. **Extra Quests: 12 Daily Pro Skips** (`#quest/extra`):
+   - **Hard+ Pro** (`daily_hard_pro`): 6 Island Hard+ battles (180 AP)
+   - **Omega Pro** (`daily_magna_pro`): 6 Extreme Omega battles (360 AP)
+   - **Omega (Impossible) Pro** (`daily_manacura_pro`): 6 Magna HL battles (360 AP)
+   - **Primal Legends Pro** (`daily_primal_pro`): 6 Tier 1 Showdowns (*Athena Showdown, Grani, Baal, Garuda, Odin, Lich*) (360 AP)
+   - **Regalia Pro** (`daily_regalia_pro`): 6 Magna 2 battles (*Shiva, Europa, Alexiel, Grimnir, Metatron, Avatar*) (540 AP)
+   - **Angel Halo Pro** (`daily_halo_pro`): Dimensional Halo & relic uncap materials (150 AP)
+   - **Primarch Trials Pro** (`daily_primarch_pro`): 4 Primarch trials (*Michael, Gabriel, Uriel, Raphael*) (160 AP)
+   - **Showdown Pro** (`daily_showdown_pro`): 6 Normal Showdowns (*Ifrit, Cocytus, Vohu Manah, Sagittarius, Corow, Diablo*) (180 AP)
+   - **Clash Pro** (`daily_clash_pro`): 6 Xeno Showdowns (360 AP)
+   - **Six-Dragon Advent Pro** (`daily_dragon_pro`): 6 Six-Dragon solo encounters (960 AP)
+   - **Eternals Unlock Treasure Pro** (`daily_eternals_pro`): Dimensional uncap materials (360 AP)
+   - **Ennead Pro** (`daily_ennead_pro`): 6 Ennead series battles (*Atum, Tefnut, Bennu, Ra, Osiris, Horus*) (360 AP)
+2. **Free 100-Draw Rupie Gacha** (`#gacha/normal`):
+   - Executes 100-draw Rupie summon via `.btn-lupi.multi`, collecting weapon plus marks and daily fodder (`daily_rupie`).
+3. **Skyscope Daily Missions** (`#mission`):
+   - Claims all cleared daily mission rewards in one click (`daily_skyscope`).
+4. **Casino Daily Exchange** (`#casino/exchange`):
+   - Purchases daily limit of Half-Elixirs and Soul Berries (`daily_casino`).
+
+- Template: [`templates/daily-universal.json`](file:///c:/laragon/www/gbf/templates/daily-universal.json)
+- Shorthand DSL: [`templates/daily-universal.dsl`](file:///c:/laragon/www/gbf/templates/daily-universal.dsl)
+- Execution Log: [`logs/workflow-acc1-daily-universal.md`](file:///c:/laragon/www/gbf/logs/workflow-acc1-daily-universal.md)
+
+---
+
+## 6. Guild War (Unite and Fight) & Nightmare (NM) Automation
+
+Automates all phases of Guild War (Unite & Fight) with high-efficiency burst rotations, auto-supporter selection, Gaussian human motor jitter, and Sentinel CAPTCHA freeze protection.
+
+```
+       ┌─────────────────────────────────────────────────────────────┐
+       │              Guild War Combat Flow Architecture             │
+       └─────────────────────────────────────────────────────────────┘
+                                      │
+               ┌──────────────────────┴──────────────────────┐
+               ▼                                             ▼
+      【EX+ Meat Farming】                           【Nightmare (NM) Raids】
+   (#quest/supporter/947551/1/0)                  (#quest/supporter/947581/1/0/...)
+               │                                             │
+      ┌────────┴────────┐                           ┌────────┴────────┐
+      ▼                 ▼                           ▼                 ▼
+0-Button / 1-Summon   Swarm Mode               NM95 (1-Turn Burst)  NM100/150/200
+  (~6.7s/clear)     (Parallel accs)            (Florence + Nehan)   (Full Auto / Sub)
+```
+
+---
+
+### Nightmare 95 (NM95) Light Farm (`gw-nm95`, `gw-nm95-light`)
+
+Automates the Guild War NM95 boss battle (`#quest/supporter/947551...`) with a precision 1-Turn burst rotation powered by Florence and Nehan.
+
+#### Quick CLI Commands
+```bash
+# 1. Run with Custom Run Count (runs on acc1 by default):
+bun run gw-nm95-light 20
+bun run gw-nm95 10
+
+# 2. Run on Specific Account with Custom Run Count:
+bun run gw-nm95-light acc2 30
+bun run gw-nm95:acc2 25
+bun run gw-nm95:acc1 50
+
+# 3. Via Account Shortcut:
+bun run acc1 gw-nm95-light 25
+bun run acc2 gw-nm95-light 50
+
+# 4. Via Explicit CLI Flags:
+bun run gw-nm95-light --account acc2 --runs 30
+
+# 5. Farm NM95 in a Visible GUI Window (for inspecting rotation timing):
+bun run gw-nm95-light:windowed 10
+bun run gw-nm95-light acc1 10 --windowed
+```
+
+#### NM95 Rotation Pipeline (`gw-nm95-light`)
+| Step | Action | Description / Target | Network Sync |
+| :---: | :--- | :--- | :--- |
+| **1** | `quick_call` | Triggers Quick Summon (Artemis / Yatima / The Star) | `summon_result.json` |
+| **2** | `summon(2)` | Summons sub-aura damage amplifier (slot 2) | `summon_result.json` |
+| **3** | `skill(4, 1)` | Character 4 (e.g. Mugen / Song) Skill 1 | `ability_result.json` |
+| **4** | `skill(3, 1..3)`| Character 3 (Nehan) Skill 1 $\rightarrow$ Skill 2 $\rightarrow$ Skill 3 | `ability_result.json` |
+| **5** | `skill(2, 1, tgt=1)` | Character 2 (Florence) Skill 1 targeted on MC | `ability_result.json` |
+| **6** | `skill(2, 2)` | Character 2 (Florence) Skill 2 | `ability_result.json` |
+| **7** | `skill(1, 1)` | MC (Relic Buster) Skill 1 | `ability_result.json` |
+| **8** | `skill(1, 2) x3` | MC Blitz Raid burst 3 consecutive times | `ability_result.json` |
+| **9** | `wait_random` | Biomechanical human motor pause (250ms–500ms) | — |
+| **10**| `attack` | Normal attack execution | `normal_attack_result.json` |
+| **11**| `reload` | Fast F5 page reload (skips lengthy turn animations) | — |
+| **12**| `confirm_result` | Dismisses battle results, collects tokens/honors, loops | — |
+
+- Template: [`templates/gw-nm95-light.json`](file:///c:/laragon/www/gbf/templates/gw-nm95-light.json)
+- Rotation speed: $\approx 14\text{s} - 18\text{s}$ per NM95 clear.
+
+---
+
+### Guild War EX+ Meat Farming (`gw-meat`, `gw-meat-light`)
+
+Automates Extreme+ 24M Meat Farming (`#quest/supporter/947551/1/0`):
+
+```bash
+# Farm meat in Windowed mode (Ctrl+C to stop)
+bun run gw-meat
+
+# Farm meat in silent HEADLESS mode (Recommended for background farming)
+bun run gw-meat:headless
+bun run gw-meat-light:headless
+
+# Farm specific number of meat runs (e.g. 100 runs)
+bun run gw-meat-light 100 --headless
+
+# Parallel Multi-Account Swarm (runs acc1 and acc2 simultaneously):
+bun run gw-meat:swarm 100
+```
+- Template: [`templates/gw-meat-light.json`](file:///c:/laragon/www/gbf/templates/gw-meat-light.json)
+- Combat Rotation: `Quick Call -> F5 -> Attack -> F5 -> Confirm Result` ($\approx 6.7\text{s} - 7.4\text{s}$ per clear).
+- Meat farming log: [`logs/gw-meat-acc1.md`](file:///c:/laragon/www/gbf/logs/gw-meat-acc1.md)
+
+---
+
+### Running Higher Nightmare Tiers (NM100, NM150, NM200)
+
+To create or run workflows for other Nightmare tiers, you can create a template or shorthand DSL file in `templates/`:
+
+```dsl
+# templates/gw-nm150-light.dsl
+Name: GW NM150 - Light Farm
+Mode: single
+Quest: https://game.granbluefantasy.jp/#quest/supporter/947591/1/0/10116
+Speed: fast
+Runs: 30
+Elixir: true
+Supporter: Zeus, Lucifer
+
+---
+quick_call
+skill 1 1
+skill 2 1
+tap_full_auto
+wait_battle_end
+confirm_result
+---
+```
+
+Run your custom NM workflow:
+```bash
+# Compile and validate
+bun run workflow:validate
+
+# Execute for account acc1
+bun run src/cli/run-workflow.ts acc1 gw-nm150-light 30
+```
+
+---
+
+## 7. Fate Stories Auto-Farmer (`fate`)
+
+Automates Granblue Fantasy Fate Episodes (`#quest/fate`) to farm Crystals and uncap character skill slots autonomously:
+
+- **Navigation**: Directly navigates to `#quest/fate` and locates uncleared episode cards.
+- **Fast Dialog Skip**: Bypasses dialogues, awakens HUD canvas, clicks `.btn-scene-skip`, and confirms skip dialogs.
+- **Battle Resolution**: Automatically triggers Full Auto (`mode: full`) if the episode contains battle stages.
+- **Reward Sweep**: Dismisses rewards, exp gains, crystal unlocks, and loops until the target count is satisfied.
+
+```bash
+# Run default batch (5 episodes)
+bun run fate
+
+# Run in silent headless background mode
+bun run fate:headless
+
+# Farm custom number of episodes (e.g. 10 or 25 episodes)
+bun run fate:10
+bun run src/cli/run-workflow.ts fate-stories 25
+```
+- Template: [`templates/fate-stories.json`](file:///c:/laragon/www/gbf/templates/fate-stories.json)
+- Shorthand DSL: [`templates/fate-stories.dsl`](file:///c:/laragon/www/gbf/templates/fate-stories.dsl)
+
+---
+
+## 8. Gold Bar Hunters & High-Level Raids
+
+Automates high-level Gold Bar farming raids with intelligent room finding, priority supporter selection, Ereshkigal burst rotations, and automatic pending battle recovery:
+
+### Proto Bahamut HL (`pbhl`, `gb-pbhl`)
+```bash
+# Continuous PBHL farm loop (Ctrl+C to stop)
+bun run pbhl
+# or
+bun run gb-pbhl
+
+# Run specific number of raids (e.g. 10 raids)
+bun run src/cli/run-workflow.ts gb-pbhl 10
+
+# 0-Button PBHL Fast burst:
+bun run src/cli/run-workflow.ts gb-pbhl-fast 20
+```
+- Template: [`templates/gb-pbhl.json`](file:///c:/laragon/www/gbf/templates/gb-pbhl.json)
+- Documentation: [`strategies/workflows/pbhl.md`](file:///c:/laragon/www/gbf/strategies/workflows/pbhl.md)
+- Drop Log: [`logs/gb-pbhl.md`](file:///c:/laragon/www/gbf/logs/gb-pbhl.md)
+
+### Akasha HL (`gb-akasha`)
+```bash
+# Continuous Akasha loop
+bun run gb-akasha
+
+# Run specific number of raids
+bun run src/cli/run-workflow.ts gb-akasha 10
+```
+- Template: [`templates/gb-akasha.json`](file:///c:/laragon/www/gbf/templates/gb-akasha.json)
+- Documentation: [`strategies/workflows/akasha.md`](file:///c:/laragon/www/gbf/strategies/workflows/akasha.md)
+
+### Grand Order HL (`gb-go`)
+```bash
+# Continuous Grand Order HL loop
+bun run gb-go
+```
+- Template: [`templates/gb-go.json`](file:///c:/laragon/www/gbf/templates/gb-go.json)
+- Documentation: [`strategies/workflows/go.md`](file:///c:/laragon/www/gbf/strategies/workflows/go.md)
+
+### Gold Bar Multi-Raid Rotator (`gb-farm`)
+Master rotator that monitors PBHL (Slot 4), Akasha (Slot 3), and Grand Order (Slot 2) concurrently:
+```bash
+bun run gb-farm
+```
+- Template: [`templates/gb-farm.json`](file:///c:/laragon/www/gbf/templates/gb-farm.json)
+- Documentation: [`strategies/workflows/farm.md`](file:///c:/laragon/www/gbf/strategies/workflows/farm.md)
+
+---
+
+## 9. Special Encounters & Farming
+
+### Rise of the Beasts (`rotb`)
+```bash
+# Farm Baihu continuously (default: 30 runs)
+bun run rotb:baihu
+
+# Run 1 full Earth cycle (9x Baihu -> 1x Titan)
+bun run rotb:earth
+
+# Continuous Earth loop (9x Baihu -> 1x Titan repeatedly)
+bun run rotb:earth:loop
+```
+- Documentation: [`strategies/workflows/rotb.md`](file:///c:/laragon/www/gbf/strategies/workflows/rotb.md)
+
+### Arcarum Zone Mundus: The World (`arcarum-theworld`)
+Automates Arcarum Zone Mundus / Quest 819131: The World encounter with Plain Damage Omen countering (Beelzebub summon), Full Auto, F5 animation skipping, and AAP recovery:
+```bash
+bun run arcarum-theworld
+```
+- Documentation: [`strategies/workflows/theworld.md`](file:///c:/laragon/www/gbf/strategies/workflows/theworld.md)
+
+---
+
+## 10. Universal Template CLI & Multi-Account Operations
+
+Execute any template for any account dynamically:
+
+```bash
+# Launch interactive terminal selector (prompts for Account, Template, and Runs)
+bun run workflow
+
+# Run specific account and template:
+bun run acc1 gw-meat-light 50
+bun run acc1 gw-nm95-light 25
+bun run acc2 daily-universal 1
+
+# Run in windowed mode:
+bun run acc1:windowed gw-meat-light 20
+
+# Validate all templates against JSON schema:
+bun run workflow:validate
+```
+
+---
+
+## 11. Remote Controller Daemon & Mobile Companion PWA
+
+Run the long-lived HTTP and WebSocket daemon to control the game and monitor live screencasts from your mobile phone or browser:
+
+### Development Mode (Live Watch)
+```bash
+bun run dev
+```
+
+### Production Mode
+```bash
+bun run build
+bun run start
+```
+
+### Accessing the Mobile Companion PWA
+Open the companion URL in your mobile phone or desktop browser:
+```text
+http://<YOUR-IP>:3001/?token=gbf_secure_remote_token_2026_x89a1
+```
+
+- **Live Viewport Stream**: 2–3 FPS adaptive JPEG screencast (works even when Chrome is 100% headless).
+- **1-Tap Macro Buttons**: Trigger Daily Pro Skips, Rupie draws, or specific workflows remotely.
+- **Raid Joiner**: Paste 8-character backup codes to join raids and auto-combat on the go.
+- **Emergency Abort**: Instantly breaks action loops and navigates to `#mypage`.
+- **Sentinel CAPTCHA Alert**: Full-screen audio/visual alarm if visual verification triggers.
+
+---
+
+## 12. Diagnostics & Testing Utilities
+
+Run the unified test runner or target specific modules:
+
+| Test Command | Purpose |
+| :--- | :--- |
+| `bun run test` | Unified test runner executing all 8 test suites |
+| `bun run test:templates` | Validates all workflow template schemas and boundaries |
+| `bun run test:parser` | Tests advanced DSL compiler, serializing, and round-trip conversion |
+| `bun run test:engine` | Unit and telemetry mock tests for UniversalWorkflowEngine |
+| `bun run test:daily` | Daily routine reconnect, loop, and Pro Skip verification |
+| `bun run workflow:validate` | Validates all 10 templates in `templates/` against gold standard |
+
+---
+
+## 13. Common Troubleshooting & FAQs
+
+### Q1: Chrome connection fails with "Could not attach to Chrome on port 9222"
+- **Cause**: Chrome/Iron is not running or port 9222 is occupied.
+- **Fix**: Launch the browser via `bun run launch:chrome` or check port status:
+  ```powershell
+  Test-NetConnection -ComputerName 127.0.0.1 -Port 9222
+  ```
+
+### Q2: Browser redirects to `https://game.granbluefantasy.jp/#authentication`
+- **Cause**: Session cookies expired or account has not been initialized for that profile.
+- **Fix**: Run `bun run account:setup acc1` to open the windowed browser, log in manually once, and navigate to `#mypage`.
+
+### Q3: What happens if an image CAPTCHA appears?
+- The **Sentinel Watchdog** immediately hard-freezes all browser input and triggers an emergency alarm to prevent account penalties.
+- Solve the CAPTCHA in your browser or run:
+  ```bash
+  bun run solve-captcha
+  ```

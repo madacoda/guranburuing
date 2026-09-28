@@ -1,0 +1,626 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Universal Workflow Action & Command Specification",
+  "version": "1.2.0",
+  "description": "Comprehensive reference of all executable actions and settings for GBF workflow templates. Templates define an automation routine using 'code' as the action identifier.",
+  "templateConfigOptions": {
+    "description": "Top-level template settings configured directly in the template JSON root. All safety and humanization options are ON by default.",
+    "options": [
+      {
+        "configKey": "humanMotor",
+        "type": "boolean",
+        "default": true,
+        "description": "Applies natural human motor behavior (2D Gaussian micro-jitter on clicks/taps, randomized reaction delays, and bezier curve cursor movement) to prevent bot detection."
+      },
+      {
+        "configKey": "stopOnCaptcha",
+        "type": "boolean",
+        "default": true,
+        "description": "Monitors the screen for Cygames verification challenges / image CAPTCHAs. If detected, freezes automation immediately, brings browser to front, sounds audible beeps, and pauses until solved."
+      },
+      {
+        "configKey": "autoElixir",
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically consumes Half-Elixirs when AP drops below quest entry requirements."
+      },
+      {
+        "configKey": "autoBerry",
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically consumes Soul Berries when joining raids from #quest/assist with insufficient EP."
+      },
+      {
+        "configKey": "raidSlot",
+        "type": "number",
+        "default": 4,
+        "description": "Target search slot (1-4) on Backup Requests (#quest/assist). Slot 4 = PBHL, Slot 3 = Akasha, Slot 2 = GO HL."
+      },
+      {
+        "configKey": "raidSlots",
+        "type": "number[]",
+        "default": [4, 3, 2],
+        "description": "Multi-slot rotation list on Backup Requests (#quest/assist). The engine scans across slots in order (e.g. [4, 3, 2]), picking the first eligible raid card before refreshing."
+      },
+      {
+        "configKey": "supporterPriority",
+        "type": "string[]",
+        "default": ["Zeus", "Lucifer"],
+        "description": "Priority list of summon names scanned if the auto-selected supporter popup is not pre-selected."
+      },
+      {
+        "configKey": "mode",
+        "type": "string",
+        "enum": ["combat", "routine", "assist"],
+        "default": "combat",
+        "description": "Execution Mode: 'combat' (default supporter selection & battle pipeline) | 'routine' (arbitrary page navigation, dailies, fate stories) | 'assist' (multi-raid backup finder)."
+      },
+      {
+        "configKey": "speedProfile",
+        "type": "string",
+        "enum": ["fast", "stealth", "turbo"],
+        "default": "fast",
+        "description": "FAST (150ms delays) | STEALTH (850ms human pauses) | TURBO (sub-50ms ultra speed)."
+      },
+      {
+        "configKey": "defaultRuns",
+        "type": "number",
+        "default": 100,
+        "description": "Default number of quest repeats if not passed as CLI argument."
+      }
+    ]
+  },
+  "stepFieldReference": {
+    "description": "Properties configured inside each step object of the 'steps' array.",
+    "fields": {
+      "code": "REQUIRED. The action code to execute (e.g. 'tap_ready', 'reload', 'attack', 'wait', 'skill', 'summon', 'loop_while', 'skip_story_scene'). You MUST use 'code' as the property key — do NOT use 'action', 'name', or 'id'.",
+      "waitForNetwork": "Network endpoint to await before proceeding (e.g. 'summon_result.json', 'normal_attack_result.json').",
+      "ms": "Static delay in milliseconds for 'wait'.",
+      "minMs": "Minimum delay in milliseconds for 'wait_random'.",
+      "maxMs": "Maximum delay in milliseconds for 'wait_random'.",
+      "character": "1-indexed character position (1 to 4) for 'skill'.",
+      "skill": "1-indexed skill slot (1 to 4) for 'skill'.",
+      "targetCharacter": "Optional 1-indexed target party member (1 to 4) for targeted character skills (e.g. Nier S2 on Ilsa/Char 2).",
+      "slot": "1-indexed summon slot (1 to 6) for 'summon'.",
+      "mode": "'full' or 'semi' for 'auto'.",
+      "target": "CSS selector or navigation URL for 'click', 'navigate', 'guard', 'wait_element', or condition for 'loop_while'/'loop_until'.",
+      "conditionElement": "Alternative CSS selector property for 'loop_while' and 'loop_until'.",
+      "maxLoops": "Maximum loop safety ceiling for 'loop_while' and 'loop_until' (defaults to 50).",
+      "subSteps": "Array of child WorkflowStep objects executed inside 'repeat', 'loop_while', or 'loop_until' blocks.",
+      "x": "Target X coordinate for 'touch_tap'.",
+      "y": "Target Y coordinate for 'touch_tap'.",
+      "script": "JavaScript code string for 'eval'.",
+      "delayAfterMs": "Optional pause in milliseconds after completing this step."
+    }
+  },
+  "templateJsonStructureExample": {
+    "name": "GW Meat Farm - Light EX+",
+    "description": "0-button EX+ Meat farming rotation",
+    "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/947551/1/0",
+    "supporterPriority": ["Zeus", "Lucifer"],
+    "humanMotor": true,
+    "stopOnCaptcha": true,
+    "autoElixir": true,
+    "defaultRuns": 100,
+    "speedProfile": "fast",
+    "steps": [
+      {
+        "code": "tap_ready",
+        "waitForNetwork": "summon_result.json"
+      },
+      {
+        "code": "reload"
+      },
+      {
+        "code": "tap_ready",
+        "waitForNetwork": "normal_attack_result.json"
+      },
+      {
+        "code": "reload"
+      },
+      {
+        "code": "confirm_result"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "code": "tap_ready",
+      "category": "combat",
+      "description": "Taps the center of the battle READY screen overlay with 2D Gaussian motor variance. In GBF, tapping during READY triggers configured Auto Quick Summon (turn 0) or queues Attack (turn 1).",
+      "parameters": [
+        {
+          "param": "waitForNetwork",
+          "type": "string",
+          "required": false,
+          "description": "Network endpoint to await confirmation for ('summon_result.json' or 'normal_attack_result.json')."
+        }
+      ],
+      "shorthandSyntax": "Tab ready: click | tap_ready | ready",
+      "templateJsonExample": {
+        "code": "tap_ready",
+        "waitForNetwork": "summon_result.json"
+      }
+    },
+    {
+      "code": "reload",
+      "category": "navigation",
+      "aliases": ["f5", "refresh"],
+      "description": "Refreshes the page via location.reload(), skipping all client-side animations, attack replays, and loot tallies.",
+      "parameters": [],
+      "shorthandSyntax": "F5 | reload",
+      "templateJsonExample": {
+        "code": "reload"
+      }
+    },
+    {
+      "code": "attack",
+      "category": "combat",
+      "aliases": ["atk"],
+      "description": "Queues the turn Attack action. Dispatches via combined physical touchscreen tap, mouse click, and Zepto DOM trigger, then strictly verifies server commitment.",
+      "parameters": [
+        {
+          "param": "waitForNetwork",
+          "type": "string",
+          "required": false,
+          "default": "normal_attack_result.json",
+          "description": "Network endpoint to verify server attack calculation."
+        }
+      ],
+      "shorthandSyntax": "attack | atk",
+      "templateJsonExample": {
+        "code": "attack",
+        "waitForNetwork": "normal_attack_result.json"
+      }
+    },
+    {
+      "code": "quick_call",
+      "category": "combat",
+      "aliases": ["quick_summon"],
+      "description": "Clicks the Quick Summon button (.btn-quick-summon) directly, activating the designated Quick Summon summon without opening the summon tray.",
+      "parameters": [
+        {
+          "param": "waitForNetwork",
+          "type": "string",
+          "required": false,
+          "default": "summon_result.json",
+          "description": "Awaits server summon calculation before continuing."
+        }
+      ],
+      "shorthandSyntax": "quick_call | quick_summon",
+      "templateJsonExample": {
+        "code": "quick_call",
+        "waitForNetwork": "summon_result.json"
+      }
+    },
+    {
+      "code": "wait_random",
+      "category": "timing",
+      "aliases": ["wait_randomize", "delay_random"],
+      "description": "Pauses execution for a randomized duration between minMs and maxMs, mimicking human motor variance to defeat robotic pattern recognition.",
+      "parameters": [
+        {
+          "param": "minMs",
+          "type": "number",
+          "required": true,
+          "description": "Minimum wait time in milliseconds."
+        },
+        {
+          "param": "maxMs",
+          "type": "number",
+          "required": true,
+          "description": "Maximum wait time in milliseconds."
+        }
+      ],
+      "shorthandSyntax": "wait_random <minMs> <maxMs> | wait_randomize <minMs> <maxMs>",
+      "templateJsonExample": {
+        "code": "wait_random",
+        "minMs": 300,
+        "maxMs": 700
+      }
+    },
+    {
+      "code": "wait",
+      "category": "timing",
+      "aliases": ["sleep", "delay"],
+      "description": "Pauses execution for a fixed duration in milliseconds.",
+      "parameters": [
+        {
+          "param": "ms",
+          "type": "number",
+          "required": true,
+          "default": 500,
+          "description": "Duration to wait in milliseconds."
+        }
+      ],
+      "shorthandSyntax": "wait <ms> | sleep <ms>",
+      "templateJsonExample": {
+        "code": "wait",
+        "ms": 500
+      }
+    },
+    {
+      "code": "wait_network",
+      "category": "timing",
+      "description": "Blocks until a specific Cygames API network response resolves via Chrome DevTools Protocol.",
+      "parameters": [
+        {
+          "param": "url",
+          "type": "string",
+          "required": true,
+          "description": "URL substring or JSON endpoint to await (e.g. 'normal_attack_result.json', 'summon_result.json')."
+        },
+        {
+          "param": "timeoutMs",
+          "type": "number",
+          "required": false,
+          "default": 5000,
+          "description": "Maximum timeout in milliseconds."
+        }
+      ],
+      "shorthandSyntax": "wait_network <endpoint_substring>",
+      "templateJsonExample": {
+        "code": "wait_network",
+        "waitForNetwork": "normal_attack_result.json"
+      }
+    },
+    {
+      "code": "wait_element",
+      "category": "timing",
+      "description": "Waits until a specific DOM element exists and is visibly mounted on screen.",
+      "parameters": [
+        {
+          "param": "target",
+          "type": "string",
+          "required": true,
+          "description": "CSS selector to monitor."
+        },
+        {
+          "param": "timeoutMs",
+          "type": "number",
+          "required": false,
+          "default": 5000,
+          "description": "Timeout in milliseconds."
+        }
+      ],
+      "shorthandSyntax": "wait_element <css_selector>",
+      "templateJsonExample": {
+        "code": "wait_element",
+        "target": ".btn-attack-start.display-on"
+      }
+    },
+    {
+      "code": "skill",
+      "category": "combat",
+      "aliases": ["ability"],
+      "description": "Activates a character skill by character slot and skill index, opening the character command palette if needed.",
+      "parameters": [
+        {
+          "param": "character",
+          "type": "number",
+          "required": true,
+          "description": "1-indexed character position (1 = Main Character, 2 = Slot 2, 3 = Slot 3, 4 = Slot 4)."
+        },
+        {
+          "param": "skill",
+          "type": "number",
+          "required": true,
+          "description": "1-indexed skill number (1 to 4)."
+        }
+      ],
+      "shorthandSyntax": "skill <character>-<skill> | c<character>s<skill>",
+      "templateJsonExample": {
+        "code": "skill",
+        "character": 1,
+        "skill": 3
+      }
+    },
+    {
+      "code": "summon",
+      "category": "combat",
+      "description": "Opens the summon tray and invokes a specific summon from the grid or supporter slot.",
+      "parameters": [
+        {
+          "param": "slot",
+          "type": "number",
+          "required": true,
+          "description": "Summon slot index (1 to 6)."
+        }
+      ],
+      "shorthandSyntax": "summon <slot>",
+      "templateJsonExample": {
+        "code": "summon",
+        "slot": 1
+      }
+    },
+    {
+      "code": "auto",
+      "category": "combat",
+      "aliases": ["full_auto", "semi_auto"],
+      "description": "Toggles Full Auto or Semi Auto mode.",
+      "parameters": [
+        {
+          "param": "mode",
+          "type": "string",
+          "enum": ["full", "semi"],
+          "default": "full",
+          "description": "Auto battle mode ('full' or 'semi')."
+        }
+      ],
+      "shorthandSyntax": "full_auto | semi_auto | auto",
+      "templateJsonExample": {
+        "code": "auto",
+        "mode": "full"
+      }
+    },
+    {
+      "code": "guard",
+      "category": "combat",
+      "description": "Toggles guard state for specific characters or the entire team (Battle System 2.0 / V2).",
+      "parameters": [
+        {
+          "param": "target",
+          "type": "string",
+          "default": "all",
+          "description": "'all' to guard everyone, or character index '1'-'4'."
+        }
+      ],
+      "shorthandSyntax": "guard all | guard <slot>",
+      "templateJsonExample": {
+        "code": "guard",
+        "target": "all"
+      }
+    },
+    {
+      "code": "confirm_result",
+      "category": "settlement",
+      "aliases": ["confirm", "dismiss", "loot"],
+      "description": "Dismisses 'Processing turn' popups, error modals, loot drop overlays, and confirms battle completion.",
+      "parameters": [],
+      "shorthandSyntax": "Confirm a bit | confirm_result | confirm",
+      "templateJsonExample": {
+        "code": "confirm_result"
+      }
+    },
+    {
+      "code": "click",
+      "category": "dom_input",
+      "description": "Clicks an arbitrary CSS selector with natural human motor bezier curvature and Gaussian coordinate variance.",
+      "parameters": [
+        {
+          "param": "target",
+          "type": "string",
+          "required": true,
+          "description": "CSS selector of the target element."
+        }
+      ],
+      "shorthandSyntax": "click <css_selector>",
+      "templateJsonExample": {
+        "code": "click",
+        "target": ".btn-usual-ok.se-quest-start"
+      }
+    },
+    {
+      "code": "touch_tap",
+      "category": "dom_input",
+      "description": "Dispatches a physical touch tap at exact pixel coordinates with Gaussian micro-jitter.",
+      "parameters": [
+        {
+          "param": "x",
+          "type": "number",
+          "required": true,
+          "description": "Target X coordinate."
+        },
+        {
+          "param": "y",
+          "type": "number",
+          "required": true,
+          "description": "Target Y coordinate."
+        }
+      ],
+      "shorthandSyntax": "touch_tap <x> <y>",
+      "templateJsonExample": {
+        "code": "touch_tap",
+        "x": 240,
+        "y": 370
+      }
+    },
+    {
+      "code": "navigate",
+      "category": "navigation",
+      "aliases": ["goto"],
+      "description": "Directly changes window.location to a target URL or in-game hash.",
+      "parameters": [
+        {
+          "param": "target",
+          "type": "string",
+          "required": true,
+          "description": "Full URL or in-game hash (e.g. '#quest/supporter/947551/1/0' or '#mypage')."
+        }
+      ],
+      "shorthandSyntax": "navigate <url> | goto <url>",
+      "templateJsonExample": {
+        "code": "navigate",
+        "target": "https://game.granbluefantasy.jp/#mypage"
+      }
+    },
+    {
+      "code": "eval",
+      "category": "dom_input",
+      "description": "Executes arbitrary JavaScript inside the browser context and returns the result.",
+      "parameters": [
+        {
+          "param": "script",
+          "type": "string",
+          "required": true,
+          "description": "JavaScript expression or function string."
+        }
+      ],
+      "shorthandSyntax": "eval <code>",
+      "templateJsonExample": {
+        "code": "eval",
+        "script": "window.location.reload()"
+      }
+    },
+    {
+      "code": "loop_while",
+      "category": "flow_control",
+      "aliases": ["while"],
+      "description": "Repeatedly executes child 'subSteps' as long as the target CSS selector is present and visible on screen (e.g. uncleared daily cards or unread fate episodes).",
+      "parameters": [
+        {
+          "param": "target",
+          "type": "string",
+          "required": true,
+          "description": "CSS selector to monitor."
+        },
+        {
+          "param": "maxLoops",
+          "type": "number",
+          "required": false,
+          "default": 50,
+          "description": "Safety loop limit to avoid infinite execution."
+        },
+        {
+          "param": "subSteps",
+          "type": "WorkflowStep[]",
+          "required": true,
+          "description": "List of actions to execute during each loop cycle."
+        }
+      ],
+      "shorthandSyntax": "loop_while <selector> { ... } | while <selector> { ... }",
+      "templateJsonExample": {
+        "code": "loop_while",
+        "target": ".prt-fate-list .btn-fate-list",
+        "maxLoops": 10,
+        "subSteps": [
+          { "code": "click", "target": ".prt-fate-list .btn-fate-list" },
+          { "code": "skip_story_scene" }
+        ]
+      }
+    },
+    {
+      "code": "loop_until",
+      "category": "flow_control",
+      "aliases": ["until"],
+      "description": "Repeatedly executes child 'subSteps' until the target CSS selector appears and is visible on screen.",
+      "parameters": [
+        {
+          "param": "target",
+          "type": "string",
+          "required": true,
+          "description": "CSS selector to monitor."
+        },
+        {
+          "param": "maxLoops",
+          "type": "number",
+          "required": false,
+          "default": 50,
+          "description": "Safety loop limit to avoid infinite execution."
+        },
+        {
+          "param": "subSteps",
+          "type": "WorkflowStep[]",
+          "required": true,
+          "description": "List of actions to execute during each loop cycle."
+        }
+      ],
+      "shorthandSyntax": "loop_until <selector> { ... } | until <selector> { ... }",
+      "templateJsonExample": {
+        "code": "loop_until",
+        "target": ".prt-result-head",
+        "maxLoops": 20,
+        "subSteps": [
+          { "code": "attack" },
+          { "code": "reload" }
+        ]
+      }
+    },
+    {
+      "code": "skip_story_scene",
+      "category": "story",
+      "aliases": ["skip_story", "skip_scene", "skip_fate", "fate_skip"],
+      "description": "Fast-skips story dialogues, scene cutscenes, dialogue selections, and confirms dialog skips in Fate Episodes or Events.",
+      "parameters": [
+        {
+          "param": "timeoutMs",
+          "type": "number",
+          "required": false,
+          "default": 10000,
+          "description": "Maximum time to await scene skip confirmation in milliseconds."
+        }
+      ],
+      "shorthandSyntax": "skip_story_scene | skip_story | skip_scene | skip_fate",
+      "templateJsonExample": {
+        "code": "skip_story_scene",
+        "timeoutMs": 12000
+      }
+    },
+    {
+      "code": "pro_skip_favorites",
+      "category": "daily",
+      "aliases": ["pro_skip", "daily_favorites", "daily_pro"],
+      "description": "Executes all uncleared daily Pro Skips pinned in Favorites on #quest (Hard Pro, Magna Pro, Manacura Pro, Angel Halo Pro) via in-page hybrid API and DOM fallback.",
+      "parameters": [],
+      "shorthandSyntax": "pro_skip_favorites | pro_skip | daily_favorites",
+      "templateJsonExample": {
+        "code": "pro_skip_favorites"
+      }
+    },
+    {
+      "code": "dismiss_popups",
+      "category": "settlement",
+      "aliases": ["dismiss_popup", "dismiss_modal", "dismiss_all"],
+      "description": "Closes any visible result overlays, level-up notifications, Skyscope achievement popups, and general confirmation modals.",
+      "parameters": [],
+      "shorthandSyntax": "dismiss_popups | dismiss_modal | dismiss_all",
+      "templateJsonExample": {
+        "code": "dismiss_popups"
+      }
+    },
+    {
+      "code": "do_until_finish",
+      "category": "flow_control",
+      "aliases": ["loop_until_finish", "until_finish", "run_daily_target", "daily_target"],
+      "description": "Universal loop that executes a daily task or custom subSteps repeatedly until finished (e.g. daily limit 0/N reached, card marked .is-completed or disabled). Can resolve predefined data tags from data/index.json (daily_magna_pro, daily_hard_pro, daily_manacura_pro, daily_halo_pro, daily_primarch_pro, daily_rupie, daily_skyscope, daily_casino) or target arbitrary page selectors.",
+      "parameters": [
+        {
+          "param": "tag",
+          "type": "string",
+          "required": false,
+          "description": "Predefined data catalog tag from data/index.json (e.g. 'daily_magna_pro', 'daily_rupie', 'daily_skyscope')."
+        },
+        {
+          "param": "target",
+          "type": "string",
+          "required": false,
+          "description": "Target CSS selector or data tag identifier."
+        },
+        {
+          "param": "page",
+          "type": "string",
+          "required": false,
+          "description": "Target page URL or hash (e.g. '#quest/extra', '#gacha', '#mission', '#casino')."
+        },
+        {
+          "param": "maxLoops",
+          "type": "number",
+          "required": false,
+          "default": 20,
+          "description": "Maximum number of cycles before terminating."
+        },
+        {
+          "param": "subSteps",
+          "type": "WorkflowStep[]",
+          "required": false,
+          "description": "Optional custom actions to execute per cycle. If omitted, uses built-in automated routine for the category."
+        }
+      ],
+      "shorthandSyntax": "do_until_finish <tag/selector> | do_until_finish <tag/selector> { ... }",
+      "templateJsonExample": {
+        "code": "do_until_finish",
+        "tag": "daily_magna_pro"
+      }
+    }
+  ]
+}

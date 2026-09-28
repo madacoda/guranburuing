@@ -1,0 +1,90 @@
+{
+  "name": "GB Farm - PBHL (Reload Every Skill)",
+  "description": "PBHL experimental rotation with reload after every skill: Quick Call -> Summon 2 -> C4S1 -> Reload -> C3S1 -> Reload -> C2S1 -> Reload -> Attack -> Reload -> Attack -> Reload",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 4,
+  "targetScore": 1800000,
+  "logPath": "logs/gb-pbhl.md",
+  "supporterPriority": ["Hades", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 20,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "summon",
+      "slot": 2,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1800000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "exit_if_score",
+      "targetScore": 1800000
+    },
+    {
+      "code": "attack",
+      "optional": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}
