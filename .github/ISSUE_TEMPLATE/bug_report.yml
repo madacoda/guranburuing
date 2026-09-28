@@ -1,0 +1,67 @@
+name: Bug Report
+description: Report a bug, crash, or unexpected behavior in the automation system.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please do NOT post real account credentials, passwords, or personal profile paths.
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment Details
+      description: OS, Bun version, and browser version.
+      placeholder: "Windows 11, Bun 1.2.4, Chrome 136 / SRWare Iron"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Universal Workflow Engine
+        - Daily Pro Skip Engine
+        - Gold Bar Hunter (PBHL / Akasha / GO)
+        - Guild Wars Meat / NM95 Farmer
+        - Remote Gateway & PWA Cockpit
+        - Multi-Account Swarm Manager
+        - Safety Sentinel & Captcha Watchdog
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps or CLI command used to trigger the issue.
+      placeholder: |
+        1. Run `bun run daily`
+        2. Wait for Magna Pro skip modal
+        3. See error in console
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs or Console Output
+      description: Paste any sanitized console logs or stack traces here.
+      render: shell
+
+  - type: checkboxes
+    id: checklists
+    attributes:
+      label: Security & Pre-Flight Checks
+      options:
+        - label: I confirm that no real passwords, emails, cookies, or secrets are included in this report.
+          required: true

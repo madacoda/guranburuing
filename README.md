@@ -2,6 +2,8 @@
 
 [![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.2+-fbf0df?style=flat&logo=bun&logoColor=000)](https://bun.sh/)
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript%205.8-3178c6?style=flat&logo=typescript&logoColor=fff)](https://www.typescriptlang.org/)
+[![CI](https://github.com/madacoda/guranburuing/actions/workflows/ci.yml/badge.svg)](https://github.com/madacoda/guranburuing/actions/workflows/ci.yml)
+[![Security & Hygiene](https://github.com/madacoda/guranburuing/actions/workflows/security.yml/badge.svg)](https://github.com/madacoda/guranburuing/actions/workflows/security.yml)
 [![Protocol: CDP](https://img.shields.io/badge/Protocol-Chrome%20DevTools-4285f4?style=flat&logo=googlechrome&logoColor=fff)](https://chromedevtools.github.io/devtools-protocol/)
 [![Architecture: WebSocket + PWA](https://img.shields.io/badge/Gateway-WebSocket%20%2B%20PWA-00d1b2?style=flat)](./public)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](./LICENSE)
@@ -207,6 +209,7 @@ Open `http://localhost:3000` on your mobile device or desktop to view the live d
 | `bun run gw-meat:swarm` | Swarm mode: runs all enabled accounts concurrently |
 | `bun run workflow:validate` | Validates all JSON & DSL templates against Zod schemas |
 | `bun run test` | Executes comprehensive test suite (100% passing) |
+| `bun run verify` | Full pre-flight gate: Secret audit + templates + tests + build |
 
 ---
 
@@ -215,7 +218,11 @@ Open `http://localhost:3000` on your mobile device or desktop to view the live d
 The codebase includes comprehensive unit, integration, and mathematical correctness test suites:
 
 ```bash
+# Run unit & integration test suites
 bun run test
+
+# Run full pre-flight verification gate (Audit + Templates + Tests + Typecheck)
+bun run verify
 ```
 
 ### Verified Test Gates:
@@ -229,8 +236,29 @@ bun run test
 
 ---
 
-## Security & Hygiene Policy
+## Docker Deployment (Headless Gateway)
 
+Run the remote gateway and automation engine in an isolated Linux container with pre-configured Chromium:
+
+```bash
+# Build container image
+docker build -t guranburuing .
+
+# Run container with environment configuration
+docker run -d \
+  --name gbf-remote \
+  -p 3000:3000 \
+  -e AUTH_TOKEN=your_secure_bearer_token_here \
+  guranburuing
+```
+
+---
+
+## Security, Hygiene & Community Policies
+
+- **Security Policy**: See [SECURITY.md](./SECURITY.md) for vulnerability reporting and threat modeling.
+- **Contributing Guidelines**: See [CONTRIBUTING.md](./CONTRIBUTING.md) for PR standards and conventional commit rules.
+- **Code of Conduct**: See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community standards.
 - **No Secrets in Repo**: Strict `.gitignore` policy forbids credentials (`accounts.config.json`), tokens (`.env`), session files, and media captures from entering version control.
 - **Local Isolation**: Browser instances execute strictly inside dedicated local sandboxes without transmitting session cookies to third-party endpoints.
 - **Fail-Safe Circuit Breaker**: Immediate process termination upon detection of captcha or session invalidation.

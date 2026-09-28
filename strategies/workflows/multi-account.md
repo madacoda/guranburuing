@@ -202,7 +202,7 @@ Cygames employs automated telemetry to detect botting and multi-accounting. The 
 ### 3. IP Masking via Dedicated Proxies
 - Configure a residential or private datacenter proxy in `accounts.config.json` per account:
   ```json
-  "proxy": "http://customer-xyz:password@residential-node.proxy.net:10001"
+  "proxy": "http://username:password@proxy.example.com:8080"
   ```
 - The launcher starts Chrome with `--proxy-server=...`, routing all HTTP, WebSocket, and game asset traffic through the designated proxy.
 

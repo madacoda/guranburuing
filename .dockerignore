@@ -1,0 +1,23 @@
+# Docker ignore policy - Gold Industry Standard Security
+node_modules/
+dist/
+.git/
+.env
+.env.*
+accounts.config.json
+accounts*.json
+.gbf-*-profile/
+.gbf-profiles/
+artifacts/*
+!artifacts/.gitkeep
+scratch/
+logs/*
+!logs/.gitkeep
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.sqlite
+*.db
+*.log
+*.tsbuildinfo
