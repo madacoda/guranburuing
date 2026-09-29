@@ -32,6 +32,7 @@ This guide establishes the architectural standards, runtime environment, and ope
 | **Daily Multi-Account**| `bun run daily:all` | `npm run daily:all` |
 | **Daily Windowed** | `bun run daily:windowed` | `npm run daily:windowed` |
 | **Fate Episodes** | `bun run fate` | `npm run fate` |
+| **Event Story / Clear** | `bun run event` / `bun run event:all` | `bun src/cli/run-clear-event.ts ...` |
 | **Custom Script** | `bun src/cli/run-workflow.ts acc1 <template> <runs>` | `tsx src/cli/run-workflow.ts ...` |
 | **Run All Tests** | `bun run test` | `npm run test:node` |
 | **Template Validation**| `bun run workflow:validate` | `npm run workflow:validate` |
@@ -132,6 +133,31 @@ bun run fate
 
 # Farm specific number of episodes (e.g. 10):
 bun run fate:10
+```
+
+### Scenario Events Auto-Clear (`clear-event`, `event`):
+Automates monthly scenario events (`#event/treasureraid<ID>`, e.g., "Farewell, Cold Heart" `#event/treasureraid177`):
+- **Story Auto-Clear**: Automatically locates current `.ico-current` episode card, fast-skips dialogue cutscenes (`.btn-skip` -> `.btn-scene-skip`), engages story combat with Full Auto, dismisses reward modals, and loops through all 6 chapters & ending.
+- **Challenge Quest**: 1-time clear of event challenge quest for Blue Sky Crystals and event trophy.
+- **Daily Maniac**: Clears daily 2/2 Maniac solo battles for high-yield tokens and guaranteed Nightmare spawns.
+- **Nightmare (HELL)**: Instant 1-click skips when skip is unlocked, or Full Auto battle.
+- **Token Gacha**: Automatically draws Senka tokens and resets Boxes 1-4 when key SSR is pulled.
+
+```bash
+# Clear all unread story episodes (defaults to active event):
+bun run event
+
+# Run in windowed mode:
+bun run event:windowed
+
+# Complete full event pipeline (Story -> Challenge -> Maniac -> HELL -> Gacha):
+bun run event:all
+
+# Individual event tasks:
+bun run event:challenge
+bun run event:maniac
+bun run event:nightmare
+bun run event:gacha
 ```
 
 ### Raid & Combat Farming:

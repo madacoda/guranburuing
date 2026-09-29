@@ -1,6 +1,7 @@
 # scripts/launch-gbf-chrome.ps1
 param(
     [switch]$Headless = $false,
+    [switch]$Windowed = $false,
     [int]$Port = 0,
     [string]$CustomUserDataDir = "",
     [string]$Proxy = "",
@@ -9,7 +10,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$isHeadless = $Headless.IsPresent -or ($env:HEADLESS -eq "true") -or ($env:HEADLESS -eq "1")
+$isHeadless = if ($Windowed.IsPresent) {
+    $false
+} elseif ($Headless.IsPresent) {
+    $true
+} else {
+    ($env:HEADLESS -eq "true") -or ($env:HEADLESS -eq "1")
+}
 $defaultProfile = if ($Profile) { $Profile } elseif ($env:CHROME_PROFILE) { $env:CHROME_PROFILE } else { "Default" }
 
 $browserCandidates = @(
@@ -176,7 +183,11 @@ $browserArgs += "`"$targetUrl`""
 
 $cmdLineArgs = $browserArgs -join " "
 $fullCmdLine = "`"$browserExe`" $cmdLineArgs"
-Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $fullCmdLine } | Out-Null
+if ($isHeadless) {
+    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $fullCmdLine } | Out-Null
+} else {
+    Start-Process -FilePath $browserExe -ArgumentList $browserArgs -WindowStyle Normal
+}
 
 # Await port availability
 $retries = 25

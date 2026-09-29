@@ -1,0 +1,83 @@
+{
+  "name": "Event Story Auto-Clear Routine",
+  "description": "Autonomous Scenario Event Routine (Farewell, Cold Heart - treasureraid177): Navigates to event top, detects unread story episodes, fast-skips dialogues, enables Full Auto on combat, dismisses reward popups, and loops until story completion",
+  "mode": "routine",
+  "questUrl": "https://game.granbluefantasy.jp/#event/treasureraid177",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 40,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "name": "Navigate to Event Page",
+      "code": "navigate",
+      "target": "https://game.granbluefantasy.jp/#event/treasureraid177"
+    },
+    {
+      "name": "Await Event Story Container Mounted",
+      "code": "wait_element",
+      "target": ".prt-main-quest, .cnt-quest.treasureraid, .btn-quest-list, .prt-event-quest",
+      "timeoutMs": 10000
+    },
+    {
+      "name": "Loop Through In-Progress Story Episodes",
+      "code": "loop_while",
+      "target": ".btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list.main",
+      "maxLoops": 40,
+      "subSteps": [
+        {
+          "name": "Click Current Active Episode Card",
+          "code": "click",
+          "target": ".btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list.main"
+        },
+        {
+          "name": "Confirm Start Episode or Synopsis Skip Modal if Present",
+          "code": "click",
+          "target": ".pop-synopsis .btn-scene-skip, .pop-synopsis .btn-usual-ok, .btn-scene-skip, .btn-usual-ok.se-quest-start, .pop-usual .btn-usual-ok",
+          "optional": true,
+          "timeoutMs": 3500
+        },
+        {
+          "name": "Fast-Skip Story Dialogue and Scene Cutscenes",
+          "code": "skip_story_scene",
+          "timeoutMs": 15000
+        },
+        {
+          "name": "If Episode Contains Combat: Enable Full Auto",
+          "code": "auto",
+          "mode": "full",
+          "optional": true
+        },
+        {
+          "name": "Dismiss Rewards, Crystal Unlocks & Result Screens",
+          "code": "confirm_result"
+        },
+        {
+          "name": "Dismiss Any Remaining Notifications",
+          "code": "dismiss_popups"
+        },
+        {
+          "name": "Return to Event Top Page",
+          "code": "navigate",
+          "target": "https://game.granbluefantasy.jp/#event/treasureraid177"
+        },
+        {
+          "name": "Await Event Top Ready",
+          "code": "wait_element",
+          "target": ".prt-main-quest, .cnt-quest.treasureraid, .btn-quest-list, .prt-event-quest",
+          "timeoutMs": 6000
+        }
+      ]
+    },
+    {
+      "name": "Return to Home Page When Finished",
+      "code": "navigate",
+      "target": "https://game.granbluefantasy.jp/#mypage"
+    },
+    {
+      "name": "Dismiss Trailing Popups on Home",
+      "code": "dismiss_popups"
+    }
+  ]
+}

@@ -292,12 +292,55 @@ bun run fate:headless
 bun run fate:10
 bun run src/cli/run-workflow.ts fate-stories 25
 ```
-- Template: [`templates/fate-stories.json`](file:///c:/laragon/www/gbf/templates/fate-stories.json)
-- Shorthand DSL: [`templates/fate-stories.dsl`](file:///c:/laragon/www/gbf/templates/fate-stories.dsl)
+- Template: [`templates/fate-stories.json`](file:///c:/laragon/www/guranburuing/templates/fate-stories.json)
+- Shorthand DSL: [`templates/fate-stories.dsl`](file:///c:/laragon/www/guranburuing/templates/fate-stories.dsl)
 
 ---
 
-## 8. Gold Bar Hunters & High-Level Raids
+## 8. Autonomous Scenario Event Engine (`event`, `clear-event`)
+
+Automates Granblue Fantasy monthly story events (`#event/treasureraid<ID>`, e.g., "Farewell, Cold Heart" `#event/treasureraid177`):
+
+### Capabilities:
+- **Main Story Auto-Clear (`event:story`)**: Navigates to event home, tracks the active `.ico-current` episode card, fast-skips cutscenes (`.btn-skip` -> `.btn-scene-skip`), engages story battles with Full Auto, dismisses reward modals, and loops through all 6 chapters & ending.
+- **1-Time Challenge Quest (`event:challenge`)**: Clears the event Challenge Quest with the fixed story party for Blue Sky Crystals & event trophy.
+- **Daily Maniac Solo (`event:maniac`)**: Clears the daily 2/2 Maniac solo quests with Full Auto for maximum daily tokens and guaranteed Nightmare procs.
+- **Nightmare (HELL) Skip (`event:nightmare`)**: Detects Nightmare procs and executes 1-click instant Nightmare Skips (or battles with Full Auto).
+- **Token Gacha Drawbox (`event:gacha`)**: Pulls event tokens and automatically resets Boxes 1-4 when the target SSR item is drawn.
+- **Full Event Pipeline (`event:all`)**: Executes the entire sequence: Story -> Challenge Quest -> Daily Maniac -> Nightmare -> Daily Missions -> Token Gacha!
+
+```bash
+# Clear all unread story episodes (Farewell, Cold Heart default)
+bun run event
+# or
+bun run event:story
+
+# Run for a specific event ID (e.g. treasureraid177)
+bun src/cli/run-clear-event.ts story 177
+
+# Run in visible windowed mode for visual inspection
+bun run event:windowed
+
+# Run full end-to-end event pipeline (Story + Challenge + Maniac + HELL + Gacha)
+bun run event:all
+
+# Run specific event tasks
+bun run event:challenge
+bun run event:maniac
+bun run event:nightmare
+bun run event:gacha
+
+# Declarative workflow engine alternative:
+bun run event:workflow
+```
+- Engine: [`src/engines/event.engine.ts`](file:///c:/laragon/www/guranburuing/src/engines/event.engine.ts)
+- CLI Runner: [`src/cli/run-clear-event.ts`](file:///c:/laragon/www/guranburuing/src/cli/run-clear-event.ts)
+- Template: [`templates/event-story.json`](file:///c:/laragon/www/guranburuing/templates/event-story.json)
+- Shorthand DSL: [`templates/event-story.dsl`](file:///c:/laragon/www/guranburuing/templates/event-story.dsl)
+
+---
+
+## 9. Gold Bar Hunters & High-Level Raids
 
 Automates high-level Gold Bar farming raids with intelligent room finding, priority supporter selection, Ereshkigal burst rotations, and automatic pending battle recovery:
 

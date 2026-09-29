@@ -58,6 +58,11 @@ const TEST_SUITES: TestSuite[] = [
     name: '3-Raid Backup Limit Detection & Recovery Tests',
     file: 'tests/test-raid-backup-limit.ts',
     description: '3-Raid limit modal detection, lingering active assist rejoining, sorting, and 5-battle milestone'
+  },
+  {
+    name: 'Event Engine & Scenario Story Unit Tests',
+    file: 'tests/test-event-engine-unit.ts',
+    description: 'Event ID resolution, story card scanning, cutscene skipping, and stop requests'
   }
 ];
 

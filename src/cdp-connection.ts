@@ -35,7 +35,11 @@ export class CdpConnectionManager {
       try {
         const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
         let cmd = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
-        if (isHeadless) cmd += ' -Headless';
+        if (isHeadless) {
+          cmd += ' -Headless';
+        } else {
+          cmd += ' -Windowed';
+        }
         if (port) cmd += ` -Port ${port}`;
         if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
         if (proxy) cmd += ` -Proxy "${proxy}"`;
@@ -65,7 +69,7 @@ export class CdpConnectionManager {
 
         // Locate active GBF tab
         const pages = await this.browser.pages();
-        let targetPage = pages.find(p => p.url().startsWith('https://game.granbluefantasy.jp'));
+        let targetPage = pages.find(p => p.url().includes('game.granbluefantasy.jp') || p.url().includes('gbf.game.mbga.jp'));
 
         if (!targetPage) {
           console.log('[CDP] GBF tab not found in active browser. Opening https://game.granbluefantasy.jp/#mypage...');
@@ -93,7 +97,11 @@ export class CdpConnectionManager {
           try {
             const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
             let cmd = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
-            if (isHeadless) cmd += ' -Headless';
+            if (isHeadless) {
+              cmd += ' -Headless';
+            } else {
+              cmd += ' -Windowed';
+            }
             if (port) cmd += ` -Port ${port}`;
             if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
             if (proxy) cmd += ` -Proxy "${proxy}"`;
