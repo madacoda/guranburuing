@@ -804,9 +804,21 @@ export class AkashaEngine {
       const dropInfo = await this.page.evaluate(() => {
         const text = document.body.innerText || '';
         const hasText = text.includes('Gold Bar') || text.includes('ヒヒイロカネ');
-        const hasImg = !!document.querySelector('img[src*="20004"], div[data-item-id="20004"]');
-        const raidMatch = text.match(/ID[:\s]*(\d+)/i);
-        const raidId = raidMatch ? raidMatch[1] : '';
+        const hasImg = !!document.querySelector([
+          'img[src*="20004"]',
+          'img.img-thumb[src*="20004"]',
+          'img[src*="evolution/s/20004"]',
+          'img[src*="assets/item/evolution/s/20004.jpg"]',
+          '[data-item-name*="Gold Bar"]',
+          '[data-item-name*="ヒヒイロカネ"]',
+          '[alt*="Gold Bar"]',
+          '[alt*="ヒヒイロカネ"]',
+          'div[data-item-id="20004"]',
+          '[data-item-id="20004"]'
+        ].join(', '));
+        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
+        const textMatch = text.match(/ID[:\s]*(\d+)/i);
+        const raidId = raidIdMatch ? raidIdMatch[1] : (textMatch ? textMatch[1] : '');
         return { hasGoldBar: hasText || hasImg, raidId };
       });
 

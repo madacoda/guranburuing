@@ -272,6 +272,36 @@ bun run src/cli/run-workflow.ts acc1 gw-nm150-light 30
 
 ---
 
+### Guild War Token Drawbox Clearer (`gacha:unf`)
+
+Automates pulling and resetting Guild Wars (Unite & Fight) event token drawboxes (`#event/teamraid<ID>/gacha/index`):
+
+- **Bulk Draw**: Clicks `.btn-bulk-play-box` ("Draw 1 Drawbox", 2,000 tokens per draw).
+- **Fast Skip**: Taps screen to skip crystal animation and reloads to bypass slow loot animations.
+- **Drawbox Reset**: Automatically scrolls to `.btn-reset`, taps it via hardware touchscreen coordinates, confirms the reset modal, and loads the next box.
+- **Rules & Boundary Handling**: Stops gracefully when tokens deplete or when Box #60 item change is required by game rules.
+
+```bash
+# Clear drawboxes on default account (Windowed mode for visual progress)
+bun run gacha:unf
+
+# Run for a specific account (e.g. acc1 or acc2)
+bun run gacha:unf acc1
+
+# Clear a specific number of boxes (e.g. 10 or 30 boxes)
+bun run gacha:unf --max-boxes 30
+
+# Run in silent headless background mode
+bun run gacha:unf --headless
+
+# Target a specific Guild War event ID
+bun run gacha:unf --event teamraid084
+```
+- Engine: [`src/engines/unf-gacha.engine.ts`](file:///c:/laragon/www/guranburuing/src/engines/unf-gacha.engine.ts)
+- CLI Runner: [`src/cli/clear-unf-token.ts`](file:///c:/laragon/www/guranburuing/src/cli/clear-unf-token.ts)
+
+---
+
 ## 7. Fate Stories Auto-Farmer (`fate`)
 
 Automates Granblue Fantasy Fate Episodes (`#quest/fate`) to farm Crystals and uncap character skill slots autonomously:
@@ -493,9 +523,17 @@ Run the unified test runner or target specific modules:
 - **Cause**: Session cookies expired or account has not been initialized for that profile.
 - **Fix**: Run `bun run account:setup acc1` to open the windowed browser, log in manually once, and navigate to `#mypage`.
 
-### Q3: What happens if an image CAPTCHA appears?
-- The **Sentinel Watchdog** immediately hard-freezes all browser input and triggers an emergency alarm to prevent account penalties.
-- Solve the CAPTCHA in your browser or run:
+### Q3: What happens if an image CAPTCHA appears in headless mode?
+- The **Sentinel Watchdog** immediately hard-freezes all browser input to protect your account.
+- **Two-Way Discord DM Relay**:
+  1. The bot messages your private Discord DM with the CAPTCHA screenshot and challenge crop.
+  2. Reply to the bot directly in DM with the text code or tile numbers (e.g., `8392` or `3 1 4`).
+  3. The runner injects your answer into the game DOM, clicks verify, confirms `✅ Verified!`, and automatically resumes farming!
+- **Testing the Relay**:
   ```bash
-  bun run solve-captcha
+  bun run test:discord
+  ```
+- **Manual CLI Fallback**:
+  ```bash
+  bun run solve-captcha [optional_code]
   ```

@@ -10,23 +10,46 @@ export class AccountAuthManager {
    */
   public static async getVerifiedProfile(page: Page): Promise<VerifiedPlayerProfile | null> {
     try {
+      // 1. Fast check if active page is already authenticated (#mypage, #profile, header)
+      const instant = await page.evaluate(() => {
+        const Game = (window as any).Game;
+        const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
+        const rankEl = document.querySelector('.prt-rank-value');
+        const idEl = document.querySelector('.prt-user-id, .txt-user-id');
+        const hasUserInfo = !!document.querySelector('.prt-user-info, .cnt-mypage, .prt-header');
+
+        if (Game?.userId || hasUserInfo) {
+          let cleanName = nameEl?.textContent?.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim() || (Game?.userName ? String(Game.userName) : 'Player');
+          let cleanRank = rankEl?.textContent?.trim() || 'Unknown';
+          const id = Game?.userId ? String(Game.userId) : (idEl?.textContent?.replace(/[^0-9]/g, '') || 'Unknown');
+          return { name: cleanName, rank: cleanRank, id };
+        }
+        return null;
+      }).catch(() => null);
+
+      if (instant) {
+        return instant;
+      }
+
+      // 2. Navigate to #profile if not yet on GBF
       const currentUrl = page.url();
       if (!currentUrl.includes('granbluefantasy.jp')) {
         await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
       } else {
         await page.evaluate(() => {
-          window.location.href = 'https://game.granbluefantasy.jp/#profile';
+          window.location.hash = '#profile';
         }).catch(() => null);
       }
 
-      // Wait up to 7s for #profile DOM elements to mount or redirect to occur
+      // Wait up to 8s for #profile DOM elements to mount or true redirect to occur
       const start = Date.now();
-      while (Date.now() - start < 7000) {
+      while (Date.now() - start < 8000) {
         const hash = await page.evaluate(() => window.location.hash).catch(() => '');
         const url = page.url();
 
-        // Redirected to title or external login screen -> definitely unauthenticated
-        const isAuthRedirect = (hash.includes('login') && !hash.includes('loginbonus')) || hash.includes('authentication') || hash.includes('top') || url.includes('mbga.jp') || url.includes('dmm.com');
+        // Only treat as unauthenticated redirect if at least 2.5s have elapsed (giving router time to mount)
+        const elapsed = Date.now() - start;
+        const isAuthRedirect = (hash.includes('login') && !hash.includes('loginbonus')) || hash.includes('authentication') || (elapsed > 2500 && hash.includes('top')) || url.includes('mbga.jp') || url.includes('dmm.com');
         if (isAuthRedirect) {
           return null;
         }
@@ -257,9 +280,11 @@ export class AccountAuthManager {
       await logNormalDelay(1500, 0.15);
     }
 
-    // Wait for login inputs
+    // Wait for login inputs safely
     const emailInput = await page.waitForSelector('#login_id, input[name="login_id"]', { visible: true, timeout: 8000 }).catch(() => null);
-    const passInput = await page.$('#login_pw, input[name="login_pw"]');
+    if (!emailInput) return false;
+    const passInput = await page.$('#login_pw, input[name="login_pw"]').catch(() => null);
+    if (!passInput) return false;
 
     if (emailInput && passInput) {
       await humanReactionDelay(80, 0.10);

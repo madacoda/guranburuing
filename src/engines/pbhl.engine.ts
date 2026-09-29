@@ -713,8 +713,27 @@ export class PbhlEngine {
         console.log('🎉🎉🎉 GOLD BAR DROPPED IN PBHL! 🎉🎉🎉');
         console.log('🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟\n');
 
+        let proofScreenshotPath: string | undefined;
+        let screenshotBuf: Buffer | undefined;
+        try {
+          const capDir = path.resolve(process.cwd(), 'artifacts/captures');
+          if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
+          proofScreenshotPath = path.resolve(capDir, `gold-bar-${dropCheck.raidId || 'pbhl'}-${Date.now()}.png`);
+          screenshotBuf = (await this.page.screenshot({ path: proofScreenshotPath, type: 'png' })) as Buffer;
+          console.log(`[PbhlEngine] 📸 Captured Gold Bar proof screenshot: ${proofScreenshotPath}`);
+        } catch (e: any) {
+          console.warn('[PbhlEngine] Could not capture proof screenshot:', e.message);
+        }
+
         if (dropLogger) {
-          dropLogger.recordPendingGoldBar(dropCheck.raidId || 'PBHL');
+          dropLogger.recordPendingGoldBar(dropCheck.raidId || 'PBHL', proofScreenshotPath);
+          await dropLogger.notifyGoldBarDrop({
+            raidId: dropCheck.raidId || 'PBHL',
+            honors: '-',
+            turns: '-',
+            screenshotBuffer: screenshotBuf,
+            screenshotPath: proofScreenshotPath,
+          });
         } else {
           await this.appendGoldBarLog(logPath, {
             timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
@@ -754,7 +773,18 @@ export class PbhlEngine {
       const dropInfo = await this.page.evaluate(() => {
         const text = document.body.innerText || '';
         const hasText = text.includes('Gold Bar') || text.includes('ヒヒイロカネ');
-        const hasImg = !!document.querySelector('img[src*="20004"], [data-item-name*="Gold Bar"], [alt*="Gold Bar"]');
+        const hasImg = !!document.querySelector([
+          'img[src*="20004"]',
+          'img.img-thumb[src*="20004"]',
+          'img[src*="evolution/s/20004"]',
+          'img[src*="assets/item/evolution/s/20004.jpg"]',
+          '[data-item-name*="Gold Bar"]',
+          '[data-item-name*="ヒヒイロカネ"]',
+          '[alt*="Gold Bar"]',
+          '[alt*="ヒヒイロカネ"]',
+          'div[data-item-id="20004"]',
+          '[data-item-id="20004"]'
+        ].join(', '));
         const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
 
         return {

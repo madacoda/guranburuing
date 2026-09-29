@@ -1,6 +1,7 @@
 // src/engines/drop-logger.ts
 import fs from 'fs';
 import path from 'path';
+import { discordDmRelay } from '../relay/discord-dm-relay.js';
 
 export interface BattleRecord {
   runNumber: number;
@@ -11,6 +12,8 @@ export interface BattleRecord {
   targetMet: boolean;
   hasGoldBar: boolean;
   battlesWithoutGb: number;
+  battleUrl?: string;
+  screenshotPath?: string;
 }
 
 export interface DropStats {
@@ -93,10 +96,15 @@ export class DropLogger {
             }
 
             const runNumber = parseInt(cols[0], 10) || (this.records.length + 1);
-            const raidId = cols[2];
+            const rawRaidId = cols[2];
+            const raidMatch = rawRaidId.match(/\[?(\d{8,})\]?/);
+            const raidId = raidMatch ? raidMatch[1] : rawRaidId.replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
             const targetMet = cols[5].includes('Yes') || cols[5].includes('✅');
             const hasGoldBar = cols[6].includes('YES') || cols[6].includes('🌟') || cols[6].includes('Gold Bar');
             const battlesWithoutGb = parseInt(cols[7], 10) || 0;
+            const battleUrl = raidId && /^\d+$/.test(raidId)
+              ? `https://game.granbluefantasy.jp/#result_multi/${raidId}`
+              : undefined;
 
             this.records.push({
               runNumber,
@@ -106,7 +114,8 @@ export class DropLogger {
               honors,
               targetMet,
               hasGoldBar,
-              battlesWithoutGb
+              battlesWithoutGb,
+              battleUrl
             });
           } else {
             // Legacy Format: | Timestamp | Raid ID | Turns | Honors | Gold Bar Found? | Cumulative Runs |
@@ -116,11 +125,16 @@ export class DropLogger {
               continue;
             }
 
-            const raidId = cols[1];
+            const rawRaidId = cols[1];
+            const raidMatch = rawRaidId.match(/\[?(\d{8,})\]?/);
+            const raidId = raidMatch ? raidMatch[1] : rawRaidId.replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
             const turns = cols[2];
             const honors = cols[3];
             const hasGoldBar = cols[4].includes('YES') || cols[4].includes('🌟') || cols[4].includes('Gold Bar');
             const runNumber = parseInt(cols[5].replace(/\D/g, ''), 10) || (this.records.length + 1);
+            const battleUrl = raidId && /^\d+$/.test(raidId)
+              ? `https://game.granbluefantasy.jp/#result_multi/${raidId}`
+              : undefined;
 
             this.records.push({
               runNumber,
@@ -130,7 +144,8 @@ export class DropLogger {
               honors,
               targetMet: true,
               hasGoldBar,
-              battlesWithoutGb: hasGoldBar ? 0 : 1
+              battlesWithoutGb: hasGoldBar ? 0 : 1,
+              battleUrl
             });
           }
         }
@@ -198,6 +213,7 @@ export class DropLogger {
     targetMet: boolean;
     hasGoldBar?: boolean;
     timestamp?: string;
+    screenshotPath?: string;
   }): { record: BattleRecord; stats: DropStats } {
     const runNumber = this.records.length + 1;
     const timestamp = data.timestamp || new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -213,15 +229,23 @@ export class DropLogger {
       : data.honors.toString();
     if (!honorsStr.includes('pt')) honorsStr += ' pt';
 
+    const rawRaidId = data.raidId || 'Unknown';
+    const cleanRaidId = rawRaidId.replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+    const battleUrl = cleanRaidId && /^\d+$/.test(cleanRaidId)
+      ? `https://game.granbluefantasy.jp/#result_multi/${cleanRaidId}`
+      : undefined;
+
     const record: BattleRecord = {
       runNumber,
       timestamp,
-      raidId: data.raidId || 'Unknown',
+      raidId: cleanRaidId,
       turns: data.turns,
       honors: honorsStr,
       targetMet: data.targetMet,
       hasGoldBar,
-      battlesWithoutGb
+      battlesWithoutGb,
+      battleUrl,
+      screenshotPath: data.screenshotPath
     };
 
     this.records.push(record);
@@ -244,14 +268,16 @@ export class DropLogger {
   /**
    * Updates an existing raid or appends a Gold Bar drop entry when discovered via pending battle claim.
    */
-  public recordPendingGoldBar(raidId?: string): DropStats {
+  public recordPendingGoldBar(raidId?: string, screenshotPath?: string): DropStats {
     let matched = false;
 
     if (raidId && raidId !== 'PBHL' && raidId !== 'Akasha' && raidId !== 'GO') {
+      const cleanRaidId = raidId.replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
       // Find matching recent record
       for (let i = this.records.length - 1; i >= 0; i--) {
-        if (this.records[i].raidId === raidId) {
+        if (this.records[i].raidId === cleanRaidId) {
           this.records[i].hasGoldBar = true;
+          if (screenshotPath) this.records[i].screenshotPath = screenshotPath;
           matched = true;
           break;
         }
@@ -261,23 +287,88 @@ export class DropLogger {
     if (!matched && this.records.length > 0) {
       // Mark the most recent battle as having dropped the Gold Bar
       this.records[this.records.length - 1].hasGoldBar = true;
+      if (screenshotPath) this.records[this.records.length - 1].screenshotPath = screenshotPath;
     } else if (!matched && this.records.length === 0) {
       // Direct drop record
+      const cleanRaidId = (raidId || 'Pending Claim').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+      const battleUrl = /^\d+$/.test(cleanRaidId)
+        ? `https://game.granbluefantasy.jp/#result_multi/${cleanRaidId}`
+        : undefined;
+
       this.records.push({
         runNumber: 1,
         timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-        raidId: raidId || 'Pending Claim',
+        raidId: cleanRaidId,
         turns: '-',
         honors: '-',
         targetMet: true,
         hasGoldBar: true,
-        battlesWithoutGb: 0
+        battlesWithoutGb: 0,
+        battleUrl,
+        screenshotPath
       });
     }
 
     this.recalculateStreaks();
     this.writeLogFile();
     return this.getStats();
+  }
+
+  /**
+   * Dispatches Discord DM notification with attached screenshot and battle log URL.
+   */
+  public async notifyGoldBarDrop(details: {
+    raidId: string;
+    honors: string | number;
+    turns: string | number;
+    screenshotBuffer?: Buffer;
+    screenshotPath?: string;
+    accountId?: string;
+  }): Promise<void> {
+    const cleanRaidId = (details.raidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+    const battleUrl = cleanRaidId && /^\d+$/.test(cleanRaidId)
+      ? `https://game.granbluefantasy.jp/#result_multi/${cleanRaidId}`
+      : 'https://game.granbluefantasy.jp/#quest/assist';
+
+    const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    const content = [
+      '🌟🌟🌟 **JACKPOT! GOLD BAR DROP CONFIRMED!** 🌟🌟🌟',
+      '',
+      `🎉 **Congratulations! A Gold Bar (ヒヒイロカネ) has dropped in ${this.raidTitle}!**`,
+      '',
+      `📋 **Drop Details:**`,
+      `• **Raid:** ${this.raidTitle}`,
+      `• **Battle Log URL:** ${battleUrl}`,
+      `• **Honors:** ${details.honors}`,
+      `• **Turns:** ${details.turns}`,
+      `• **Time:** ${timestamp}`,
+      details.accountId ? `• **Account:** \`${details.accountId}\`` : '',
+      '',
+      '👉 Click the Battle Log URL above to inspect the raid result in your browser!',
+    ].filter(Boolean).join('\n');
+
+    console.log(`\n========================================================================`);
+    console.log(`  🌟🌟🌟 [GOLD BAR DROP CONFIRMED!] Raid: ${cleanRaidId} 🌟🌟🌟`);
+    console.log(`  🔗 Battle Log URL: ${battleUrl}`);
+    console.log(`========================================================================\n`);
+
+    // Terminal audible bell
+    process.stdout.write('\x07\x07\x07');
+
+    if (discordDmRelay.isConfigured()) {
+      try {
+        console.log('[DropLogger] 📤 Sending Gold Bar screenshot and details to Discord DM...');
+        await discordDmRelay.sendMessage(
+          content,
+          details.screenshotBuffer,
+          `gold-bar-${cleanRaidId || 'drop'}.png`
+        );
+        console.log('[DropLogger] ✅ Gold Bar Discord DM alert delivered successfully!');
+      } catch (err: any) {
+        console.error('[DropLogger] Discord DM alert error:', err.message);
+      }
+    }
   }
 
   /**
@@ -307,15 +398,36 @@ export class DropLogger {
     md += `> - **Empirical Drop Rate:** \`${stats.dropRatePct}\` (${stats.goldBars} / ${stats.totalBattles})\n`;
     md += `> - **Expected Drop Rate:** ~0.20% (1 in ~500 blue chests)\n`;
     md += `> - **Last Updated:** \`${lastUpdated}\`\n\n`;
+
+    const goldDrops = this.records.filter((r) => r.hasGoldBar);
+    if (goldDrops.length > 0) {
+      md += `> ### 🏆 🌟 Gold Bar Drops Hall of Fame 🌟\n`;
+      md += `> | Drop # | Timestamp | Battle Result URL | Honors | Turns | Proof Screenshot |\n`;
+      md += `> | :---: | :--- | :--- | :---: | :---: | :--- |\n`;
+      goldDrops.forEach((gd, idx) => {
+        const battleLink = gd.raidId && /^\d+$/.test(gd.raidId)
+          ? `[Battle #${gd.raidId}](https://game.granbluefantasy.jp/#result_multi/${gd.raidId})`
+          : (gd.battleUrl ? `[Battle Log](${gd.battleUrl})` : gd.raidId);
+        const proof = gd.screenshotPath ? `[Screenshot](${gd.screenshotPath})` : 'Confirmed In-Game';
+        md += `> | ${idx + 1} | ${gd.timestamp} | ${battleLink} | ${gd.honors} | ${gd.turns} | ${proof} |\n`;
+      });
+      md += `\n`;
+    }
+
     md += `---\n\n`;
     md += `| Run # | Timestamp | Raid ID | Turns | Honors | Target Met? | Gold Bar Found? | Battles Without GB |\n`;
     md += `| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     for (const r of this.records) {
-      const gbBadge = r.hasGoldBar ? '🌟 **YES! GOLD BAR!** 🌟' : '❌ No';
+      const gbBadge = r.hasGoldBar
+        ? '<img class="img-thumb" src="https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/evolution/s/20004.jpg" width="18" height="18" style="vertical-align:middle;"> 🌟 **YES! GOLD BAR!** 🌟'
+        : '❌ No';
       const targetBadge = r.targetMet ? '✅ Yes' : '⚠️ No';
       const streakStr = r.hasGoldBar ? '0 (Drop!)' : r.battlesWithoutGb.toString();
-      md += `| ${r.runNumber} | ${r.timestamp} | ${r.raidId} | ${r.turns} | ${r.honors} | ${targetBadge} | ${gbBadge} | ${streakStr} |\n`;
+      const raidIdCell = r.raidId && /^\d+$/.test(r.raidId)
+        ? `[${r.raidId}](https://game.granbluefantasy.jp/#result_multi/${r.raidId})`
+        : r.raidId;
+      md += `| ${r.runNumber} | ${r.timestamp} | ${raidIdCell} | ${r.turns} | ${r.honors} | ${targetBadge} | ${gbBadge} | ${streakStr} |\n`;
     }
 
     fs.writeFileSync(this.filePath, md, 'utf-8');

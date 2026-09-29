@@ -363,11 +363,32 @@ export class UniversalWorkflowEngine {
     // Terminal audible bell
     process.stdout.write('\x07\x07\x07');
 
-    this.page.screenshot().then(buf => {
-      this.alertRelay.sendEmergencyAlert(
-        `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]! Total GB this session: ${this.totalGoldBarsAccumulated}`,
-        Buffer.from(buf)
-      );
+    const raidId = this.currentRaidId || '';
+    const battleUrl = raidId
+      ? `https://game.granbluefantasy.jp/#result_multi/${raidId}`
+      : (this.page.url().includes('result') ? this.page.url() : '');
+
+    this.page.screenshot().then(async (buf) => {
+      const capDir = path.resolve(process.cwd(), 'artifacts/captures');
+      if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
+      const proofPath = path.resolve(capDir, `gold-bar-${raidId || 'drop'}-${Date.now()}.png`);
+      fs.writeFileSync(proofPath, buf);
+
+      if (this.dropLogger) {
+        await this.dropLogger.notifyGoldBarDrop({
+          raidId: raidId || 'Raid',
+          honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
+          turns: this.currentTurn || '-',
+          screenshotBuffer: Buffer.from(buf),
+          screenshotPath: proofPath,
+          accountId: this.accountId,
+        });
+      } else {
+        await this.alertRelay.sendEmergencyAlert(
+          `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
+          Buffer.from(buf)
+        );
+      }
     }).catch(() => null);
   }
 

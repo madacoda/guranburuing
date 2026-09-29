@@ -73,13 +73,21 @@ if (Test-PortFast $cdpPort) {
         if (($isHeadless -and $currentIsHeadless) -or (-not $isHeadless -and -not $currentIsHeadless)) {
             Write-Host "[Launcher] Browser ($($selectedBrowser.Name)) is ALREADY running on port $cdpPort in $(if ($isHeadless) { 'HEADLESS' } else { 'WINDOWED' }) mode." -ForegroundColor Green
             exit 0
-        } else {
-            Write-Host "[Launcher] Running browser mode mismatch (Requested: $(if ($isHeadless) { 'HEADLESS' } else { 'WINDOWED' }), Current: $(if ($currentIsHeadless) { 'HEADLESS' } else { 'WINDOWED' }))." -ForegroundColor Yellow
-            Write-Host "[Launcher] Terminating running browser on port $cdpPort to switch to $(if ($isHeadless) { 'HEADLESS' } else { 'WINDOWED' }) mode..." -ForegroundColor Cyan
+        } elseif ($Windowed.IsPresent -and $currentIsHeadless) {
+            Write-Host "[Launcher] Explicit -Windowed requested. Switching from headless to windowed mode..." -ForegroundColor Cyan
             foreach ($p in $runningProcs) {
                 Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
             }
             Start-Sleep -Milliseconds 800
+        } elseif ($Headless.IsPresent -and -not $currentIsHeadless -and $env:FORCE_HEADLESS_SWITCH -eq "true") {
+            Write-Host "[Launcher] Explicit force headless switch requested. Switching to headless mode..." -ForegroundColor Cyan
+            foreach ($p in $runningProcs) {
+                Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+            }
+            Start-Sleep -Milliseconds 800
+        } else {
+            Write-Host "[Launcher] Browser ($($selectedBrowser.Name)) is ALREADY running on port $cdpPort in $(if ($currentIsHeadless) { 'HEADLESS' } else { 'WINDOWED' }) mode. Reusing active session." -ForegroundColor Green
+            exit 0
         }
     } else {
         Write-Host "[Launcher] Port $cdpPort is open but no matching process found." -ForegroundColor Yellow

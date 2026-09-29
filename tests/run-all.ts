@@ -63,6 +63,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Event Engine & Scenario Story Unit Tests',
     file: 'tests/test-event-engine-unit.ts',
     description: 'Event ID resolution, story card scanning, cutscene skipping, and stop requests'
+  },
+  {
+    name: 'Gold Bar Tracker & Battle URL Integration Tests',
+    file: 'tests/test-gold-bar-tracker.ts',
+    description: 'Item 20004 drop logging, battle log URL resolution, and Hall of Fame generation'
   }
 ];
 

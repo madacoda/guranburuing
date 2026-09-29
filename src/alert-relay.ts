@@ -1,5 +1,5 @@
-// src/alert-relay.ts
 import { config } from './config.js';
+import { discordDmRelay } from './relay/discord-dm-relay.js';
 
 export class AlertRelay {
   private lastAlertTimestamp = 0;
@@ -25,6 +25,14 @@ export class AlertRelay {
 
     if (config.DISCORD_WEBHOOK_URL) {
       promises.push(this.sendDiscordWebhook(message, screenshotBuffer));
+    }
+
+    if (discordDmRelay.isConfigured()) {
+      promises.push(
+        discordDmRelay.sendMessage(message, screenshotBuffer, 'alert.png').then(() => {}).catch((err: any) => {
+          console.error('[AlertRelay] Discord DM dispatch error:', err.message);
+        })
+      );
     }
 
     // Audible terminal bell

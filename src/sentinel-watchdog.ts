@@ -4,6 +4,7 @@ import path from 'path';
 import { Page } from 'puppeteer-core';
 import { AlertRelay } from './alert-relay.js';
 import { ArtifactManager } from './core/artifact-manager.js';
+import { discordDmRelay } from './relay/discord-dm-relay.js';
 
 export class SentinelWatchdog {
   private isLocked = false;
@@ -82,6 +83,37 @@ export class SentinelWatchdog {
     return false;
   }
 
+
+  /**
+   * Captures both the isolated picture puzzle crop and the full game viewport screenshot.
+   */
+  public async captureCaptchaArtifacts(): Promise<{ fullScreenshot: Buffer; puzzleCrop?: Buffer }> {
+    const capturePath = ArtifactManager.getCapturePath({ namespace: 'captcha', label: 'viewport' });
+    const fullScreenshot = (await this.page.screenshot({ path: capturePath, type: 'png' })) as Buffer;
+    ArtifactManager.pruneOldCaptures(path.dirname(capturePath), 20);
+
+    let puzzleCrop: Buffer | undefined;
+    try {
+      // Find the visual puzzle container or modal holding the picture verification
+      const puzzleEl = await this.page.$(
+        '.pop-usual, .prt-popup-body, .cnt-verification, #cnt-verification, .pop-captcha, .prt-c-a-i-input, #c-a-i-frm-group, .prt-c-a-i-image, img.image[src*="c/i"], img.img-verification'
+      );
+      if (puzzleEl) {
+        const box = await puzzleEl.boundingBox();
+        if (box && box.width > 20 && box.height > 20) {
+          const cropPath = path.resolve(path.dirname(capturePath), `captcha-puzzle-${Date.now()}.png`);
+          puzzleCrop = (await puzzleEl.screenshot({ path: cropPath, type: 'png' })) as Buffer;
+          console.error(`[Sentinel] 🔍 CAPTCHA Puzzle Crop: ${cropPath}`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Sentinel] Transient error capturing puzzle crop:', err.message);
+    }
+
+    console.error(`[Sentinel] 📸 CAPTCHA Viewport: ${capturePath}`);
+    return { fullScreenshot, puzzleCrop };
+  }
+
   /**
    * Evaluates safety invariant. Must be called before EVERY click and navigation.
    * Throws an error to immediately abort execution if verification is present or locked.
@@ -105,32 +137,43 @@ export class SentinelWatchdog {
       console.error('============================================================');
       console.error(' 👉 Automation has HARD-FROZEN to protect your account.');
       console.error(' 👉 Browser navigation is BLOCKED to keep the puzzle visible.');
-      console.error(' 👉 Solve the CAPTCHA in your browser or enter code in CLI.');
+      console.error(' 👉 Solve the CAPTCHA in your browser or reply via Discord DM.');
       console.error('============================================================\n');
 
+      let capturedArtifacts: { fullScreenshot: Buffer; puzzleCrop?: Buffer } | null = null;
       try {
-        const capturePath = ArtifactManager.getCapturePath({ namespace: 'captcha', label: 'detected' });
-        const screenshot = (await this.page.screenshot({ path: capturePath, type: 'png' })) as Buffer;
-        ArtifactManager.pruneOldCaptures(path.dirname(capturePath), 20);
-
-        // Also capture isolated captcha crop if image element exists
-        const cropPath = path.resolve(path.dirname(capturePath), `captcha-crop-${Date.now()}.png`);
-        const imgEl = await this.page.$('img.image[src*="c/i"], img.image, .prt-c-a-i-input img, .pop-usual img');
-        if (imgEl) {
-          await imgEl.screenshot({ path: cropPath }).catch(() => null);
-        }
-
-        console.error(`[Sentinel] 📸 CAPTCHA Screenshot: ${capturePath}`);
-        if (fs.existsSync(cropPath)) {
-          console.error(`[Sentinel] 🔍 CAPTCHA Image Crop: ${cropPath}`);
-        }
-
+        capturedArtifacts = await this.captureCaptchaArtifacts();
         await this.alertRelay.sendEmergencyAlert(
-          'Verification CAPTCHA detected on desktop! Automation has been HARD-FROZEN. Please solve the puzzle in your browser.',
-          screenshot
+          'Verification CAPTCHA detected on desktop! Automation has been HARD-FROZEN. Please solve the puzzle in your browser or reply to Discord DM.',
+          capturedArtifacts.fullScreenshot
         );
       } catch (err: any) {
         console.error('[Sentinel] Failed to capture screenshot:', err.message);
+      }
+
+      // Two-way Discord DM Human-in-the-Loop Resolution
+      if (capturedArtifacts && discordDmRelay.isConfigured()) {
+        try {
+          console.log('[Sentinel] 🤖 Requesting human CAPTCHA resolution via Discord DM...');
+          const userCode = await discordDmRelay.requestCaptchaResolution(capturedArtifacts, 300000);
+          if (userCode) {
+            console.log(`[Sentinel] 📩 Received resolution code from Discord DM: "${userCode}". Submitting...`);
+            const solved = await this.submitCaptchaCode(userCode);
+            if (solved) {
+              await discordDmRelay.sendConfirmation(
+                `✅ **CAPTCHA Verified!**\nChallenge cleared successfully. Automation has resumed automatically.`
+              );
+              this.unlock();
+              return;
+            } else {
+              await discordDmRelay.sendConfirmation(
+                `❌ **CAPTCHA Submission Failed**\nThe code "${userCode}" did not dismiss the challenge. Automation is halted to protect your account.`
+              );
+            }
+          }
+        } catch (relayErr: any) {
+          console.error('[Sentinel] Discord DM resolution failed:', relayErr.message);
+        }
       }
 
       throw new Error('SENTINEL_HALT: Captcha detected. Execution terminated to protect account.');
@@ -138,12 +181,15 @@ export class SentinelWatchdog {
   }
 
   /**
-   * Submits a CAPTCHA response string into the active in-game verification modal.
+   * Submits a CAPTCHA response into the active in-game verification modal.
+   * Handles both text input codes and picture-selection tile indices.
    */
   public async submitCaptchaCode(code: string): Promise<boolean> {
     try {
       console.log(`[Sentinel] Attempting to submit CAPTCHA response via DOM: "${code}"...`);
-      const success = await this.page.evaluate((val: string) => {
+
+      // 1. First attempt: Text / Character input fields
+      const textSuccess = await this.page.evaluate((val: string) => {
         const input = document.querySelector('.prt-c-a-i-input textarea, textarea.frm-message, input[name*="verification"]') as HTMLTextAreaElement | HTMLInputElement;
         const btn = document.querySelector('.btn-talk-message, .btn-usual-ok.se-quest-start, .btn-verify') as HTMLElement;
         if (input && btn) {
@@ -158,7 +204,38 @@ export class SentinelWatchdog {
         return false;
       }, code);
 
-      if (success) {
+      // 2. Second attempt: Picture Grid / Tile Selection (e.g. "1 3" or "2")
+      let tileSuccess = false;
+      if (!textSuccess) {
+        tileSuccess = await this.page.evaluate((val: string) => {
+          const tiles = Array.from(document.querySelectorAll(
+            '.lis-c-a-i-image, li.c-a-i-image, .prt-c-a-i-image li, .cnt-verification ul li, .pop-usual .prt-popup-body li, .prt-c-a-i-image img'
+          )) as HTMLElement[];
+
+          const indices = val.split(/[\s,-]+/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+          if (tiles.length > 0 && indices.length > 0) {
+            for (const idx of indices) {
+              const tile = tiles[idx - 1]; // 1-indexed for human convenience
+              if (tile) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(tile).trigger('tap');
+                tile.click();
+              }
+            }
+
+            const btn = document.querySelector('.btn-usual-ok, .btn-verify, .btn-talk-message') as HTMLElement;
+            if (btn) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              btn.click();
+            }
+            return true;
+          }
+          return false;
+        }, code);
+      }
+
+      if (textSuccess || tileSuccess) {
         const btnEl = await this.page.$('.btn-talk-message, .btn-usual-ok.se-quest-start, .btn-verify');
         if (btnEl) {
           const box = await btnEl.boundingBox();
