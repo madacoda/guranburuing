@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { discordDmRelay } from '../relay/discord-dm-relay.js';
+import { AlertRelay } from '../alert-relay.js';
 
 export interface BattleRecord {
   runNumber: number;
@@ -266,6 +267,19 @@ export class DropLogger {
   }
 
   /**
+   * Synchronizes the entire JSONL file to match all in-memory records.
+   */
+  public syncJsonlFile(): void {
+    try {
+      const jsonlPath = this.filePath.replace(/\.md$/i, '.jsonl');
+      const content = this.records.map((r) => JSON.stringify(r)).join('\n') + '\n';
+      fs.writeFileSync(jsonlPath, content, 'utf-8');
+    } catch (e: any) {
+      console.warn(`[DropLogger] Could not sync JSONL file ${this.filePath}: ${e.message}`);
+    }
+  }
+
+  /**
    * Updates an existing raid or appends a Gold Bar drop entry when discovered via pending battle claim.
    */
   public recordPendingGoldBar(raidId?: string, screenshotPath?: string): DropStats {
@@ -311,6 +325,7 @@ export class DropLogger {
 
     this.recalculateStreaks();
     this.writeLogFile();
+    this.syncJsonlFile();
     return this.getStats();
   }
 
@@ -327,25 +342,27 @@ export class DropLogger {
   }): Promise<void> {
     const cleanRaidId = (details.raidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
     const battleUrl = cleanRaidId && /^\d+$/.test(cleanRaidId)
-      ? `https://game.granbluefantasy.jp/#result_multi/${cleanRaidId}`
+      ? `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`
       : 'https://game.granbluefantasy.jp/#quest/assist';
 
-    const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const timestamp = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Tokyo',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }) + ' (JST)';
+
+    const playerName = details.accountId === 'acc1' || !details.accountId ? '『Danchou』' : details.accountId;
 
     const content = [
-      '🌟🌟🌟 **JACKPOT! GOLD BAR DROP CONFIRMED!** 🌟🌟🌟',
-      '',
-      `🎉 **Congratulations! A Gold Bar (ヒヒイロカネ) has dropped in ${this.raidTitle}!**`,
-      '',
-      `📋 **Drop Details:**`,
-      `• **Raid:** ${this.raidTitle}`,
-      `• **Battle Log URL:** ${battleUrl}`,
-      `• **Honors:** ${details.honors}`,
-      `• **Turns:** ${details.turns}`,
-      `• **Time:** ${timestamp}`,
-      details.accountId ? `• **Account:** \`${details.accountId}\`` : '',
-      '',
-      '👉 Click the Battle Log URL above to inspect the raid result in your browser!',
+      '🌟 **Gold Brick Drop Confirmed** 🌟',
+      `• **Raid**: ${this.raidTitle}`,
+      cleanRaidId ? `• **Raid ID**: \`${cleanRaidId}\`` : '',
+      `• **Battle Log**: ${battleUrl}`,
+      `• **Timestamp**: ${timestamp}`,
+      `• **Account**: ${playerName}`,
     ].filter(Boolean).join('\n');
 
     console.log(`\n========================================================================`);
@@ -369,6 +386,15 @@ export class DropLogger {
         console.error('[DropLogger] Discord DM alert error:', err.message);
       }
     }
+
+    // Secondary multi-channel redundancy via AlertRelay (Webhook / Telegram)
+    try {
+      const alertRelay = new AlertRelay();
+      await alertRelay.sendEmergencyAlert(
+        `🌟 GOLD BAR DROP CONFIRMED!\n• Raid: ${this.raidTitle}\n• Battle ID: ${cleanRaidId || 'N/A'}\n• Log URL: ${battleUrl}\n• Honors: ${details.honors}\n• Turns: ${details.turns}`,
+        details.screenshotBuffer
+      );
+    } catch {}
   }
 
   /**
@@ -380,6 +406,7 @@ export class DropLogger {
     }
     this.recalculateStreaks();
     this.writeLogFile();
+    this.syncJsonlFile();
   }
 
   /**
@@ -408,7 +435,11 @@ export class DropLogger {
         const battleLink = gd.raidId && /^\d+$/.test(gd.raidId)
           ? `[Battle #${gd.raidId}](https://game.granbluefantasy.jp/#result_multi/${gd.raidId})`
           : (gd.battleUrl ? `[Battle Log](${gd.battleUrl})` : gd.raidId);
-        const proof = gd.screenshotPath ? `[Screenshot](${gd.screenshotPath})` : 'Confirmed In-Game';
+        const proof = gd.screenshotPath
+          ? (gd.screenshotPath.startsWith('http') || gd.screenshotPath.includes('/') || gd.screenshotPath.includes('\\')
+              ? `[Screenshot](${gd.screenshotPath})`
+              : gd.screenshotPath)
+          : 'Confirmed In-Game';
         md += `> | ${idx + 1} | ${gd.timestamp} | ${battleLink} | ${gd.honors} | ${gd.turns} | ${proof} |\n`;
       });
       md += `\n`;

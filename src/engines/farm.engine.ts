@@ -588,8 +588,8 @@ export class FarmEngine {
     try {
       const dropInfo = await this.page.evaluate(() => {
         const text = document.body.innerText || '';
-        const hasText = text.includes('Gold Bar') || text.includes('ヒヒイロカネ');
-        const hasImg = !!document.querySelector('img[src*="20004"], [data-item-name*="Gold Bar"], [alt*="Gold Bar"]');
+        const hasText = text.includes('Gold Bar') || text.includes('Gold Brick') || text.includes('ヒヒイロカネ');
+        const hasImg = !!document.querySelector('img[src*="20004"], [data-item-name*="Gold Bar"], [data-item-name*="Gold Brick"], [alt*="Gold Bar"], [alt*="Gold Brick"], [alt*="ヒヒイロカネ"], [data-item-id="20004"]');
         const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
 
         return {
@@ -601,7 +601,7 @@ export class FarmEngine {
 
       if (!dropInfo.hasGoldBar && this.latestClaimRewardData) {
         const rewardStr = JSON.stringify(this.latestClaimRewardData);
-        if (rewardStr.includes('20004') || rewardStr.includes('Gold Bar') || rewardStr.includes('ヒヒイロカネ')) {
+        if (rewardStr.includes('20004') || rewardStr.includes('Gold Bar') || rewardStr.includes('Gold Brick') || rewardStr.includes('ヒヒイロカネ')) {
           dropInfo.hasGoldBar = true;
         }
       }

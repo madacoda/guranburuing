@@ -6,9 +6,9 @@ export class AlertRelay {
   private readonly ALERT_COOLDOWN_MS = 60000; // 1-minute deduplication window
 
   /**
-   * Broadcasts an emergency alert with an attached screenshot to configured channels.
+   * Broadcasts an emergency alert with an optional attached screenshot to configured channels.
    */
-  public async sendEmergencyAlert(message: string, screenshotBuffer: Buffer): Promise<void> {
+  public async sendEmergencyAlert(message: string, screenshotBuffer?: Buffer): Promise<void> {
     const now = Date.now();
     if (now - this.lastAlertTimestamp < this.ALERT_COOLDOWN_MS) {
       console.warn('[AlertRelay] Alert throttled to prevent spamming webhooks.');
@@ -41,36 +41,59 @@ export class AlertRelay {
     await Promise.allSettled(promises);
   }
 
-  private async sendTelegramPhoto(caption: string, imageBuffer: Buffer): Promise<void> {
+  private async sendTelegramPhoto(caption: string, imageBuffer?: Buffer): Promise<void> {
     try {
-      const url = `https://api.telegram.org/bot${config.TELEGRAM_BOT_TOKEN}/sendPhoto`;
-      const formData = new FormData();
-      formData.append('chat_id', config.TELEGRAM_CHAT_ID!);
-      formData.append('caption', caption);
-      formData.append('photo', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'verification.png');
+      if (imageBuffer) {
+        const url = `https://api.telegram.org/bot${config.TELEGRAM_BOT_TOKEN}/sendPhoto`;
+        const formData = new FormData();
+        formData.append('chat_id', config.TELEGRAM_CHAT_ID!);
+        formData.append('caption', caption);
+        formData.append('photo', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'verification.png');
 
-      const res = await fetch(url, { method: 'POST', body: formData });
-      if (!res.ok) {
-        console.error(`[AlertRelay] Telegram dispatch failed with status: ${res.status}`);
+        const res = await fetch(url, { method: 'POST', body: formData });
+        if (!res.ok) {
+          console.error(`[AlertRelay] Telegram dispatch failed with status: ${res.status}`);
+        } else {
+          console.log('[AlertRelay] Telegram photo alert sent successfully.');
+        }
       } else {
-        console.log('[AlertRelay] Telegram photo alert sent successfully.');
+        const url = `https://api.telegram.org/bot${config.TELEGRAM_BOT_TOKEN}/sendMessage`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: config.TELEGRAM_CHAT_ID, text: caption })
+        });
+        if (!res.ok) {
+          console.error(`[AlertRelay] Telegram message dispatch failed with status: ${res.status}`);
+        }
       }
     } catch (err: any) {
       console.error('[AlertRelay] Telegram send error:', err.message);
     }
   }
 
-  private async sendDiscordWebhook(content: string, imageBuffer: Buffer): Promise<void> {
+  private async sendDiscordWebhook(content: string, imageBuffer?: Buffer): Promise<void> {
     try {
-      const formData = new FormData();
-      formData.append('content', `🚨 **URGENT: Granblue Fantasy Verification Triggered!**\n${content}`);
-      formData.append('file', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'captcha.png');
+      if (imageBuffer) {
+        const formData = new FormData();
+        formData.append('content', `🚨 **URGENT: Granblue Fantasy Verification Triggered!**\n${content}`);
+        formData.append('file', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'captcha.png');
 
-      const res = await fetch(config.DISCORD_WEBHOOK_URL!, { method: 'POST', body: formData });
-      if (!res.ok) {
-        console.error(`[AlertRelay] Discord webhook failed with status: ${res.status}`);
+        const res = await fetch(config.DISCORD_WEBHOOK_URL!, { method: 'POST', body: formData });
+        if (!res.ok) {
+          console.error(`[AlertRelay] Discord webhook failed with status: ${res.status}`);
+        } else {
+          console.log('[AlertRelay] Discord webhook alert sent successfully.');
+        }
       } else {
-        console.log('[AlertRelay] Discord webhook alert sent successfully.');
+        const res = await fetch(config.DISCORD_WEBHOOK_URL!, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: `🚨 **URGENT: Granblue Fantasy Verification Triggered!**\n${content}` })
+        });
+        if (!res.ok) {
+          console.error(`[AlertRelay] Discord webhook failed with status: ${res.status}`);
+        }
       }
     } catch (err: any) {
       console.error('[AlertRelay] Discord send error:', err.message);

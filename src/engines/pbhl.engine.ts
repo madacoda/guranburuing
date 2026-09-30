@@ -772,15 +772,17 @@ export class PbhlEngine {
     try {
       const dropInfo = await this.page.evaluate(() => {
         const text = document.body.innerText || '';
-        const hasText = text.includes('Gold Bar') || text.includes('ヒヒイロカネ');
+        const hasText = text.includes('Gold Bar') || text.includes('Gold Brick') || text.includes('ヒヒイロカネ');
         const hasImg = !!document.querySelector([
           'img[src*="20004"]',
           'img.img-thumb[src*="20004"]',
           'img[src*="evolution/s/20004"]',
           'img[src*="assets/item/evolution/s/20004.jpg"]',
           '[data-item-name*="Gold Bar"]',
+          '[data-item-name*="Gold Brick"]',
           '[data-item-name*="ヒヒイロカネ"]',
           '[alt*="Gold Bar"]',
+          '[alt*="Gold Brick"]',
           '[alt*="ヒヒイロカネ"]',
           'div[data-item-id="20004"]',
           '[data-item-id="20004"]'
@@ -796,7 +798,7 @@ export class PbhlEngine {
       // Also check intercepted network payload
       if (!dropInfo.hasGoldBar && this.latestRewardData) {
         const rewardStr = JSON.stringify(this.latestRewardData);
-        if (rewardStr.includes('20004') || rewardStr.includes('Gold Bar') || rewardStr.includes('ヒヒイロカネ')) {
+        if (rewardStr.includes('20004') || rewardStr.includes('Gold Bar') || rewardStr.includes('Gold Brick') || rewardStr.includes('ヒヒイロカネ')) {
           dropInfo.hasGoldBar = true;
         }
       }

@@ -319,34 +319,55 @@ export class UniversalWorkflowEngine {
   }
 
   /**
-   * Checks reward payload for Gold Bar (item_id 20004) or Blue Chests.
+   * Checks reward payload for Gold Bar (item_id 20004 / "ヒヒイロカネ" / "Gold Bar" / "Gold Brick").
    */
   private checkForGoldBarDrop(payload: any): boolean {
+    if (!payload) return false;
     let found = false;
 
-    const checkItem = (item: any) => {
-      if (!item) return;
-      const itemId = String(item.item_id || item.id || '');
-      const itemName = String(item.name || item.item_name || '');
-      if (itemId === '20004' || itemName.includes('Gold Bar') || itemName.includes('ヒヒイロカネ')) {
-        found = true;
+    // 1. Recursive object search across all properties (arrays, dictionaries, chest keys)
+    const traverse = (node: any) => {
+      if (!node || found) return;
+      if (typeof node === 'object') {
+        const itemId = String(node.item_id || node.id || '');
+        const itemName = String(node.name || node.item_name || '');
+        if (itemId === '20004' || itemName.includes('Gold Bar') || itemName.includes('Gold Brick') || itemName.includes('ヒヒイロカネ')) {
+          found = true;
+          return;
+        }
+        for (const key of Object.keys(node)) {
+          traverse(node[key]);
+        }
       }
     };
+    traverse(payload);
 
-    if (payload.rewards) {
-      if (Array.isArray(payload.rewards.reward_list)) {
-        payload.rewards.reward_list.forEach(checkItem);
-      }
-      if (payload.rewards.special) {
-        checkItem(payload.rewards.special);
-      }
+    // 2. Fast string serialization check across entire payload
+    if (!found) {
+      try {
+        const str = JSON.stringify(payload);
+        if (str.includes('20004') || str.includes('ヒヒイロカネ') || str.includes('Gold Bar') || str.includes('Gold Brick')) {
+          found = true;
+        }
+      } catch {}
     }
 
-    if (Array.isArray(payload.reward_list)) {
-      payload.reward_list.forEach(checkItem);
+    // 3. Encoded data string check (HTML template inside payload.data)
+    if (!found && typeof payload.data === 'string') {
+      try {
+        const decoded = decodeURIComponent(payload.data);
+        if (
+          decoded.includes('20004') ||
+          decoded.includes('ヒヒイロカネ') ||
+          decoded.includes('Gold Bar') ||
+          decoded.includes('Gold Brick')
+        ) {
+          found = true;
+        }
+      } catch {}
     }
 
-    if (found) {
+    if (found && !this.currentBattleHadGoldBar) {
       this.currentBattleHadGoldBar = true;
       this.totalGoldBarsAccumulated++;
       this.broadcastGoldBarFound();
@@ -355,15 +376,48 @@ export class UniversalWorkflowEngine {
     return found;
   }
 
-  private broadcastGoldBarFound(): void {
+  /**
+   * Inspects result DOM for on-screen Gold Bar drop indicators.
+   */
+  private async inspectDomForGoldBar(): Promise<{ hasGoldBar: boolean; raidId: string }> {
+    try {
+      return await this.page.evaluate(() => {
+        const text = document.body?.innerText || '';
+        const hasText = text.includes('Gold Bar') || text.includes('Gold Brick') || text.includes('ヒヒイロカネ');
+        const hasImg = !!document.querySelector([
+          'img[src*="20004"]',
+          'img.img-thumb[src*="20004"]',
+          'img[src*="evolution/s/20004"]',
+          'img[src*="assets/item/evolution/s/20004.jpg"]',
+          '[data-item-name*="Gold Bar"]',
+          '[data-item-name*="Gold Brick"]',
+          '[data-item-name*="ヒヒイロカネ"]',
+          '[alt*="Gold Bar"]',
+          '[alt*="Gold Brick"]',
+          '[alt*="ヒヒイロカネ"]',
+          'div[data-item-id="20004"]',
+          '[data-item-id="20004"]'
+        ].join(', '));
+
+        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
+        const textMatch = text.match(/ID[:\s]*(\d+)/i);
+        const raidId = raidIdMatch ? raidIdMatch[1] : (textMatch ? textMatch[1] : '');
+        return { hasGoldBar: hasText || hasImg, raidId };
+      });
+    } catch {
+      return { hasGoldBar: false, raidId: '' };
+    }
+  }
+
+  private broadcastGoldBarFound(overrideRaidId?: string): void {
+    const raidId = overrideRaidId || this.currentRaidId || '';
     console.log(`\n========================================================================`);
-    console.log(`  🌟🌟🌟 [GOLD BAR FOUND!] Account: [${this.accountId}] 🌟🌟🌟`);
+    console.log(`  🌟🌟🌟 [GOLD BAR FOUND!] Account: [${this.accountId}] Raid: ${raidId || 'Active'} 🌟🌟🌟`);
     console.log(`========================================================================\n`);
 
     // Terminal audible bell
     process.stdout.write('\x07\x07\x07');
 
-    const raidId = this.currentRaidId || '';
     const battleUrl = raidId
       ? `https://game.granbluefantasy.jp/#result_multi/${raidId}`
       : (this.page.url().includes('result') ? this.page.url() : '');
@@ -374,21 +428,23 @@ export class UniversalWorkflowEngine {
       const proofPath = path.resolve(capDir, `gold-bar-${raidId || 'drop'}-${Date.now()}.png`);
       fs.writeFileSync(proofPath, buf);
 
+      const shotBuffer = Buffer.from(buf);
+
       if (this.dropLogger) {
         await this.dropLogger.notifyGoldBarDrop({
           raidId: raidId || 'Raid',
           honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
           turns: this.currentTurn || '-',
-          screenshotBuffer: Buffer.from(buf),
+          screenshotBuffer: shotBuffer,
           screenshotPath: proofPath,
           accountId: this.accountId,
         });
-      } else {
-        await this.alertRelay.sendEmergencyAlert(
-          `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
-          Buffer.from(buf)
-        );
       }
+
+      await this.alertRelay.sendEmergencyAlert(
+        `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
+        shotBuffer
+      );
     }).catch(() => null);
   }
 
@@ -2680,6 +2736,14 @@ export class UniversalWorkflowEngine {
       await new Promise(r => setTimeout(r, 150));
     }
 
+    // Inspect DOM on result screen for Gold Bar before dismissing
+    const domCheck = await this.inspectDomForGoldBar();
+    if (domCheck.hasGoldBar && !this.currentBattleHadGoldBar) {
+      this.currentBattleHadGoldBar = true;
+      this.totalGoldBarsAccumulated++;
+      this.broadcastGoldBarFound(domCheck.raidId || this.currentRaidId);
+    }
+
     // 3. Dismiss result screen OK buttons
     await this.page.evaluate(() => {
       const okBtns = Array.from(document.querySelectorAll('.btn-usual-ok, .btn-settle, .btn-usual-close, .pop-raid-result .btn-usual-ok')) as HTMLElement[];
@@ -2818,10 +2882,51 @@ export class UniversalWorkflowEngine {
 
         // Allow result settlement and check for Gold Bar drop
         await logNormalDelay(800, 0.15);
-        if (this.latestRewardData && this.checkForGoldBarDrop(this.latestRewardData)) {
+
+        // 1. Resolve claimed raid ID from location hash
+        const urlRaidMatch = await this.page.evaluate(() => {
+          const m = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
+          return m ? m[1] : '';
+        }).catch(() => '');
+        const activeClaimedRaidId = urlRaidMatch || this.currentRaidId;
+
+        // 2. Perform deep inspection (DOM + Intercepted Payload)
+        const domCheck = await this.inspectDomForGoldBar();
+        const payloadCheck = this.latestRewardData ? this.checkForGoldBarDrop(this.latestRewardData) : false;
+        const dropDetected = domCheck.hasGoldBar || payloadCheck;
+
+        if (dropDetected) {
+          const finalRaidId = domCheck.raidId || activeClaimedRaidId || 'Pending Claim';
+          console.log(`\n========================================================================`);
+          console.log(`  🌟🌟🌟 [GOLD BAR CONFIRMED IN CLAIMED BATTLE!] Raid: ${finalRaidId} 🌟🌟🌟`);
+          console.log(`========================================================================\n`);
+
+          const capDir = path.resolve(process.cwd(), 'artifacts/captures');
+          if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
+          const proofPath = path.resolve(capDir, `gold-bar-${finalRaidId}-${Date.now()}.png`);
+
+          let shotBuf: Buffer | undefined;
+          try {
+            const buf = await this.page.screenshot();
+            fs.writeFileSync(proofPath, buf);
+            shotBuf = Buffer.from(buf);
+          } catch {}
+
           if (this.dropLogger) {
-            this.dropLogger.recordPendingGoldBar();
+            this.dropLogger.recordPendingGoldBar(finalRaidId, proofPath);
+            await this.dropLogger.notifyGoldBarDrop({
+              raidId: finalRaidId,
+              honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
+              turns: this.currentTurn || '-',
+              screenshotBuffer: shotBuf,
+              screenshotPath: proofPath,
+              accountId: this.accountId
+            });
           }
+          await this.alertRelay.sendEmergencyAlert(
+            `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]!\n• Raid: ${this.template.name}\n• Battle ID: ${finalRaidId}\n• Log URL: https://game.granbluefantasy.jp/#result_multi/${finalRaidId}`,
+            shotBuf
+          );
         }
 
         // Sync and log settled honors for the claimed raid

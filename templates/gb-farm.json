@@ -4,14 +4,14 @@
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "raidSlots": [4, 3, 2],
   "raidSlot": 4,
-  "targetScore": 1480000,
+  "targetScore": 1680000,
   "logPath": "logs/gb-farm.md",
   "supporterPriority": ["Hades", "Bahamut", "Zeus", "Lucifer", "Kaguya"],
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": false,
   "autoBerry": true,
-  "defaultRuns": 50,
+  "defaultRuns": 500,
   "speedProfile": "fast",
   "steps": [
     {
