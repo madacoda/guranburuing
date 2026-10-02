@@ -86,6 +86,25 @@ console.log('\n[Test 3] Stop Request Handling...');
 eventEngine.requestStop();
 assert('Stop flag sets without error', (eventEngine as any).stopRequested === true);
 
+// Test 4: Scenario Event Constants & URL Generator
+console.log('\n[Test 4] Scenario Event Constants & URL Generator...');
+import { EVENT_177_DEFINITION, buildEventRaidUrl } from '../src/events/event.constants.js';
+
+assert('Event 177 has correct raw ID', EVENT_177_DEFINITION.rawId === 'treasureraid177');
+assert('Event 177 has host item 10674', EVENT_177_DEFINITION.hostItemId === '10674');
+assert('Event 177 has Extreme quest 947431', EVENT_177_DEFINITION.raids.ex.questId === '947431');
+assert('Event 177 has Very Hard quest 947421', EVENT_177_DEFINITION.raids.vh.questId === '947421');
+assert('Event 177 has Impossible quest 947441', EVENT_177_DEFINITION.raids.hl.questId === '947441');
+
+const vhUrl = buildEventRaidUrl('vh', EVENT_177_DEFINITION);
+assert('Builds accurate VH raid URL', vhUrl === 'https://game.granbluefantasy.jp/#quest/supporter/947421/1');
+
+const exUrl = buildEventRaidUrl('ex', EVENT_177_DEFINITION);
+assert('Builds accurate Extreme raid URL with host item', exUrl === 'https://game.granbluefantasy.jp/#quest/supporter/947431/1/0/10674');
+
+const hlUrl = buildEventRaidUrl('hl', EVENT_177_DEFINITION);
+assert('Builds accurate Impossible raid URL with host item', hlUrl === 'https://game.granbluefantasy.jp/#quest/supporter/947441/1/0/10674');
+
 console.log('\n========================================================================');
 console.log(`Total: ${passed + failed} | Passed: ${passed} | Failed: ${failed}`);
 console.log('========================================================================\n');

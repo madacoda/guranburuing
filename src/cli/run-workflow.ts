@@ -253,9 +253,16 @@ async function main() {
     return;
   }
 
-  // Runs prompt if not passed
+  // Runs prompt if not passed - enforce at least 500 for farming/raid workflows
   if (!targetRuns) {
-    targetRuns = template.defaultRuns || 100;
+    const isSpecialShort = template.name.toLowerCase().includes('daily') ||
+                           template.name.toLowerCase().includes('fate') ||
+                           template.name.toLowerCase().includes('story');
+    if (isSpecialShort) {
+      targetRuns = template.defaultRuns || 1;
+    } else {
+      targetRuns = Math.max(500, template.defaultRuns || 500);
+    }
   }
 
   console.log(`\n========================================================================`);

@@ -1,12 +1,22 @@
 {
   "name": "GB Farm - Multi-Raid Rotator",
-  "description": "Multi-Raid Gold Bar rotation across PBHL (Slot 4), Akasha (Slot 3), and Grand Order HL (Slot 2). Auto-rotates slots, joins best HP raid, and executes high-speed burst.",
+  "description": "Multi-Raid Gold Bar rotation across PBHL (Slot 4), Akasha (Slot 3), and Grand Order HL (Slot 2): Quick Call -> C4S3 -> C4S2 -> C3S1 -> C2S1 -> Attack -> Reload -> Summon 2 -> Attack -> Loop Reload+Attack until honor reached",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
-  "raidSlots": [4, 3, 2],
+  "raidSlots": [
+    4,
+    3,
+    2
+  ],
   "raidSlot": 4,
   "targetScore": 1680000,
   "logPath": "logs/gb-farm.md",
-  "supporterPriority": ["Hades", "Bahamut", "Zeus", "Lucifer", "Kaguya"],
+  "supporterPriority": [
+    "Hades",
+    "Bahamut",
+    "Zeus",
+    "Lucifer",
+    "Kaguya"
+  ],
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": false,
@@ -19,26 +29,19 @@
       "waitForNetwork": "summon_result.json"
     },
     {
-      "code": "reload"
+      "code": "skill",
+      "character": 4,
+      "skill": 3
     },
     {
       "code": "skill",
       "character": 4,
+      "skill": 2
+    },
+    {
+      "code": "skill",
+      "character": 3,
       "skill": 1
-    },
-    {
-      "code": "skill",
-      "character": 4,
-      "skill": 2,
-      "targetCharacter": 2
-    },
-    {
-      "code": "summon",
-      "slot": 3,
-      "waitForNetwork": "summon_result.json"
-    },
-    {
-      "code": "reload"
     },
     {
       "code": "skill",
@@ -53,13 +56,31 @@
       "code": "reload"
     },
     {
-      "code": "exit_if_score",
-      "targetScore": 1480000
+      "code": "summon",
+      "slot": 2,
+      "waitForNetwork": "summon_result.json"
     },
     {
       "code": "attack",
-      "optional": true,
       "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "repeat",
+      "repeatCount": 10,
+      "subSteps": [
+        {
+          "code": "reload"
+        },
+        {
+          "code": "exit_if_score",
+          "targetScore": 1480000
+        },
+        {
+          "code": "attack",
+          "optional": true,
+          "waitForNetwork": "normal_attack_result.json"
+        }
+      ]
     },
     {
       "code": "reload"

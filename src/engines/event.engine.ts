@@ -137,7 +137,21 @@ export class EventEngine {
       if (ready) break;
       await new Promise(r => setTimeout(r, 400));
     }
-    await logNormalDelay(500, 0.15);
+    // Check if story is already fully cleared before initiating loop
+    const alreadyCleared = await this.isStoryFullyCleared();
+    if (alreadyCleared) {
+      console.log('\n🎉 [EventEngine] All Event Story Chapters & Episodes are ALREADY 100% CLEARED!');
+      return {
+        eventId,
+        episodesCleared: 0,
+        cutscenesSkipped: 0,
+        storyBattlesCleared: 0,
+        totalDurationMs: Date.now() - startTime,
+        allStoryCleared: true,
+        status: 'ALL_CLEARED',
+        history: []
+      };
+    }
 
     for (let episodeIdx = 1; episodeIdx <= maxEpisodes; episodeIdx++) {
       if (this.stopRequested) {
@@ -465,9 +479,17 @@ export class EventEngine {
     sceneId: string;
   } | null> {
     return await this.page.evaluate(() => {
-      const btn = document.querySelector(
+      const candidates = Array.from(document.querySelectorAll(
         '.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list, .btn-quest-list.lis-quest-list.main'
-      ) as HTMLElement;
+      )) as HTMLElement[];
+
+      const btn = candidates.find(c => {
+        // Strictly exclude Hell/Nightmare, Challenge Quests, or already cleared episodes
+        const isHell = c.classList.contains('type-treasureraid-hell') || c.classList.contains('hell');
+        const isChallenge = c.classList.contains('type-treasureraid-challenge') || c.classList.contains('challenge');
+        const isCleared = c.classList.contains('ico-clear') || c.classList.contains('treasureraid-cleared');
+        return !isHell && !isChallenge && !isCleared;
+      });
 
       if (!btn) return null;
 
@@ -568,9 +590,21 @@ export class EventEngine {
    */
   public async isStoryFullyCleared(): Promise<boolean> {
     return await this.page.evaluate(() => {
-      // If battle list is directly unlocked and no in-progress main story card exists
-      const inProgress = document.querySelector('.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list');
-      const battleQuests = document.querySelector('.prt-battle-quest, .cnt-quest.battle, .btn-event-battle');
+      // 1. Check if ending card is cleared
+      const endingCard = document.querySelector('.btn-quest-list[data-chapter-id*="7"], .btn-quest-list.main[data-chapter-id*="7"]');
+      if (endingCard && (endingCard.classList.contains('ico-clear') || endingCard.classList.contains('treasureraid-cleared'))) {
+        return true;
+      }
+
+      // 2. Check if all main story cards have clear badges
+      const storyCards = Array.from(document.querySelectorAll('.btn-quest-list.lis-quest-list.main.type-treasureraid-top, .btn-quest-list.main.is-opening'));
+      if (storyCards.length > 0 && storyCards.every(c => c.classList.contains('ico-clear') || c.classList.contains('treasureraid-cleared'))) {
+        return true;
+      }
+
+      // 3. Fallback: If battle list is directly unlocked and no in-progress main story card exists
+      const inProgress = document.querySelector('.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress');
+      const battleQuests = document.querySelector('.prt-battle-quest, .cnt-quest.battle, .btn-event-battle, .btn-event-raid');
       const textCleared = document.body.innerText.includes('Ending Cleared') || document.body.innerText.includes('All chapters cleared');
 
       return !inProgress && (!!battleQuests || textCleared);
@@ -1037,12 +1071,15 @@ export class EventEngine {
     await logNormalDelay(1200, 0.2);
 
     const hellInfo = await this.page.evaluate(() => {
-      const hellBtn = document.querySelector('.btn-hell, .prt-hell-quest, [data-quest-id*="hell"]') as HTMLElement;
-      if (!hellBtn || hellBtn.offsetParent === null) return { hasHell: false, canSkip: false };
+      const hellBtn = document.querySelector(
+        '.btn-quest-list.type-treasureraid-hell, .lis-quest-list.type-treasureraid-hell, .btn-hell, .prt-hell-quest, [data-quest-id*="hell"], [data-type="3"]'
+      ) as HTMLElement;
+      if (!hellBtn || hellBtn.offsetParent === null) return { hasHell: false, canSkip: false, remainCount: 0, questId: '' };
 
       const ds = hellBtn.dataset;
       const canSkip = ds.hellSkipVaild === '1' || ds.hellSkipStatus === '1' || !!document.querySelector('.btn-hell-skip');
-      return { hasHell: true, canSkip };
+      const remainCount = parseInt(ds.hellSkipRemainCount || '1', 10) || 1;
+      return { hasHell: true, canSkip, remainCount, questId: ds.questId || '947411' };
     });
 
     if (!hellInfo.hasHell) {
@@ -1066,8 +1103,45 @@ export class EventEngine {
       return { status: 'SKIPPED', message: 'Nightmare 1-click skipped.' };
     }
 
-    console.log('[EventEngine] Nightmare spawned without skip feature unlocked. Running Full Auto...');
-    await this.processCombatEpisode('nightmare', true);
+    console.log(`[EventEngine] Nightmare spawned (${hellInfo.remainCount} attempt(s) remaining). Launching encounter...`);
+    // Click Nightmare card
+    await this.page.evaluate(() => {
+      const hellBtn = document.querySelector(
+        '.btn-quest-list.type-treasureraid-hell, .lis-quest-list.type-treasureraid-hell, .btn-hell, .prt-hell-quest'
+      ) as HTMLElement;
+      if (hellBtn) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(hellBtn).trigger('tap');
+        hellBtn.click();
+      }
+    });
+    await logNormalDelay(1000, 0.15);
+
+    // If "Unparalleled Foe" modal appeared, click Play (.prt-popup-footer .btn-usual-ok)
+    await this.page.evaluate(() => {
+      const playBtn = document.querySelector('.pop-usual .btn-usual-ok, .prt-popup-footer .btn-usual-ok, .btn-usual-text') as HTMLElement;
+      if (playBtn) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(playBtn).trigger('tap');
+        playBtn.click();
+      }
+    });
+    await logNormalDelay(1200, 0.2);
+
+    await this.selectFirstSupporter();
+    await logNormalDelay(800, 0.15);
+
+    await this.page.evaluate(() => {
+      const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start') as HTMLElement;
+      if (ok) ok.click();
+    });
+
+    console.log('[EventEngine] Waiting for Nightmare battle to mount...');
+    await this.waitForBattleStart(25000);
+    await this.activateFullAuto();
+    await this.waitForBattleEnd(180000);
+    await this.dismissPopupsAndResults();
+
     return { status: 'CLEARED', message: 'Nightmare completed via Full Auto.' };
   }
 

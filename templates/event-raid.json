@@ -1,0 +1,23 @@
+{
+  "name": "Event Raid",
+  "description": "0-button Event Raid farm: Select Hades/Bahamut -> OK -> Tap Ready (Quick Call) -> F5 -> Loop",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/947431/1/0/10674",
+  "supporterPriority": ["Hades", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 1000,
+  "speedProfile": "turbo",
+  "steps": [
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

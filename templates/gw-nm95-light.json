@@ -6,7 +6,7 @@
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,
-  "defaultRuns": 50,
+  "defaultRuns": 500,
   "speedProfile": "fast",
   "steps": [
     {

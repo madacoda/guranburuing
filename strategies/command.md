@@ -360,13 +360,26 @@ bun run event:maniac
 bun run event:nightmare
 bun run event:gacha
 
+# 0-Button Event Raid Auto-Farmer (Extreme by default, sub-4s cycle)
+bun run event:raid
+
+# Run specific difficulties and counts:
+bun run event:raid:ex 50    # Extreme (947431)
+bun run event:raid:vh 30    # Very Hard (947421) - meat/core farming
+bun run event:raid:hl 20    # Impossible / HL (947441)
+bun run event:raid:windowed # Windowed browser mode
+
 # Declarative workflow engine alternative:
 bun run event:workflow
 ```
-- Engine: [`src/engines/event.engine.ts`](file:///c:/laragon/www/guranburuing/src/engines/event.engine.ts)
-- CLI Runner: [`src/cli/run-clear-event.ts`](file:///c:/laragon/www/guranburuing/src/cli/run-clear-event.ts)
-- Template: [`templates/event-story.json`](file:///c:/laragon/www/guranburuing/templates/event-story.json)
-- Shorthand DSL: [`templates/event-story.dsl`](file:///c:/laragon/www/guranburuing/templates/event-story.dsl)
+- Architectural Guide: [`docs/events/scenario-event-architecture.md`](file:///c:/laragon/www/gbf/docs/events/scenario-event-architecture.md)
+- Event Constants & Registry: [`src/events/event.constants.ts`](file:///c:/laragon/www/gbf/src/events/event.constants.ts)
+- Raid Runner: [`src/cli/run-event-raid.ts`](file:///c:/laragon/www/gbf/src/cli/run-event-raid.ts)
+- Engine: [`src/engines/event.engine.ts`](file:///c:/laragon/www/gbf/src/engines/event.engine.ts)
+- Story Runner: [`src/cli/run-clear-event.ts`](file:///c:/laragon/www/gbf/src/cli/run-clear-event.ts)
+- Raid Template: [`templates/event-raid.json`](file:///c:/laragon/www/gbf/templates/event-raid.json)
+- Story Template: [`templates/event-story.json`](file:///c:/laragon/www/gbf/templates/event-story.json)
+- Shorthand DSL: [`templates/event-story.dsl`](file:///c:/laragon/www/gbf/templates/event-story.dsl)
 
 ---
 

@@ -143,12 +143,23 @@ Automates monthly scenario events (`#event/treasureraid<ID>`, e.g., "Farewell, C
 - **Nightmare (HELL)**: Instant 1-click skips when skip is unlocked, or Full Auto battle.
 - **Token Gacha**: Automatically draws Senka tokens and resets Boxes 1-4 when key SSR is pulled.
 
+- **Raid Auto-Farming**: Dedicated sub-4s looper for Extreme (`947431`), Very Hard (`947421`), and Impossible (`947441`), with auto Quick Summon instakill, Full Auto fallback, and Half-Elixir AP restoration.
+- **Reference Guide**: Full technical specification in [`docs/events/scenario-event-architecture.md`](file:///c:/laragon/www/gbf/docs/events/scenario-event-architecture.md).
+
 ```bash
+# Farm Extreme Raid (0-Button Quick Summon, default 500 runs):
+bun run event:raid
+
+# Farm specific difficulties and run counts:
+bun run event:raid:ex 50
+bun run event:raid:vh 30
+bun run event:raid:hl 20
+
+# Run in windowed browser mode:
+bun run event:raid:windowed
+
 # Clear all unread story episodes (defaults to active event):
 bun run event
-
-# Run in windowed mode:
-bun run event:windowed
 
 # Complete full event pipeline (Story -> Challenge -> Maniac -> HELL -> Gacha):
 bun run event:all

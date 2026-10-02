@@ -329,6 +329,8 @@ export class DropLogger {
     return this.getStats();
   }
 
+  private static notifiedRaidIds = new Set<string>();
+
   /**
    * Dispatches Discord DM notification with attached screenshot and battle log URL.
    */
@@ -341,6 +343,15 @@ export class DropLogger {
     accountId?: string;
   }): Promise<void> {
     const cleanRaidId = (details.raidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+
+    if (cleanRaidId && /^\d+$/.test(cleanRaidId)) {
+      if (DropLogger.notifiedRaidIds.has(cleanRaidId)) {
+        console.log(`[DropLogger] ⏭️ Raid ${cleanRaidId} Gold Bar drop has already been notified. Skipping duplicate alert.`);
+        return;
+      }
+      DropLogger.notifiedRaidIds.add(cleanRaidId);
+    }
+
     const battleUrl = cleanRaidId && /^\d+$/.test(cleanRaidId)
       ? `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`
       : 'https://game.granbluefantasy.jp/#quest/assist';

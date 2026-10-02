@@ -59,14 +59,76 @@ export class DiscordDmRelay {
     return this.dmChannelId;
   }
 
+  private notifiedKeys = new Map<string, number>();
+  private activeCaptchaPrompt = false;
+
+  /**
+   * Checks if an alert with this key or content has recently been dispatched.
+   */
+  public isDuplicateAlert(content: string, dedupeKey?: string): boolean {
+    const now = Date.now();
+    // Prune entries older than 24 hours
+    for (const [k, ts] of this.notifiedKeys.entries()) {
+      if (now - ts > 86400000) this.notifiedKeys.delete(k);
+    }
+
+    if (dedupeKey && this.notifiedKeys.has(dedupeKey)) {
+      return true;
+    }
+
+    // Auto-detect raid ID in Gold Bar / Drop alerts
+    const isGoldBar = content.includes('Gold Brick') || content.includes('GOLD BAR') || content.includes('ヒヒイロカネ');
+    if (isGoldBar) {
+      const raidMatch = content.match(/(?:Raid ID|Battle ID|detail|#)\/?:?\s*`?(\d{8,})`?/i);
+      if (raidMatch && raidMatch[1]) {
+        const key = `gold-bar-${raidMatch[1]}`;
+        if (this.notifiedKeys.has(key)) return true;
+      }
+    }
+
+    // Auto-detect active CAPTCHA alert
+    const isCaptcha = content.includes('CAPTCHA') || content.includes('VERIFICATION CHALLENGE');
+    if (isCaptcha && this.activeCaptchaPrompt) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public recordAlertDispatched(content: string, dedupeKey?: string): void {
+    const now = Date.now();
+    if (dedupeKey) this.notifiedKeys.set(dedupeKey, now);
+
+    const isGoldBar = content.includes('Gold Brick') || content.includes('GOLD BAR') || content.includes('ヒヒイロカネ');
+    if (isGoldBar) {
+      const raidMatch = content.match(/(?:Raid ID|Battle ID|detail|#)\/?:?\s*`?(\d{8,})`?/i);
+      if (raidMatch && raidMatch[1]) {
+        this.notifiedKeys.set(`gold-bar-${raidMatch[1]}`, now);
+      }
+    }
+  }
+
   /**
    * Sends a message to the user's private DM, optionally attaching one or more image buffers.
+   * Enforces deduplication to prevent spamming multiple notifications for the same drop or CAPTCHA.
    */
   public async sendMessage(
     content: string,
     attachments?: Buffer | DiscordAttachment[] | { buffer: Buffer; filename: string },
-    defaultFilename = 'captcha.png'
+    defaultFilename = 'captcha.png',
+    dedupeKey?: string
   ): Promise<DiscordMessageResponse> {
+    // Deduplication check
+    if (this.isDuplicateAlert(content, dedupeKey)) {
+      console.log(`[DiscordDmRelay] ⏭️ Suppressing duplicate notification for DM.`);
+      return {
+        id: 'deduped',
+        content,
+        author: { id: 'bot', username: 'GBF Relay', bot: true },
+        timestamp: new Date().toISOString()
+      };
+    }
+
     const channelId = await this.getDmChannelId();
     const url = `${this.baseUrl}/channels/${channelId}/messages`;
 
@@ -109,6 +171,7 @@ export class DiscordDmRelay {
       throw new Error(`[DiscordDmRelay] Failed to send message to DM (Status ${res.status}): ${errText}`);
     }
 
+    this.recordAlertDispatched(content, dedupeKey);
     return (await res.json()) as DiscordMessageResponse;
   }
 
@@ -200,10 +263,15 @@ export class DiscordDmRelay {
       attachments.push({ buffer: images.fullScreenshot, filename: 'viewport-context.png' });
     }
 
-    const promptMessage = await this.sendMessage(alertPrompt, attachments, 'captcha-challenge.png');
-    console.log(`[DiscordDmRelay] 📤 CAPTCHA challenge sent to user DM (Prompt ID: ${promptMessage.id}).`);
+    this.activeCaptchaPrompt = true;
+    try {
+      const promptMessage = await this.sendMessage(alertPrompt, attachments, 'captcha-challenge.png', 'active-captcha-prompt');
+      console.log(`[DiscordDmRelay] 📤 CAPTCHA challenge sent to user DM (Prompt ID: ${promptMessage.id}).`);
 
-    return await this.waitForReply(promptMessage.id, timeoutMs);
+      return await this.waitForReply(promptMessage.id, timeoutMs);
+    } finally {
+      this.activeCaptchaPrompt = false;
+    }
   }
 
   /**

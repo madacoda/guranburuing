@@ -719,6 +719,27 @@ export class PbhlEngine {
           const capDir = path.resolve(process.cwd(), 'artifacts/captures');
           if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
           proofScreenshotPath = path.resolve(capDir, `gold-bar-${dropCheck.raidId || 'pbhl'}-${Date.now()}.png`);
+
+          // Dismiss & hide modals, scroll loot into view
+          await this.page.evaluate(() => {
+            const okBtns = document.querySelectorAll(
+              '.pop-usual .btn-usual-ok, .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-close, .btn-settle, .btn-result-close'
+            );
+            okBtns.forEach((b: any) => {
+              try {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(b).trigger('tap');
+                b.click();
+              } catch {}
+            });
+            const hideSelectors = ['.pop-usual', '#pop', '.prt-popup-header', '.prt-popup-body', '.prt-popup-footer', '.mask', '.pop-show'];
+            hideSelectors.forEach(sel => {
+              document.querySelectorAll(sel).forEach(el => { (el as HTMLElement).style.display = 'none'; });
+            });
+            const loot = document.querySelector('.prt-reward-item, .prt-item-list, [data-item-id="20004"], img[src*="20004"], .prt-module') as HTMLElement;
+            if (loot) loot.scrollIntoView({ behavior: 'instant', block: 'center' });
+          }).catch(() => null);
+
           screenshotBuf = (await this.page.screenshot({ path: proofScreenshotPath, type: 'png' })) as Buffer;
           console.log(`[PbhlEngine] 📸 Captured Gold Bar proof screenshot: ${proofScreenshotPath}`);
         } catch (e: any) {

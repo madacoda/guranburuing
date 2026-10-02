@@ -2,7 +2,8 @@ import { config } from './config.js';
 import { discordDmRelay } from './relay/discord-dm-relay.js';
 
 export class AlertRelay {
-  private lastAlertTimestamp = 0;
+  private static lastAlertTimestamp = 0;
+  private static notifiedAlertKeys = new Set<string>();
   private readonly ALERT_COOLDOWN_MS = 60000; // 1-minute deduplication window
 
   /**
@@ -10,11 +11,23 @@ export class AlertRelay {
    */
   public async sendEmergencyAlert(message: string, screenshotBuffer?: Buffer): Promise<void> {
     const now = Date.now();
-    if (now - this.lastAlertTimestamp < this.ALERT_COOLDOWN_MS) {
+    if (now - AlertRelay.lastAlertTimestamp < this.ALERT_COOLDOWN_MS) {
       console.warn('[AlertRelay] Alert throttled to prevent spamming webhooks.');
       return;
     }
-    this.lastAlertTimestamp = now;
+
+    // Deduplicate by raid ID if present
+    const raidMatch = message.match(/(?:Raid ID|Battle ID|detail|#)\/?:?\s*`?(\d{8,})`?/i);
+    if (raidMatch && raidMatch[1]) {
+      const raidKey = `raid-${raidMatch[1]}`;
+      if (AlertRelay.notifiedAlertKeys.has(raidKey)) {
+        console.log(`[AlertRelay] ⏭️ Suppressing duplicate emergency alert for raid ${raidMatch[1]}.`);
+        return;
+      }
+      AlertRelay.notifiedAlertKeys.add(raidKey);
+    }
+
+    AlertRelay.lastAlertTimestamp = now;
 
     console.error(`[AlertRelay] 🚨 ${message}`);
     const promises: Promise<void>[] = [];
@@ -27,7 +40,12 @@ export class AlertRelay {
       promises.push(this.sendDiscordWebhook(message, screenshotBuffer));
     }
 
-    if (discordDmRelay.isConfigured()) {
+    // Dedicated Discord DM: only send for non-CAPTCHA and non-GoldBar emergency events,
+    // as CAPTCHA challenges and Gold Bar drops are handled by their own dedicated, interactive DM relays.
+    const isCaptcha = message.includes('CAPTCHA') || message.includes('Verification CAPTCHA') || message.includes('VERIFICATION CHALLENGE');
+    const isGoldBar = message.includes('Gold Brick') || message.includes('GOLD BAR') || message.includes('ヒヒイロカネ');
+
+    if (discordDmRelay.isConfigured() && !isCaptcha && !isGoldBar) {
       promises.push(
         discordDmRelay.sendMessage(message, screenshotBuffer, 'alert.png').then(() => {}).catch((err: any) => {
           console.error('[AlertRelay] Discord DM dispatch error:', err.message);

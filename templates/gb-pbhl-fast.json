@@ -9,7 +9,7 @@
   "stopOnCaptcha": true,
   "autoElixir": false,
   "autoBerry": true,
-  "defaultRuns": 50,
+  "defaultRuns": 500,
   "speedProfile": "fast",
   "steps": [
     {

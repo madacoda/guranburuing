@@ -355,16 +355,29 @@ export class UniversalWorkflowEngine {
     // 3. Encoded data string check (HTML template inside payload.data)
     if (!found && typeof payload.data === 'string') {
       try {
-        const decoded = decodeURIComponent(payload.data);
         if (
-          decoded.includes('20004') ||
-          decoded.includes('ヒヒイロカネ') ||
-          decoded.includes('Gold Bar') ||
-          decoded.includes('Gold Brick')
+          payload.data.includes('20004') ||
+          payload.data.includes('ヒヒイロカネ') ||
+          payload.data.includes('Gold%20Brick') ||
+          payload.data.includes('Gold%20Bar')
         ) {
           found = true;
+        } else {
+          const decoded = decodeURIComponent(payload.data);
+          if (
+            decoded.includes('20004') ||
+            decoded.includes('ヒヒイロカネ') ||
+            decoded.includes('Gold Bar') ||
+            decoded.includes('Gold Brick')
+          ) {
+            found = true;
+          }
         }
-      } catch {}
+      } catch {
+        if (payload.data.includes('20004')) {
+          found = true;
+        }
+      }
     }
 
     if (found && !this.currentBattleHadGoldBar) {
@@ -388,7 +401,9 @@ export class UniversalWorkflowEngine {
           'img[src*="20004"]',
           'img.img-thumb[src*="20004"]',
           'img[src*="evolution/s/20004"]',
+          'img[src*="evolution/m/20004"]',
           'img[src*="assets/item/evolution/s/20004.jpg"]',
+          'img[src*="assets/item/evolution/m/20004.jpg"]',
           '[data-item-name*="Gold Bar"]',
           '[data-item-name*="Gold Brick"]',
           '[data-item-name*="ヒヒイロカネ"]',
@@ -409,7 +424,113 @@ export class UniversalWorkflowEngine {
     }
   }
 
-  private broadcastGoldBarFound(overrideRaidId?: string): void {
+  /**
+   * Captures a clean, unobstructed proof screenshot of the raid rewards and loot collected.
+   * Eliminates blocking modals (EXP Gained, Level Up, Trophy, overlays), brings the loot list
+   * into crisp view, and clips neatly to the battle result card (.prt-module) whenever possible.
+   */
+  private async captureCleanLootProof(raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
+    const cleanRaidId = (raidId || this.currentRaidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+    const capDir = path.resolve(process.cwd(), 'artifacts/captures');
+    if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
+    const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
+
+    let shotBuf: Buffer | undefined;
+
+    try {
+      // 1. If clean numeric raidId is present and we're not already on the detail page, navigate to persistent detail URL
+      const currentUrl = this.page.url();
+      const isAlreadyDetail = currentUrl.includes(`result_multi/detail/${cleanRaidId}`);
+
+      if (cleanRaidId && /^\d+$/.test(cleanRaidId) && !isAlreadyDetail) {
+        const detailUrl = `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`;
+        console.log(`[Workflow] 📸 Navigating to persistent battle detail for clean loot proof: ${detailUrl}`);
+        await this.page.goto(detailUrl, { waitUntil: 'domcontentloaded' }).catch(() => null);
+        await this.page.waitForSelector('.prt-reward-item, .cnt-result, .prt-module', { timeout: 8000 }).catch(() => null);
+        await logNormalDelay(1000, 0.15);
+      }
+
+      // 2. Dismiss any active modal popups via UI click
+      await this.page.evaluate(() => {
+        const okBtns = document.querySelectorAll(
+          '.pop-usual .btn-usual-ok, .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-close, .btn-settle, .btn-result-close'
+        );
+        okBtns.forEach((b: any) => {
+          try {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(b).trigger('tap');
+            b.click();
+          } catch {}
+        });
+      }).catch(() => null);
+      await logNormalDelay(300, 0.1);
+
+      // 3. Forcibly hide any lingering modal dialogs, popups, and backdrop masks
+      await this.page.evaluate(() => {
+        const hideSelectors = [
+          '.pop-usual', '#pop', '.prt-popup-header', '.prt-popup-body',
+          '.prt-popup-footer', '.mask', '.pop-show', '.common-pop-error', '.cnt-error'
+        ];
+        hideSelectors.forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => {
+            const htmlEl = el as HTMLElement;
+            htmlEl.style.display = 'none';
+            htmlEl.style.visibility = 'hidden';
+            htmlEl.style.opacity = '0';
+            htmlEl.style.pointerEvents = 'none';
+          });
+        });
+      }).catch(() => null);
+
+      // 4. Scroll the loot / reward item container into view
+      await this.page.evaluate(() => {
+        const loot = document.querySelector(
+          '.prt-reward-item, .prt-item-list, [data-item-id="20004"], img[src*="20004"], .prt-module'
+        ) as HTMLElement;
+        if (loot) {
+          loot.scrollIntoView({ behavior: 'instant', block: 'center' });
+        }
+      }).catch(() => null);
+      await logNormalDelay(200, 0.05);
+
+      // 5. Measure .prt-module for a clean, framed card capture
+      const clip = await this.page.evaluate(() => {
+        const el = document.querySelector('.prt-module') as HTMLElement;
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) return null;
+        return {
+          x: Math.max(0, Math.round(r.x)),
+          y: Math.max(0, Math.round(r.y)),
+          width: Math.round(r.width),
+          height: Math.min(Math.round(r.height), 750)
+        };
+      }).catch(() => null);
+
+      if (clip && clip.width > 0 && clip.height > 0) {
+        console.log(`[Workflow] 📸 Clipping clean loot reward card (${clip.width}x${clip.height})...`);
+        const buf = await this.page.screenshot({ clip });
+        fs.writeFileSync(proofPath, buf);
+        shotBuf = Buffer.from(buf);
+      } else {
+        const buf = await this.page.screenshot();
+        fs.writeFileSync(proofPath, buf);
+        shotBuf = Buffer.from(buf);
+      }
+      console.log(`[Workflow] ✅ Clean Gold Bar proof screenshot saved: ${proofPath}`);
+    } catch (shotErr: any) {
+      console.warn(`[Workflow] Notice taking clean screenshot, falling back to basic capture:`, shotErr.message);
+      try {
+        const fallbackBuf = await this.page.screenshot();
+        fs.writeFileSync(proofPath, fallbackBuf);
+        shotBuf = Buffer.from(fallbackBuf);
+      } catch {}
+    }
+
+    return { buffer: shotBuf, path: proofPath };
+  }
+
+  private async broadcastGoldBarFound(overrideRaidId?: string): Promise<void> {
     const raidId = overrideRaidId || this.currentRaidId || '';
     console.log(`\n========================================================================`);
     console.log(`  🌟🌟🌟 [GOLD BAR FOUND!] Account: [${this.accountId}] Raid: ${raidId || 'Active'} 🌟🌟🌟`);
@@ -419,16 +540,11 @@ export class UniversalWorkflowEngine {
     process.stdout.write('\x07\x07\x07');
 
     const battleUrl = raidId
-      ? `https://game.granbluefantasy.jp/#result_multi/${raidId}`
+      ? `https://game.granbluefantasy.jp/#result_multi/detail/${raidId}/1/0/0`
       : (this.page.url().includes('result') ? this.page.url() : '');
 
-    this.page.screenshot().then(async (buf) => {
-      const capDir = path.resolve(process.cwd(), 'artifacts/captures');
-      if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-      const proofPath = path.resolve(capDir, `gold-bar-${raidId || 'drop'}-${Date.now()}.png`);
-      fs.writeFileSync(proofPath, buf);
-
-      const shotBuffer = Buffer.from(buf);
+    try {
+      const { buffer: shotBuffer, path: proofPath } = await this.captureCleanLootProof(raidId);
 
       if (this.dropLogger) {
         await this.dropLogger.notifyGoldBarDrop({
@@ -439,13 +555,16 @@ export class UniversalWorkflowEngine {
           screenshotPath: proofPath,
           accountId: this.accountId,
         });
+      } else {
+        const playerName = this.accountId === 'acc1' || !this.accountId ? '『Danchou』' : this.accountId;
+        await this.alertRelay.sendEmergencyAlert(
+          `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
+          shotBuffer
+        );
       }
-
-      await this.alertRelay.sendEmergencyAlert(
-        `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
-        shotBuffer
-      );
-    }).catch(() => null);
+    } catch (err: any) {
+      console.error(`[Workflow] Error broadcasting Gold Bar:`, err.message);
+    }
   }
 
   private calculateNextBatchThreshold(): number {
@@ -1981,6 +2100,23 @@ export class UniversalWorkflowEngine {
 
       for (let s = 0; s < step.subSteps.length; s++) {
         const sub = step.subSteps[s];
+
+        // Check explicit exit_if_score inside repeat block
+        if (sub.code === 'exit_if_score' || sub.action === 'exit_if_score') {
+          const threshold = sub.targetScore || this.template.targetScore || 1480000;
+          if (this.currentScore >= threshold) {
+            console.log(`[Repeat Block] Honor threshold met (${this.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting repeat block early.`);
+            return true;
+          }
+          console.log(`[Repeat Block] Current honors (${this.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing loop...`);
+          continue;
+        }
+
+        if (this.template.targetScore && this.currentScore >= this.template.targetScore) {
+          console.log(`[Repeat Block] Target score reached (${this.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Exiting repeat block early.`);
+          return true;
+        }
+
         const ok = await this.executeSingleStep(sub, s + 1, runNumber);
         if (!ok && !sub.optional) return false;
       }
@@ -2828,6 +2964,9 @@ export class UniversalWorkflowEngine {
         }
 
         console.log(`[Workflow] Found unclaimed battle(s) (${status.cardCount} remaining). Claiming battle #${claimedCount + 1}...`);
+        this.latestRewardData = null;
+        this.currentScore = 0;
+        this.currentTurn = 0;
 
         // Click the first available unclaimed battle card
         const clicked = await this.page.evaluate(() => {
@@ -2901,16 +3040,7 @@ export class UniversalWorkflowEngine {
           console.log(`  🌟🌟🌟 [GOLD BAR CONFIRMED IN CLAIMED BATTLE!] Raid: ${finalRaidId} 🌟🌟🌟`);
           console.log(`========================================================================\n`);
 
-          const capDir = path.resolve(process.cwd(), 'artifacts/captures');
-          if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-          const proofPath = path.resolve(capDir, `gold-bar-${finalRaidId}-${Date.now()}.png`);
-
-          let shotBuf: Buffer | undefined;
-          try {
-            const buf = await this.page.screenshot();
-            fs.writeFileSync(proofPath, buf);
-            shotBuf = Buffer.from(buf);
-          } catch {}
+          const { buffer: shotBuf, path: proofPath } = await this.captureCleanLootProof(finalRaidId);
 
           if (this.dropLogger) {
             this.dropLogger.recordPendingGoldBar(finalRaidId, proofPath);
@@ -2922,12 +3052,17 @@ export class UniversalWorkflowEngine {
               screenshotPath: proofPath,
               accountId: this.accountId
             });
+          } else {
+            const playerName = this.accountId === 'acc1' || !this.accountId ? '『Danchou』' : this.accountId;
+            await this.alertRelay.sendEmergencyAlert(
+              `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle ID: ${finalRaidId}\n• Log URL: https://game.granbluefantasy.jp/#result_multi/detail/${finalRaidId}/1/0/0`,
+              shotBuf
+            );
           }
-          await this.alertRelay.sendEmergencyAlert(
-            `🌟 GOLD BAR DROP CONFIRMED for [${this.accountId}]!\n• Raid: ${this.template.name}\n• Battle ID: ${finalRaidId}\n• Log URL: https://game.granbluefantasy.jp/#result_multi/${finalRaidId}`,
-            shotBuf
-          );
         }
+
+        // Reset latest reward data to avoid state leakage into next claimed battle
+        this.latestRewardData = null;
 
         // Sync and log settled honors for the claimed raid
         const claimedHonors = await this.syncCurrentHonors();
@@ -3232,18 +3367,18 @@ export class UniversalWorkflowEngine {
     const targetHash = targetUrl.split('#')[1] || '';
     const currentUrl = this.page.url();
     if (!currentUrl.includes(targetHash)) {
-      await Promise.all([
-        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
-        this.page.evaluate((url: string) => {
-          window.location.href = url;
+      await this.page.evaluate((hash: string) => {
+        if (window.location.hash === '#' + hash) {
           window.location.reload();
-        }, targetUrl).catch(() => null)
-      ]);
+        } else {
+          window.location.hash = '#' + hash;
+        }
+      }, targetHash).catch(() => null);
       await logNormalDelay(350, 0.1);
     }
 
     const start = Date.now();
-    while (Date.now() - start < 10000) {
+    while (Date.now() - start < 12000) {
       if (this.stopRequested) return false;
 
       if (this.template.stopOnCaptcha !== false) {
@@ -3255,9 +3390,9 @@ export class UniversalWorkflowEngine {
         continue;
       }
 
-      // 1. Auto-selected supporter popup with OK button (.btn-usual-ok.se-quest-start)
+      // 1. Deck confirmation / Quest Start OK button (.btn-usual-ok.se-quest-start)
       const autoOk = await this.page.evaluate(() => {
-        const ok = document.querySelector('.btn-usual-ok.se-quest-start') as HTMLElement;
+        const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
         if (ok && ok.offsetParent !== null) {
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(ok).trigger('tap');
@@ -3297,30 +3432,48 @@ export class UniversalWorkflowEngine {
 
       // 3. Supporter card selection
       const cardClicked = await this.page.evaluate((priorities: string[]) => {
-        const cards = Array.from(document.querySelectorAll('.prt-supporter-attribute.support-list .lis-supporter, .prt-supporter-detail')) as HTMLElement[];
-        for (const card of cards) {
-          if (card.offsetParent === null) continue;
-          const text = card.textContent || '';
-          for (const p of priorities) {
-            if (text.toLowerCase().includes(p.toLowerCase())) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(card).trigger('tap');
-              card.click();
-              return true;
-            }
+        const cards = Array.from(document.querySelectorAll(
+          '.prt-supporter-attribute.selected .lis-supporter, .prt-supporter-attribute .lis-supporter, .lis-supporter, .btn-supporter, .prt-supporter-detail'
+        )) as HTMLElement[];
+        const visibleCards = cards.filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 0);
+        
+        for (const p of priorities) {
+          const match = visibleCards.find(c => (c.innerText || c.textContent || '').toLowerCase().includes(p.toLowerCase()));
+          if (match) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(match).trigger('tap');
+            match.click();
+            return true;
           }
         }
-        if (cards.length > 0 && cards[0].offsetParent !== null) {
+        if (visibleCards.length > 0) {
+          const first = visibleCards[0];
           const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(cards[0]).trigger('tap');
-          cards[0].click();
+          if ($) $(first).trigger('tap');
+          first.click();
           return true;
         }
         return false;
-      }, this.template.supporterPriority || ['Zeus', 'Lucifer']).catch(() => false);
+      }, this.template.supporterPriority || ['Hades', 'Bahamut', 'Zeus', 'Lucifer', 'Kaguya']).catch(() => false);
 
       if (cardClicked) {
-        await logNormalDelay(350, 0.1);
+        await logNormalDelay(300, 0.1);
+        const okClicked = await this.page.evaluate(() => {
+          const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
+          if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
+            ok.click();
+            return true;
+          }
+          return false;
+        }).catch(() => false);
+
+        if (okClicked) {
+          const mounted = await this.waitForBattleToMount(12000);
+          if (mounted) return true;
+        }
+
         if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
           continue;
         }
