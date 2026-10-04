@@ -35,7 +35,7 @@ const mockCaptchaPage = {
   evaluate: async () => true,
 } as any;
 
-const activeSentinel = new SentinelWatchdog(mockCaptchaPage, relay);
+const activeSentinel = new SentinelWatchdog(mockCaptchaPage, relay, { enableTwoWayDiscord: false, skipBrowserWaitOnHalt: true });
 try {
   await activeSentinel.assertSafe();
   throw new Error('Sentinel should have thrown SENTINEL_HALT on captcha page!');

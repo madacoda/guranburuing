@@ -44,7 +44,21 @@ export class AccountRegistry {
     try {
       const raw = fs.readFileSync(this.configPath, 'utf-8');
       const parsed = JSON.parse(raw);
-      return AccountsListSchema.parse(parsed) as AccountConfig[];
+      const accounts = AccountsListSchema.parse(parsed) as AccountConfig[];
+      const homeDir = process.env.USERPROFILE || process.env.HOME || '.';
+
+      return accounts.map(acc => {
+        let pDir = acc.profileDir;
+        // Expand tilde ~ if used
+        if (pDir.startsWith('~')) {
+          pDir = path.join(homeDir, pDir.slice(1));
+        } else if (process.platform !== 'win32' && /^[a-zA-Z]:[\\/]/.test(pDir)) {
+          // Normalize Windows absolute path to Linux home path if deploying from Windows to Linux VPS
+          const profileName = path.basename(pDir);
+          pDir = path.join(homeDir, '.gbf-profiles', profileName);
+        }
+        return { ...acc, profileDir: pDir };
+      });
     } catch (err: any) {
       console.warn('[AccountRegistry] Notice loading accounts.config.json:', err.message);
       return [];

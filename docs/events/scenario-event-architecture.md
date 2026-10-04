@@ -81,9 +81,9 @@ graph TD
 ## 4. Nightmare (HELL) & Stocking Mechanics
 
 Modern GBF scenario events incorporate the **Nightmare Stocking System**:
-- Nightmares do not force immediate completion; they stock up to **10 attempts** (`data-hell-skip-remain-count`).
-- **Nightmare Skip**: Once the player clears Nightmare 3 times solo under specific conditions, the **Hell Skip** feature is permanently unlocked for that event (`data-hell-skip-status="1"`).
-- With Nightmare Skip active, clicking `.btn-hell-skip` clears the battle instantly with zero AP and awards tokens and crystals without entering combat.
+- Nightmares stock up to dozens or hundreds of attempts (`data-hell-skip-remain-count`).
+- **Nightmare Skip**: Once the player unlocks Nightmare Skip, clicking the Nightmare banner opens the "Unparalleled Foe" modal with the `#hell-skip-setting` toggle and `#skip-num-count` dropdown.
+- **10x Batch Looper**: The looper (`bun run event:nightmare`) automatically verifies the Skip checkbox is active, selects the maximum 10x batch count, clicks "Claim Loot", confirms party selection on `#quest/supporter`, sweeps the `#result_hell_skip` screen, and loops continuously until all Nightmare battles are depleted.
 
 ---
 
@@ -132,11 +132,17 @@ bun run event
 # Complete Full Pipeline (Story -> Challenge -> Maniac -> Nightmare -> Gacha):
 bun run event:all
 
+# Nightmare (HELL) Solo Skip Looper (10-skip batched loop until 0 remain):
+bun run event:nightmare
+
+# Token Drawbox Clearer (Draw 1 Drawbox -> Tap skip crystal -> Reload loot bypass -> Reset box -> Repeat):
+bun run event:gacha          # Clears up to 200 boxes or until tokens depleted
+bun run event:token          # Alias for event:gacha
+bun run event:gacha 177 50   # Clear up to 50 boxes for event 177
+
 # Specific side tasks:
 bun run event:challenge
 bun run event:maniac
-bun run event:nightmare
-bun run event:gacha
 ```
 
 ### 3. Declarative Workflow Integration:

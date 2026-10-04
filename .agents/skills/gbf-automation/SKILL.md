@@ -141,7 +141,7 @@ Automates monthly scenario events (`#event/treasureraid<ID>`, e.g., "Farewell, C
 - **Challenge Quest**: 1-time clear of event challenge quest for Blue Sky Crystals and event trophy.
 - **Daily Maniac**: Clears daily 2/2 Maniac solo battles for high-yield tokens and guaranteed Nightmare spawns.
 - **Nightmare (HELL)**: Instant 1-click skips when skip is unlocked, or Full Auto battle.
-- **Token Gacha**: Automatically draws Senka tokens and resets Boxes 1-4 when key SSR is pulled.
+- **Token Gacha**: Automated Draw 1 Drawbox clearer (`bun run event:gacha` / `bun run event:token`). Automatically clicks Draw 1 Drawbox (`.btn-bulk-play-box`), taps to skip crystal animation, reloads to bypass loot roll, clicks Reset Drawbox (`.btn-reset`), confirms modal, and loops up to 200 boxes or until tokens are depleted (~9.8s per complete drawbox).
 
 - **Raid Auto-Farming**: Dedicated sub-4s looper for Extreme (`947431`), Very Hard (`947421`), and Impossible (`947441`), with auto Quick Summon instakill, Full Auto fallback, and Half-Elixir AP restoration.
 - **Reference Guide**: Full technical specification in [`docs/events/scenario-event-architecture.md`](file:///c:/laragon/www/gbf/docs/events/scenario-event-architecture.md).
@@ -167,8 +167,11 @@ bun run event:all
 # Individual event tasks:
 bun run event:challenge
 bun run event:maniac
-bun run event:nightmare
-bun run event:gacha
+bun run event:nightmare          # Autonomous 10x Nightmare (HELL) Skip Looper
+bun run event:nightmare 177 50   # Skip up to 50 batches (500 battles)
+bun run event:gacha              # Autonomous Token Drawbox Clearer (all remaining boxes)
+bun run event:token              # Alias for event:gacha
+bun run event:gacha 177 50       # Clear up to 50 drawboxes for event 177
 ```
 
 ### Raid & Combat Farming:

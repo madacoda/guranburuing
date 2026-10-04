@@ -183,9 +183,9 @@ export class FarmEngine {
     console.log(`Pending Claim Batch:  Randomized 3 - 5 raids (first batch: ${currentBatchThreshold})`);
     console.log(`------------------------------------------------------------------------`);
     console.log(`Historical Log Telemetry:`);
-    console.log(`  - PBHL:   ${pbhlInit.totalBattles} battles | ${pbhlInit.goldBars} GB (${pbhlInit.battlesWithoutGb} non-drops, dry streak: ${pbhlInit.currentDryStreak}, drop rate: ${pbhlInit.dropRatePct})`);
-    console.log(`  - Akasha: ${akashaInit.totalBattles} battles | ${akashaInit.goldBars} GB (${akashaInit.battlesWithoutGb} non-drops, dry streak: ${akashaInit.currentDryStreak}, drop rate: ${akashaInit.dropRatePct})`);
-    console.log(`  - GO HL:  ${goInit.totalBattles} battles | ${goInit.goldBars} GB (${goInit.battlesWithoutGb} non-drops, dry streak: ${goInit.currentDryStreak}, drop rate: ${goInit.dropRatePct})`);
+    console.log(`  - PBHL:   ${pbhlInit.totalBattles} battles | ${pbhlInit.blueChests} Blue (${pbhlInit.blueChestRatePct}) | ${pbhlInit.goldBars} GB (Dry streak: ${pbhlInit.currentDryStreak} ${pbhlInit.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'}, rate: ${pbhlInit.dropRatePct})`);
+    console.log(`  - Akasha: ${akashaInit.totalBattles} battles | ${akashaInit.blueChests} Blue (${akashaInit.blueChestRatePct}) | ${akashaInit.goldBars} GB (Dry streak: ${akashaInit.currentDryStreak} ${akashaInit.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'}, rate: ${akashaInit.dropRatePct})`);
+    console.log(`  - GO HL:  ${goInit.totalBattles} battles | ${goInit.blueChests} Blue (${goInit.blueChestRatePct}) | ${goInit.goldBars} GB (Dry streak: ${goInit.currentDryStreak} ${goInit.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'}, rate: ${goInit.dropRatePct})`);
     console.log(`========================================================================\n`);
 
     this.setupClaimResponseListener();

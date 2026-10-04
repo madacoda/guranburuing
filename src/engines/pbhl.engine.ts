@@ -36,6 +36,8 @@ import { SentinelWatchdog } from '../sentinel-watchdog.js';
 import { humanizedClick, humanizedType, logNormalDelay, randomDelay, humanReactionDelay } from '../human-motor.js';
 import { config } from '../config.js';
 import { DropLogger, RaidCandidate, RaidWorkflowResult } from './drop-logger.js';
+import { RaidEvaluator } from './raid-evaluator.js';
+import { discordPresence } from '../relay/discord-presence.js';
 
 export interface PbhlJoinOptions {
   /** Raid code (e.g. "ABC12345") or full supporter_raid URL */
@@ -138,7 +140,18 @@ export class PbhlEngine {
 
     const dropLogger = new DropLogger(logPath, 'Proto Bahamut HL (PBHL)');
     const initialStats = dropLogger.getStats();
-    console.log(`[PbhlEngine] Historical Log: ${initialStats.totalBattles} total battles, ${initialStats.goldBars} Gold Bars (${initialStats.battlesWithoutGb} battles without Gold Bar, current dry streak: ${initialStats.currentDryStreak})`);
+    console.log(`[PbhlEngine] Historical Log: ${initialStats.totalBattles} total battles, ${initialStats.blueChests} Blue Chests (${initialStats.blueChestRatePct}), ${initialStats.goldBars} Gold Bars (Dry streak: ${initialStats.currentDryStreak} ${initialStats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
+
+    discordPresence.updateStatus({
+      raidName: 'PBHL',
+      runNumber: 1,
+      totalRuns: runs === Infinity ? undefined : runs,
+      goldBars: initialStats.goldBars,
+      blueChests: initialStats.blueChests,
+      dryStreak: initialStats.currentDryStreak,
+      dryStreakMode: initialStats.dryStreakMode,
+      status: 'Searching'
+    }, true);
 
     this.setupResponseListener();
 
@@ -162,13 +175,28 @@ export class PbhlEngine {
 
       // 2. Find eligible PBHL raid (>70% HP & <=3/30, or >=50% HP & <=4/30)
       const iterationStartTime = Date.now();
+
+      discordPresence.updateStatus({
+        raidName: 'PBHL',
+        runNumber: totalCompleted + 1,
+        totalRuns: runs === Infinity ? undefined : runs,
+        status: 'Searching'
+      });
       console.log(`\n-----------------------------------------------------`);
       console.log(`[PbhlEngine] [Run ${totalCompleted + 1}] Searching for eligible PBHL raid...`);
       console.log(`-----------------------------------------------------`);
 
+      this.sentinel?.setSessionContext?.({
+        questName: 'Proto Bahamut HL',
+        runNumber: totalCompleted + 1
+      });
+
       let raidCandidate;
       try {
         raidCandidate = await this.findAndSelectRaid();
+        if (raidCandidate?.raidId) {
+          this.sentinel?.setSessionContext?.({ raidId: raidCandidate.raidId, hpPct: raidCandidate.hpPct });
+        }
       } catch (err: any) {
         if (this.stopRequested) break;
         console.warn(`[PbhlEngine] Search warning: ${err.message}. Retrying in 4s...`);
@@ -245,6 +273,9 @@ export class PbhlEngine {
     }
 
     console.log(`\n[PbhlEngine] Farming session concluded. Returning to #mypage...`);
+    discordPresence.updateStatus({
+      status: 'Finished'
+    }, true);
     await this.page.evaluate(() => { window.location.hash = '#mypage'; }).catch(() => null);
 
     const finalStats = dropLogger.getStats();
@@ -336,27 +367,21 @@ export class PbhlEngine {
 
     console.log(`[PbhlEngine] Scanned ${candidates.length} PBHL raids on screen.`);
 
-    // Priority 1: HP >= 75% && players <= 3/30
-    let priority = 0;
-    let chosen: any = null;
-
-    const prio1 = candidates.filter(c => c.hpPct >= 75 && c.players <= 3);
-    if (prio1.length > 0) {
-      prio1.sort((a, b) => b.hpPct - a.hpPct || a.players - b.players);
-      chosen = prio1[0];
-      priority = 1;
-    } else {
-      // Priority 2: HP >= 60% && players <= 4/30 (strictly >= 60% minimum)
-      const prio2 = candidates.filter(c => c.hpPct >= 60 && c.players <= 4);
-      if (prio2.length > 0) {
-        prio2.sort((a, b) => b.hpPct - a.hpPct || a.players - b.players);
-        chosen = prio2[0];
-        priority = 2;
-      }
-    }
+    // Evaluate candidates with RaidEvaluator (HP > 85%, players <= 2 sweet spot; doomed raid rejection)
+    const selection = RaidEvaluator.selectBestCandidate(
+      candidates.map(c => ({
+        index: c.index,
+        raidId: c.raidId,
+        hpPct: c.hpPct,
+        players: c.players,
+        maxPlayers: 30
+      })),
+      { minScore: 40, minHpPct: 25, maxPlayers: 8 }
+    );
+    const chosen = selection.best;
 
     if (chosen) {
-      console.log(`[PbhlEngine] Selected raid: ID ${chosen.raidId} (HP: ${chosen.hpPct}%, Players: ${chosen.players}/30) [Priority ${priority} match]`);
+      console.log(`[PbhlEngine] Selected raid: ID ${chosen.raidId} (Score: ${chosen.score} pt [Grade ${chosen.grade}], HP: ${chosen.hpPct}%, Players: ${chosen.players}/30)`);
 
       const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, .btn-multi-raid.lis-raid.search');
       const targetCard = cardElements[chosen.index];
@@ -496,9 +521,20 @@ export class PbhlEngine {
         turns: 0,
         honors: 0,
         targetMet: false,
+        hasBlueChest: false,
         hasGoldBar: false
       });
-      console.log(`[PbhlEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Gold Bars: ${stats.goldBars} (${stats.battlesWithoutGb} battles without Gold Bar, dry streak: ${stats.currentDryStreak})`);
+      console.log(`[PbhlEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Blue: ${stats.blueChests} (${stats.blueChestRatePct}) | Gold Bars: ${stats.goldBars} (Dry streak: ${stats.currentDryStreak} ${stats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
+      discordPresence.updateStatus({
+        raidName: 'PBHL',
+        runNumber,
+        goldBars: stats.goldBars,
+        blueChests: stats.blueChests,
+        dryStreak: stats.currentDryStreak,
+        dryStreakMode: stats.dryStreakMode,
+        honors: 0,
+        status: 'Searching'
+      }, true);
       return { success: false, score: 0, turns: 0, durationMs: Date.now() - prepStartTime, goldBarFound: false, raidEndedEarly: true };
     }
     await this.sentinel.assertSafe();
@@ -583,14 +619,27 @@ export class PbhlEngine {
 
     // Log battle to DropLogger
     const isTargetMet = this.currentScore >= targetScore || combatResult.status === 'TARGET_SCORE_REACHED';
+    const hasBlueChest = isTargetMet || this.currentScore >= 1700000;
     const { record, stats } = dropLogger.logBattle({
       raidId: raidCandidate?.raidId || 'UNKNOWN',
       turns: combatResult.turnsElapsed || 1,
       honors: this.currentScore,
       targetMet: isTargetMet,
+      hasBlueChest,
       hasGoldBar: false
     });
-    console.log(`[PbhlEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Gold Bars: ${stats.goldBars} (${stats.battlesWithoutGb} battles without Gold Bar, dry streak: ${stats.currentDryStreak})`);
+    console.log(`[PbhlEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Blue: ${stats.blueChests} (${stats.blueChestRatePct}) | Gold Bars: ${stats.goldBars} (Dry streak: ${stats.currentDryStreak} ${stats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
+
+    discordPresence.updateStatus({
+      raidName: 'PBHL',
+      runNumber,
+      goldBars: stats.goldBars,
+      blueChests: stats.blueChests,
+      dryStreak: stats.currentDryStreak,
+      dryStreakMode: stats.dryStreakMode,
+      honors: this.currentScore,
+      status: 'Searching'
+    }, true);
 
     return {
       success: true,

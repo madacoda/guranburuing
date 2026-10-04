@@ -20,13 +20,43 @@ const noElixir = args.includes('--no-elixir');
 const positional = args.filter(a => !a.startsWith('--'));
 
 let mode = (positional[0] || 'story').toLowerCase();
-let targetEventId = positional[1] || '177';
-let limitArg = positional[2] || '40';
+let targetEventId = '177';
+let limitArg = '40';
 
-// Allow flexible argument ordering: e.g. "bun run event 177 story" or "bun run event all 177"
 if (/^\d+$/.test(positional[0])) {
   targetEventId = positional[0];
   mode = (positional[1] || 'story').toLowerCase();
+  limitArg = positional[2] || (mode === 'nightmare' || mode === 'hell' ? '1000' : '40');
+} else if (mode === 'nightmare' || mode === 'hell' || mode === 'skip') {
+  limitArg = '1000'; // Default: loop until all Nightmare attempts are cleared
+  if (positional[1] && positional[2]) {
+    targetEventId = positional[1];
+    limitArg = positional[2];
+  } else if (positional[1]) {
+    if (positional[1] === '177') {
+      targetEventId = '177';
+      limitArg = '1000';
+    } else {
+      targetEventId = '177';
+      limitArg = positional[1];
+    }
+  }
+} else if (mode === 'gacha' || mode === 'draw' || mode === 'box' || mode === 'token' || mode === 'tokens') {
+  limitArg = '200'; // Default: loop up to 200 boxes or until tokens depleted
+  if (positional[1] && positional[2]) {
+    targetEventId = positional[1];
+    limitArg = positional[2];
+  } else if (positional[1]) {
+    if (positional[1] === '177' || /^\d{3,}$/.test(positional[1])) {
+      targetEventId = positional[1];
+      limitArg = '200';
+    } else {
+      targetEventId = '177';
+      limitArg = positional[1];
+    }
+  }
+} else {
+  targetEventId = positional[1] || '177';
   limitArg = positional[2] || '40';
 }
 
@@ -87,12 +117,28 @@ try {
   } else if (mode === 'maniac') {
     // Daily Maniac only
     await eventEngine.runClearDailyManiac(targetEventId);
-  } else if (mode === 'nightmare' || mode === 'hell') {
-    // Nightmare only
-    await eventEngine.runCheckNightmare(targetEventId);
-  } else if (mode === 'gacha' || mode === 'draw' || mode === 'box') {
-    // Token drawbox only
-    await eventEngine.runDrawTokenGacha(targetEventId);
+  } else if (mode === 'nightmare' || mode === 'hell' || mode === 'skip') {
+    // Nightmare Solo Skip Loop
+    const maxBatches = parseInt(limitArg, 10) || 100;
+    await eventEngine.runClearNightmareLoop(targetEventId, maxBatches);
+  } else if (mode === 'gacha' || mode === 'draw' || mode === 'box' || mode === 'token' || mode === 'tokens') {
+    // Token drawbox loop
+    const maxBoxes = parseInt(limitArg, 10) || 200;
+    const summary = await eventEngine.runClearTokenGachaLoop(targetEventId, maxBoxes, (p) => {
+      const icon = p.status === 'COMPLETED' ? '✅' : p.status === 'RESETTING' ? '🔄' : '🎁';
+      console.log(`[EventCLI] ${icon} [Box #${p.boxNumber}] Cycle #${p.cycle}: ${p.status} - Remaining tokens: ${p.tokensRemaining?.toLocaleString() ?? 'Unknown'}`);
+    });
+
+    console.log('\n========================================================================');
+    console.log('             Event Token Drawbox Session Summary                        ');
+    console.log('========================================================================');
+    console.log(`Event ID:               treasureraid${summary.eventId}`);
+    console.log(`Boxes Cleared:          ${summary.boxesCleared}`);
+    console.log(`Tokens Spent:           ${summary.tokensSpent.toLocaleString()}`);
+    console.log(`Tokens Remaining:       ${summary.finalTokens?.toLocaleString() ?? 'Unknown'}`);
+    console.log(`Elapsed Time:           ${(summary.totalDurationMs / 1000).toFixed(1)}s`);
+    console.log(`Final Status:           ${summary.status}`);
+    console.log('========================================================================\n');
   } else {
     // Default: Clear event story chapters & episodes
     const maxEpisodes = parseInt(limitArg, 10) || 40;

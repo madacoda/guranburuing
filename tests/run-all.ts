@@ -68,6 +68,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Gold Bar Tracker & Battle URL Integration Tests',
     file: 'tests/test-gold-bar-tracker.ts',
     description: 'Item 20004 drop logging, battle log URL resolution, and Hall of Fame generation'
+  },
+  {
+    name: 'CAPTCHA Detection & Safety Sentinel Tests',
+    file: 'tests/test-captcha-detection.ts',
+    description: 'Instant URL hash, external iframes, atomic DOM checks, false positive immunity, and network interception'
+  },
+  {
+    name: 'Notification Deduplication & Anti-Spam Tests',
+    file: 'tests/test-discord-dedupe.ts',
+    description: 'Raid ID deduplication, active CAPTCHA prompt throttling, and single-dispatch guarantees'
+  },
+  {
+    name: 'Raid Evaluator & Score-Based Decision Tests',
+    file: 'tests/test-raid-evaluator-score.ts',
+    description: 'Raid score ranking, sweet spot weighting (HP > 85%, players <= 2), burn rate penalties, and doomed raid disqualification'
   }
 ];
 

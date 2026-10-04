@@ -17,6 +17,18 @@ export interface DiscordAttachment {
   filename: string;
 }
 
+export interface CaptchaContext {
+  accountId?: string;
+  playerName?: string;
+  questName?: string;
+  raidId?: string;
+  runNumber?: number;
+  hpPct?: number;
+  players?: string;
+  attempt?: number;
+  maxAttempts?: number;
+}
+
 export class DiscordDmRelay {
   private dmChannelId: string | null = null;
   private readonly baseUrl = 'https://discord.com/api/v10';
@@ -86,9 +98,9 @@ export class DiscordDmRelay {
       }
     }
 
-    // Auto-detect active CAPTCHA alert
+    // Auto-detect active CAPTCHA alert: suppress secondary alerts while an active CAPTCHA prompt session is already awaiting reply
     const isCaptcha = content.includes('CAPTCHA') || content.includes('VERIFICATION CHALLENGE');
-    if (isCaptcha && this.activeCaptchaPrompt) {
+    if (isCaptcha && this.activeCaptchaPrompt && dedupeKey !== 'active-captcha-prompt') {
       return true;
     }
 
@@ -97,7 +109,10 @@ export class DiscordDmRelay {
 
   public recordAlertDispatched(content: string, dedupeKey?: string): void {
     const now = Date.now();
-    if (dedupeKey) this.notifiedKeys.set(dedupeKey, now);
+    // Only cache regular dedupe keys (never permanently blacklist CAPTCHA challenge prompt)
+    if (dedupeKey && dedupeKey !== 'active-captcha-prompt') {
+      this.notifiedKeys.set(dedupeKey, now);
+    }
 
     const isGoldBar = content.includes('Gold Brick') || content.includes('GOLD BAR') || content.includes('ヒヒイロカネ');
     if (isGoldBar) {
@@ -110,16 +125,18 @@ export class DiscordDmRelay {
 
   /**
    * Sends a message to the user's private DM, optionally attaching one or more image buffers.
-   * Enforces deduplication to prevent spamming multiple notifications for the same drop or CAPTCHA.
+   * Enforces deduplication to prevent spamming multiple notifications for the same drop or CAPTCHA,
+   * unless force=true is specified (e.g. for emergency interactive challenges).
    */
   public async sendMessage(
     content: string,
     attachments?: Buffer | DiscordAttachment[] | { buffer: Buffer; filename: string },
     defaultFilename = 'captcha.png',
-    dedupeKey?: string
+    dedupeKey?: string,
+    force = false
   ): Promise<DiscordMessageResponse> {
-    // Deduplication check
-    if (this.isDuplicateAlert(content, dedupeKey)) {
+    // Deduplication check (bypassed if force === true)
+    if (!force && this.isDuplicateAlert(content, dedupeKey)) {
       console.log(`[DiscordDmRelay] ⏭️ Suppressing duplicate notification for DM.`);
       return {
         id: 'deduped',
@@ -132,19 +149,32 @@ export class DiscordDmRelay {
     const channelId = await this.getDmChannelId();
     const url = `${this.baseUrl}/channels/${channelId}/messages`;
 
+    // Determine whether non-empty attachments exist
+    const hasAttachments = (): boolean => {
+      if (!attachments) return false;
+      if (Array.isArray(attachments)) return attachments.some((a) => a?.buffer && a.buffer.length > 0);
+      if (Buffer.isBuffer(attachments)) return attachments.length > 0;
+      if (attachments.buffer) return attachments.buffer.length > 0;
+      return false;
+    };
+
     let res: Response;
 
-    if (attachments) {
+    if (attachments && hasAttachments()) {
       const formData = new FormData();
       formData.append('content', content);
 
       if (Array.isArray(attachments)) {
         attachments.forEach((att, idx) => {
-          formData.append(`files[${idx}]`, new Blob([new Uint8Array(att.buffer)], { type: 'image/png' }), att.filename);
+          if (att?.buffer && att.buffer.length > 0) {
+            formData.append(`files[${idx}]`, new Blob([new Uint8Array(att.buffer)], { type: 'image/png' }), att.filename);
+          }
         });
       } else if (Buffer.isBuffer(attachments)) {
-        formData.append('files[0]', new Blob([new Uint8Array(attachments)], { type: 'image/png' }), defaultFilename);
-      } else if (attachments.buffer) {
+        if (attachments.length > 0) {
+          formData.append('files[0]', new Blob([new Uint8Array(attachments)], { type: 'image/png' }), defaultFilename);
+        }
+      } else if ('buffer' in attachments && attachments.buffer && attachments.buffer.length > 0) {
         formData.append('files[0]', new Blob([new Uint8Array(attachments.buffer)], { type: 'image/png' }), attachments.filename || defaultFilename);
       }
 
@@ -183,8 +213,13 @@ export class DiscordDmRelay {
     promptMessageId: string,
     timeoutMs = 300000,
     pollIntervalMs = 2500,
-    onPollTick?: (elapsedMs: number) => void
+    onPollTick?: (elapsedMs: number) => Promise<boolean | void> | boolean | void
   ): Promise<string | null> {
+    if (!promptMessageId || promptMessageId === 'deduped' || !/^\d{17,20}$/.test(promptMessageId)) {
+      console.error(`[DiscordDmRelay] ⚠️ Invalid prompt message ID ("${promptMessageId}"). Aborting reply listener to avoid API errors.`);
+      return null;
+    }
+
     const channelId = await this.getDmChannelId();
     const targetUserId = config.DISCORD_USER_ID!;
     const startTime = Date.now();
@@ -194,7 +229,13 @@ export class DiscordDmRelay {
     while (Date.now() - startTime < timeoutMs) {
       await new Promise((r) => setTimeout(r, pollIntervalMs));
       const elapsed = Date.now() - startTime;
-      if (onPollTick) onPollTick(elapsed);
+      if (onPollTick) {
+        const earlyBreak = await onPollTick(elapsed);
+        if (earlyBreak) {
+          console.log('[DiscordDmRelay] ⚡ Early resolution signaled via onPollTick.');
+          return 'RESOLVED_EXTERNALLY';
+        }
+      }
 
       try {
         const url = `${this.baseUrl}/channels/${channelId}/messages?after=${promptMessageId}&limit=10`;
@@ -205,7 +246,8 @@ export class DiscordDmRelay {
         });
 
         if (!res.ok) {
-          console.warn(`[DiscordDmRelay] Poll request warning (Status ${res.status})`);
+          const errDetail = await res.text().catch(() => '');
+          console.warn(`[DiscordDmRelay] Poll request warning (Status ${res.status}): ${errDetail}`);
           continue;
         }
 
@@ -220,6 +262,11 @@ export class DiscordDmRelay {
             const userMsg = validReplies[0];
             const responseText = userMsg.content.trim();
             console.log(`[DiscordDmRelay] 📩 Received user DM reply: "${responseText}" (Message ID: ${userMsg.id})`);
+
+            // Detect manual halt request from operator
+            if (/^(halt|stop|manual|pause|freeze)$/i.test(responseText)) {
+              return 'HALT_REQUESTED';
+            }
             return responseText;
           }
         }
@@ -235,21 +282,46 @@ export class DiscordDmRelay {
   /**
    * Broadcasts a CAPTCHA challenge screenshot to DM and halts execution until user replies with the code.
    * Can attach both an isolated puzzle crop (for mobile clarity) and the full viewport.
+   * Formatted concisely, displaying in-game player name and clear action choices.
    */
   public async requestCaptchaResolution(
     images: Buffer | { fullScreenshot: Buffer; puzzleCrop?: Buffer },
-    timeoutMs = 300000
+    timeoutMs = 300000,
+    onPollTick?: (elapsedMs: number) => Promise<boolean | void> | boolean | void,
+    context?: CaptchaContext
   ): Promise<string | null> {
-    const alertPrompt = [
-      '🚨 **CRITICAL: GBF CAPTCHA / VERIFICATION CHALLENGE DETECTED!**',
-      'Automation has been **hard-frozen** to protect your account.',
-      '',
-      '👉 Please inspect the attached picture(s) and **reply to this DM** with your answer:',
-      '• **Text Code**: Enter the characters (e.g. `8392`)',
-      '• **Picture / Tile Selection**: Enter the tile numbers (e.g. `1 3` or `2 4 1`)',
-      '',
-      `⏱️ *Waiting for your reply (Timeout: ${timeoutMs / 60000} minutes)...*`,
-    ].join('\n');
+    const isRetry = Boolean(context?.attempt && context.attempt > 1);
+    const playerDisplay = context?.playerName
+      ? `${context.playerName}${context.accountId && context.accountId !== context.playerName ? ` (\`${context.accountId}\`)` : ''}`
+      : (context?.accountId ? `\`${context.accountId}\`` : 'Player');
+
+    const lines: string[] = [];
+    if (!isRetry) {
+      lines.push('🚨 **GBF CAPTCHA DETECTED**');
+    } else {
+      lines.push(`⚠️ **CAPTCHA NOT CLEARED (Attempt ${context?.attempt}/${context?.maxAttempts || 5})**`);
+    }
+
+    lines.push(`• **Player**: **${playerDisplay}**`);
+    if (context?.questName) lines.push(`• **Quest / Raid**: **${context.questName}**`);
+    if (context?.runNumber !== undefined) lines.push(`• **Run**: \`#${context.runNumber}\``);
+    if (context?.raidId) lines.push(`• **Raid ID**: \`${context.raidId}\``);
+
+    lines.push('');
+    if (!isRetry) {
+      lines.push(
+        '👉 Reply with **code** (e.g. `8392`) or **tiles** (e.g. `1 3`).',
+        '👉 Or reply **`halt`** to pause and solve in browser.'
+      );
+    } else {
+      lines.push(
+        'Popup still present (new puzzle capture attached above).',
+        '👉 Reply with new **code** or **tiles**.',
+        '👉 Or reply **`halt`** to pause and solve in browser.'
+      );
+    }
+
+    const alertPrompt = lines.join('\n');
 
     let attachments: DiscordAttachment[] | Buffer;
 
@@ -257,18 +329,34 @@ export class DiscordDmRelay {
       attachments = images;
     } else {
       attachments = [];
-      if (images.puzzleCrop) {
+      if (images.puzzleCrop && images.puzzleCrop.length > 0) {
         attachments.push({ buffer: images.puzzleCrop, filename: 'captcha-puzzle.png' });
       }
-      attachments.push({ buffer: images.fullScreenshot, filename: 'viewport-context.png' });
+      if (images.fullScreenshot && images.fullScreenshot.length > 0) {
+        attachments.push({ buffer: images.fullScreenshot, filename: 'viewport-context.png' });
+      }
     }
 
+    // CRITICAL: Always dispatch initial CAPTCHA prompt with force=true so it is NEVER suppressed
+    const promptMessage = await this.sendMessage(
+      alertPrompt,
+      attachments,
+      'captcha-challenge.png',
+      undefined,
+      true // force = true: bypass deduplication for emergency CAPTCHA prompts
+    );
+
+    console.log(`[DiscordDmRelay] 📤 CAPTCHA challenge sent to user DM (Prompt ID: ${promptMessage.id}).`);
+
+    if (!promptMessage.id || promptMessage.id === 'deduped' || !/^\d{17,20}$/.test(promptMessage.id)) {
+      console.error(`[DiscordDmRelay] ❌ Could not obtain valid Discord message ID for prompt (ID: ${promptMessage.id}). Cannot listen for replies.`);
+      return null;
+    }
+
+    // Set activeCaptchaPrompt = true ONLY during reply polling window so secondary spam is throttled
     this.activeCaptchaPrompt = true;
     try {
-      const promptMessage = await this.sendMessage(alertPrompt, attachments, 'captcha-challenge.png', 'active-captcha-prompt');
-      console.log(`[DiscordDmRelay] 📤 CAPTCHA challenge sent to user DM (Prompt ID: ${promptMessage.id}).`);
-
-      return await this.waitForReply(promptMessage.id, timeoutMs);
+      return await this.waitForReply(promptMessage.id, timeoutMs, 2500, onPollTick);
     } finally {
       this.activeCaptchaPrompt = false;
     }

@@ -36,6 +36,25 @@ export interface EventFullRoutineSummary {
   totalDurationMs: number;
 }
 
+export interface EventTokenGachaProgress {
+  cycle: number;
+  boxNumber: string;
+  tokensRemaining: number | null;
+  boxesCleared: number;
+  status: 'DRAWING' | 'RESETTING' | 'COMPLETED' | 'DEPLETED' | 'FAILED';
+  message: string;
+}
+
+export interface EventTokenGachaSummary {
+  eventId: string;
+  initialTokens: number | null;
+  finalTokens: number | null;
+  tokensSpent: number;
+  boxesCleared: number;
+  totalDurationMs: number;
+  status: 'COMPLETED' | 'STOPPED' | 'DEPLETED' | 'FAILED';
+}
+
 /**
  * EventEngine
  * Granblue Fantasy Story Event (treasureraid) Automation Engine.
@@ -1061,88 +1080,286 @@ export class EventEngine {
   }
 
   /**
-   * Checks for Nightmare (HELL) proc. If Nightmare Skip is unlocked, skips it instantly for free loot.
+   * Autonomous Nightmare (HELL) Solo Skip Looper.
+   * Clicks Nightmare banner (.img-hell-boss / .prt-hell), verifies Skip checkbox (#hell-skip-setting),
+   * selects up to 10x batch skip, clicks 'Claim Loot', confirms party selection, and sweeps results.
+   * Loops continuously until all accumulated Nightmare battles are exhausted or stop requested.
    */
-  public async runCheckNightmare(eventIdExplicit?: string): Promise<{ status: 'SKIPPED' | 'CLEARED' | 'NONE'; message: string }> {
+  public async runClearNightmareLoop(
+    eventIdExplicit?: string,
+    maxBatches = 100
+  ): Promise<{ batchesCleared: number; totalBattlesSkipped: number; message: string }> {
     const eventId = await this.resolveEventId(eventIdExplicit);
-    console.log(`\n[EventEngine] ⚡ Checking Nightmare (HELL) status for treasureraid${eventId}...`);
+    console.log('\n========================================================================');
+    console.log(`      ⚡ Granblue Fantasy - Nightmare (HELL) Solo Skip Looper           `);
+    console.log(`      Event: treasureraid${eventId} | Max Batches: ${maxBatches}        `);
+    console.log('========================================================================\n');
 
-    await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
-    await logNormalDelay(1200, 0.2);
+    let batchesCleared = 0;
+    let totalBattlesSkipped = 0;
 
-    const hellInfo = await this.page.evaluate(() => {
-      const hellBtn = document.querySelector(
-        '.btn-quest-list.type-treasureraid-hell, .lis-quest-list.type-treasureraid-hell, .btn-hell, .prt-hell-quest, [data-quest-id*="hell"], [data-type="3"]'
-      ) as HTMLElement;
-      if (!hellBtn || hellBtn.offsetParent === null) return { hasHell: false, canSkip: false, remainCount: 0, questId: '' };
+    while (batchesCleared < maxBatches && !this.stopRequested) {
+      await this.sentinel.assertSafe();
 
-      const ds = hellBtn.dataset;
-      const canSkip = ds.hellSkipVaild === '1' || ds.hellSkipStatus === '1' || !!document.querySelector('.btn-hell-skip');
-      const remainCount = parseInt(ds.hellSkipRemainCount || '1', 10) || 1;
-      return { hasHell: true, canSkip, remainCount, questId: ds.questId || '947411' };
-    });
+      // 1. Ensure on event page
+      const currentUrl = this.page.url();
+      if (!currentUrl.includes(`treasureraid${eventId}`)) {
+        console.log(`[EventEngine] Navigating to event page #event/treasureraid${eventId}...`);
+        await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+        await logNormalDelay(1500, 0.2);
+      }
 
-    if (!hellInfo.hasHell) {
-      console.log('[EventEngine] No active Nightmare (HELL) quest spawned.');
-      return { status: 'NONE', message: 'No Nightmare battle active.' };
-    }
+      // 2. Scan for Nightmare (HELL) quest card on event page (with polling for view render)
+      console.log(`[EventEngine] [Batch #${batchesCleared + 1}] Scanning for Nightmare (HELL) banner...`);
+      let hellState = { hasHell: false, remainCount: 0, availableCount: 0, canSkip: false };
 
-    if (hellInfo.canSkip) {
-      console.log('[EventEngine] ⚡ Nightmare Skip is UNLOCKED! Triggering 1-Click Instant Skip...');
-      await this.page.evaluate(() => {
-        const skipBtn = document.querySelector('.btn-hell-skip, .btn-usual-ok.btn-skip-hell') as HTMLElement;
-        if (skipBtn) {
+      const scanStart = Date.now();
+      while (Date.now() - scanStart < 12000 && !this.stopRequested) {
+        hellState = await this.page.evaluate(() => {
+          const hellCard = document.querySelector(
+            '.btn-quest-list.type-treasureraid-hell, .prt-hell, .img-hell-boss, [data-quest-id*="hell"], [data-type="3"]'
+          ) as HTMLElement;
+          if (!hellCard || hellCard.offsetParent === null) {
+            return { hasHell: false, remainCount: 0, availableCount: 0, canSkip: false };
+          }
+
+          const listEl = (hellCard.closest('.btn-quest-list') || hellCard) as HTMLElement;
+          const ds = listEl.dataset || {};
+          const remainCount = parseInt(ds.hellSkipRemainCount || '0', 10) || 0;
+          const availableCount = parseInt(ds.hellSkipAvailableCount || '10', 10) || 10;
+          const canSkip = ds.hellSkipVaild === '1' || ds.hellSkipStatus === '1';
+
+          return {
+            hasHell: true,
+            remainCount,
+            availableCount,
+            canSkip
+          };
+        });
+
+        if (hellState.hasHell) break;
+
+        // If still lingering on result or intermediate screen, dismiss and re-navigate
+        const curHash = await this.page.evaluate(() => window.location.hash || '');
+        if (curHash.includes('result') || curHash.includes('supporter')) {
+          await this.dismissPopupsAndResults();
+          await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+        }
+
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      if (!hellState.hasHell) {
+        console.log('[EventEngine] 🏁 No active Nightmare (HELL) quest banner found on event page.');
+        break;
+      }
+
+      if (hellState.remainCount <= 0 && batchesCleared > 0) {
+        console.log('[EventEngine] 🏁 All Nightmare (HELL) attempts exhausted (0 remaining).');
+        break;
+      }
+
+      console.log(`\n[EventEngine] [Batch #${batchesCleared + 1}] Found Nightmare (HELL)! Remaining attempts: ${hellState.remainCount}`);
+
+      // 3. Click Nightmare card / banner
+      console.log('[EventEngine] Clicking Nightmare banner (.img-hell-boss / .prt-hell)...');
+      const clickedCard = await this.page.evaluate(() => {
+        const btn = document.querySelector(
+          '.btn-quest-list.type-treasureraid-hell, .prt-hell, .img-hell-boss'
+        ) as HTMLElement;
+        if (!btn) return false;
+        const target = btn.closest('.btn-quest-list') || btn;
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(target).trigger('tap');
+        (target as HTMLElement).click();
+        return true;
+      });
+
+      if (!clickedCard) {
+        console.warn('[EventEngine] Could not click Nightmare card.');
+        break;
+      }
+
+      // 4. Wait for Nightmare modal ("Unparalleled Foe" / #tpl-start-event-hell)
+      console.log('[EventEngine] Waiting for Nightmare quest modal...');
+      let modalReady = false;
+      for (let w = 0; w < 20; w++) {
+        modalReady = await this.page.evaluate(() => {
+          return !!document.querySelector('.prt-start-event-hell, #hell-skip-setting, .pop-usual, .prt-popup-header');
+        });
+        if (modalReady) break;
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      if (!modalReady) {
+        console.warn('[EventEngine] Timed out waiting for Nightmare modal to appear.');
+        break;
+      }
+
+      await logNormalDelay(600, 0.15);
+
+      // 5. Ensure "Skip" is checked & Select 10 times (or max available)
+      const setupResult = await this.page.evaluate(() => {
+        const skipCheckbox = document.querySelector('#hell-skip-setting') as HTMLInputElement;
+        const skipLabel = document.querySelector('label[for="hell-skip-setting"], .btn-hell-skip-check') as HTMLElement;
+        const select = document.querySelector('#skip-num-count') as HTMLSelectElement;
+        const $ = (window as any).$ || (window as any).Zepto;
+
+        let wasChecked = false;
+        if (skipCheckbox) {
+          if (!skipCheckbox.checked) {
+            if (skipLabel) {
+              if ($) $(skipLabel).trigger('tap');
+              skipLabel.click();
+            } else {
+              skipCheckbox.click();
+            }
+          }
+          wasChecked = skipCheckbox.checked;
+        }
+
+        let selectedCount = 1;
+        if (select) {
+          // Select the highest available option (first option is maximum available, e.g. 10)
+          const maxVal = select.options[0]?.value || '10';
+          select.value = maxVal;
+          if ($) $(select).trigger('change');
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          selectedCount = parseInt(maxVal, 10) || 1;
+        }
+
+        return {
+          hasSkipCheckbox: !!skipCheckbox,
+          isChecked: wasChecked,
+          selectedCount
+        };
+      });
+
+      if (!setupResult.hasSkipCheckbox) {
+        console.warn('[EventEngine] ⚠️ Skip checkbox (#hell-skip-setting) not present. Nightmare skip might not be unlocked.');
+        break;
+      }
+
+      console.log(`[EventEngine] Skip checkbox verified: ${setupResult.isChecked ? 'CHECKED ✅' : 'NOT CHECKED ⚠️'}`);
+      console.log(`[EventEngine] Skip count selected: ${setupResult.selectedCount}x`);
+
+      await logNormalDelay(500, 0.15);
+
+      // 6. Click "Claim Loot" button
+      console.log('[EventEngine] Clicking "Claim Loot" button...');
+      const clickedClaim = await this.page.evaluate(() => {
+        const claimText = Array.from(document.querySelectorAll('.btn-usual-text, .btn-usual-ok, .prt-popup-footer *'))
+          .find(el => el.textContent?.trim().toLowerCase().includes('claim loot')) as HTMLElement;
+        const btn = (claimText?.closest('.btn-usual-ok') || claimText) as HTMLElement | null;
+        if (btn) {
           const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(skipBtn).trigger('tap');
-          skipBtn.click();
+          if ($) $(btn).trigger('tap');
+          btn.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!clickedClaim) {
+        console.warn('[EventEngine] "Claim Loot" button not found in modal footer.');
+        break;
+      }
+
+      // 7. Await transition to Supporter / Party Screen (#quest/supporter/...)
+      console.log('[EventEngine] Awaiting party option screen (#quest/supporter)...');
+      let partyScreenReady = false;
+      for (let p = 0; p < 35; p++) {
+        partyScreenReady = await this.page.evaluate(() => {
+          const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start') as HTMLElement;
+          return !!ok && ok.offsetParent !== null;
+        });
+        if (partyScreenReady) break;
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      if (!partyScreenReady) {
+        console.warn('[EventEngine] Timed out waiting for party / supporter screen.');
+        break;
+      }
+
+      await logNormalDelay(800, 0.2);
+
+      // 8. Click OK on party screen (.btn-usual-ok.se-quest-start)
+      console.log('[EventEngine] Confirming party option (clicking OK / .se-quest-start)...');
+      await this.page.evaluate(() => {
+        const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok') as HTMLElement;
+        if (ok) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(ok).trigger('tap');
+          ok.click();
         }
       });
-      await logNormalDelay(800, 0.15);
+
+      // 9. Await Result Screen (#result_hell_skip or #result)
+      console.log('[EventEngine] Awaiting result screen (#result_hell_skip)...');
+      let resultReady = false;
+      for (let r = 0; r < 40; r++) {
+        resultReady = await this.page.evaluate(() => {
+          const hash = window.location.hash || '';
+          return (
+            hash.includes('result') ||
+            !!document.querySelector('.cnt-result, .prt-result-cnt, .head-win, .btn-control[data-status="ok"]')
+          );
+        });
+        if (resultReady) break;
+        await new Promise(res => setTimeout(res, 400));
+      }
+
+      if (resultReady) {
+        batchesCleared++;
+        totalBattlesSkipped += setupResult.selectedCount;
+        console.log(`🎉 [EventEngine] Batch #${batchesCleared} completed! Skipped ${setupResult.selectedCount} battle(s). (Total: ${totalBattlesSkipped})`);
+      } else {
+        console.warn('[EventEngine] Result screen did not appear within timeout.');
+      }
+
+      await logNormalDelay(1000, 0.2);
+
+      // 10. Dismiss popups / results & return to event page
+      console.log('[EventEngine] Returning to event top page...');
+      await this.page.evaluate(() => {
+        const nextBtn = document.querySelector('.btn-control[data-status="ok"], .btn-control, .btn-usual-ok') as HTMLElement;
+        if (nextBtn && nextBtn.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(nextBtn).trigger('tap');
+          nextBtn.click();
+        }
+      }).catch(() => null);
+
+      await logNormalDelay(600, 0.2);
       await this.dismissPopupsAndResults();
-      console.log('🎉 [EventEngine] Nightmare quest skipped instantly! Free tokens & crystals claimed.');
-      return { status: 'SKIPPED', message: 'Nightmare 1-click skipped.' };
+      await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+      await logNormalDelay(1200, 0.2);
     }
 
-    console.log(`[EventEngine] Nightmare spawned (${hellInfo.remainCount} attempt(s) remaining). Launching encounter...`);
-    // Click Nightmare card
-    await this.page.evaluate(() => {
-      const hellBtn = document.querySelector(
-        '.btn-quest-list.type-treasureraid-hell, .lis-quest-list.type-treasureraid-hell, .btn-hell, .prt-hell-quest'
-      ) as HTMLElement;
-      if (hellBtn) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(hellBtn).trigger('tap');
-        hellBtn.click();
-      }
-    });
-    await logNormalDelay(1000, 0.15);
+    console.log('\n========================================================================');
+    console.log('       🏁 NIGHTMARE (HELL) SKIP LOOP EXECUTION SUMMARY                  ');
+    console.log('========================================================================');
+    console.log(`Total Batches Executed: ${batchesCleared}`);
+    console.log(`Total Battles Skipped:  ${totalBattlesSkipped}`);
+    console.log('========================================================================\n');
 
-    // If "Unparalleled Foe" modal appeared, click Play (.prt-popup-footer .btn-usual-ok)
-    await this.page.evaluate(() => {
-      const playBtn = document.querySelector('.pop-usual .btn-usual-ok, .prt-popup-footer .btn-usual-ok, .btn-usual-text') as HTMLElement;
-      if (playBtn) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(playBtn).trigger('tap');
-        playBtn.click();
-      }
-    });
-    await logNormalDelay(1200, 0.2);
+    return {
+      batchesCleared,
+      totalBattlesSkipped,
+      message: `Completed ${batchesCleared} batches (${totalBattlesSkipped} battles skipped).`
+    };
+  }
 
-    await this.selectFirstSupporter();
-    await logNormalDelay(800, 0.15);
-
-    await this.page.evaluate(() => {
-      const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start') as HTMLElement;
-      if (ok) ok.click();
-    });
-
-    console.log('[EventEngine] Waiting for Nightmare battle to mount...');
-    await this.waitForBattleStart(25000);
-    await this.activateFullAuto();
-    await this.waitForBattleEnd(180000);
-    await this.dismissPopupsAndResults();
-
-    return { status: 'CLEARED', message: 'Nightmare completed via Full Auto.' };
+  /**
+   * Checks for Nightmare (HELL) proc and skips all available stock using the skip looper.
+   */
+  public async runCheckNightmare(eventIdExplicit?: string): Promise<{ status: 'SKIPPED' | 'CLEARED' | 'NONE'; message: string }> {
+    const res = await this.runClearNightmareLoop(eventIdExplicit, 100);
+    if (res.totalBattlesSkipped > 0) {
+      return { status: 'SKIPPED', message: `Nightmare skipped (${res.totalBattlesSkipped} battles).` };
+    }
+    return { status: 'NONE', message: 'No Nightmare battles available to skip.' };
   }
 
   /**
@@ -1178,71 +1395,282 @@ export class EventEngine {
   }
 
   /**
-   * Draws event token boxes (Senka Gacha) and resets boxes 1-4 when target is drawn.
+   * Clears Event Token Drawboxes (Senka Gacha) in an automated loop:
+   * 1. Navigate to / tap token draw (#event/treasureraid<ID>/gacha)
+   * 2. Click "Draw 1 Drawbox" (.btn-bulk-play-box)
+   * 3. Tap screen to skip crystal animation
+   * 4. Reload page to bypass loot roll
+   * 5. Click Reset Drawbox (.btn-reset)
+   * 6. Confirm modal (.pop-usual .btn-usual-ok)
+   * 7. Reload and repeat until tokens are depleted or maxBoxes reached.
    */
-  public async runDrawTokenGacha(eventIdExplicit?: string, maxDrawPasses = 10): Promise<{ drawsProcessed: number; message: string }> {
+  public async runClearTokenGachaLoop(
+    eventIdExplicit?: string,
+    maxBoxes = 200,
+    onProgress?: (progress: EventTokenGachaProgress) => void
+  ): Promise<EventTokenGachaSummary> {
+    const startTime = Date.now();
     const eventId = await this.resolveEventId(eventIdExplicit);
-    console.log(`\n[EventEngine] 🎰 Accessing Event Token Gacha for treasureraid${eventId}...`);
+    const gachaUrl = `https://game.granbluefantasy.jp/#event/treasureraid${eventId}/gacha`;
 
-    await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}/gacha`);
-    await logNormalDelay(1500, 0.2);
+    let initialTokens: number | null = null;
+    let finalTokens: number | null = null;
+    let boxesCleared = 0;
+    let cycle = 0;
 
-    let drawsProcessed = 0;
-    for (let p = 0; p < maxDrawPasses; p++) {
+    console.log('\n========================================================================');
+    console.log(`      🎰 Granblue Fantasy - Event Token Drawbox Clearer                `);
+    console.log(`      Event: treasureraid${eventId} | Max Boxes: ${maxBoxes}          `);
+    console.log('========================================================================\n');
+
+    while (boxesCleared < maxBoxes) {
       if (this.stopRequested) break;
       await this.sentinel.assertSafe();
 
-      // Check if box reset button is available (SSR item pulled in boxes 1-4)
-      const canReset = await this.page.evaluate(() => {
-        const resetBtn = document.querySelector('.btn-box-reset, .btn-reset') as HTMLElement;
-        return resetBtn && resetBtn.offsetParent !== null && !resetBtn.classList.contains('disable');
+      cycle++;
+
+      // 1. Ensure on gacha page
+      if (!this.page.url().includes('gacha') || this.page.url().includes('action')) {
+        console.log(`[EventEngine] Navigating to token draw: ${gachaUrl}...`);
+        await this.page.evaluate((targetUrl) => {
+          const hash = targetUrl.substring(targetUrl.indexOf('#'));
+          window.location.hash = hash;
+        }, gachaUrl);
+        await this.page.reload({ waitUntil: 'networkidle2' }).catch(() => null);
+        await logNormalDelay(1500, 0.2);
+      }
+
+      // Wait for loading mask to clear
+      for (let i = 0; i < 20; i++) {
+        const hasMask = await this.page.evaluate(() => !!document.querySelector('#loading.show, .mask.show'));
+        if (!hasMask) break;
+        await new Promise(r => setTimeout(r, 250));
+      }
+
+      // 2. Read current box and token state
+      const state = await this.page.evaluate(() => {
+        const text = document.body.innerText.replace(/\s+/g, ' ');
+        const boxEl = document.querySelector('.prt-gacha-infomation');
+        const boxMatch = boxEl?.getAttribute('data-box-num') || text.match(/Drawbox\s*#(\d+)/i)?.[0] || 'Unknown';
+        const tokenEl = document.querySelector('.txt-gacha-point');
+        const tokenCount = tokenEl ? parseInt(tokenEl.textContent?.replace(/,/g, '') || '', 10) : null;
+
+        const drawBtn = document.querySelector('.btn-bulk-play-box, .btn-draw-all, .btn-play-all') as HTMLElement;
+        const resetBtn = document.querySelector('.btn-reset') as HTMLElement;
+
+        const dVisible = drawBtn && drawBtn.offsetParent !== null && !drawBtn.classList.contains('disable');
+        const rVisible = resetBtn && resetBtn.offsetParent !== null && !resetBtn.classList.contains('disable');
+
+        return {
+          boxNum: boxMatch.replace(/[^0-9]/g, '') || boxMatch,
+          tokenCount,
+          canDrawBox: !!dVisible,
+          canReset: !!rVisible
+        };
       });
 
-      if (canReset) {
-        console.log('[EventEngine] 🎯 Key Box reward pulled! Triggering Box Reset to advance to next box...');
-        await this.page.evaluate(() => {
-          const resetBtn = document.querySelector('.btn-box-reset, .btn-reset') as HTMLElement;
-          if (resetBtn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(resetBtn).trigger('tap');
-            resetBtn.click();
+      if (initialTokens === null && state.tokenCount !== null) {
+        initialTokens = state.tokenCount;
+      }
+      if (state.tokenCount !== null) {
+        finalTokens = state.tokenCount;
+      }
+
+      console.log(`\n[EventEngine] [Cycle #${cycle}] Box #${state.boxNum} | Tokens: ${state.tokenCount?.toLocaleString() ?? 'Unknown'}`);
+      console.log(`   Actions Available -> Draw 1 Drawbox: ${state.canDrawBox} | Reset: ${state.canReset}`);
+
+      // Case A: Reset button is already available (target item pulled or box empty)
+      if (state.canReset) {
+        console.log('[EventEngine] ✨ Box is already ready to reset! Resetting...');
+        const resetOk = await this.executeEventBoxReset(eventId);
+        if (resetOk) {
+          boxesCleared++;
+          onProgress?.({
+            cycle,
+            boxNumber: state.boxNum,
+            tokensRemaining: finalTokens,
+            boxesCleared,
+            status: 'RESETTING',
+            message: `Reset Box #${state.boxNum} successfully`
+          });
+          continue;
+        }
+      }
+
+      // Case B: Draw 1 Drawbox is available
+      if (state.canDrawBox) {
+        console.log('[EventEngine] 🎁 Clicking "Draw 1 Drawbox"...');
+        const drawClicked = await this.page.evaluate(() => {
+          const btn = document.querySelector('.btn-bulk-play-box, .btn-draw-all, .btn-play-all') as HTMLElement;
+          if (btn && btn.offsetParent !== null) {
+            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+            const z = (window as any).$ || (window as any).Zepto;
+            if (z) z(btn).trigger('tap');
+            btn.click();
+            return true;
           }
+          return false;
         });
+
+        if (!drawClicked) {
+          console.log('[EventEngine] Failed to click drawbox button. Retrying after reload...');
+          await this.page.reload({ waitUntil: 'networkidle2' }).catch(() => null);
+          await logNormalDelay(1500, 0.2);
+          continue;
+        }
+
+        // Dismiss instant confirmation modal if present
         await logNormalDelay(600, 0.15);
         await this.page.evaluate(() => {
           const ok = document.querySelector('.pop-usual .btn-usual-ok, .btn-usual-ok') as HTMLElement;
-          if (ok) ok.click();
-        });
-        await logNormalDelay(1000, 0.2);
+          if (ok && ok.offsetParent !== null) {
+            const z = (window as any).$ || (window as any).Zepto;
+            if (z) z(ok).trigger('tap');
+            ok.click();
+          }
+        }).catch(() => null);
+
+        // Await draw animation crystal / action transition
+        console.log('[EventEngine] Awaiting draw animation crystal...');
+        await logNormalDelay(1500, 0.15);
+
+        // Tap screen to skip crystal animation ("tap the tap")
+        console.log('[EventEngine] Tapping screen to skip crystal animation...');
+        await this.page.touchscreen.tap(240, 360).catch(() => null);
+        await logNormalDelay(500, 0.1);
+
+        // Fast-skip: Reload immediately to skip loot roll and return to gacha index
+        console.log('[EventEngine] Reloading to skip loot roll...');
+        await this.page.evaluate((destUrl) => {
+          const hash = destUrl.substring(destUrl.indexOf('#'));
+          window.location.hash = hash;
+        }, gachaUrl);
+        await this.page.reload({ waitUntil: 'networkidle2' }).catch(() => null);
+        await logNormalDelay(1800, 0.2);
+
+        // Check if reset button is now available after draw
+        const resetAfterDraw = await this.executeEventBoxReset(eventId);
+        if (resetAfterDraw) {
+          boxesCleared++;
+          console.log(`🎉 [EventEngine] ✅ Box #${state.boxNum} cleared and reset! (Total cleared: ${boxesCleared})`);
+          onProgress?.({
+            cycle,
+            boxNumber: state.boxNum,
+            tokensRemaining: finalTokens,
+            boxesCleared,
+            status: 'COMPLETED',
+            message: `Cleared and reset Box #${state.boxNum}`
+          });
+        }
         continue;
       }
 
-      // Check for available draw button (e.g. Draw 100, Draw All, or Draw 10)
-      const drawn = await this.page.evaluate(() => {
-        const drawBtns = Array.from(document.querySelectorAll('.btn-draw, .btn-gacha-draw, .btn-draw-all, .btn-draw-100'));
-        const activeBtn = drawBtns.find(b => (b as HTMLElement).offsetParent !== null && !b.classList.contains('disable')) as HTMLElement;
-        if (activeBtn) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(activeBtn).trigger('tap');
-          activeBtn.click();
-          return true;
-        }
-        return false;
-      });
-
-      if (!drawn) {
-        console.log('[EventEngine] No further tokens or draw buttons available.');
+      // Case C: Neither Drawbox nor Reset available
+      if (state.tokenCount !== null && state.tokenCount < 2) {
+        console.log('[EventEngine] 🏁 Tokens fully depleted! Stopping.');
         break;
       }
 
-      drawsProcessed++;
-      console.log(`[EventEngine] [Batch ${drawsProcessed}] Draw submitted, dismissing result...`);
-      await logNormalDelay(1200, 0.2);
-      await this.dismissPopupsAndResults();
-      await logNormalDelay(600, 0.15);
+      // If drawbox button missing but has tokens, wait once or check if out of boxes
+      console.log('[EventEngine] ⚠️ No Draw 1 Drawbox or Reset button found. Retrying page load once...');
+      await this.page.reload({ waitUntil: 'networkidle2' }).catch(() => null);
+      await logNormalDelay(2500, 0.2);
+
+      const retryAvailable = await this.page.evaluate(() => {
+        return !!document.querySelector('.btn-bulk-play-box, .btn-reset, .btn-draw-all');
+      });
+      if (!retryAvailable) {
+        console.log('[EventEngine] No drawbox actions available after retry. Stopping.');
+        break;
+      }
     }
 
-    return { drawsProcessed, message: `Processed ${drawsProcessed} token draw batches.` };
+    const totalDurationMs = Date.now() - startTime;
+    const tokensSpent = (initialTokens !== null && finalTokens !== null) ? Math.max(0, initialTokens - finalTokens) : 0;
+
+    console.log(`\n========================================================================`);
+    console.log(`🎉 [EventEngine] Event Token Drawbox Session Finished!`);
+    console.log(`   Boxes Cleared: ${boxesCleared}`);
+    console.log(`   Tokens Spent:  ${tokensSpent.toLocaleString()} (Remaining: ${finalTokens?.toLocaleString() ?? 'Unknown'})`);
+    console.log(`   Duration:      ${(totalDurationMs / 1000).toFixed(1)}s`);
+    console.log(`========================================================================\n`);
+
+    return {
+      eventId,
+      initialTokens,
+      finalTokens,
+      tokensSpent,
+      boxesCleared,
+      totalDurationMs,
+      status: this.stopRequested ? 'STOPPED' : (finalTokens !== null && finalTokens < 2 ? 'DEPLETED' : 'COMPLETED')
+    };
+  }
+
+  /**
+   * Detects, scrolls to, clicks, and confirms the Reset Drawbox modal for events.
+   */
+  private async executeEventBoxReset(eventId: string): Promise<boolean> {
+    const gachaUrl = `https://game.granbluefantasy.jp/#event/treasureraid${eventId}/gacha`;
+
+    // 1. Check if reset button is available
+    const hasReset = await this.page.evaluate(() => {
+      const btn = document.querySelector('.btn-reset') as HTMLElement;
+      return !!btn && btn.offsetParent !== null && !btn.classList.contains('disable');
+    });
+
+    if (!hasReset) return false;
+
+    console.log('[EventEngine] Tapping "Reset Drawbox" button...');
+    await this.page.evaluate(() => {
+      const btn = document.querySelector('.btn-reset') as HTMLElement;
+      if (btn) {
+        btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const z = (window as any).$ || (window as any).Zepto;
+        if (z) z(btn).trigger('tap');
+        btn.click();
+      }
+    });
+
+    await logNormalDelay(1000, 0.15);
+
+    // 2. Confirm modal (.pop-usual .btn-usual-ok)
+    const confirmed = await this.page.evaluate(() => {
+      const ok = document.querySelector('.pop-usual .btn-usual-ok, .btn-usual-ok, .btn-reset-confirm') as HTMLElement;
+      if (ok && ok.offsetParent !== null) {
+        const z = (window as any).$ || (window as any).Zepto;
+        if (z) z(ok).trigger('tap');
+        ok.click();
+        return true;
+      }
+      return false;
+    });
+
+    if (confirmed) {
+      console.log('[EventEngine] Confirmed Reset Drawbox modal.');
+      await logNormalDelay(1200, 0.15);
+    }
+
+    // 3. Reload to mount fresh next drawbox
+    console.log('[EventEngine] Reloading to mount next drawbox...');
+    await this.page.evaluate((destUrl) => {
+      const hash = destUrl.substring(destUrl.indexOf('#'));
+      window.location.hash = hash;
+    }, gachaUrl);
+    await this.page.reload({ waitUntil: 'networkidle2' }).catch(() => null);
+    await logNormalDelay(1800, 0.2);
+
+    return true;
+  }
+
+  /**
+   * Draws event token boxes (Senka Gacha) - delegates to runClearTokenGachaLoop.
+   */
+  public async runDrawTokenGacha(eventIdExplicit?: string, maxBoxes = 200): Promise<{ drawsProcessed: number; message: string }> {
+    const summary = await this.runClearTokenGachaLoop(eventIdExplicit, maxBoxes);
+    return {
+      drawsProcessed: summary.boxesCleared,
+      message: `Cleared ${summary.boxesCleared} boxes, spent ${summary.tokensSpent.toLocaleString()} tokens.`
+    };
   }
 
   /**

@@ -101,6 +101,7 @@ export interface WorkflowTemplate {
   batchClaimSize?: number;  // Fixed override for pending batch claim
   minHpPct?: number;        // Minimum boss HP% filter for raid join (e.g. 50)
   maxPlayers?: number;      // Maximum players filter for raid join (e.g. 5)
+  minRaidScore?: number;    // Minimum viability score (0-100) to join raid (default: 40)
   logPath?: string;         // Custom path to drop log (e.g. 'logs/gb-pbhl.md')
 }
 

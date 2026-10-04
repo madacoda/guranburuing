@@ -5,6 +5,7 @@ import path from 'path';
 import { SentinelWatchdog } from '../sentinel-watchdog.js';
 import { AlertRelay } from '../alert-relay.js';
 import { DropLogger } from './drop-logger.js';
+import { discordPresence } from '../relay/discord-presence.js';
 import { ProSkipEngine } from './pro-skip.engine.js';
 import {
   humanizedClick,
@@ -20,6 +21,8 @@ import {
   WorkflowRunResult,
   WorkflowSummary
 } from '../types/workflow.types.js';
+import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions } from './raid-evaluator.js';
+import { AccountRegistry } from '../auth/account-registry.js';
 
 export interface WorkflowLoopOptions {
   runs?: number;
@@ -32,6 +35,7 @@ export interface WorkflowLoopOptions {
 export class UniversalWorkflowEngine {
   private stopRequested = false;
   private totalGoldBarsAccumulated = 0;
+  private totalBlueChestsAccumulated = 0;
   private totalHonorsAccumulated = 0;
   private totalLootItemsAccumulated = 0;
   private currentRaidId: string = 'N/A';
@@ -47,10 +51,14 @@ export class UniversalWorkflowEngine {
   private currentDropLogPath?: string;
   private currentWorkflowLogPath = 'logs/workflow.md';
   private currentBattleHadGoldBar = false;
+  private currentBattleHadBlueChest = false;
   private totalCompletedRuns = 0;
   private dailyCatalogCache: any[] | null = null;
   private totalJoinedAndClearedBattles = 0;
   private lastStartFailureWasRaidLimit = false;
+  private lastStartFailureWasRaidWait = false;
+  private deadRaidIds = new Map<string, number>();
+  private playerName?: string;
 
   constructor(
     private page: Page,
@@ -60,7 +68,39 @@ export class UniversalWorkflowEngine {
   ) {
     setSpeedProfile(template.speedProfile || 'fast');
     this.currentBatchThreshold = this.calculateNextBatchThreshold();
+    const accConfig = AccountRegistry.getAccountById(this.accountId);
+    this.playerName = accConfig?.name || this.accountId;
+    this.sentinel?.setSessionContext?.({
+      accountId: this.accountId,
+      playerName: this.playerName,
+      questName: this.template.name,
+    });
     this.setupResponseListener();
+  }
+
+  public async syncInGamePlayerName(): Promise<string> {
+    try {
+      if (typeof this.page.evaluate === 'function') {
+        const inGameName = await this.page.evaluate(() => {
+          const Game = (window as any).Game;
+          const nameEl = document.querySelector('.prt-user-name .txt-user-name, .prt-user-name, .txt-user-name, .prt-status-user-name');
+          if (nameEl?.textContent?.trim()) return nameEl.textContent.trim();
+          if (Game?.userName) return String(Game.userName).trim();
+          return null;
+        }).catch(() => null);
+
+        if (inGameName && inGameName !== 'Player') {
+          this.playerName = inGameName;
+          this.sentinel?.setSessionContext?.({
+            accountId: this.accountId,
+            playerName: this.playerName,
+            questName: this.template.name,
+          });
+          return inGameName;
+        }
+      }
+    } catch {}
+    return this.playerName || this.accountId;
   }
 
   public updatePage(newPage: Page): void {
@@ -109,7 +149,10 @@ export class UniversalWorkflowEngine {
         ) {
           const json = await res.json().catch(() => null);
           if (json) {
-            if (json.raid_id) this.currentRaidId = String(json.raid_id);
+            if (json.raid_id) {
+              this.currentRaidId = String(json.raid_id);
+              this.sentinel?.setSessionContext?.({ raidId: this.currentRaidId });
+            }
             const serverPoint =
               (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
               (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null) ??
@@ -201,6 +244,7 @@ export class UniversalWorkflowEngine {
             }
 
             this.checkForGoldBarDrop(json);
+            this.checkForBlueChestDrop(json);
           }
         }
       } catch {
@@ -390,6 +434,66 @@ export class UniversalWorkflowEngine {
   }
 
   /**
+   * Checks reward payload for Blue Chest (special_reward_flag / box_type 11 / "特別報酬").
+   */
+  private checkForBlueChestDrop(payload: any): boolean {
+    if (!payload) return false;
+    let found = false;
+
+    if (payload.special_reward_flag || payload.special_reward || payload.reward_box_11) {
+      found = true;
+    }
+
+    if (!found) {
+      const traverse = (node: any) => {
+        if (!node || found) return;
+        if (typeof node === 'object') {
+          const boxType = String(node.box_type || node.box_id || node.box || node.reward_type || '');
+          if (boxType === '11') {
+            found = true;
+            return;
+          }
+          for (const key of Object.keys(node)) {
+            traverse(node[key]);
+          }
+        }
+      };
+      traverse(payload);
+    }
+
+    if (!found && typeof payload.data === 'string') {
+      try {
+        if (
+          payload.data.includes('box_type="11"') ||
+          payload.data.includes('box-type="11"') ||
+          payload.data.includes('prt-special-reward') ||
+          payload.data.includes('特別報酬')
+        ) {
+          found = true;
+        } else {
+          const decoded = decodeURIComponent(payload.data);
+          if (
+            decoded.includes('box_type="11"') ||
+            decoded.includes('box-type="11"') ||
+            decoded.includes('prt-special-reward') ||
+            decoded.includes('特別報酬') ||
+            decoded.includes('Special Reward')
+          ) {
+            found = true;
+          }
+        }
+      } catch {}
+    }
+
+    if (found && !this.currentBattleHadBlueChest) {
+      this.currentBattleHadBlueChest = true;
+      this.totalBlueChestsAccumulated++;
+    }
+
+    return found;
+  }
+
+  /**
    * Inspects result DOM for on-screen Gold Bar drop indicators.
    */
   private async inspectDomForGoldBar(): Promise<{ hasGoldBar: boolean; raidId: string }> {
@@ -421,6 +525,50 @@ export class UniversalWorkflowEngine {
       });
     } catch {
       return { hasGoldBar: false, raidId: '' };
+    }
+  }
+
+  /**
+   * Inspects result DOM for on-screen Blue Chest drop indicators.
+   */
+  private async inspectDomForBlueChest(): Promise<boolean> {
+    try {
+      return await this.page.evaluate(() => {
+        const hasSpecialRewardElement = !!document.querySelector([
+          '.prt-special-reward',
+          '.prt-special-reward-box',
+          '.ico-special-reward',
+          '.box-special',
+          '.prt-box-special',
+          '.special-reward',
+          '[data-box-type="11"]',
+          '.box-11',
+          '.reward-box-11',
+          'div.prt-special-item',
+          'div.prt-special-box'
+        ].join(', '));
+
+        if (hasSpecialRewardElement) return true;
+
+        const text = document.body?.innerText || '';
+        if (text.includes('特別報酬') || text.includes('Special Reward') || text.includes('Blue Chest')) {
+          return true;
+        }
+
+        try {
+          const stage = (window as any).stage;
+          if (stage && stage.g && stage.g.result) {
+            const res = stage.g.result;
+            if (res.special_reward_flag || res.special_reward || res.reward_box_11) {
+              return true;
+            }
+          }
+        } catch {}
+
+        return false;
+      });
+    } catch {
+      return false;
     }
   }
 
@@ -598,6 +746,8 @@ export class UniversalWorkflowEngine {
     this.totalJoinedAndClearedBattles = 0;
     this.lastStartFailureWasRaidLimit = false;
 
+    await this.syncInGamePlayerName();
+
     const isAssistRaid = this.template.questUrl.includes('assist');
 
     // Canonical drop log resolution (for Gold Bar ledger & raid statistics)
@@ -627,7 +777,21 @@ export class UniversalWorkflowEngine {
       this.ensureLogDirExists(dropLogPath);
       this.dropLogger = new DropLogger(path.resolve(process.cwd(), dropLogPath), this.template.name);
       const initialStats = this.dropLogger.getStats();
-      console.log(`[Workflow] Drop Logger active: ${dropLogPath} (${initialStats.totalBattles} historical battles, ${initialStats.goldBars} Gold Bars, dry streak: ${initialStats.currentDryStreak})`);
+      console.log(`[Workflow] Drop Logger active: ${dropLogPath} (${initialStats.totalBattles} historical battles, ${initialStats.blueChests} Blue Chests, ${initialStats.goldBars} Gold Bars, dry streak: ${initialStats.currentDryStreak} ${initialStats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
+
+      discordPresence.updateStatus({
+        raidName: this.template.name,
+        runNumber: initialStats.totalBattles + 1,
+        totalRuns: runs === Infinity ? undefined : runs,
+        goldBars: initialStats.goldBars,
+        goldBarsToday: initialStats.goldBarsToday,
+        goldBarsSession: 0,
+        blueChests: initialStats.blueChests,
+        dryStreak: initialStats.currentDryStreak,
+        dryStreakMode: initialStats.dryStreakMode,
+        status: 'Searching',
+        accountId: this.accountId
+      }, true);
     }
 
     this.ensureLogDirExists(workflowLogPath);
@@ -674,6 +838,7 @@ export class UniversalWorkflowEngine {
       this.currentScore = 0;
       this.currentTurn = 1;
       this.currentBattleHadGoldBar = false;
+      this.currentBattleHadBlueChest = false;
       this.totalCompletedRuns = totalCompleted;
 
       // Check proactive pending battle batch limit in assist mode
@@ -690,6 +855,28 @@ export class UniversalWorkflowEngine {
       console.log(`------------------------------------------------------------------------`);
       console.log(`[${this.accountId}] [Run ${runNumber}] Initiating Workflow Run...`);
       console.log(`------------------------------------------------------------------------`);
+
+      this.sentinel?.setSessionContext?.({
+        accountId: this.accountId,
+        questName: this.template.name,
+        runNumber: runNumber,
+      });
+
+      const currentStats = this.dropLogger?.getStats();
+      discordPresence.updateStatus({
+        raidName: this.template.name,
+        runNumber: currentStats ? (currentStats.totalBattles + 1) : runNumber,
+        totalRuns: runs === Infinity ? undefined : runs,
+        goldBars: currentStats ? currentStats.goldBars : this.totalGoldBarsAccumulated,
+        goldBarsToday: currentStats?.goldBarsToday,
+        goldBarsSession: this.totalGoldBarsAccumulated,
+        blueChests: currentStats ? currentStats.blueChests : this.totalBlueChestsAccumulated,
+        dryStreak: currentStats ? currentStats.currentDryStreak : undefined,
+        dryStreakMode: currentStats ? currentStats.dryStreakMode : undefined,
+        status: 'In Combat',
+        turn: 1,
+        accountId: this.accountId
+      });
 
       try {
         // Routine Mode: Directly navigate if questUrl provided and execute pipeline without raid/supporter initialization
@@ -732,6 +919,11 @@ export class UniversalWorkflowEngine {
             consecutiveStartFailures = 0;
             continue;
           }
+          if (this.lastStartFailureWasRaidWait) {
+            this.lastStartFailureWasRaidWait = false;
+            consecutiveStartFailures = 0;
+            continue;
+          }
           consecutiveStartFailures++;
 
           // Assert safety / check CAPTCHA immediately
@@ -757,6 +949,14 @@ export class UniversalWorkflowEngine {
             continue;
           }
 
+          // Intercept ended/unavailable raids: do NOT penalize consecutive start failures!
+          if (diag.reason === 'Previous battle concluded or raid no longer available') {
+            console.log(`[Workflow] Raid battle concluded or became unavailable. Resetting failure counter and returning to search...`);
+            consecutiveStartFailures = 0;
+            await logNormalDelay(1200, 0.12);
+            continue;
+          }
+
           if (consecutiveStartFailures >= MAX_START_FAILURES) {
             console.error(`\n========================================================================`);
             console.error(`  🚨 WORKFLOW HALTED: QUEST START FAILED ${consecutiveStartFailures} CONSECUTIVE TIMES`);
@@ -773,8 +973,8 @@ export class UniversalWorkflowEngine {
             process.stdout.write('\x07\x07\x07');
 
             if (diag.isCaptcha) {
-              console.log('[Workflow] ⏱️ Waiting for user to solve CAPTCHA in browser (up to 5m)...');
-              const solved = await this.sentinel.waitForUserToSolveCaptcha(300000);
+              console.log('[Workflow] 🚨 Verification challenge detected at quest start. Entering resolution...');
+              const solved = await this.sentinel.handleVerificationChallenge();
               if (solved) {
                 consecutiveStartFailures = 0;
                 continue;
@@ -820,13 +1020,37 @@ export class UniversalWorkflowEngine {
         // Record in DropLogger if assist mode or drop logger active
         if (this.dropLogger && (isAssistRaid || dropLogPath)) {
           const targetMet = this.template.targetScore ? this.currentScore >= this.template.targetScore : true;
-          this.dropLogger.logBattle({
+          const hasBlueChest = this.currentBattleHadGoldBar || this.currentBattleHadBlueChest || targetMet;
+          const { stats } = this.dropLogger.logBattle({
             raidId: this.currentRaidId,
             turns: this.currentTurn,
             honors: this.currentScore,
             targetMet,
+            hasBlueChest,
             hasGoldBar: this.currentBattleHadGoldBar
           });
+
+          discordPresence.updateStatus({
+            raidName: this.template.name,
+            runNumber: stats.totalBattles,
+            totalRuns: runs === Infinity ? undefined : runs,
+            goldBars: stats.goldBars,
+            goldBarsToday: stats.goldBarsToday,
+            goldBarsSession: this.totalGoldBarsAccumulated,
+            blueChests: stats.blueChests,
+            dryStreak: stats.currentDryStreak,
+            dryStreakMode: stats.dryStreakMode,
+            honors: this.currentScore,
+            status: 'Searching'
+          }, true);
+        } else {
+          discordPresence.updateStatus({
+            raidName: this.template.name,
+            runNumber,
+            totalRuns: runs === Infinity ? undefined : runs,
+            honors: this.currentScore,
+            status: 'Searching'
+          }, true);
         }
 
         this.appendRunLog(workflowLogPath, result);
@@ -846,13 +1070,13 @@ export class UniversalWorkflowEngine {
           console.error(`========================================================================\n`);
 
           process.stdout.write('\x07\x07\x07');
-          const solved = await this.sentinel.waitForUserToSolveCaptcha(600000); // Wait up to 10 minutes for human solution
+          const solved = await this.sentinel.handleVerificationChallenge();
           if (solved) {
-            console.log(`[${this.accountId}] ✅ CAPTCHA solved by operator! Resuming in 3s...\n`);
+            console.log(`[${this.playerName || this.accountId}] ✅ CAPTCHA solved by operator! Resuming in 3s...\n`);
             await new Promise(r => setTimeout(r, 3000));
             continue;
           } else {
-            console.error(`[${this.accountId}] 🛑 Manual verification wait timed out or aborted. Stopping workflow.`);
+            console.error(`[${this.playerName || this.accountId}] 🛑 Verification wait timed out or aborted. Stopping workflow.`);
             break;
           }
         }
@@ -868,6 +1092,10 @@ export class UniversalWorkflowEngine {
       console.log('\n[Workflow] Final sweep: Claiming remaining pending battles...');
       await this.claimPendingBattles(activeLogPath, totalCompleted);
     }
+
+    discordPresence.updateStatus({
+      status: 'Finished'
+    }, true);
 
     const totalDurationMs = Date.now() - startTime;
     const avgSec = totalCompleted > 0 ? (totalDurationMs / totalCompleted / 1000) : 0;
@@ -2872,12 +3100,22 @@ export class UniversalWorkflowEngine {
       await new Promise(r => setTimeout(r, 150));
     }
 
-    // Inspect DOM on result screen for Gold Bar before dismissing
+    // Inspect DOM on result screen for Gold Bar and Blue Chest before dismissing
     const domCheck = await this.inspectDomForGoldBar();
     if (domCheck.hasGoldBar && !this.currentBattleHadGoldBar) {
       this.currentBattleHadGoldBar = true;
+      this.currentBattleHadBlueChest = true;
       this.totalGoldBarsAccumulated++;
+      this.totalBlueChestsAccumulated++;
       this.broadcastGoldBarFound(domCheck.raidId || this.currentRaidId);
+    }
+
+    if (!this.currentBattleHadBlueChest) {
+      const blueChestDom = await this.inspectDomForBlueChest();
+      if (blueChestDom) {
+        this.currentBattleHadBlueChest = true;
+        this.totalBlueChestsAccumulated++;
+      }
     }
 
     // 3. Dismiss result screen OK buttons
@@ -3043,7 +3281,15 @@ export class UniversalWorkflowEngine {
           const { buffer: shotBuf, path: proofPath } = await this.captureCleanLootProof(finalRaidId);
 
           if (this.dropLogger) {
-            this.dropLogger.recordPendingGoldBar(finalRaidId, proofPath);
+            const stats = this.dropLogger.recordPendingGoldBar(finalRaidId, proofPath);
+            discordPresence.updateStatus({
+              raidName: this.template.name,
+              goldBars: stats.goldBars,
+              blueChests: stats.blueChests,
+              dryStreak: stats.currentDryStreak,
+              dryStreakMode: stats.dryStreakMode,
+              status: 'Claiming Pending'
+            }, true);
             await this.dropLogger.notifyGoldBarDrop({
               raidId: finalRaidId,
               honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
@@ -3304,7 +3550,17 @@ export class UniversalWorkflowEngine {
         ) {
           isRaidBackupLimit = true;
           reason = `In-game modal detected: "${popupText.replace(/\s+/g, ' ') || 'Raids You can only provide backup in up to three raid battles at once.'}"`;
-        } else if (combined.includes('access verification') || combined.includes('verify access') || combined.includes('画像認証') || combined.includes('認証')) {
+        } else if (
+          combined.includes('access verification') ||
+          combined.includes('verify access') ||
+          combined.includes('verification challenge') ||
+          combined.includes('画像認証') ||
+          combined.includes('アクセス認証') ||
+          combined.includes('セキュリティ認証') ||
+          combined.includes('不正アクセス防止') ||
+          combined.includes('歪んでいる文字') ||
+          combined.includes('表示されている画像')
+        ) {
           isCaptcha = true;
           reason = 'Access Verification / CAPTCHA challenge detected';
         } else if (combined.includes('not enough required items') || combined.includes('トレジャーが足りません') || combined.includes('chunky meat') || combined.includes('お肉')) {
@@ -3536,7 +3792,7 @@ export class UniversalWorkflowEngine {
 
     // Scan slots for eligible candidate
     const t0 = Date.now();
-    const maxSearchMs = 30000;
+    const maxSearchMs = 45000;
     let raidClicked = false;
     let slotCycleIndex = 0;
 
@@ -3559,9 +3815,9 @@ export class UniversalWorkflowEngine {
       await this.dismissFullOrEndedRaidPopup();
 
       // 2. Scan cards in #prt-search-list
-      const candidate = await this.page.evaluate((minHp: number, maxP: number) => {
-        const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid'));
-        const parsed = cards.map((c, i) => {
+      const rawCandidates: RaidCandidate[] = await this.page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search'));
+        return cards.map((c, i) => {
           const el = c as HTMLElement;
           if (el.offsetParent === null) return null;
 
@@ -3588,77 +3844,113 @@ export class UniversalWorkflowEngine {
             y: rect.top + rect.height / 2
           };
         }).filter(Boolean) as any[];
+      }).catch(() => []);
 
-        if (parsed.length === 0) return null;
+      // Prune dead raid IDs older than 2 minutes
+      const now = Date.now();
+      for (const [id, ts] of this.deadRaidIds.entries()) {
+        if (now - ts > 120000) this.deadRaidIds.delete(id);
+      }
 
-        // Filter by minHp (if configured) and maxPlayers
-        const eligible = parsed.filter(c => c.hpPct >= minHp && c.players <= maxP);
-        if (eligible.length > 0) {
-          // Sort by highest HP percentage first, then least players
-          eligible.sort((a, b) => b.hpPct - a.hpPct || a.players - b.players);
-          return eligible[0];
-        }
+      const evalOptions: RaidEvaluationOptions = {
+        minScore: this.template.minRaidScore ?? RaidEvaluator.DEFAULT_MIN_SCORE,
+        minHpPct: this.template.minHpPct ?? RaidEvaluator.DEFAULT_MIN_HP,
+        maxPlayers: this.template.maxPlayers ?? RaidEvaluator.DEFAULT_MAX_PLAYERS,
+        deadRaidIds: Array.from(this.deadRaidIds.keys())
+      };
 
-        // Fallback: pick the highest HP card available if any exist
-        parsed.sort((a, b) => b.hpPct - a.hpPct);
-        return parsed[0];
-      }, this.template.minHpPct || 0, this.template.maxPlayers || 30).catch(() => null);
+      const selection = RaidEvaluator.selectBestCandidate(rawCandidates, evalOptions);
+      const candidate = selection.best;
 
       if (candidate) {
-        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30}). Joining...`);
+        this.currentRaidId = candidate.raidId || 'pending';
+        this.sentinel?.setSessionContext?.({
+          raidId: candidate.raidId,
+          hpPct: candidate.hpPct,
+          players: `${candidate.players}/${candidate.maxPlayers || 30}`
+        });
 
-        const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid');
+        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, Score: ${candidate.score} pt [Grade ${candidate.grade}], HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30}). Joining...`);
+
+        const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search');
         const targetCard = cardElements[candidate.index];
         if (targetCard) {
           await humanizedClick(this.page, targetCard);
-        } else {
+        } else if (candidate.x && candidate.y) {
           await this.page.touchscreen.tap(candidate.x, candidate.y).catch(() => null);
         }
+
+        // Await transition: either #quest/supporter_raid mounts OR a popup modal appears
+        const transitionState = await this.waitForSupporterOrModal(10000);
+
+        if (transitionState === 'FULL_OR_ENDED') {
+          console.warn(`[Workflow] Raid ${candidate.raidId || ''} was already full or ended. Blacklisting and continuing search...`);
+          if (candidate.raidId) {
+            this.deadRaidIds.set(candidate.raidId, Date.now());
+          }
+          await this.dismissFullOrEndedRaidPopup();
+          const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
+          if (refreshBtn) {
+            await humanizedClick(this.page, refreshBtn);
+            await logNormalDelay(800, 0.12);
+          }
+          if (Date.now() - t0 < maxSearchMs) {
+            continue;
+          }
+          this.lastStartFailureWasRaidWait = true;
+          return false;
+        }
+
+        if (transitionState === 'ACTIVE_RAID_LIMIT_3') {
+          console.warn('[Workflow] ⚠️ Active raid limit reached (3 simultaneous battles in progress).');
+          this.lastStartFailureWasRaidLimit = true;
+          await this.resolveLingeringRaidLimit(logPath, currentRuns);
+          return false;
+        }
+
+        if (transitionState === 'PENDING_LIMIT') {
+          console.warn('[Workflow] Pending battle limit reached. Clearing all unclaimed battles...');
+          await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+          return false;
+        }
+
+        if (transitionState === 'DIRECT_COMBAT') {
+          return await this.waitForBattleToMount(12000);
+        }
+
+        if (transitionState === 'TIMEOUT') {
+          console.warn('[Workflow] Supporter screen navigation timed out.');
+          this.lastStartFailureWasRaidWait = true;
+          return false;
+        }
+
         raidClicked = true;
         break;
-      }
-
-      // If all slots checked in this pass, click search refresh if available
-      if (slotCycleIndex % slotList.length === 0) {
-        const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
-        if (refreshBtn) {
-          await humanizedClick(this.page, refreshBtn);
-          await logNormalDelay(1000, 0.15);
-        } else {
-          await new Promise(r => setTimeout(r, 1000));
-        }
       } else {
-        await logNormalDelay(350, 0.1);
+        if (selection.nonViableCandidates.length > 0) {
+          const top = selection.nonViableCandidates[0];
+          console.log(`[Workflow] Slot ${currentSlot}: ${rawCandidates.length} raid(s) scanned, none meet viability score (Top: ${top.score || 0} pt [Grade ${top.grade || 'F'}, HP ${top.hpPct}%, ${top.players}/${top.maxPlayers} players] - ${top.reason}). Skipping...`);
+        }
+
+        // If all slots checked in this pass, click search refresh if available
+        if (slotCycleIndex % slotList.length === 0) {
+          const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
+          if (refreshBtn) {
+            await humanizedClick(this.page, refreshBtn);
+            await logNormalDelay(1000, 0.15);
+          } else {
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        } else {
+          await logNormalDelay(350, 0.1);
+        }
       }
     }
 
     if (!raidClicked) {
-      console.warn('[Workflow] No eligible raid found within search window.');
-      return false;
-    }
-
-    // 1. Await transition: either #quest/supporter_raid mounts OR a popup modal appears
-    const transitionState = await this.waitForSupporterOrModal(10000);
-    if (transitionState === 'FULL_OR_ENDED') {
-      console.warn('[Workflow] Raid was already full or ended. Retrying next search...');
-      return false;
-    }
-    if (transitionState === 'ACTIVE_RAID_LIMIT_3') {
-      console.warn('[Workflow] ⚠️ Active raid limit reached (3 simultaneous battles in progress).');
-      this.lastStartFailureWasRaidLimit = true;
-      await this.resolveLingeringRaidLimit(logPath, currentRuns);
-      return false;
-    }
-    if (transitionState === 'PENDING_LIMIT') {
-      console.warn('[Workflow] Pending battle limit reached. Clearing all unclaimed battles...');
-      await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-      return false;
-    }
-    if (transitionState === 'DIRECT_COMBAT') {
-      return await this.waitForBattleToMount(12000);
-    }
-    if (transitionState === 'TIMEOUT') {
-      console.warn('[Workflow] Supporter screen navigation timed out.');
+      console.log('[Workflow] No high-quality raids found within search window. Pausing briefly to allow fresh raids to appear...');
+      this.lastStartFailureWasRaidWait = true;
+      await logNormalDelay(2500, 0.15);
       return false;
     }
 

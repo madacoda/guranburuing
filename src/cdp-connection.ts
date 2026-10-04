@@ -33,18 +33,7 @@ export class CdpConnectionManager {
     // Enforce correct browser mode (Headless vs Windowed) and port/profile before connecting
     if (config.AUTO_LAUNCH_CHROME) {
       try {
-        const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
-        let cmd = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
-        if (isHeadless) {
-          cmd += ' -Headless';
-        } else {
-          cmd += ' -Windowed';
-        }
-        if (port) cmd += ` -Port ${port}`;
-        if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
-        if (proxy) cmd += ` -Proxy "${proxy}"`;
-
-        execSync(cmd, { stdio: 'inherit' });
+        this.launchChromeProcess(isHeadless, port, profileDir, proxy);
       } catch (spawnErr: any) {
         console.warn('[CDP] Mode verification launcher notice:', spawnErr.message);
       }
@@ -95,17 +84,7 @@ export class CdpConnectionManager {
         if (attempt === 1 && config.AUTO_LAUNCH_CHROME) {
           console.log(`[CDP] Auto-launching Chrome (Headless: ${isHeadless})...`);
           try {
-            const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
-            let cmd = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
-            if (isHeadless) {
-              cmd += ' -Headless';
-            } else {
-              cmd += ' -Windowed';
-            }
-            if (port) cmd += ` -Port ${port}`;
-            if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
-            if (proxy) cmd += ` -Proxy "${proxy}"`;
-            execSync(cmd, { stdio: 'inherit' });
+            this.launchChromeProcess(isHeadless, port, profileDir, proxy);
             continue;
           } catch (spawnErr: any) {
             console.warn('[CDP] Auto-launch attempt warning:', spawnErr.message);
@@ -153,6 +132,29 @@ export class CdpConnectionManager {
   public getBrowser(): Browser {
     if (!this.browser) throw new Error('[CDP] No active Browser attached.');
     return this.browser;
+  }
+
+  private launchChromeProcess(isHeadless: boolean, port: number, profileDir: string, proxy: string): void {
+    const isWin = process.platform === 'win32';
+    if (isWin) {
+      const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
+      let cmd = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
+      if (isHeadless) cmd += ' -Headless';
+      else cmd += ' -Windowed';
+      if (port) cmd += ` -Port ${port}`;
+      if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
+      if (proxy) cmd += ` -Proxy "${proxy}"`;
+      execSync(cmd, { stdio: 'inherit' });
+    } else {
+      const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.sh');
+      let cmd = `bash "${scriptPath}"`;
+      if (isHeadless) cmd += ' --headless';
+      else cmd += ' --windowed';
+      if (port) cmd += ` --port ${port}`;
+      if (profileDir) cmd += ` --user-data-dir "${profileDir}"`;
+      if (proxy) cmd += ` --proxy "${proxy}"`;
+      execSync(cmd, { stdio: 'inherit' });
+    }
   }
 
   public async disconnect(): Promise<void> {

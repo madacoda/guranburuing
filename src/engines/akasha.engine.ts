@@ -5,6 +5,8 @@ import { humanizedClick, humanReactionDelay, logNormalDelay, randomDelay } from 
 import fs from 'fs';
 import path from 'path';
 import { DropLogger, RaidCandidate, RaidWorkflowResult } from './drop-logger.js';
+import { RaidEvaluator } from './raid-evaluator.js';
+import { discordPresence } from '../relay/discord-presence.js';
 
 export interface AkashaJoinOptions {
   raidTarget: string; // Raid code or URL
@@ -109,8 +111,20 @@ export class AkashaEngine {
 
     const dropLogger = new DropLogger(logPath, 'Akasha HL');
     const initialStats = dropLogger.getStats();
-    console.log(`[AkashaEngine] Historical Log: ${initialStats.totalBattles} total battles, ${initialStats.goldBars} Gold Bars (${initialStats.battlesWithoutGb} battles without Gold Bar, current dry streak: ${initialStats.currentDryStreak})`);
+    console.log(`[AkashaEngine] Historical Log: ${initialStats.totalBattles} total battles, ${initialStats.blueChests} Blue Chests (${initialStats.blueChestRatePct}), ${initialStats.goldBars} Gold Bars (Dry streak: ${initialStats.currentDryStreak} ${initialStats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
 
+    discordPresence.updateStatus({
+      raidName: 'Akasha',
+      runNumber: 1,
+      totalRuns: runs === Infinity ? undefined : runs,
+      goldBars: initialStats.goldBars,
+      blueChests: initialStats.blueChests,
+      dryStreak: initialStats.currentDryStreak,
+      dryStreakMode: initialStats.dryStreakMode,
+      status: 'Searching'
+    }, true);
+
+    this.sentinel?.setSessionContext?.({ questName: 'Akasha HL' });
     this.setupResponseListener();
 
     // Initial safety check: clear pre-existing pending battles so we don't start near the 5-limit cap
@@ -124,10 +138,21 @@ export class AkashaEngine {
       console.log(`[AkashaEngine] [Run ${totalCompleted + 1}] Searching for eligible Akasha raid...`);
       console.log(`-----------------------------------------------------`);
 
+      discordPresence.updateStatus({
+        raidName: 'Akasha',
+        runNumber: totalCompleted + 1,
+        totalRuns: runs === Infinity ? undefined : runs,
+        status: 'Searching'
+      });
+
+      this.sentinel?.setSessionContext?.({ runNumber: totalCompleted + 1 });
       await this.sentinel.assertSafe();
 
       // 1. Scan #quest/assist (Finder tab, 3rd slot)
       const raidTarget = await this.findAndSelectRaid();
+      if (raidTarget?.raidId) {
+        this.sentinel?.setSessionContext?.({ raidId: raidTarget.raidId, hpPct: raidTarget.hpPct });
+      }
 
       // Check if pending limit modal was triggered during finder selection
       if (await this.isPendingLimitReached()) {
@@ -197,6 +222,9 @@ export class AkashaEngine {
     }
 
     console.log(`\n[AkashaEngine] Farming session concluded. Returning to #mypage...`);
+    discordPresence.updateStatus({
+      status: 'Finished'
+    }, true);
     await this.page.evaluate(() => { window.location.hash = '#mypage'; }).catch(() => null);
 
     const finalStats = dropLogger.getStats();
@@ -288,24 +316,23 @@ export class AkashaEngine {
 
     console.log(`[AkashaEngine] Scanned ${candidates.length} Akasha raids on screen.`);
 
-    // Priority 1: HP >= 75% && players <= 3
-    const prio1 = candidates.filter(c => c.hpPct >= 75 && c.players <= 3);
-    if (prio1.length > 0) {
-      prio1.sort((a, b) => b.hpPct - a.hpPct || a.players - b.players);
-      const best = prio1[0];
-      console.log(`[AkashaEngine] Selected raid: ID ${best.raidId} (HP: ${best.hpPct}%, Players: ${best.players}/30) [Priority 1 match]`);
-      await this.clickCandidateCard(best.index);
-      return best;
-    }
+    // Evaluate candidates with RaidEvaluator (HP > 85%, players <= 2 sweet spot; doomed raid rejection)
+    const selection = RaidEvaluator.selectBestCandidate(
+      candidates.map(c => ({
+        index: c.index,
+        raidId: c.raidId,
+        hpPct: c.hpPct,
+        players: c.players,
+        maxPlayers: 18
+      })),
+      { minScore: 40, minHpPct: 25, maxPlayers: 8 }
+    );
+    const best = selection.best;
 
-    // Priority 2: HP >= 60% && players <= 3 (strictly >= 60% minimum)
-    const prio2 = candidates.filter(c => c.hpPct >= 60 && c.players <= 3);
-    if (prio2.length > 0) {
-      prio2.sort((a, b) => b.hpPct - a.hpPct || a.players - b.players);
-      const best = prio2[0];
-      console.log(`[AkashaEngine] Selected raid: ID ${best.raidId} (HP: ${best.hpPct}%, Players: ${best.players}/30) [Priority 2 match]`);
+    if (best) {
+      console.log(`[AkashaEngine] Selected raid: ID ${best.raidId} (Score: ${best.score} pt [Grade ${best.grade}], HP: ${best.hpPct}%, Players: ${best.players}/18)`);
       await this.clickCandidateCard(best.index);
-      return best;
+      return best as any;
     }
 
     return null;
@@ -433,9 +460,20 @@ export class AkashaEngine {
         turns: 0,
         honors: 0,
         targetMet: false,
+        hasBlueChest: false,
         hasGoldBar: false
       });
-      console.log(`[AkashaEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Gold Bars: ${stats.goldBars} (${stats.battlesWithoutGb} battles without Gold Bar, dry streak: ${stats.currentDryStreak})`);
+      console.log(`[AkashaEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Blue: ${stats.blueChests} (${stats.blueChestRatePct}) | Gold Bars: ${stats.goldBars} (Dry streak: ${stats.currentDryStreak} ${stats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
+      discordPresence.updateStatus({
+        raidName: 'Akasha',
+        runNumber,
+        goldBars: stats.goldBars,
+        blueChests: stats.blueChests,
+        dryStreak: stats.currentDryStreak,
+        dryStreakMode: stats.dryStreakMode,
+        honors: 0,
+        status: 'Searching'
+      }, true);
       return { success: false, score: 0, turns: 0, durationMs: Date.now() - prepStartTime, goldBarFound: false, raidEndedEarly: true };
     }
     const prepElapsedSec = ((Date.now() - prepStartTime) / 1000).toFixed(1);
@@ -515,14 +553,27 @@ export class AkashaEngine {
 
     // Log battle to DropLogger
     const isTargetMet = this.currentScore >= targetScore || combatResult.status === 'TARGET_SCORE_REACHED';
+    const hasBlueChest = isTargetMet || this.currentScore >= 1428571;
     const { record, stats } = dropLogger.logBattle({
       raidId: raidCandidate?.raidId || 'UNKNOWN',
       turns: combatResult.turnsElapsed || 1,
       honors: this.currentScore,
       targetMet: isTargetMet,
+      hasBlueChest,
       hasGoldBar: false
     });
-    console.log(`[AkashaEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Gold Bars: ${stats.goldBars} (${stats.battlesWithoutGb} battles without Gold Bar, dry streak: ${stats.currentDryStreak})`);
+    console.log(`[AkashaEngine] [Run ${runNumber}] Logged to ${logPath} | Total: ${stats.totalBattles} battles | Blue: ${stats.blueChests} (${stats.blueChestRatePct}) | Gold Bars: ${stats.goldBars} (Dry streak: ${stats.currentDryStreak} ${stats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
+
+    discordPresence.updateStatus({
+      raidName: 'Akasha',
+      runNumber,
+      goldBars: stats.goldBars,
+      blueChests: stats.blueChests,
+      dryStreak: stats.currentDryStreak,
+      dryStreakMode: stats.dryStreakMode,
+      honors: this.currentScore,
+      status: 'Searching'
+    }, true);
 
     return {
       success: true,

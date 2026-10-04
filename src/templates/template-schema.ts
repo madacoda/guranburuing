@@ -303,6 +303,7 @@ export const WorkflowTemplateSchema = z.object({
   batchClaimSize: z.number().int().min(1).max(5).optional(),
   minHpPct: z.number().min(0).max(100).optional(),
   maxPlayers: z.number().int().min(1).max(30).optional(),
+  minRaidScore: z.number().min(0).max(100).optional(),
   logPath: z.string().optional(),
   steps: z.array(WorkflowStepSchema).min(1, 'Template must contain at least 1 workflow step')
 }).transform(val => {

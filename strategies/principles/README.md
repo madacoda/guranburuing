@@ -18,6 +18,8 @@ This repository directory contains the comprehensive, production-grade architect
 | **08** | **[Human Simulation Mathematics](file:///c:/laragon/www/gbf/strategies/principles/08_human_simulation_mathematics.md)** | **Kinematics & Biological Latency** | Fitts's Law, Flash & Hogan minimum jerk hypothesis, cubic Bézier spline interpolation, 2D Gaussian spatial jitter, log-normal delays. |
 | **09** | **[Mobile Companion UI Spec](file:///c:/laragon/www/gbf/strategies/principles/09_companion_ui_spec.md)** | **PWA Cockpit & Ergonomics** | Thumb-zone wireframes, resource gauges, live WebP screencast card, one-touch macro grid, emergency CAPTCHA full-screen alarm. |
 | **10** | **[Reference Implementation](file:///c:/laragon/www/gbf/strategies/principles/10_reference_implementation.md)** | **Production-Grade TypeScript Codebase** | Modular code: CDP connection manager, human motor driver, Sentinel watchdog, Pro Skip engine, Raid joiner engine, Fastify gateway. |
+| **11** | **[Senior Management Architecture](file:///c:/laragon/www/gbf/strategies/principles/11_senior_management_architecture.md)** | **Autonomous Swarm & Enterprise Ops** | Universal engine orchestrator, DSL compiler, multi-account isolation, drop auditing, recovery state machines. |
+| **12** | **[Discord Presence Architecture](file:///c:/laragon/www/gbf/strategies/principles/12_discord_presence_architecture.md)** | **Dual-Channel Live Rich Presence** | Bot Gateway v10 + Desktop IPC named pipe, real-time battle telemetry, daily/session Gold Bar tracking, rate limit immunity. |
 
 ---
 

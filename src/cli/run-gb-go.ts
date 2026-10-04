@@ -84,7 +84,7 @@ try {
     console.log('============================================================\n');
 
     if (sentinel) {
-      const solved = await sentinel.waitForUserToSolveCaptcha();
+      const solved = await sentinel.handleVerificationChallenge();
       if (solved) {
         console.log('🎉 Verification solved! You can now re-run gb-go safely.');
       }

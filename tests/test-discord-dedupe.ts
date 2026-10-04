@@ -56,7 +56,71 @@ if (dmSentCount > 1) {
 }
 console.log('  ✅ [PASS] DropLogger static raid deduplication verified');
 
+// 4. CAPTCHA Prompt Dispatch & Context Preservation (No Self-Suppression)
+let dispatchedPromptContent = '';
+let dispatchedForceFlag = false;
+
+(discordDmRelay as any).sendMessage = async (content: string, att: any, def: any, key: any, force: boolean) => {
+  dispatchedPromptContent = content;
+  dispatchedForceFlag = Boolean(force);
+  return { id: '123456789012345678', content, author: { id: 'b', username: 'b' }, timestamp: '' };
+};
+
+// Mock waitForReply so it returns immediately
+const origWaitForReply = discordDmRelay.waitForReply;
+(discordDmRelay as any).waitForReply = async (promptId: string) => {
+  if (promptId === '123456789012345678') return 'TEST_CODE_123';
+  return null;
+};
+
+const resolution = await discordDmRelay.requestCaptchaResolution(
+  Buffer.from('dummy'),
+  1000,
+  undefined,
+  {
+    accountId: 'acc1',
+    questName: 'GB Farm - Akasha HL',
+    raidId: '46970569946',
+    runNumber: 260,
+    hpPct: 73,
+    players: '2/18'
+  }
+);
+
+if (resolution !== 'TEST_CODE_123') {
+  throw new Error(`Expected resolution code 'TEST_CODE_123', got '${resolution}'`);
+}
+if (!dispatchedForceFlag) {
+  throw new Error('CAPTCHA challenge prompt must be sent with force=true to prevent self-suppression!');
+}
+if (!dispatchedPromptContent.includes('• **Player**:') || !dispatchedPromptContent.includes('acc1')) {
+  throw new Error('CAPTCHA prompt should contain Player metadata');
+}
+if (!dispatchedPromptContent.includes('• **Quest / Raid**: **GB Farm - Akasha HL**')) {
+  throw new Error('CAPTCHA prompt should contain Quest / Raid metadata');
+}
+if (!dispatchedPromptContent.includes('• **Raid ID**: `46970569946`')) {
+  throw new Error('CAPTCHA prompt should contain Raid ID metadata');
+}
+if (!dispatchedPromptContent.includes('• **Run**: `#260`')) {
+  throw new Error('CAPTCHA prompt should contain Run number metadata');
+}
+console.log('  ✅ [PASS] CAPTCHA prompt delivery & context formatting (no self-suppression) verified');
+
+// 5. Invalid Prompt ID Rejection in waitForReply (Prevents Discord API 400 Bad Request)
+(discordDmRelay as any).waitForReply = origWaitForReply;
+const invalidReplyResult1 = await discordDmRelay.waitForReply('deduped', 100);
+if (invalidReplyResult1 !== null) {
+  throw new Error('waitForReply should return null immediately when given "deduped"');
+}
+const invalidReplyResult2 = await discordDmRelay.waitForReply('', 100);
+if (invalidReplyResult2 !== null) {
+  throw new Error('waitForReply should return null immediately when given empty ID');
+}
+console.log('  ✅ [PASS] Invalid prompt ID rejection in waitForReply verified');
+
 // Restore original
 (discordDmRelay as any).sendMessage = origSend;
 
 console.log('🎉 All Notification Deduplication tests passed!\n');
+
