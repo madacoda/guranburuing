@@ -14,6 +14,9 @@ const jsonArgIdx = args.indexOf('--json');
 const rawJson = jsonArgIdx !== -1 ? args[jsonArgIdx + 1] : null;
 const isClipboard = args.includes('--clipboard') || args.includes('-c');
 
+const midshipArgIdx = args.indexOf('--midship');
+const rawMidship = midshipArgIdx !== -1 ? args[midshipArgIdx + 1] : null;
+
 const account = AccountRegistry.getAccountById(accountId);
 if (!account) {
   console.error(`\n❌ Account [${accountId}] not found in accounts.config.json!`);
@@ -30,7 +33,7 @@ console.log(`               Account: [${account.name}] (${account.id})          
 console.log('========================================================================');
 console.log(`CDP Port:          ${account.cdpPort}`);
 console.log(`Profile Directory: ${account.profileDir}`);
-console.log(`Source Mode:       ${rawJson ? 'Inline --json' : isClipboard ? 'System Clipboard' : targetFile}`);
+console.log(`Source Mode:       ${rawMidship ? 'Direct Midship Cookie' : rawJson ? 'Inline --json' : isClipboard ? 'System Clipboard' : targetFile}`);
 console.log('========================================================================\n');
 
 function readFromClipboard(): string | null {
@@ -50,6 +53,31 @@ function readFromClipboard(): string | null {
 }
 
 async function loadCookies(): Promise<any[]> {
+  if (rawMidship) {
+    const cleanMidship = rawMidship.trim().replace(/^["']|["']$/g, '');
+    return [
+      {
+        name: 'midship',
+        value: cleanMidship,
+        domain: '.game.granbluefantasy.jp',
+        path: '/',
+        secure: true,
+        httpOnly: true,
+        sameSite: 'None',
+        expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
+      },
+      {
+        name: 'midship',
+        value: cleanMidship,
+        domain: 'game.granbluefantasy.jp',
+        path: '/',
+        secure: true,
+        httpOnly: true,
+        expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
+      }
+    ];
+  }
+
   if (rawJson) {
     try {
       const parsed = JSON.parse(rawJson);

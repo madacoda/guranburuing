@@ -9,7 +9,10 @@ import { config } from '../config.js';
 
 const args = process.argv.slice(2);
 const accountId = args.find(a => !a.startsWith('-')) || 'acc1';
-const forceHeadless = args.includes('--headless') || !process.env.DISPLAY || process.env.HEADLESS === 'true';
+const isLinux = process.platform === 'linux';
+const isWindowedRequested = args.includes('--windowed') || args.includes('-w');
+const isHeadlessRequested = args.includes('--headless') || (isLinux && !process.env.DISPLAY);
+const forceHeadless = isWindowedRequested ? false : (isHeadlessRequested || process.env.HEADLESS === 'true');
 
 const account = AccountRegistry.getAccountById(accountId);
 
