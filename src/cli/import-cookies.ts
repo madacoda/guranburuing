@@ -59,20 +59,28 @@ async function loadCookies(): Promise<any[]> {
       {
         name: 'midship',
         value: cleanMidship,
-        domain: '.game.granbluefantasy.jp',
+        domain: 'game.granbluefantasy.jp',
         path: '/',
-        secure: true,
-        httpOnly: true,
-        sameSite: 'None',
+        secure: false,
+        httpOnly: false,
         expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
       },
       {
         name: 'midship',
         value: cleanMidship,
-        domain: 'game.granbluefantasy.jp',
+        domain: '.game.granbluefantasy.jp',
         path: '/',
-        secure: true,
-        httpOnly: true,
+        secure: false,
+        httpOnly: false,
+        expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
+      },
+      {
+        name: 'midship',
+        value: cleanMidship,
+        domain: '.granbluefantasy.jp',
+        path: '/',
+        secure: false,
+        httpOnly: false,
         expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
       }
     ];
