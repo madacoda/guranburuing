@@ -137,6 +137,9 @@ if [[ "$HEADLESS" == "true" ]]; then
   CHROME_ARGS+=(
     "--headless=new"
     "--disable-blink-features=AutomationControlled"
+    "--enable-unsafe-swiftshader"
+    "--use-gl=angle"
+    "--use-angle=swiftshader"
   )
 fi
 
