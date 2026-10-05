@@ -20,12 +20,11 @@ $isHeadless = if ($Windowed.IsPresent) {
 $defaultProfile = if ($Profile) { $Profile } elseif ($env:CHROME_PROFILE) { $env:CHROME_PROFILE } else { "Default" }
 
 $browserCandidates = @(
-    @{ Name = "SRWare Iron (64-Bit)"; Exe = "C:\Program Files\SRWare Iron (64-Bit)\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-iron-profile"; Profile = "Default"; IsDedicated = $false },
-    @{ Name = "SRWare Iron"; Exe = "C:\Program Files\SRWare Iron\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-iron-profile"; Profile = "Default"; IsDedicated = $false },
-    @{ Name = "SRWare Iron (x86)"; Exe = "C:\Program Files (x86)\SRWare Iron\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-iron-profile"; Profile = "Default"; IsDedicated = $false },
     @{ Name = "Google Chrome"; Exe = "C:\Program Files\Google\Chrome\Application\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-chrome-profile"; Profile = $defaultProfile; IsDedicated = $false },
     @{ Name = "Google Chrome (x86)"; Exe = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-chrome-profile"; Profile = $defaultProfile; IsDedicated = $false },
-    @{ Name = "Google Chrome (User)"; Exe = "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-chrome-profile"; Profile = $defaultProfile; IsDedicated = $false }
+    @{ Name = "Google Chrome (User)"; Exe = "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-chrome-profile"; Profile = $defaultProfile; IsDedicated = $false },
+    @{ Name = "SRWare Iron (64-Bit)"; Exe = "C:\Program Files\SRWare Iron (64-Bit)\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-iron-profile"; Profile = "Default"; IsDedicated = $false },
+    @{ Name = "SRWare Iron"; Exe = "C:\Program Files\SRWare Iron\chrome.exe"; UserDataDir = "$env:USERPROFILE\.gbf-iron-profile"; Profile = "Default"; IsDedicated = $false }
 )
 
 $selectedBrowser = $browserCandidates | Where-Object { Test-Path $_.Exe } | Select-Object -First 1

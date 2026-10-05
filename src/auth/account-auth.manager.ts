@@ -13,15 +13,22 @@ export class AccountAuthManager {
       // 0. Fast direct API verification (authoritative in-game check)
       const apiProfile = await page.evaluate(async () => {
         try {
-          const g = (window as any).Game;
-          const version = g?.version || '';
+          let version = (window as any).Game?.version || (window as any).version || '';
+          if (!version) {
+            for (let i = 0; i < 10 && !version; i++) {
+              await new Promise(r => setTimeout(r, 300));
+              version = (window as any).Game?.version || (window as any).version || '';
+            }
+          }
+          const headers: Record<string, string> = {
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest'
+          };
+          if (version) headers['X-VERSION'] = String(version);
+
           const [rStatus, rUser] = await Promise.all([
-            fetch(`/user/status?_=${Date.now()}`, {
-              headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-VERSION': version }
-            }),
-            fetch(`/user/user_id/0?_=${Date.now()}`, {
-              headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-VERSION': version }
-            })
+            fetch(`/user/status?_=${Date.now()}`, { headers }),
+            fetch(`/user/user_id/0?_=${Date.now()}`, { headers })
           ]);
           if (!rStatus.ok) return null;
           const statusJson = await rStatus.json().catch(() => null);
