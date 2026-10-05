@@ -209,6 +209,7 @@ export class GatewayServer {
     });
 
     const client = await this.page.target().createCDPSession();
+    await client.send('Network.clearBrowserCookies');
     await client.send('Network.setCookies', { cookies: sanitizedCookies });
 
     // Persist cookies to data directory

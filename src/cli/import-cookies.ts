@@ -139,6 +139,9 @@ async function main() {
   const page = conn.page;
   const client = await page.target().createCDPSession();
 
+  console.log(`[Import] Clearing stale session and guest cookies...`);
+  await client.send('Network.clearBrowserCookies');
+
   console.log(`[Import] Injecting cookies into browser session via Network.setCookies...`);
   await client.send('Network.setCookies', { cookies: sanitizedCookies });
 
