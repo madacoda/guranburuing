@@ -85,6 +85,19 @@ async function main() {
   const currentHash = await page.evaluate(() => window.location.hash);
   console.log(`[Inject] Landed on: ${currentUrl} (Hash: ${currentHash})`);
 
+  if (currentHash.includes('top') || currentHash === '' || currentHash === '#') {
+    console.log('[Inject] Triggering Game Start (#start) on Title screen...');
+    await page.evaluate(() => {
+      const start = document.querySelector('#start, .btn-start, [data-location-href="start"], #wrapper') as HTMLElement;
+      if (start) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(start).trigger('tap');
+        start.click();
+      }
+    }).catch(() => null);
+    await new Promise(r => setTimeout(r, 4000));
+  }
+
   // Wait for Game object and check API
   const apiCheck = await page.evaluate(async () => {
     try {
