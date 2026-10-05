@@ -128,7 +128,8 @@ CHROME_ARGS=(
   "--disable-speech-api"
   "--disable-breakpad"
   "--disable-crash-reporter"
-  "--disable-features=Translate,OptimizationHints,MediaRouter"
+  "--disable-features=Translate,OptimizationHints,MediaRouter,BlockThirdPartyCookies,ThirdPartyStoragePartitioning,TrackingProtection3pcd"
+  "--test-third-party-cookie-phaseout=disabled"
   "--metrics-recording-only"
   "--window-size=480,960"
 )
