@@ -56,15 +56,16 @@ async function runDailyForAccount(account: AccountConfig, templateId: string, ru
     });
 
     let activePage = conn.page;
-    const sentinel = new SentinelWatchdog(activePage);
-    await sentinel.assertSafe();
 
-    // Verify in-game authentication on #profile
+    // Verify in-game authentication on #profile (handles automated/on-demand login if required)
     const profile = await AccountAuthManager.ensureAuthenticated(activePage, account);
     if (!profile) {
       throw new Error(`Account [${account.name}] could not be authenticated.`);
     }
     console.log(`[DailyCLI] ✅ Verified Player: "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
+
+    const sentinel = new SentinelWatchdog(activePage);
+    await sentinel.assertSafe();
 
     const engine = new UniversalWorkflowEngine(activePage, sentinel, template, account.id);
 

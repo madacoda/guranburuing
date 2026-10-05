@@ -3,9 +3,13 @@ import { CdpConnectionManager } from '../cdp-connection.js';
 import { AccountRegistry } from '../auth/account-registry.js';
 import { AccountAuthManager } from '../auth/account-auth.manager.js';
 import { AccountConfig } from '../types/account.types.js';
+import { GatewayServer } from '../gateway/server.js';
+import { SentinelWatchdog } from '../sentinel-watchdog.js';
+import { config } from '../config.js';
 
 const args = process.argv.slice(2);
-const accountId = args[0] || 'main';
+const accountId = args.find(a => !a.startsWith('-')) || 'acc1';
+const forceHeadless = args.includes('--headless') || !process.env.DISPLAY || process.env.HEADLESS === 'true';
 
 const account = AccountRegistry.getAccountById(accountId);
 
@@ -15,6 +19,17 @@ if (!account) {
   throw new Error(`Account [${accountId}] not found.`);
 }
 
+async function getPublicIp(): Promise<string> {
+  try {
+    const res = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(2000) });
+    if (res.ok) {
+      const ip = (await res.text()).trim();
+      if (ip) return ip;
+    }
+  } catch {}
+  return '127.0.0.1';
+}
+
 console.log('========================================================================');
 console.log(`        Assisted Account Setup & Authentication Helper                  `);
 console.log(`               Account: [${account.name}] (${account.id})              `);
@@ -22,23 +37,74 @@ console.log('===================================================================
 console.log(`Service:             ${account.service.toUpperCase()}`);
 console.log(`CDP Port:            ${account.cdpPort}`);
 console.log(`Profile Directory:   ${account.profileDir}`);
-console.log(`Window Mode:         HEADFUL (Windowed for visual interaction)`);
+console.log(`Browser Mode:        ${forceHeadless ? 'HEADLESS (Optimized VPS mode)' : 'WINDOWED (Desktop GUI)'}`);
 console.log('========================================================================\n');
 
 async function main(targetAccount: AccountConfig) {
   const cdp = new CdpConnectionManager();
 
-  console.log(`Launching browser in Windowed mode on port ${targetAccount.cdpPort}...`);
-  const conn = await cdp.connectWithRetry(6, 2000, false, {
+  console.log(`Connecting to browser on port ${targetAccount.cdpPort} (Headless: ${forceHeadless})...`);
+  const conn = await cdp.connectWithRetry(6, 2000, forceHeadless, {
     cdpPort: targetAccount.cdpPort,
     profileDir: targetAccount.profileDir,
     proxy: targetAccount.proxy
   });
 
   const page = conn.page;
+  const publicIp = await getPublicIp();
+
+  let gateway: GatewayServer | null = null;
+  if (forceHeadless) {
+    try {
+      const sentinel = new SentinelWatchdog(page);
+      gateway = new GatewayServer(page, sentinel);
+      await gateway.start();
+      console.log('\n========================================================================');
+      console.log(' 🌐 REMOTE INTERACTIVE LOGIN COCKPIT ACTIVE FOR VPS');
+      console.log('========================================================================');
+      console.log(` 👉 Open in your phone or PC browser:`);
+      console.log(`    http://${publicIp}:${config.PORT}/?token=${config.AUTH_TOKEN}`);
+      console.log(`\n 🔒 If port ${config.PORT} is firewalled, forward it securely from your PC:`);
+      console.log(`    ssh -L ${config.PORT}:localhost:${config.PORT} root@${publicIp}`);
+      console.log(`    and navigate to: http://localhost:${config.PORT}/?token=${config.AUTH_TOKEN}`);
+      console.log('========================================================================\n');
+    } catch (gwErr: any) {
+      console.warn('[Setup] Companion cockpit notice:', gwErr.message);
+    }
+  }
+
+  let isCleaningUp = false;
+  const cleanup = async () => {
+    if (isCleaningUp) return;
+    isCleaningUp = true;
+    console.log('\n[Setup] Shutting down setup helper...');
+    if (gateway) await gateway.stop().catch(() => {});
+    await cdp.disconnect().catch(() => {});
+    process.exit(0);
+  };
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 
   console.log(`Verifying in-game authentication on #profile...`);
-  const profile = await AccountAuthManager.ensureAuthenticated(page, targetAccount);
+  let profile = await AccountAuthManager.ensureAuthenticated(page, targetAccount);
+
+  if (!profile) {
+    console.log('\n========================================================================');
+    console.log(' ⏳ AWAITING 1-TIME LOGIN IN REMOTE COCKPIT');
+    console.log('========================================================================');
+    console.log(` 👉 Open Cockpit: http://${publicIp}:${config.PORT}/?token=${config.AUTH_TOKEN}`);
+    console.log(' 👉 Live browser feed is active. Tap buttons or enter OTP in your browser.');
+    console.log(' 👉 Waiting for in-game profile confirmation (Ctrl+C to abort)...');
+    console.log('========================================================================\n');
+
+    while (!profile) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const currentUrl = page.url();
+      if (currentUrl.includes('granbluefantasy.jp') && !currentUrl.includes('mbga.jp') && !currentUrl.includes('mobage.jp')) {
+        profile = await AccountAuthManager.getVerifiedProfile(page).catch(() => null);
+      }
+    }
+  }
 
   if (profile) {
     console.log('\n========================================================================');
@@ -48,12 +114,13 @@ async function main(targetAccount: AccountConfig) {
     console.log(`   Granblue User ID: ${profile.id}`);
     console.log(`   Profile Storage:  ${targetAccount.profileDir}`);
     console.log('========================================================================\n');
-  } else {
-    console.warn(`\n⚠️ Authentication could not be confirmed. Please check the browser.`);
   }
 
+  if (gateway) {
+    await gateway.stop();
+  }
   await cdp.disconnect();
-  process.exit(0);
+  process.exit(profile ? 0 : 1);
 }
 
 main(account).catch(err => {

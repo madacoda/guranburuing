@@ -122,37 +122,19 @@ export class AccountAuthManager {
     console.log(`[Auth] Account [${account.name}] session is NOT authenticated (redirected to title/login).`);
     console.log(`[Auth] Triggering on-demand authentication (Service: ${account.service.toUpperCase()})...`);
 
-    // 1. If on Title screen (#top), check Game Start (#start) or login options safely
-    const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
-    if (currentHash.includes('top') || currentHash === '' || currentHash === '#') {
-      try {
-        const hasStart = await page.evaluate(() => {
-          const btn = document.querySelector('#start, .btn-start, [data-location-href="start"]') as HTMLElement;
-          if (btn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(btn).trigger('tap');
-            btn.click();
-            return true;
-          }
-          return false;
-        }).catch(() => false);
-
-        if (hasStart) {
-          console.log(`[Auth] [${account.name}] Triggered Game Start (#start)...`);
-          await logNormalDelay(2500, 0.15);
-
+    // 0. If already on Mobage/DMM login portal, perform automated login immediately
+    if (page.url().includes('mobage.jp') || page.url().includes('mbga.jp')) {
+      if (account.credentials?.email && account.credentials?.password) {
+        console.log(`[Auth] [${account.name}] Currently on Mobage portal. Performing automated login...`);
+        const ok = await this.loginMobage(page, account);
+        if (ok) {
           profile = await this.getVerifiedProfile(page);
-          if (profile) {
-            console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
-            return profile;
-          }
+          if (profile) return profile;
         }
-      } catch (clickErr: any) {
-        console.warn(`[Auth] [${account.name}] Game start click deferred: ${clickErr?.message || clickErr}`);
       }
     }
 
-    // 2. If unauthenticated on #top or #authentication, check in-game authentication buttons
+    // 1. If unauthenticated on Title (#top) or #authentication, prioritize Login button (#login-auth / データ連携)
     const authState = await page.evaluate(() => {
       const hash = window.location.hash;
       const hasLoginBtn = !!document.querySelector('#login-auth, .btn-login');
@@ -161,7 +143,7 @@ export class AccountAuthManager {
     }).catch(() => ({ hash: '', hasLoginBtn: false, isAuthPage: false }));
 
     if (authState.hasLoginBtn) {
-      console.log(`[Auth] [${account.name}] Clicking Login button (#login-auth)...`);
+      console.log(`[Auth] [${account.name}] Clicking Login button (#login-auth / データ連携)...`);
       await page.evaluate(() => {
         const btn = document.querySelector('#login-auth, .btn-login') as HTMLElement;
         if (btn) {
@@ -171,6 +153,36 @@ export class AccountAuthManager {
         }
       }).catch(() => null);
       await logNormalDelay(2000, 0.15);
+    } else {
+      // If no login button, check Game Start (#start) on Title screen (#top)
+      const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
+      if (currentHash.includes('top') || currentHash === '' || currentHash === '#') {
+        try {
+          const hasStart = await page.evaluate(() => {
+            const btn = document.querySelector('#start, .btn-start, [data-location-href="start"]') as HTMLElement;
+            if (btn) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              btn.click();
+              return true;
+            }
+            return false;
+          }).catch(() => false);
+
+          if (hasStart) {
+            console.log(`[Auth] [${account.name}] Triggered Game Start (#start)...`);
+            await logNormalDelay(2500, 0.15);
+
+            profile = await this.getVerifiedProfile(page);
+            if (profile) {
+              console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
+              return profile;
+            }
+          }
+        } catch (clickErr: any) {
+          console.warn(`[Auth] [${account.name}] Game start click deferred: ${clickErr?.message || clickErr}`);
+        }
+      }
     }
 
     // If on #authentication screen, select platform (Mobage/DMM) and proceed
@@ -205,12 +217,11 @@ export class AccountAuthManager {
         const browser = page.browser();
         const pages = await browser.pages();
         for (const p of pages) {
-          if (p !== page && p.url().includes('connect.mobage.jp')) {
+          if (p !== page && (p.url().includes('connect.mobage.jp') || p.url().includes('mbga.jp'))) {
             console.log(`[Auth] [${account.name}] Handling Mobage connect popup window...`);
-            await p.evaluate(() => {
-              const closeBtn = document.querySelector('a, button, [class*="close"], [class*="btn"]') as HTMLElement;
-              if (closeBtn) closeBtn.click();
-            }).catch(() => null);
+            if (account.credentials?.email && account.credentials?.password) {
+              await this.handleMobageConnectForm(p, account.credentials.email, account.credentials.password);
+            }
             await logNormalDelay(2000, 0.15);
           }
         }
@@ -263,6 +274,62 @@ export class AccountAuthManager {
   }
 
   /**
+   * Helper that automates the modern Mobage Connect OAuth login form (connect.mobage.jp).
+   */
+  private static async handleMobageConnectForm(targetPage: Page, email: string, pass: string): Promise<boolean> {
+    try {
+      const emailInput = await targetPage.waitForSelector('#subject-id, input[name="subject_id"]', { visible: true, timeout: 6000 }).catch(() => null);
+      const passInput = await targetPage.$('#subject-password, input[name="subject_password"]').catch(() => null);
+      if (emailInput && passInput) {
+        console.log(`[Auth] Entering Mobage Connect credentials (${email})...`);
+        await emailInput.click({ clickCount: 3 });
+        await emailInput.type(email, { delay: 30 });
+        await targetPage.evaluate(() => {
+          const el = document.querySelector('#subject-id, input[name="subject_id"]');
+          if (el) {
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }).catch(() => null);
+
+        await passInput.click({ clickCount: 3 });
+        await passInput.type(pass, { delay: 30 });
+        await targetPage.evaluate(() => {
+          const el = document.querySelector('#subject-password, input[name="subject_password"]');
+          if (el) {
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }).catch(() => null);
+
+        await new Promise(r => setTimeout(r, 400));
+        const submitBtn = await targetPage.$('#login, button[name="login"], button[type="submit"]');
+        if (submitBtn) {
+          console.log(`[Auth] Submitting Mobage Connect login form...`);
+          await Promise.all([
+            targetPage.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null),
+            submitBtn.click()
+          ]);
+        }
+
+        // Dismiss success checkmark modal if shown
+        await new Promise(r => setTimeout(r, 1500));
+        await targetPage.evaluate(() => {
+          const closeBtn = document.querySelector('button, a, [class*="close"], [class*="btn"]') as HTMLElement;
+          if (closeBtn && (closeBtn.innerText?.includes('閉じる') || closeBtn.textContent?.includes('閉じる'))) {
+            closeBtn.click();
+          }
+        }).catch(() => null);
+
+        return true;
+      }
+    } catch (e: any) {
+      console.warn(`[Auth] Mobage connect form notice: ${e.message}`);
+    }
+    return false;
+  }
+
+  /**
    * Automated credential login for Mobage.
    */
   private static async loginMobage(page: Page, account: AccountConfig): Promise<boolean> {
@@ -274,35 +341,45 @@ export class AccountAuthManager {
     }
     console.log(`[Auth] [${account.name}] Performing automated Mobage login for: ${email}`);
 
-    // If not already on Mobage login, navigate there
-    if (!page.url().includes('mbga.jp')) {
-      await page.goto('https://ssl.sp.mbga.jp/_login', { waitUntil: 'domcontentloaded' }).catch(() => null);
-      await logNormalDelay(1500, 0.15);
+    // If active page or any tab is on connect.mobage.jp
+    const currentUrl = page.url();
+    if (currentUrl.includes('connect.mobage.jp')) {
+      await this.handleMobageConnectForm(page, email, password);
+    } else {
+      const browser = page.browser();
+      const pages = await browser.pages();
+      const mobagePage = pages.find(p => p.url().includes('connect.mobage.jp'));
+      if (mobagePage) {
+        await this.handleMobageConnectForm(mobagePage, email, password);
+      } else if (!page.url().includes('mbga.jp')) {
+        await page.goto('https://ssl.sp.mbga.jp/_login', { waitUntil: 'domcontentloaded' }).catch(() => null);
+        await logNormalDelay(1500, 0.15);
+      }
     }
 
-    // Wait for login inputs safely
-    const emailInput = await page.waitForSelector('#login_id, input[name="login_id"]', { visible: true, timeout: 8000 }).catch(() => null);
-    if (!emailInput) return false;
-    const passInput = await page.$('#login_pw, input[name="login_pw"]').catch(() => null);
-    if (!passInput) return false;
+    // Wait for login inputs safely if on mbga.jp
+    if (page.url().includes('mbga.jp')) {
+      const emailInput = await page.waitForSelector('#login_id, input[name="login_id"]', { visible: true, timeout: 5000 }).catch(() => null);
+      const passInput = await page.$('#login_pw, input[name="login_pw"]').catch(() => null);
 
-    if (emailInput && passInput) {
-      await humanReactionDelay(80, 0.10);
-      await emailInput.click({ clickCount: 3 });
-      await emailInput.type(email, { delay: 40 });
+      if (emailInput && passInput) {
+        await humanReactionDelay(80, 0.10);
+        await emailInput.click({ clickCount: 3 });
+        await emailInput.type(email, { delay: 40 });
 
-      await humanReactionDelay(80, 0.10);
-      await passInput.click({ clickCount: 3 });
-      await passInput.type(password, { delay: 40 });
+        await humanReactionDelay(80, 0.10);
+        await passInput.click({ clickCount: 3 });
+        await passInput.type(password, { delay: 40 });
 
-      await humanReactionDelay(120, 0.10);
-      const submitBtn = await page.$('.btn-login, input[type="submit"], button[type="submit"]');
-      if (submitBtn) {
-        console.log(`[Auth] [${account.name}] Submitting Mobage credentials...`);
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null),
-          submitBtn.click()
-        ]);
+        await humanReactionDelay(120, 0.10);
+        const submitBtn = await page.$('.btn-login, input[type="submit"], button[type="submit"]');
+        if (submitBtn) {
+          console.log(`[Auth] [${account.name}] Submitting Mobage credentials...`);
+          await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null),
+            submitBtn.click()
+          ]);
+        }
       }
     }
 
@@ -314,7 +391,7 @@ export class AccountAuthManager {
         bodyText.includes('verification') ||
         bodyText.includes('認証コード') ||
         bodyText.includes('確認コード') ||
-        !!document.querySelector('iframe[src*="recaptcha"], .g-recaptcha, #auth_code')
+        !!document.querySelector('#auth_code')
       );
     }).catch(() => false);
 
@@ -329,9 +406,15 @@ export class AccountAuthManager {
     }
 
     // Navigate to GBF #mypage if redirected to Mobage portal
-    if (page.url().includes('mbga.jp')) {
+    if (page.url().includes('mbga.jp') || page.url().includes('mobage.jp')) {
       await logNormalDelay(2000, 0.15);
       await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
+    } else if (page.url().includes('#top')) {
+      await page.evaluate(() => {
+        const start = document.querySelector('#start, .btn-start') as HTMLElement;
+        if (start) start.click();
+        else window.location.hash = '#profile';
+      }).catch(() => null);
     }
 
     return await this.waitForMypage(page, 60000);

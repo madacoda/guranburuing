@@ -74,12 +74,22 @@
     <div class="sentinel-pill" id="sentinel-badge">SENTINEL: ARMED</div>
   </header>
 
-  <!-- Live Screencast Viewport -->
+  <!-- Live Screencast Viewport with Remote Interactive Tap -->
   <div class="stream-card">
-    <img id="stream-img" class="stream-view" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='60' viewBox='0 0 100 60'><text x='50' y='35' fill='%238292A2' text-anchor='middle' font-size='10'>Connecting Stream...</text></svg>" alt="Live Stream">
+    <img id="stream-img" class="stream-view" style="cursor: crosshair;" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='60' viewBox='0 0 100 60'><text x='50' y='35' fill='%238292A2' text-anchor='middle' font-size='10'>Connecting Stream...</text></svg>" alt="Live Stream">
     <div class="stream-footer">
       <span id="route-text">Route: ---</span>
-      <span id="fps-text">2 FPS (WebP)</span>
+      <span id="fps-text">Tap anywhere to click</span>
+    </div>
+  </div>
+
+  <!-- Remote Typing & Interactive Cockpit Bar -->
+  <div class="card" style="margin-bottom: 12px; padding: 10px;">
+    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: bold;">⌨️ REMOTE BROWSER INPUT</div>
+    <div class="input-row">
+      <input type="text" id="remote-text-input" placeholder="Type text / verification code to send..." style="text-transform: none;">
+      <button class="btn-paste" onclick="sendRemoteText()">Send Text</button>
+      <button class="btn-paste" onclick="sendRemoteKey('Enter')">Enter</button>
     </div>
   </div>
 
@@ -258,6 +268,42 @@
       }
       document.getElementById('captcha-modal').style.display = 'none';
     }
+
+    // Remote Interactive Tap Handler
+    const streamImg = document.getElementById('stream-img');
+    function sendTap(e) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const rect = streamImg.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const scaleX = 480 / rect.width;
+      const scaleY = 960 / rect.height;
+      const x = Math.round((clientX - rect.left) * scaleX);
+      const y = Math.round((clientY - rect.top) * scaleY);
+      ws.send(JSON.stringify({ type: 'CMD_TAP', x, y }));
+    }
+    streamImg.addEventListener('click', sendTap);
+
+    function sendRemoteText() {
+      const input = document.getElementById('remote-text-input');
+      if (input && input.value && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CMD_TYPE', text: input.value }));
+        input.value = '';
+      }
+    }
+
+    function sendRemoteKey(key) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CMD_KEY', key }));
+      }
+    }
+
+    // Allow Enter key in remote input to submit text
+    document.getElementById('remote-text-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendRemoteText();
+      }
+    });
 
     connect();
   </script>

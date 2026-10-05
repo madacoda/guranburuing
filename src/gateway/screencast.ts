@@ -78,4 +78,8 @@ export class ScreencastManager {
       console.error('[Screencast] Failed to stop screencast:', err.message);
     }
   }
+
+  public async stop(): Promise<void> {
+    await this.stopStreaming();
+  }
 }

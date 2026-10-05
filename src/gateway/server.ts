@@ -146,6 +146,45 @@ export class GatewayServer {
       return;
     }
 
+    // Interactive remote touch/click forwarded to headless browser
+    if (cmd.type === 'CMD_TAP') {
+      const { x, y } = cmd;
+      if (typeof x === 'number' && typeof y === 'number') {
+        try {
+          await this.page.mouse.click(x, y);
+        } catch (e: any) {
+          console.warn('[Gateway] Tap event error:', e.message);
+        }
+      }
+      return;
+    }
+
+    // Interactive remote typing forwarded to headless browser
+    if (cmd.type === 'CMD_TYPE') {
+      const { text } = cmd;
+      if (typeof text === 'string') {
+        try {
+          await this.page.keyboard.type(text, { delay: 20 });
+        } catch (e: any) {
+          console.warn('[Gateway] Type event error:', e.message);
+        }
+      }
+      return;
+    }
+
+    // Interactive remote keypress (e.g. Enter, Backspace)
+    if (cmd.type === 'CMD_KEY') {
+      const { key } = cmd;
+      if (typeof key === 'string') {
+        try {
+          await this.page.keyboard.press(key as any);
+        } catch (e: any) {
+          console.warn('[Gateway] Key event error:', e.message);
+        }
+      }
+      return;
+    }
+
     // Async Mutex Check: Prevent concurrent overlapping operations
     if (this.isBusy) {
       ws.send(JSON.stringify({
@@ -188,5 +227,12 @@ export class GatewayServer {
     for (const ws of this.wsClients) {
       if (ws.readyState === WebSocket.OPEN) ws.send(payload);
     }
+  }
+
+  public async stop(): Promise<void> {
+    try {
+      await this.app.close();
+      console.log('[Gateway] Server shut down cleanly.');
+    } catch {}
   }
 }

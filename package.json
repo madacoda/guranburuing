@@ -88,6 +88,8 @@
     "gw-nm95-light:acc2": "bun src/cli/run-workflow.ts acc2 gw-nm95-light",
     "account:setup": "bun src/cli/setup-account.ts",
     "account:login": "bun src/cli/setup-account.ts",
+    "session:export": "bun scripts/export-session.ts",
+    "session:import": "bun src/cli/import-cookies.ts",
     "acc1": "bun src/cli/run-workflow.ts acc1",
     "acc1:windowed": "bun src/cli/run-workflow.ts acc1 --windowed",
     "acc2": "bun src/cli/run-workflow.ts acc2",

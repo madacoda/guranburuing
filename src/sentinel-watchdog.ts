@@ -100,6 +100,16 @@ export class SentinelWatchdog {
     try {
       this.page.on('response', async (res) => {
         try {
+          const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
+          // Ignore external auth providers (Mobage, DMM) loading recaptcha or auth scripts
+          if (
+            currentUrl.includes('mobage.jp') ||
+            currentUrl.includes('mbga.jp') ||
+            currentUrl.includes('dmm.com')
+          ) {
+            return;
+          }
+
           const url = res.url();
 
           // 1. Direct verification route or security challenge
@@ -150,13 +160,22 @@ export class SentinelWatchdog {
    */
   public async inspectForVerification(): Promise<boolean> {
     try {
-      // 0. Pre-check: Internal network detection flag or locked state
+      // 0. Pre-check: Never trip in-game captcha alarms while on third-party login pages
+      const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
+      if (
+        currentUrl.includes('mobage.jp') ||
+        currentUrl.includes('mbga.jp') ||
+        currentUrl.includes('dmm.com')
+      ) {
+        return false;
+      }
+
+      // Pre-check: Internal network detection flag or locked state
       if (this.isLocked || this.networkVerificationDetected) {
         return true;
       }
 
       // 1. Instant URL / Hash check (0ms CDP overhead, immune to DOM states)
-      const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
       if (
         currentUrl.includes('#quest/verification') ||
         currentUrl.includes('#verification') ||

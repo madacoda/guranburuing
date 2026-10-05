@@ -116,6 +116,13 @@ CHROME_ARGS=(
   "--disable-renderer-backgrounding"
   "--autoplay-policy=no-user-gesture-required"
   "--mute-audio"
+  "--disable-extensions"
+  "--disable-component-update"
+  "--disable-sync"
+  "--disable-translate"
+  "--disable-default-apps"
+  "--disable-speech-api"
+  "--metrics-recording-only"
   "--window-size=480,960"
 )
 
