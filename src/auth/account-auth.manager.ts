@@ -35,13 +35,14 @@ export class AccountAuthManager {
           const statusJson = await rStatus.json().catch(() => null);
           const userJson = await rUser.json().catch(() => null);
 
-          if (statusJson?.status?.level && userJson?.user_id) {
+          const uid = userJson?.user_id || statusJson?.status?.user_id;
+          if (statusJson?.status?.level && uid) {
             const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
             const cleanName = nameEl?.textContent?.trim() || g?.userName || 'Player';
             return {
               name: cleanName,
               rank: String(statusJson.status.level),
-              id: String(userJson.user_id)
+              id: String(uid)
             };
           }
           return null;
@@ -356,13 +357,30 @@ export class AccountAuthManager {
           ]);
         }
 
-        // Dismiss success checkmark modal if shown
-        await new Promise(r => setTimeout(r, 1500));
-        await targetPage.evaluate(() => {
-          const closeBtn = document.querySelector('button, a, [class*="close"], [class*="btn"]') as HTMLElement;
-          if (closeBtn && (closeBtn.innerText?.includes('閉じる') || closeBtn.textContent?.includes('閉じる'))) {
-            closeBtn.click();
+        // Wait for midship session cookie to be generated on granbluefantasy.jp before clicking gray button ("閉じる")
+        console.log(`[Auth] Waiting for midship session cookie to be generated on granbluefantasy.jp...`);
+        try {
+          const cdpClient = await targetPage.target().createCDPSession();
+          for (let i = 0; i < 20; i++) {
+            const cookiesRes = await cdpClient.send('Network.getCookies', { urls: ['https://game.granbluefantasy.jp/'] }).catch(() => null);
+            const found = cookiesRes?.cookies?.find(c => c.name === 'midship' && c.value && !c.value.startsWith('dummy'));
+            if (found) {
+              console.log(`[Auth] ✅ midship session cookie detected (${found.value.slice(0, 20)}...)!`);
+              break;
+            }
+            await new Promise(r => setTimeout(r, 1000));
           }
+        } catch {}
+
+        // Settle postMessage handshake
+        await new Promise(r => setTimeout(r, 1500));
+
+        // Click the gray button ("閉じる" / close) to finish authentication
+        console.log(`[Auth] Dismissing Mobage redirect popup via gray button...`);
+        await targetPage.evaluate(() => {
+          const btns = Array.from(document.querySelectorAll('button, a, [class*="close"], [class*="btn"]')) as HTMLElement[];
+          const closeBtn = btns.find(b => b.innerText?.includes('閉じる') || b.textContent?.includes('閉じる') || b.className.includes('btn-close'));
+          if (closeBtn) closeBtn.click();
         }).catch(() => null);
 
         return true;
