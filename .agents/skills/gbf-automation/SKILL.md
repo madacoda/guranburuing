@@ -34,6 +34,9 @@ This guide establishes the architectural standards, runtime environment, and ope
 | **Fate Episodes** | `bun run fate` | `npm run fate` |
 | **Event Story / Clear** | `bun run event` / `bun run event:all` | `bun src/cli/run-clear-event.ts ...` |
 | **Custom Script** | `bun src/cli/run-workflow.ts acc1 <template> <runs>` | `tsx src/cli/run-workflow.ts ...` |
+| **Export Cookies (Local)**| `bun run session:export <acc>`| `npx tsx scripts/export-session.ts` |
+| **Import Cookies (VPS)**  | `bun run session:import <acc>`| `npx tsx src/cli/import-cookies.ts` |
+| **1-Click Sync to VPS**   | `bun run session:sync <acc>`  | `npx tsx scripts/sync-session.ts`   |
 | **Run All Tests** | `bun run test` | `npm run test:node` |
 | **Template Validation**| `bun run workflow:validate` | `npm run workflow:validate` |
 | **Install Packages** | `bun install` | `npm install` |
@@ -191,3 +194,48 @@ bun run gb-farm
 # Guild Wars EX+ Meat:
 bun run gw-meat-light
 ```
+
+---
+
+## 5. VPS Headless Deployment & Cross-Platform Cookie Sync
+
+### 1-Click VPS Provisioning:
+On an Ubuntu 22.04/24.04 or Debian VPS instance:
+```bash
+sudo bash scripts/setup-vps.sh
+```
+This automatically:
+- Creates a 2GB Swapfile (prevents Linux OOM killer on 1GB VPS).
+- Installs all headless Chromium system dependencies and Japanese Noto CJK fonts.
+- Installs Google Chrome Stable.
+- Installs Bun runtime and packages.
+
+### Effortless Cookie Sync (Local Windows ➔ VPS):
+To authenticate your VPS accounts without typing passwords, completing 2FA, or solving Captchas on the server:
+
+**Method 1: Instant 1-Command Sync (Recommended)**:
+From your local Windows terminal:
+```bash
+# Sync acc1 cookies to VPS (reads from local Chrome profile, POSTs to VPS, injects & verifies):
+bun run session:sync acc1 --remote http://<VPS_IP>:3000
+
+# Or using SSH port forward if port 3000 is firewalled:
+# ssh -L 3000:localhost:3000 root@<VPS_IP>
+bun run session:sync acc1 --remote http://localhost:3000
+```
+
+**Method 2: Interactive Web Cockpit**:
+1. Open the companion web cockpit: `http://<VPS_IP>:3000/?token=<AUTH_TOKEN>`
+2. Click **🔑 Sync Cookies** in the top bar.
+3. Click **📋 Paste Clipboard** and tap **🚀 Apply & Verify Session**.
+4. The cockpit injects cookies via CDP and verifies the player name and rank instantly.
+
+**Method 3: Offline / Manual CLI**:
+```bash
+# 1. On Windows: Export cookies to clipboard and JSON
+bun run session:export acc1
+
+# 2. On VPS: Import directly from JSON string or file
+bun run session:import acc1 --json '<pasted_json>'
+```
+

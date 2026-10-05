@@ -29,8 +29,11 @@
     .status-badge { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
     .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); }
     .dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .header-pills { display: flex; gap: 6px; align-items: center; }
     .sentinel-pill { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: rgba(0, 240, 255, 0.15); color: var(--accent); border: 1px solid var(--accent); font-weight: bold; }
     .sentinel-pill.busy { background: rgba(255, 184, 0, 0.15); color: var(--warning); border-color: var(--warning); }
+    .user-pill { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: rgba(0, 255, 136, 0.12); color: var(--success); border: 1px solid var(--success); font-weight: bold; cursor: pointer; }
+    .user-pill.unauth { background: rgba(255, 184, 0, 0.12); color: var(--warning); border-color: var(--warning); }
 
     /* Live Stream Viewport */
     .stream-card { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; align-items: center; }
@@ -45,11 +48,11 @@
     .btn-action:disabled { opacity: 0.4; pointer-events: none; }
     .btn-primary { background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 240, 255, 0.05)); border-color: var(--accent); color: var(--accent); }
 
-    /* Raid Joiner Card */
+    /* Raid Joiner Card & Common Cards */
     .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
     .input-row { display: flex; gap: 8px; }
-    input[type="text"], select { background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-main); font-size: 14px; font-weight: bold; }
-    input[type="text"] { flex: 1; text-transform: uppercase; }
+    input[type="text"], select, textarea { background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-main); font-size: 14px; }
+    input[type="text"] { flex: 1; text-transform: uppercase; font-weight: bold; }
     .btn-paste { background: var(--bg-card); border: 1px solid var(--border); color: var(--accent); border-radius: 8px; padding: 0 14px; font-size: 12px; font-weight: bold; cursor: pointer; }
     .btn-join { background: var(--accent); color: var(--bg-main); border: none; border-radius: 8px; padding: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
     .btn-join:disabled { opacity: 0.4; }
@@ -71,7 +74,10 @@
       <div class="dot" id="conn-dot"></div>
       <span id="conn-text">Connecting...</span>
     </div>
-    <div class="sentinel-pill" id="sentinel-badge">SENTINEL: ARMED</div>
+    <div class="header-pills">
+      <div class="user-pill unauth" id="user-badge" onclick="toggleCookieModal()" title="Click to sync or import cookies">👤 Checking...</div>
+      <div class="sentinel-pill" id="sentinel-badge">SENTINEL: ARMED</div>
+    </div>
   </header>
 
   <!-- Live Screencast Viewport with Remote Interactive Tap -->
@@ -84,13 +90,33 @@
   </div>
 
   <!-- Remote Typing & Interactive Cockpit Bar -->
-  <div class="card" style="margin-bottom: 12px; padding: 10px;">
-    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: bold;">⌨️ REMOTE BROWSER INPUT</div>
+  <div class="card" style="margin-bottom: 4px; padding: 10px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-size: 11px; color: var(--text-muted); font-weight: bold;">⌨️ REMOTE BROWSER INPUT</span>
+      <button style="background: none; border: none; color: var(--accent); font-size: 11px; font-weight: bold; cursor: pointer;" onclick="toggleCookieModal()">🔑 Sync Cookies</button>
+    </div>
     <div class="input-row">
       <input type="text" id="remote-text-input" placeholder="Type text / verification code to send..." style="text-transform: none;">
       <button class="btn-paste" onclick="sendRemoteText()">Send Text</button>
       <button class="btn-paste" onclick="sendRemoteKey('Enter')">Enter</button>
     </div>
+  </div>
+
+  <!-- Cookie & Session Sync Accordion Panel -->
+  <div class="card" id="cookie-panel" style="display: none; border-color: var(--accent); background: rgba(0, 240, 255, 0.03);">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 12px; font-weight: 700; color: var(--accent);">🔑 COOKIE & SESSION SYNCHRONIZER</span>
+      <button style="background: none; border: none; color: var(--text-muted); font-size: 14px; cursor: pointer;" onclick="toggleCookieModal()">✕</button>
+    </div>
+    <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+      Paste exported cookies JSON from your local PC to instantly authenticate this VPS session without 2FA or Captcha.
+    </p>
+    <textarea id="cookie-json-input" placeholder='Paste [{"name":"midship","value":"..."}, ...]' style="width: 100%; height: 75px; font-family: monospace; font-size: 11px; resize: none;"></textarea>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn-paste" style="flex: 1; padding: 10px;" onclick="pasteCookiesFromClipboard()">📋 Paste Clipboard</button>
+      <button class="btn-join" style="flex: 2; padding: 10px;" id="btn-import-cookie" onclick="importCookiesFromUI()">🚀 Apply & Verify Session</button>
+    </div>
+    <div id="cookie-feedback" style="font-size: 11px; display: none; padding: 6px 8px; border-radius: 6px;"></div>
   </div>
 
   <!-- Daily Pro Skip Grid -->
@@ -181,6 +207,107 @@
       osc.stop(audioCtx.currentTime + 1.2);
     }
 
+    async function fetchSessionProfile() {
+      try {
+        const res = await fetch(`/api/session/profile?token=${encodeURIComponent(token)}`);
+        if (res.ok) {
+          const data = await res.json();
+          updateUserBadge(data.profile);
+        }
+      } catch (e) {}
+    }
+
+    function updateUserBadge(profile) {
+      const badge = document.getElementById('user-badge');
+      if (profile && profile.name) {
+        badge.innerText = `👤 ${profile.name} (R${profile.rank || '?'})`;
+        badge.classList.remove('unauth');
+      } else {
+        badge.innerText = '🔑 Log In';
+        badge.classList.add('unauth');
+      }
+    }
+
+    function toggleCookieModal() {
+      const p = document.getElementById('cookie-panel');
+      p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+      if (p.style.display === 'flex') {
+        document.getElementById('cookie-json-input').focus();
+      }
+    }
+
+    async function pasteCookiesFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          document.getElementById('cookie-json-input').value = text.trim();
+        }
+      } catch (e) {
+        alert('Clipboard access denied. Please paste manually into the text box.');
+      }
+    }
+
+    async function importCookiesFromUI() {
+      const raw = document.getElementById('cookie-json-input').value.trim();
+      const feedback = document.getElementById('cookie-feedback');
+      const btn = document.getElementById('btn-apply-cookies');
+
+      if (!raw) {
+        alert('Please paste cookies JSON first!');
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) parsed = [parsed];
+      } catch (err) {
+        alert('Invalid JSON format: ' + err.message);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = '⏳ Injecting & Verifying...';
+      feedback.style.display = 'block';
+      feedback.style.background = 'rgba(0, 240, 255, 0.1)';
+      feedback.style.color = 'var(--accent)';
+      feedback.innerText = `Injecting ${parsed.length} cookies into browser session...`;
+
+      try {
+        const res = await fetch(`/api/cookies/import?token=${encodeURIComponent(token)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cookies: parsed })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          feedback.style.background = 'rgba(0, 255, 136, 0.15)';
+          feedback.style.color = 'var(--success)';
+          if (data.profile) {
+            feedback.innerText = `🎉 Authenticated! Player: ${data.profile.name} (Rank ${data.profile.rank} | ID: ${data.profile.id})`;
+            updateUserBadge(data.profile);
+          } else {
+            feedback.innerText = `✅ Injected ${data.count} cookies. Navigating to in-game...`;
+          }
+          setTimeout(() => {
+            document.getElementById('cookie-panel').style.display = 'none';
+          }, 3000);
+        } else {
+          feedback.style.background = 'rgba(255, 0, 85, 0.15)';
+          feedback.style.color = 'var(--danger)';
+          feedback.innerText = `❌ Error: ${data.error || 'Unknown error'}`;
+        }
+      } catch (err) {
+        feedback.style.background = 'rgba(255, 0, 85, 0.15)';
+        feedback.style.color = 'var(--danger)';
+        feedback.innerText = `❌ Failed: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🚀 Apply & Verify Session';
+      }
+    }
+
     function connect() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${protocol}//${location.host}/ws?token=${token}`);
@@ -189,6 +316,7 @@
         document.getElementById('conn-dot').classList.add('connected');
         document.getElementById('conn-text').innerText = 'Connected';
         requestWakeLock();
+        fetchSessionProfile();
       };
 
       ws.onmessage = (event) => {
@@ -202,6 +330,10 @@
           setBusyState(msg.busy);
         } else if (msg.type === 'EVENT_CAPTCHA_TRIGGERED') {
           triggerCaptchaAlert(msg.data.screenshotBase64);
+        } else if (msg.type === 'EVENT_COOKIES_IMPORTED') {
+          if (msg.data?.profile) {
+            updateUserBadge(msg.data.profile);
+          }
         }
       };
 

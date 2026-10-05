@@ -83,6 +83,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Raid Evaluator & Score-Based Decision Tests',
     file: 'tests/test-raid-evaluator-score.ts',
     description: 'Raid score ranking, sweet spot weighting (HP > 85%, players <= 2), burn rate penalties, and doomed raid disqualification'
+  },
+  {
+    name: 'Session & Cookie Synchronization Tests',
+    file: 'tests/test-session-sync.ts',
+    description: 'Cookie sanitization, CDP Network.setCookies compliance, cross-platform path normalization, and token authentication'
   }
 ];
 

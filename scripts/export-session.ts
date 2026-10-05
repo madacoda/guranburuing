@@ -2,38 +2,46 @@
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { spawn } from 'child_process';
+import { AccountRegistry } from '../src/auth/account-registry.js';
 
 const args = process.argv.slice(2);
 const accountId = args.find(a => !a.startsWith('-')) || 'acc1';
 const isWindows = process.platform === 'win32';
 
-// Resolve profile directory
-let profileDir = '';
-if (isWindows) {
-  const userProfile = process.env.USERPROFILE || 'C:\\Users\\YOUR_USER';
-  const candidate1 = path.join(userProfile, '.gbf-profiles', accountId);
-  const candidate2 = path.join('C:\\Users\\YOUR_USER\\.gbf-profiles', accountId);
-  const candidate3 = path.join(userProfile, '.gbf-chrome-profile');
+// Parse optional CLI overrides
+const portArgIdx = args.indexOf('--port');
+const customPort = portArgIdx !== -1 ? parseInt(args[portArgIdx + 1], 10) : null;
 
+const profileArgIdx = args.indexOf('--profile-dir');
+const customProfileDir = profileArgIdx !== -1 ? args[profileArgIdx + 1] : null;
+
+const outputArgIdx = args.indexOf('--output');
+const customOutput = outputArgIdx !== -1 ? args[outputArgIdx + 1] : null;
+
+// Resolve account configuration
+const account = AccountRegistry.getAccountById(accountId);
+const homeDir = process.env.USERPROFILE || process.env.HOME || '.';
+
+let profileDir = customProfileDir || account?.profileDir || '';
+if (!profileDir) {
+  const candidate1 = path.join(homeDir, '.gbf-profiles', accountId);
+  const candidate2 = path.join(homeDir, '.gbf-chrome-profile');
   if (fs.existsSync(candidate1)) profileDir = candidate1;
   else if (fs.existsSync(candidate2)) profileDir = candidate2;
-  else if (fs.existsSync(candidate3)) profileDir = candidate3;
   else profileDir = candidate1;
-} else {
-  profileDir = `/var/www/${accountId}`;
 }
 
-const cdpPort = 9222;
+const cdpPort = customPort || account?.cdpPort || 9222;
 const outputDir = path.resolve(process.cwd(), 'data');
-const outputFile = path.join(outputDir, `${accountId}-cookies.json`);
+const outputFile = customOutput ? path.resolve(process.cwd(), customOutput) : path.join(outputDir, `${accountId}-cookies.json`);
 
 console.log('========================================================================');
 console.log(`        Granblue Fantasy Local Cookie & Session Exporter               `);
-console.log(`               Account: [${accountId}]                                `);
+console.log(`               Account: [${account?.name || accountId}] (${accountId}) `);
 console.log('========================================================================');
 console.log(`Operating System:   ${process.platform}`);
+console.log(`CDP Port:           ${cdpPort}`);
 console.log(`Profile Directory:  ${profileDir}`);
 console.log(`Output Target:      ${outputFile}`);
 console.log('========================================================================\n');
@@ -55,8 +63,10 @@ function findChromePath(): string {
     const candidates = [
       '/usr/bin/google-chrome-stable',
       '/usr/bin/google-chrome',
+      '/opt/google/chrome/google-chrome',
       '/usr/bin/chromium-browser',
-      '/usr/bin/chromium'
+      '/usr/bin/chromium',
+      '/snap/bin/chromium'
     ];
     for (const c of candidates) {
       if (fs.existsSync(c)) return c;
@@ -65,11 +75,23 @@ function findChromePath(): string {
   }
 }
 
+function copyToClipboard(text: string): boolean {
+  try {
+    if (isWindows) {
+      const proc = spawn('clip', [], { stdio: ['pipe', 'ignore', 'ignore'] });
+      proc.stdin.write(text);
+      proc.stdin.end();
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 async function main() {
   const chromeExe = findChromePath();
   console.log(`[Export] Using browser executable: ${chromeExe}`);
 
-  // Check if Chrome is already listening on port 9222
+  // Check if Chrome is already listening on designated port
   let alreadyRunning = false;
   try {
     const res = await fetch(`http://127.0.0.1:${cdpPort}/json/version`, { signal: AbortSignal.timeout(1000) });
@@ -78,7 +100,7 @@ async function main() {
 
   let chromeProcess: any = null;
   if (!alreadyRunning) {
-    console.log(`[Export] Launching browser on port ${cdpPort} with user profile...`);
+    console.log(`[Export] Launching browser on port ${cdpPort} with profile [${profileDir}]...`);
     const chromeArgs = [
       `--remote-debugging-port=${cdpPort}`,
       '--remote-allow-origins=*',
@@ -150,9 +172,13 @@ async function main() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  // Save to file
-  fs.writeFileSync(outputFile, JSON.stringify(relevantCookies, null, 2), 'utf-8');
+  const jsonString = JSON.stringify(relevantCookies, null, 2);
+  fs.writeFileSync(outputFile, jsonString, 'utf-8');
   console.log(`\n🎉 SUCCESS: Cookies successfully exported to:\n   ${outputFile}`);
+
+  if (copyToClipboard(jsonString)) {
+    console.log('📋 Automatically copied cookies JSON to clipboard!');
+  }
 
   await browser.disconnect();
 

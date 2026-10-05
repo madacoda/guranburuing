@@ -90,6 +90,8 @@
     "account:login": "bun src/cli/setup-account.ts",
     "session:export": "bun scripts/export-session.ts",
     "session:import": "bun src/cli/import-cookies.ts",
+    "session:sync": "bun scripts/sync-session.ts",
+    "sync": "bun scripts/sync-session.ts",
     "acc1": "bun src/cli/run-workflow.ts acc1",
     "acc1:windowed": "bun src/cli/run-workflow.ts acc1 --windowed",
     "acc2": "bun src/cli/run-workflow.ts acc2",

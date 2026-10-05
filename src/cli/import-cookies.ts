@@ -1,6 +1,7 @@
 // src/cli/import-cookies.ts
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import { AccountRegistry } from '../auth/account-registry.js';
 import { AccountAuthManager } from '../auth/account-auth.manager.js';
 import { CdpConnectionManager } from '../cdp-connection.js';
@@ -11,6 +12,7 @@ const fileArgIdx = args.indexOf('--file');
 const customFile = fileArgIdx !== -1 ? args[fileArgIdx + 1] : null;
 const jsonArgIdx = args.indexOf('--json');
 const rawJson = jsonArgIdx !== -1 ? args[jsonArgIdx + 1] : null;
+const isClipboard = args.includes('--clipboard') || args.includes('-c');
 
 const account = AccountRegistry.getAccountById(accountId);
 if (!account) {
@@ -28,8 +30,24 @@ console.log(`               Account: [${account.name}] (${account.id})          
 console.log('========================================================================');
 console.log(`CDP Port:          ${account.cdpPort}`);
 console.log(`Profile Directory: ${account.profileDir}`);
-console.log(`Source File:       ${rawJson ? 'Inline JSON String' : targetFile}`);
+console.log(`Source Mode:       ${rawJson ? 'Inline --json' : isClipboard ? 'System Clipboard' : targetFile}`);
 console.log('========================================================================\n');
+
+function readFromClipboard(): string | null {
+  try {
+    if (process.platform === 'win32') {
+      const ps = spawnSync('powershell', ['-NoProfile', '-Command', 'Get-Clipboard'], { encoding: 'utf-8' });
+      if (ps.stdout) return ps.stdout.trim();
+    } else {
+      // Linux xclip / wl-paste
+      const xclip = spawnSync('xclip', ['-selection', 'clipboard', '-o'], { encoding: 'utf-8' });
+      if (xclip.stdout) return xclip.stdout.trim();
+      const wl = spawnSync('wl-paste', [], { encoding: 'utf-8' });
+      if (wl.stdout) return wl.stdout.trim();
+    }
+  } catch {}
+  return null;
+}
 
 async function loadCookies(): Promise<any[]> {
   if (rawJson) {
@@ -41,13 +59,37 @@ async function loadCookies(): Promise<any[]> {
     }
   }
 
+  if (isClipboard) {
+    const clip = readFromClipboard();
+    if (clip && (clip.startsWith('[') || clip.startsWith('{'))) {
+      try {
+        const parsed = JSON.parse(clip);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e: any) {
+        throw new Error(`Clipboard contains text, but JSON parse failed: ${e.message}`);
+      }
+    }
+    throw new Error('Clipboard does not contain valid cookie JSON.');
+  }
+
   if (!fs.existsSync(targetFile)) {
+    // Try clipboard fallback
+    const clip = readFromClipboard();
+    if (clip && (clip.startsWith('[') || clip.startsWith('{'))) {
+      try {
+        const parsed = JSON.parse(clip);
+        console.log('[Import] Found valid cookie JSON in clipboard. Using clipboard content.');
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {}
+    }
+
     console.error(`❌ Cookie file not found: ${targetFile}`);
     console.log(`\n👉 Please export cookies from your local Windows machine first using:`);
     console.log(`   powershell -ExecutionPolicy Bypass -File .\\scripts\\export-session-windows.ps1 -Account ${accountId}`);
     console.log(`   or run on Windows: bun scripts/export-session.ts ${accountId}`);
     console.log(`\n👉 Alternatively, copy your cookies JSON and import directly with:`);
     console.log(`   bun src/cli/import-cookies.ts ${accountId} --json '<pasted_json_here>'`);
+    console.log(`   or with clipboard: bun src/cli/import-cookies.ts ${accountId} --clipboard`);
     process.exit(1);
   }
 
@@ -79,6 +121,13 @@ async function main() {
     return item;
   });
 
+  // Cache to disk
+  try {
+    const dataDir = path.resolve(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(defaultFile, JSON.stringify(sanitizedCookies, null, 2), 'utf-8');
+  } catch {}
+
   const cdp = new CdpConnectionManager();
   console.log(`[Import] Attaching to Chrome CDP (Port: ${currentAccount.cdpPort}, Headless: true)...`);
   const conn = await cdp.connectWithRetry(6, 2000, true, {
@@ -90,14 +139,28 @@ async function main() {
   const page = conn.page;
   const client = await page.target().createCDPSession();
 
-  console.log(`[Import] Injecting cookies into browser session...`);
+  console.log(`[Import] Injecting cookies into browser session via Network.setCookies...`);
   await client.send('Network.setCookies', { cookies: sanitizedCookies });
 
   console.log(`[Import] Cookies successfully committed to SQLite storage.`);
   console.log(`[Import] Verifying active session on #profile...`);
 
-  await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' });
+  await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
   await new Promise(r => setTimeout(r, 2000));
+
+  // If on #top title screen, click Game Start
+  const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
+  if (currentHash.includes('top') || currentHash === '' || currentHash === '#') {
+    await page.evaluate(() => {
+      const start = document.querySelector('#start, .btn-start, [data-location-href="start"]') as HTMLElement;
+      if (start) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(start).trigger('tap');
+        start.click();
+      }
+    }).catch(() => null);
+    await new Promise(r => setTimeout(r, 2500));
+  }
 
   const profile = await AccountAuthManager.ensureAuthenticated(page, currentAccount);
 

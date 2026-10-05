@@ -62,12 +62,18 @@ export class CdpConnectionManager {
 
         if (!targetPage) {
           console.log('[CDP] GBF tab not found in active browser. Opening https://game.granbluefantasy.jp/#mypage...');
-          targetPage = await this.browser.newPage();
+          targetPage = pages[0] || (await this.browser.newPage());
           await targetPage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' });
         } else {
           // Keep only one active GBF tab in headless mode to maximize speed and minimize memory
           for (const p of pages) {
-            if (p !== targetPage && !p.url().includes('devtools')) {
+            if (
+              p !== targetPage &&
+              !p.url().includes('devtools') &&
+              !p.url().includes('mobage') &&
+              !p.url().includes('mbga') &&
+              !p.url().includes('dmm')
+            ) {
               await p.close().catch(() => null);
             }
           }

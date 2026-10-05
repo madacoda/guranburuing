@@ -101,11 +101,10 @@ export class SentinelWatchdog {
       this.page.on('response', async (res) => {
         try {
           const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
-          // Ignore external auth providers (Mobage, DMM) loading recaptcha or auth scripts
+          // Ignore external auth providers (Mobage, DMM) loading recaptcha or auth scripts during normal login
           if (
-            currentUrl.includes('mobage.jp') ||
-            currentUrl.includes('mbga.jp') ||
-            currentUrl.includes('dmm.com')
+            !currentUrl.includes('sec_challenge') &&
+            (currentUrl.includes('mobage.jp') || currentUrl.includes('mbga.jp') || currentUrl.includes('dmm.com'))
           ) {
             return;
           }
@@ -160,8 +159,20 @@ export class SentinelWatchdog {
    */
   public async inspectForVerification(): Promise<boolean> {
     try {
-      // 0. Pre-check: Never trip in-game captcha alarms while on third-party login pages
       const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
+
+      // 1. Instant URL / Hash check (0ms CDP overhead, immune to DOM states)
+      if (
+        currentUrl.includes('#quest/verification') ||
+        currentUrl.includes('#verification') ||
+        currentUrl.includes('/verification') ||
+        currentUrl.includes('sec_challenge')
+      ) {
+        this.isLocked = true;
+        return true;
+      }
+
+      // Pre-check: Never trip in-game captcha alarms while on third-party login pages (unless sec_challenge)
       if (
         currentUrl.includes('mobage.jp') ||
         currentUrl.includes('mbga.jp') ||
@@ -172,16 +183,6 @@ export class SentinelWatchdog {
 
       // Pre-check: Internal network detection flag or locked state
       if (this.isLocked || this.networkVerificationDetected) {
-        return true;
-      }
-
-      // 1. Instant URL / Hash check (0ms CDP overhead, immune to DOM states)
-      if (
-        currentUrl.includes('#quest/verification') ||
-        currentUrl.includes('#verification') ||
-        currentUrl.includes('/verification') ||
-        currentUrl.includes('sec_challenge')
-      ) {
         return true;
       }
 

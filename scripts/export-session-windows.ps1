@@ -8,15 +8,12 @@ $ErrorActionPreference = "Stop"
 
 if (-not $ProfileDir) {
     $candidate1 = "$env:USERPROFILE\.gbf-profiles\$Account"
-    $candidate2 = "C:\Users\YOUR_USER\.gbf-profiles\$Account"
-    $candidate3 = "$env:USERPROFILE\.gbf-chrome-profile"
+    $candidate2 = "$env:USERPROFILE\.gbf-chrome-profile"
     
     if (Test-Path $candidate1) {
         $ProfileDir = $candidate1
     } elseif (Test-Path $candidate2) {
         $ProfileDir = $candidate2
-    } elseif (Test-Path $candidate3) {
-        $ProfileDir = $candidate3
     } else {
         $ProfileDir = $candidate1
     }

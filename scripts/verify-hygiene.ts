@@ -15,6 +15,8 @@ const FORBIDDEN_FILE_PATTERNS = [
   /^\.env$/,
   /^\.env\.local$/,
   /^scratch\//,
+  /data\/.*-cookies\.json$/,
+  /.*-cookies\.json$/,
   /\.db$/,
   /\.sqlite$/,
   /\.pem$/,

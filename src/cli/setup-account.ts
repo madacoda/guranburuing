@@ -20,14 +20,17 @@ if (!account) {
 }
 
 async function getPublicIp(): Promise<string> {
-  try {
-    const res = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(2000) });
-    if (res.ok) {
-      const ip = (await res.text()).trim();
-      if (ip) return ip;
-    }
-  } catch {}
-  return '127.0.0.1';
+  const providers = ['https://api.ipify.org', 'https://icanhazip.com', 'https://checkip.amazonaws.com'];
+  for (const p of providers) {
+    try {
+      const res = await fetch(p, { signal: AbortSignal.timeout(1500) });
+      if (res.ok) {
+        const ip = (await res.text()).trim();
+        if (ip && /^[\d.]+$/.test(ip)) return ip;
+      }
+    } catch {}
+  }
+  return process.env.PUBLIC_IP || process.env.VPS_HOST || '127.0.0.1';
 }
 
 console.log('========================================================================');

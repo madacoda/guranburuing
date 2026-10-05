@@ -49,10 +49,12 @@ CHROME_BIN=""
 CANDIDATES=(
   "google-chrome-stable"
   "google-chrome"
-  "chromium-browser"
-  "chromium"
   "/usr/bin/google-chrome-stable"
   "/usr/bin/google-chrome"
+  "/opt/google/chrome/google-chrome"
+  "/opt/google/chrome/chrome"
+  "chromium-browser"
+  "chromium"
   "/usr/bin/chromium-browser"
   "/usr/bin/chromium"
   "/snap/bin/chromium"
@@ -73,10 +75,12 @@ if [[ -z "$CHROME_BIN" ]]; then
   exit 1
 fi
 
-# 2. Check if port is already listening
+# 2. Check if port is already listening and responsive to CDP
 PORT_ACTIVE=false
-if command -v ss &> /dev/null; then
-  if ss -tln | grep -q ":$PORT "; then
+if curl -s -m 1 "http://127.0.0.1:$PORT/json/version" &> /dev/null; then
+  PORT_ACTIVE=true
+elif command -v ss &> /dev/null; then
+  if ss -tln | grep -qE "[:.]$PORT\b"; then
     PORT_ACTIVE=true
   fi
 elif command -v nc &> /dev/null; then
@@ -94,12 +98,10 @@ if [[ "$PORT_ACTIVE" == "true" ]]; then
   exit 0
 fi
 
-# 3. Clean up stale lock files
-rm -f "$USER_DATA_DIR/SingletonLock"
-rm -f "$USER_DATA_DIR/lockfile"
-rm -f "$USER_DATA_DIR/Default/SingletonLock"
+# 3. Clean up stale lock and socket files from ungraceful shutdowns / OOMs
+rm -f "$USER_DATA_DIR"/Singleton* "$USER_DATA_DIR"/*/Singleton* "$USER_DATA_DIR"/lockfile "$USER_DATA_DIR"/*/lockfile 2>/dev/null || true
 
-# 4. Assemble Chrome arguments
+# 4. Assemble Chrome arguments optimized for minimal memory and headless stability
 CHROME_ARGS=(
   "--remote-debugging-port=$PORT"
   "--remote-allow-origins=*"
@@ -109,6 +111,8 @@ CHROME_ARGS=(
   "--disable-dev-shm-usage"
   "--disable-gpu"
   "--no-sandbox"
+  "--password-store=basic"
+  "--use-mock-keychain"
   "--js-flags=--max-old-space-size=384"
   "--renderer-process-limit=1"
   "--disable-background-timer-throttling"
@@ -122,6 +126,9 @@ CHROME_ARGS=(
   "--disable-translate"
   "--disable-default-apps"
   "--disable-speech-api"
+  "--disable-breakpad"
+  "--disable-crash-reporter"
+  "--disable-features=Translate,OptimizationHints,MediaRouter"
   "--metrics-recording-only"
   "--window-size=480,960"
 )
@@ -149,7 +156,10 @@ nohup "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
 READY=false
 for i in {1..20}; do
   sleep 0.5
-  if command -v ss &> /dev/null && ss -tln | grep -q ":$PORT "; then
+  if curl -s -m 1 "http://127.0.0.1:$PORT/json/version" &> /dev/null; then
+    READY=true
+    break
+  elif command -v ss &> /dev/null && ss -tln | grep -qE "[:.]$PORT\b"; then
     READY=true
     break
   elif command -v nc &> /dev/null && nc -z 127.0.0.1 "$PORT" 2>/dev/null; then

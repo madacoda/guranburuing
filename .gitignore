@@ -21,6 +21,10 @@ build/
 accounts.config.json
 accounts*.json
 !accounts.config.example.json
+data/*-cookies.json
+*-cookies.json
+
+
 
 # Local Chromium & Isolated Browser Profiles
 .gbf-*-profile/
