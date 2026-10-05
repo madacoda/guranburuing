@@ -1,4 +1,5 @@
-// src/cli/setup-account.ts
+import fs from 'fs';
+import path from 'path';
 import { CdpConnectionManager } from '../cdp-connection.js';
 import { AccountRegistry } from '../auth/account-registry.js';
 import { AccountAuthManager } from '../auth/account-auth.manager.js';

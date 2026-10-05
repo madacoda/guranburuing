@@ -10,46 +10,58 @@ export class AccountAuthManager {
    */
   public static async getVerifiedProfile(page: Page): Promise<VerifiedPlayerProfile | null> {
     try {
-      // 0. Fast direct API verification (authoritative in-game check)
-      const apiProfile = await page.evaluate(async () => {
+      // 0. Fast direct API verification (authoritative in-game check with context retry)
+      let apiProfile: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const g = (window as any).Game;
-          let version = g?.version || (window as any).version || '';
-          if (!version) {
-            for (let i = 0; i < 10 && !version; i++) {
-              await new Promise(r => setTimeout(r, 300));
-              version = (window as any).Game?.version || (window as any).version || '';
+          apiProfile = await page.evaluate(async () => {
+            try {
+              const g = (window as any).Game;
+              let version = g?.version || (window as any).version || '';
+              if (!version) {
+                for (let i = 0; i < 15 && !version; i++) {
+                  await new Promise(r => setTimeout(r, 200));
+                  version = (window as any).Game?.version || (window as any).version || '';
+                }
+              }
+              const headers: Record<string, string> = {
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'X-Requested-With': 'XMLHttpRequest'
+              };
+              if (version) headers['X-VERSION'] = String(version);
+
+              const [rStatus, rUser] = await Promise.all([
+                fetch(`/user/status?_=${Date.now()}`, { headers }),
+                fetch(`/user/user_id/0?_=${Date.now()}`, { headers })
+              ]);
+              if (!rStatus.ok) return null;
+              const statusJson = await rStatus.json().catch(() => null);
+              const userJson = await rUser.json().catch(() => null);
+
+              const uid = userJson?.user_id || statusJson?.status?.user_id;
+              if (statusJson?.status?.level && uid) {
+                const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
+                const cleanName = nameEl?.textContent?.trim() || g?.userName || 'Player';
+                return {
+                  name: cleanName,
+                  rank: String(statusJson.status.level),
+                  id: String(uid)
+                };
+              }
+              return null;
+            } catch {
+              return null;
             }
+          });
+          if (apiProfile) break;
+        } catch (evalErr: any) {
+          if (evalErr.message?.includes('Execution context was destroyed') || evalErr.message?.includes('navigated')) {
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
           }
-          const headers: Record<string, string> = {
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'X-Requested-With': 'XMLHttpRequest'
-          };
-          if (version) headers['X-VERSION'] = String(version);
-
-          const [rStatus, rUser] = await Promise.all([
-            fetch(`/user/status?_=${Date.now()}`, { headers }),
-            fetch(`/user/user_id/0?_=${Date.now()}`, { headers })
-          ]);
-          if (!rStatus.ok) return null;
-          const statusJson = await rStatus.json().catch(() => null);
-          const userJson = await rUser.json().catch(() => null);
-
-          const uid = userJson?.user_id || statusJson?.status?.user_id;
-          if (statusJson?.status?.level && uid) {
-            const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
-            const cleanName = nameEl?.textContent?.trim() || g?.userName || 'Player';
-            return {
-              name: cleanName,
-              rank: String(statusJson.status.level),
-              id: String(uid)
-            };
-          }
-          return null;
-        } catch {
-          return null;
+          break;
         }
-      }).catch(() => null);
+      }
 
       if (apiProfile) {
         return apiProfile;
@@ -179,7 +191,37 @@ export class AccountAuthManager {
       }
     }
 
-    // 1. If unauthenticated on Title (#top) or #authentication, prioritize Login button (#login-auth / データ連携)
+    // 1. If on Title screen (#top), ALWAYS prioritize "Game Start" (#start) first
+    const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
+    if (currentHash.includes('top') || currentHash === '' || currentHash === '#') {
+      try {
+        const hasStart = await page.evaluate(() => {
+          const btn = document.querySelector('#start, .btn-start, [data-location-href="start"], #wrapper') as HTMLElement;
+          if (btn) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(btn).trigger('tap');
+            btn.click();
+            return true;
+          }
+          return false;
+        }).catch(() => false);
+
+        if (hasStart) {
+          console.log(`[Auth] [${account.name}] Triggered Game Start (#start)...`);
+          await logNormalDelay(3000, 0.15);
+
+          profile = await this.getVerifiedProfile(page);
+          if (profile) {
+            console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
+            return profile;
+          }
+        }
+      } catch (clickErr: any) {
+        console.warn(`[Auth] [${account.name}] Game start click deferred: ${clickErr?.message || clickErr}`);
+      }
+    }
+
+    // 2. If unauthenticated after trying Game Start, check Login button (#login-auth / データ連携)
     const authState = await page.evaluate(() => {
       const hash = window.location.hash;
       const hasLoginBtn = !!document.querySelector('#login-auth, .btn-login');
@@ -198,36 +240,6 @@ export class AccountAuthManager {
         }
       }).catch(() => null);
       await logNormalDelay(2000, 0.15);
-    } else {
-      // If no login button, check Game Start (#start) on Title screen (#top)
-      const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
-      if (currentHash.includes('top') || currentHash === '' || currentHash === '#') {
-        try {
-          const hasStart = await page.evaluate(() => {
-            const btn = document.querySelector('#start, .btn-start, [data-location-href="start"]') as HTMLElement;
-            if (btn) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(btn).trigger('tap');
-              btn.click();
-              return true;
-            }
-            return false;
-          }).catch(() => false);
-
-          if (hasStart) {
-            console.log(`[Auth] [${account.name}] Triggered Game Start (#start)...`);
-            await logNormalDelay(2500, 0.15);
-
-            profile = await this.getVerifiedProfile(page);
-            if (profile) {
-              console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
-              return profile;
-            }
-          }
-        } catch (clickErr: any) {
-          console.warn(`[Auth] [${account.name}] Game start click deferred: ${clickErr?.message || clickErr}`);
-        }
-      }
     }
 
     // If on #authentication screen, select platform (Mobage/DMM) and proceed
