@@ -174,10 +174,10 @@ async function main() {
   await client.send('Network.setCookies', { cookies: sanitizedCookies });
 
   console.log(`[Import] Cookies successfully committed to SQLite storage.`);
-  console.log(`[Import] Verifying active session on #profile...`);
+  console.log(`[Import] Verifying active session on #mypage...`);
 
-  await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
-  await new Promise(r => setTimeout(r, 2000));
+  await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
+  await new Promise(r => setTimeout(r, 3000));
 
   // If on #top title screen, click Game Start
   const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');

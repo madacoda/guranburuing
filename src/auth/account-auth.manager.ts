@@ -67,13 +67,13 @@ export class AccountAuthManager {
         return instant;
       }
 
-      // 2. Navigate to #profile if not yet on GBF
+      // 2. Navigate to #mypage if not yet on GBF
       const currentUrl = page.url();
       if (!currentUrl.includes('granbluefantasy.jp')) {
-        await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
+        await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
       } else {
         await page.evaluate(() => {
-          window.location.hash = '#profile';
+          window.location.hash = '#mypage';
         }).catch(() => null);
       }
 
