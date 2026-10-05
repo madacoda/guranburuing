@@ -13,7 +13,8 @@ export class AccountAuthManager {
       // 0. Fast direct API verification (authoritative in-game check)
       const apiProfile = await page.evaluate(async () => {
         try {
-          let version = (window as any).Game?.version || (window as any).version || '';
+          const g = (window as any).Game;
+          let version = g?.version || (window as any).version || '';
           if (!version) {
             for (let i = 0; i < 10 && !version; i++) {
               await new Promise(r => setTimeout(r, 300));
