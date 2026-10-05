@@ -120,6 +120,28 @@ async function main(targetAccount: AccountConfig) {
     console.log(`   Granblue User ID: ${profile.id}`);
     console.log(`   Profile Storage:  ${targetAccount.profileDir}`);
     console.log('========================================================================\n');
+
+    try {
+      const client = await page.target().createCDPSession();
+      const { cookies } = await client.send('Network.getAllCookies');
+      const relevantCookies = cookies.filter(c => {
+        const domain = (c.domain || '').toLowerCase();
+        return (
+          domain.includes('granbluefantasy.jp') ||
+          domain.includes('mbga.jp') ||
+          domain.includes('mobage.jp') ||
+          domain.includes('dmm.com')
+        );
+      });
+      const dataDir = path.resolve(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+      const cookieFile = path.join(dataDir, `${targetAccount.id}-cookies.json`);
+      fs.writeFileSync(cookieFile, JSON.stringify(relevantCookies, null, 2), 'utf-8');
+      console.log(`[Setup] 🎉 Automatically exported ${relevantCookies.length} session cookies to:`);
+      console.log(`        ${cookieFile}`);
+    } catch (exportErr: any) {
+      console.warn('[Setup] Notice exporting cookies:', exportErr.message);
+    }
   }
 
   if (gateway) {
