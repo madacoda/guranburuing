@@ -67,20 +67,31 @@ export class CdpConnectionManager {
         } else {
           // Keep only one active GBF tab in headless mode to maximize speed and minimize memory
           for (const p of pages) {
+            const url = p.url();
             if (
               p !== targetPage &&
-              !p.url().includes('devtools') &&
-              !p.url().includes('mobage') &&
-              !p.url().includes('mbga') &&
-              !p.url().includes('dmm')
+              !url.startsWith('chrome://') &&
+              !url.startsWith('chrome-extension://') &&
+              !url.startsWith('about:') &&
+              !url.includes('devtools') &&
+              !url.includes('mobage') &&
+              !url.includes('mbga') &&
+              !url.includes('dmm')
             ) {
-              await p.close().catch(() => null);
+              await Promise.race([
+                p.close().catch(() => null),
+                new Promise(resolve => setTimeout(resolve, 1000))
+              ]);
             }
           }
         }
 
         this.gbfPage = targetPage;
-        console.log(`[CDP] Connected successfully to page: ${await this.gbfPage.title()}`);
+        const pageTitle = await Promise.race([
+          this.gbfPage.title(),
+          new Promise<string>(resolve => setTimeout(() => resolve('Granblue Fantasy (Title Timeout)'), 2000))
+        ]).catch(() => 'Granblue Fantasy');
+        console.log(`[CDP] Connected successfully to page: ${pageTitle}`);
         return { browser: this.browser, page: this.gbfPage };
 
       } catch (err: any) {
