@@ -10,7 +10,43 @@ export class AccountAuthManager {
    */
   public static async getVerifiedProfile(page: Page): Promise<VerifiedPlayerProfile | null> {
     try {
-      // 1. Fast check if active page is already authenticated (#mypage, #profile, header)
+      // 0. Fast direct API verification (authoritative in-game check)
+      const apiProfile = await page.evaluate(async () => {
+        try {
+          const g = (window as any).Game;
+          const version = g?.version || '';
+          const [rStatus, rUser] = await Promise.all([
+            fetch(`/user/status?_=${Date.now()}`, {
+              headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-VERSION': version }
+            }),
+            fetch(`/user/user_id/0?_=${Date.now()}`, {
+              headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-VERSION': version }
+            })
+          ]);
+          if (!rStatus.ok) return null;
+          const statusJson = await rStatus.json().catch(() => null);
+          const userJson = await rUser.json().catch(() => null);
+
+          if (statusJson?.status?.level && userJson?.user_id) {
+            const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
+            const cleanName = nameEl?.textContent?.trim() || g?.userName || 'Player';
+            return {
+              name: cleanName,
+              rank: String(statusJson.status.level),
+              id: String(userJson.user_id)
+            };
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      }).catch(() => null);
+
+      if (apiProfile) {
+        return apiProfile;
+      }
+
+      // 1. Fast check if active page DOM is already authenticated (#mypage, #profile, header)
       const instant = await page.evaluate(() => {
         const Game = (window as any).Game;
         const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
