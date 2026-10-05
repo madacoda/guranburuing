@@ -7,7 +7,20 @@ import { AccountAuthManager } from '../auth/account-auth.manager.js';
 import { CdpConnectionManager } from '../cdp-connection.js';
 
 const args = process.argv.slice(2);
-const accountId = args.find(a => !a.startsWith('-')) || 'acc1';
+const positionalArgs = args.filter(a => !a.startsWith('-'));
+const registeredAccounts = AccountRegistry.loadAccounts();
+
+let accountId = 'acc1';
+let directMidship = '';
+
+for (const arg of positionalArgs) {
+  if (registeredAccounts.some(a => a.id.toLowerCase() === arg.toLowerCase())) {
+    accountId = registeredAccounts.find(a => a.id.toLowerCase() === arg.toLowerCase())!.id;
+  } else if (arg.startsWith('S%3A') || arg.startsWith('S:') || arg.length > 50) {
+    directMidship = arg;
+  }
+}
+
 const fileArgIdx = args.indexOf('--file');
 const customFile = fileArgIdx !== -1 ? args[fileArgIdx + 1] : null;
 const jsonArgIdx = args.indexOf('--json');
@@ -15,7 +28,7 @@ const rawJson = jsonArgIdx !== -1 ? args[jsonArgIdx + 1] : null;
 const isClipboard = args.includes('--clipboard') || args.includes('-c');
 
 const midshipArgIdx = args.indexOf('--midship');
-const rawMidship = midshipArgIdx !== -1 ? args[midshipArgIdx + 1] : null;
+const rawMidship = midshipArgIdx !== -1 ? args[midshipArgIdx + 1] : (directMidship || null);
 
 const account = AccountRegistry.getAccountById(accountId);
 if (!account) {
