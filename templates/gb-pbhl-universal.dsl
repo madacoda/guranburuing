@@ -1,9 +1,9 @@
 # =========================================================================
-# Workflow Template: GB Farm - Proto Bahamut HL
+# Workflow Template: GB Farm - Proto Bahamut HL (Universal)
 # Description: PBHL Gold Bar 5-turn speed burst with minimum honor guard: C4S3 -> Reload -> Tap Ready -> Reload -> Tap Ready -> Reload -> Tap Ready -> Reload -> Tap Ready -> Summon 2 -> Reload -> Tap Ready -> Repeat if <1.5M -> Done
 # =========================================================================
 
-Name: GB Farm - Proto Bahamut HL
+Name: GB Farm - Proto Bahamut HL (Universal)
 Description: PBHL Gold Bar 5-turn speed burst with minimum honor guard: C4S3 -> Reload -> Tap Ready -> Reload -> Tap Ready -> Reload -> Tap Ready -> Reload -> Tap Ready -> Summon 2 -> Reload -> Tap Ready -> Repeat if <1.5M -> Done
 Mode: combat
 Quest: https://game.granbluefantasy.jp/#quest/assist

@@ -197,11 +197,11 @@ export const WorkflowStepSchema: z.ZodType<WorkflowStep, z.ZodTypeDef, any> = Wo
   }
 
   if (action === 'summon') {
-    if (data.slot === undefined) {
+    if (data.slot === undefined && !data.target) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['slot'],
-        message: 'Action "summon" requires "slot" (1-6)'
+        message: 'Action "summon" requires "slot" (1-6) or target summon name'
       });
     }
   }

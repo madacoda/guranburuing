@@ -145,7 +145,7 @@ export class TemplateParser {
     let currentBlockSubSteps: WorkflowStep[] = [];
 
     for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-      const line = rawLines[lineIndex].trim();
+      let line = rawLines[lineIndex].trim();
 
       // Skip blank lines and comments
       if (line.length === 0 || line.startsWith('#') || line.startsWith('//') || line.startsWith(';')) {
@@ -156,6 +156,9 @@ export class TemplateParser {
       if (line.startsWith('---') || line.startsWith('===')) {
         continue;
       }
+
+      // Strip extraneous surrounding quotes or backticks from user typing/copy-paste
+      line = line.replace(/^["'`]+|["'`]+$/g, '').trim();
 
       // Metadata Directives (Header definitions)
       if (/^name\s*:\s*(.+)$/i.test(line)) {
@@ -222,6 +225,10 @@ export class TemplateParser {
         const m = line.match(/^batch_?claim\s*:\s*(\d+)\s*[-to\s]+\s*(\d+)$/i)!;
         minBatchClaim = parseInt(m[1], 10);
         maxBatchClaim = parseInt(m[2], 10);
+        continue;
+      }
+      if (/^log_?path\s*:\s*(.+)$/i.test(line)) {
+        logPath = line.match(/^log_?path\s*:\s*(.+)$/i)![1].trim();
         continue;
       }
 
@@ -337,10 +344,21 @@ export class TemplateParser {
       }
 
       // Standard single-action parsing
-      const step = this.parseSingleDslAction(line, currentBlockType ? currentBlockSubSteps.length + 1 : steps.length + 1, () => {
-        readyScreenOccurrence++;
-        return readyScreenOccurrence;
-      });
+      const hasPriorCombatActions = () => {
+        const checkSteps = (st: WorkflowStep[]): boolean =>
+          st.some(s => s.code === 'skill' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'attack' || s.code === 'smart_full_auto' || (s.subSteps && checkSteps(s.subSteps)));
+        return checkSteps(steps) || checkSteps(currentBlockSubSteps);
+      };
+
+      const step = this.parseSingleDslAction(
+        line,
+        currentBlockType ? currentBlockSubSteps.length + 1 : steps.length + 1,
+        () => {
+          readyScreenOccurrence++;
+          return readyScreenOccurrence;
+        },
+        hasPriorCombatActions
+      );
 
       if (step) {
         if (currentBlockType) {
@@ -381,10 +399,13 @@ export class TemplateParser {
    * Helper that parses an individual action line into a typed WorkflowStep.
    */
   private static parseSingleDslAction(
-    line: string,
+    rawLine: string,
     stepIndex: number,
-    getReadyOccurrence?: () => number
+    getReadyOccurrence?: () => number,
+    hasPriorCombatActions?: () => boolean
   ): WorkflowStep | null {
+    const line = rawLine.replace(/^["'`]+|["'`]+$/g, '').trim();
+
     // Skip Story Scene / Fast Skip Dialogue
     if (/^skip[\s_]*(?:story[\s_]*scene|story|scene|fate)/i.test(line)) {
       return {
@@ -429,10 +450,12 @@ export class TemplateParser {
       };
     }
 
-    // 1. Ready screen tap
-    if (/tab[\s_]*ready|tap[\s_]*ready|^ready(?:\s*:\s*click)?/i.test(line)) {
+    // 1. Ready screen tap: "tap ready", "tap the ready", "ready: click"
+    if (/(?:tab|tap)(?:[\s_]+the)?[\s_]*ready|^ready(?:\s*:\s*click)?/i.test(line)) {
       const occurrence = getReadyOccurrence ? getReadyOccurrence() : 1;
-      if (occurrence === 1) {
+      const hasPrior = hasPriorCombatActions ? hasPriorCombatActions() : false;
+      // Turn 0 quick call only if it is the very first combat action of the raid and not explicitly attack
+      if (occurrence === 1 && !hasPrior && !/(?:attack|atk)/i.test(line)) {
         return {
           id: `step_${stepIndex}`,
           name: 'Tap Ready Screen (Quick Call)',
@@ -443,10 +466,9 @@ export class TemplateParser {
       }
       return {
         id: `step_${stepIndex}`,
-        name: 'Tap Ready Screen (Attack)',
-        code: 'attack',
-        action: 'attack',
-        waitForNetwork: 'normal_attack_result.json'
+        name: 'Tap Ready Screen (Full Auto / Turn Action)',
+        code: 'tap_ready',
+        action: 'tap_ready'
       };
     }
 
@@ -485,8 +507,8 @@ export class TemplateParser {
       };
     }
 
-    // 5. Result Confirmation & Loot: "confirm", "loot", "confirm a bit", "result"
-    if (/^(?:confirm|loot|dismiss|result)(?:[\s_]+a[\s_]+bit)?/i.test(line)) {
+    // 5. Result Confirmation & Loot: "confirm", "loot", "confirm a bit", "result", "done", "finish"
+    if (/^(?:confirm|loot|dismiss|result|done|finish)(?:[\s_]+a[\s_]+bit)?/i.test(line)) {
       return {
         id: `step_${stepIndex}`,
         name: 'Confirm Battle Result & Dismiss Popups',
@@ -495,12 +517,46 @@ export class TemplateParser {
       };
     }
 
-    // 6. Skill with target character: "c4s2 on 2", "c4s2->c2", "skill 4-2 on 2"
-    const skillTargetMatch = line.match(/(?:skill[\s_]*|c)(\d)[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->)\s*(?:c|char|character)?\s*(\d)/i);
+    // Shorthand for loop until honor: "check the honor and keep attacking until honor", "keep attacking until honor", "attack until honor"
+    if (/^(?:check[\s_]*(?:the[\s_]*)?honor[\s_]*and[\s_]*)?(?:keep[\s_]*)?attack(?:ing)?[\s_]*until[\s_]*honor/i.test(line)) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Loop Attack Until Target Honor Reached',
+        code: 'repeat',
+        action: 'repeat',
+        repeatCount: 10,
+        subSteps: [
+          {
+            id: `step_${stepIndex}_1`,
+            name: 'Exit if Honors Met',
+            code: 'exit_if_score',
+            action: 'exit_if_score',
+            targetScore: 1800000
+          },
+          {
+            id: `step_${stepIndex}_2`,
+            name: 'Execute Normal Attack',
+            code: 'attack',
+            action: 'attack',
+            optional: true,
+            waitForNetwork: 'normal_attack_result.json'
+          },
+          {
+            id: `step_${stepIndex}_3`,
+            name: 'Instant Reload F5',
+            code: 'reload',
+            action: 'reload'
+          }
+        ]
+      };
+    }
+
+    // 6. Skill with target character: "c4s2 on 2", "c4s2->c2", "skill 4-2 on 2", "char 4 skill 2 on char 2"
+    const skillTargetMatch = line.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->)\s*(?:c|char|character)?\s*(\d)$/i);
     if (skillTargetMatch) {
-      const charNum = parseInt(skillTargetMatch[1], 10);
-      const skillNum = parseInt(skillTargetMatch[2], 10);
-      const targetChar = parseInt(skillTargetMatch[3], 10);
+      const charNum = parseInt(skillTargetMatch[1] || skillTargetMatch[2], 10);
+      const skillNum = parseInt(skillTargetMatch[3], 10);
+      const targetChar = parseInt(skillTargetMatch[4], 10);
       return {
         id: `step_${stepIndex}`,
         name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}`,
@@ -513,11 +569,11 @@ export class TemplateParser {
       };
     }
 
-    // 7. Regular skill: "c1s3", "skill 1-3", "skill 1 3", "char 1 skill 3", "1-3"
-    const skillMatch = line.match(/(?:skill[\s_]*|c)(\d)[-\s_]*(?:skill[\s_]*|s)?(\d)/i);
+    // 7. Regular skill: "c1s3", "skill 1-3", "skill 1 3", "char 1 skill 3", "char 4 skill 4", "1-3"
+    const skillMatch = line.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d)|(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)$/i);
     if (skillMatch) {
-      const charNum = parseInt(skillMatch[1], 10);
-      const skillNum = parseInt(skillMatch[2], 10);
+      const charNum = parseInt(skillMatch[1] || skillMatch[2] || skillMatch[3], 10);
+      const skillNum = parseInt(skillMatch[4], 10);
       return {
         id: `step_${stepIndex}`,
         name: `Character ${charNum} Skill ${skillNum}`,
@@ -529,16 +585,20 @@ export class TemplateParser {
       };
     }
 
-    // 8. Summon: "summon 1", "call 3"
-    const summonMatch = line.match(/(?:summon|call)[\s_]*(\d+)/i);
+    // 8. Summon: "summon 1", "call 3", "summon agni", "call agni", "summon number 2", "summon slot 2"
+    const summonMatch = line.match(/^(?:summon|call)(?:[\s_]+(?:number|slot|no\.?))?[\s_]+([a-zA-Z0-9_\-]+)$/i);
     if (summonMatch) {
-      const slot = parseInt(summonMatch[1], 10);
+      const param = summonMatch[1].trim();
+      const isNum = /^\d+$/.test(param);
+      const slot = isNum ? parseInt(param, 10) : 1;
+      const target = isNum ? undefined : param.toLowerCase();
       return {
         id: `step_${stepIndex}`,
-        name: `Invoke Summon Slot ${slot}`,
+        name: isNum ? `Invoke Summon Slot ${slot}` : `Invoke Summon (${param})`,
         code: 'summon',
         action: 'summon',
         slot,
+        ...(target ? { target } : {}),
         waitForNetwork: 'summon_result.json'
       };
     }
@@ -791,6 +851,7 @@ export class TemplateParser {
       lines.push(`Slot: ${template.raidSlot}`);
     }
     if (template.targetScore) lines.push(`TargetScore: ${template.targetScore}`);
+    if (template.logPath) lines.push(`LogPath: ${template.logPath}`);
     lines.push(`Elixir: ${template.autoElixir !== false}`);
     lines.push(`Berry: ${template.autoBerry !== false}`);
     lines.push('');
@@ -814,6 +875,9 @@ export class TemplateParser {
           }
           return `${indent}c${step.character}s${step.skill}`;
         case 'summon':
+          if (step.target && isNaN(Number(step.target))) {
+            return `${indent}summon ${step.target}`;
+          }
           return `${indent}summon ${step.slot || 1}`;
         case 'target_enemy':
           return `${indent}target ${step.enemyIndex || 1}`;

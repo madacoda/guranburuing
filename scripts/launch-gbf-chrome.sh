@@ -132,6 +132,7 @@ CHROME_ARGS=(
   "--test-third-party-cookie-phaseout=disabled"
   "--metrics-recording-only"
   "--window-size=480,960"
+  "--disk-cache-size=104857600"
 )
 
 if [[ "$HEADLESS" == "true" ]]; then

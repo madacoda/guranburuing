@@ -1098,7 +1098,7 @@ export class PbhlEngine {
                 } else {
                   const turnDmg = this.extractTurnDamage(data);
                   if (turnDmg > 0) {
-                    const turnHonors = Math.floor(turnDmg / 1000);
+                    const turnHonors = Math.floor(turnDmg / 100);
                     this.currentScore += turnHonors;
                     console.log(`[PbhlEngine] Attack resolved. Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Estimated Total Honors: ${this.currentScore.toLocaleString()} pt`);
                   }

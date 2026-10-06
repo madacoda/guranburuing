@@ -1,33 +1,32 @@
 # =========================================================================
 # Workflow Template: GB Farm - Akasha HL
-# Description: Akasha Gold Bar rotation: Quick Call -> C4S3 -> C4S2 -> C3S1 -> C2S1 -> Attack -> Reload -> Summon 2 -> Attack -> Loop Reload+Attack until honor reached
+# Description: Akasha Gold Bar rotation: Summon Hades -> Quick Call -> C2S1 -> C3S1 -> Attack -> Reload -> Attack -> Honor Guard Loop
 # =========================================================================
 
 Name: GB Farm - Akasha HL
-Description: Akasha Gold Bar rotation: Quick Call -> C4S3 -> C4S2 -> C3S1 -> C2S1 -> Attack -> Reload -> Summon 2 -> Attack -> Loop Reload+Attack until honor reached
+Description: Akasha Gold Bar rotation: Summon Hades -> Quick Call -> C2S1 -> C3S1 -> Attack -> Reload -> Attack -> Honor Guard Loop
 Mode: combat
 Quest: https://game.granbluefantasy.jp/#quest/assist
-Speed: fast
+Speed: turbo
 Runs: 500
 Supporters: Hades, Bahamut
 Slots: 3
-TargetScore: 1580000
+TargetScore: 1430000
+LogPath: logs/gb-akasha.md
 Elixir: false
 Berry: true
 
 ---
+summon hades
 quick_call
-c4s3
-c4s2
-c3s1
 c2s1
+c3s1
 attack
 reload
-summon 2
 attack
 repeat 10 {
   reload
-  exit_if_score 1580000
+  exit_if_score 1430000
   attack
 }
 reload

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { CdpConnectionManager } from '../cdp-connection.js';
 import { AccountRegistry } from '../auth/account-registry.js';
-import { AccountAuthManager } from '../auth/account-auth.manager.js';
+import { AccountAuthManager, safeUrl } from '../auth/account-auth.manager.js';
 import { AccountConfig } from '../types/account.types.js';
 import { GatewayServer } from '../gateway/server.js';
 import { SentinelWatchdog } from '../sentinel-watchdog.js';
@@ -106,7 +106,7 @@ async function main(targetAccount: AccountConfig) {
 
     while (!profile) {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      const currentUrl = page.url();
+      const currentUrl = safeUrl(page);
       if (currentUrl.includes('granbluefantasy.jp') && !currentUrl.includes('mbga.jp') && !currentUrl.includes('mobage.jp')) {
         profile = await AccountAuthManager.getVerifiedProfile(page).catch(() => null);
       }

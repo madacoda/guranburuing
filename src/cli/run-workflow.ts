@@ -200,7 +200,7 @@ async function main() {
 
   // Interactive Selection if account is missing
   if (!targetAccountId) {
-    if (accounts.length === 1) {
+    if (accounts.length === 1 || !process.stdin.isTTY) {
       targetAccountId = accounts[0].id;
     } else {
       console.log('\n========================================================================');
@@ -225,7 +225,7 @@ async function main() {
   // Interactive Selection if template is missing
   const availableTemplates = TemplateParser.listAvailableTemplates();
   if (!targetTemplateName) {
-    if (availableTemplates.length === 1) {
+    if (availableTemplates.length === 1 || !process.stdin.isTTY) {
       targetTemplateName = availableTemplates[0];
     } else if (availableTemplates.length === 0) {
       console.error('[WorkflowRunner] No templates found in templates/ directory.');

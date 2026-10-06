@@ -29,6 +29,8 @@ data/*-cookies.json
 # Local Chromium & Isolated Browser Profiles
 .gbf-*-profile/
 .gbf-profiles/
+data/accounts/*
+!data/accounts/.gitkeep
 *.sqlite
 *.db
 *.leveldb

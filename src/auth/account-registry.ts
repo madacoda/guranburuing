@@ -52,10 +52,31 @@ export class AccountRegistry {
         // Expand tilde ~ if used
         if (pDir.startsWith('~')) {
           pDir = path.join(homeDir, pDir.slice(1));
-        } else if (process.platform !== 'win32' && /^[a-zA-Z]:[\\/]/.test(pDir)) {
+        } else if (pDir.startsWith('./') || pDir.startsWith('.\\') || pDir.startsWith('data/') || pDir.startsWith('data\\') || (!path.isAbsolute(pDir) && !pDir.startsWith('/'))) {
+          // Resolve relative to project workspace root
+          pDir = path.resolve(process.cwd(), pDir);
+        } else if (process.platform === 'win32') {
+          // Normalize Linux VPS path to local project data/accounts or Windows .gbf-profiles if /data is not present
+          if (pDir.startsWith('/data/') && !fs.existsSync(pDir)) {
+            const projectCandidate = path.resolve(process.cwd(), 'data', 'accounts', acc.id);
+            const localCandidate = path.join(homeDir, '.gbf-profiles', acc.id);
+            if (fs.existsSync(projectCandidate)) {
+              pDir = projectCandidate;
+            } else if (fs.existsSync(localCandidate)) {
+              pDir = localCandidate;
+            } else {
+              pDir = projectCandidate;
+            }
+          }
+        } else if (/^[a-zA-Z]:[\\/]/.test(pDir)) {
           // Normalize Windows absolute path to Linux home path if deploying from Windows to Linux VPS
           const profileName = path.basename(pDir);
-          pDir = path.join(homeDir, '.gbf-profiles', profileName);
+          const projectCandidate = path.resolve(process.cwd(), 'data', 'accounts', acc.id);
+          if (fs.existsSync(projectCandidate)) {
+            pDir = projectCandidate;
+          } else {
+            pDir = path.join(homeDir, '.gbf-profiles', profileName);
+          }
         }
         return { ...acc, profileDir: pDir };
       });

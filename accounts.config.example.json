@@ -5,7 +5,7 @@
     "enabled": true,
     "service": "mobage",
     "cdpPort": 9222,
-    "profileDir": "C:/Users/YOUR_USER/.gbf-profiles/acc1",
+    "profileDir": "./data/accounts/acc1",
     "credentials": {
       "email": "your-acc1-email@example.com",
       "password": "your-acc1-password"
@@ -18,7 +18,7 @@
     "enabled": false,
     "service": "mobage",
     "cdpPort": 9223,
-    "profileDir": "C:/Users/YOUR_USER/.gbf-profiles/acc2",
+    "profileDir": "./data/accounts/acc2",
     "credentials": {
       "email": "your-acc2-email@example.com",
       "password": "your-acc2-password"

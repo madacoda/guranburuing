@@ -1,0 +1,11 @@
+# ==============================================================================
+# Granblue Fantasy Suite - Data Directory Access Shield
+# Prevents Apache / Laragon from exposing bot profiles and session cookies
+# ==============================================================================
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>

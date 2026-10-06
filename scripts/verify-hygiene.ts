@@ -15,6 +15,7 @@ const FORBIDDEN_FILE_PATTERNS = [
   /^\.env$/,
   /^\.env\.local$/,
   /^scratch\//,
+  /^data\/accounts\/(?!(\.gitkeep)$)/,
   /data\/.*-cookies\.json$/,
   /.*-cookies\.json$/,
   /\.db$/,

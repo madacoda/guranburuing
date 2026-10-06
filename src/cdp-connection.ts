@@ -61,40 +61,56 @@ export class CdpConnectionManager {
           this.reconnect();
         });
 
-        // Locate active GBF tab with timeout and direct target fallback
+        // Locate active GBF tab directly via targets (avoids browser.pages() hang on internal browser_ui)
         let targetPage: puppeteer.Page | null = null;
-        try {
-          const pagesPromise = this.browser.pages();
-          const pages = await Promise.race([
-            pagesPromise,
-            new Promise<puppeteer.Page[]>((_, reject) => setTimeout(() => reject(new Error('browser.pages() timed out after 6000ms')), 6000))
+        const targets = this.browser.targets();
+        const gbfTarget = targets.find(t => t.type() === 'page' && (t.url().includes('game.granbluefantasy.jp') || t.url().includes('gbf.game.mbga.jp')));
+        if (gbfTarget) {
+          targetPage = await Promise.race([
+            gbfTarget.page(),
+            new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 3000))
           ]);
-          targetPage = pages.find(p => p.url().includes('game.granbluefantasy.jp') || p.url().includes('gbf.game.mbga.jp')) || null;
-        } catch (pageErr: any) {
-          console.warn(`[CDP] Tab enumeration notice (${pageErr.message}). Resolving GBF target directly...`);
-          // Resilient fallback: locate target without attaching to every frame
-          const targets = this.browser.targets();
-          const gbfTarget = targets.find(t => t.type() === 'page' && (t.url().includes('game.granbluefantasy.jp') || t.url().includes('gbf.game.mbga.jp')));
-          if (gbfTarget) {
+        }
+
+        // If not found via gbfTarget, try any existing page target
+        if (!targetPage) {
+          const anyPageTarget = targets.find(t => t.type() === 'page');
+          if (anyPageTarget) {
             targetPage = await Promise.race([
-              gbfTarget.page(),
-              new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 4000))
+              anyPageTarget.page(),
+              new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 3000))
             ]);
           }
         }
 
+        // If still no page, open new page
         if (!targetPage) {
-          console.log('[CDP] GBF tab not found in active browser. Opening https://game.granbluefantasy.jp/#mypage...');
-          const existingPages = await this.browser.pages().catch(() => []);
-          targetPage = existingPages[0] || (await this.browser.newPage());
-          await targetPage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+          console.log('[CDP] GBF tab not found in active browser. Opening https://game.granbluefantasy.jp/...');
+          targetPage = await Promise.race([
+            this.browser.newPage(),
+            new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 5000))
+          ]);
+          if (targetPage) {
+            await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+          }
+        }
+
+        if (!targetPage) {
+          throw new Error('Failed to resolve or create a valid Granblue Fantasy browser page target');
         }
 
         this.gbfPage = targetPage;
-        const pageTitle = await Promise.race([
+        let pageTitle = await Promise.race([
           this.gbfPage.title(),
           new Promise<string>(resolve => setTimeout(() => resolve('Granblue Fantasy (Title Timeout)'), 2000))
         ]).catch(() => 'Granblue Fantasy');
+
+        if (pageTitle.toLowerCase().includes('error')) {
+          console.warn('[CDP] Detected error page. Automatically recovering to https://game.granbluefantasy.jp/...');
+          await this.gbfPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+          pageTitle = await this.gbfPage.title().catch(() => 'Granblue Fantasy');
+        }
+
         console.log(`[CDP] Connected successfully to page: ${pageTitle}`);
         return { browser: this.browser, page: this.gbfPage };
 

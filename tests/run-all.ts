@@ -103,6 +103,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Granblue Fantasy Methodological Tactical Skills Tests',
     file: 'tests/test-tactical-skills-unit.ts',
     description: 'Field -> Debuff -> Buff -> Nuke ordering, conditional healing, and zero-latency cooldown checks'
+  },
+  {
+    name: 'Proto Bahamut HL Universal Workflow & Shorthand DSL Tests',
+    file: 'tests/test-pbhl-universal-workflow.ts',
+    description: 'PBHL Fire burst rotation, named summon resolution, natural language DSL parsing, and round-trip validation'
   }
 ];
 

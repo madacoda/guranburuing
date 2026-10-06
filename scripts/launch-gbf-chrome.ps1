@@ -36,10 +36,28 @@ if (-not $selectedBrowser) {
 
 $browserExe = $selectedBrowser.Exe
 $isCustomProfile = ($CustomUserDataDir -ne "")
-$userDataDir = if ($isCustomProfile) { [System.IO.Path]::GetFullPath($CustomUserDataDir) } else { [System.IO.Path]::GetFullPath($selectedBrowser.UserDataDir) }
-$targetProfile = $selectedBrowser.Profile
+$userDataDir = if ($isCustomProfile) {
+    if ($CustomUserDataDir.StartsWith("~")) {
+        $homeDir = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+        [System.IO.Path]::GetFullPath($homeDir + $CustomUserDataDir.Substring(1))
+    } else {
+        [System.IO.Path]::GetFullPath($CustomUserDataDir)
+    }
+} else {
+    [System.IO.Path]::GetFullPath($selectedBrowser.UserDataDir)
+}
+$targetProfile = if ($Profile -ne "") { $Profile } else { $selectedBrowser.Profile }
+if ($targetProfile -eq "Default") {
+    if (Test-Path "$userDataDir\Profile 3\Network\Cookies") {
+        Write-Host "[Launcher] Detected active session in 'Profile 3' ($userDataDir\Profile 3). Auto-selecting Profile 3." -ForegroundColor Cyan
+        $targetProfile = "Profile 3"
+    } elseif (Test-Path "$userDataDir\Profile 1\Network\Cookies") {
+        Write-Host "[Launcher] Detected active session in 'Profile 1' ($userDataDir\Profile 1). Auto-selecting Profile 1." -ForegroundColor Cyan
+        $targetProfile = "Profile 1"
+    }
+}
 $cdpPort = if ($Port -gt 0) { $Port } else { 9222 }
-$targetUrl = "https://game.granbluefantasy.jp/#mypage"
+$targetUrl = "https://game.granbluefantasy.jp/"
 
 # Ensure user data dir exists
 if (-not (Test-Path $userDataDir)) {
@@ -172,7 +190,8 @@ $browserArgs = @(
     "--disable-renderer-backgrounding",
     "--autoplay-policy=no-user-gesture-required",
     "--mute-audio",
-    "--window-size=480,960"
+    "--window-size=480,960",
+    "--disk-cache-size=104857600"
 )
 
 if ($isHeadless) {

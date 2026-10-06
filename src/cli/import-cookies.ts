@@ -28,7 +28,23 @@ const rawJson = jsonArgIdx !== -1 ? args[jsonArgIdx + 1] : null;
 const isClipboard = args.includes('--clipboard') || args.includes('-c');
 
 const midshipArgIdx = args.indexOf('--midship');
-const rawMidship = midshipArgIdx !== -1 ? args[midshipArgIdx + 1] : (directMidship || null);
+let rawMidship: string | null = null;
+if (midshipArgIdx !== -1) {
+  const candidate = args[midshipArgIdx + 1];
+  if (candidate && !candidate.startsWith('-') && !registeredAccounts.some(a => a.id.toLowerCase() === candidate.toLowerCase())) {
+    rawMidship = candidate;
+  } else if (args[midshipArgIdx + 2] && !args[midshipArgIdx + 2].startsWith('-')) {
+    rawMidship = args[midshipArgIdx + 2];
+  }
+}
+if (!rawMidship && directMidship) {
+  rawMidship = directMidship;
+}
+
+if (rawMidship && (rawMidship.length < 20 || registeredAccounts.some(a => a.id.toLowerCase() === rawMidship!.toLowerCase()))) {
+  console.error(`\n❌ Invalid midship cookie value: "${rawMidship}". Expected a full session token starting with "S%3A".`);
+  process.exit(1);
+}
 
 const account = AccountRegistry.getAccountById(accountId);
 if (!account) {

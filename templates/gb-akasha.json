@@ -1,9 +1,9 @@
 {
   "name": "GB Farm - Akasha HL",
-  "description": "Akasha Gold Bar rotation: Quick Call -> C4S3 -> C4S2 -> C3S1 -> C2S1 -> Attack -> Reload -> Summon 2 -> Attack -> Loop Reload+Attack until honor reached",
+  "description": "Akasha Gold Bar rotation: Summon Hades -> Quick Call -> C2S1 -> C3S1 -> Attack -> Reload -> Attack -> Honor Guard Loop",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "raidSlot": 3,
-  "targetScore": 1580000,
+  "targetScore": 1430000,
   "logPath": "logs/gb-akasha.md",
   "supporterPriority": [
     "Hades",
@@ -14,31 +14,30 @@
   "autoElixir": false,
   "autoBerry": true,
   "defaultRuns": 500,
-  "speedProfile": "fast",
+  "speedProfile": "turbo",
   "steps": [
     {
+      "code": "summon",
+      "target": "hades",
+      "optional": true,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
       "code": "quick_call",
+      "optional": true,
       "waitForNetwork": "summon_result.json"
     },
     {
       "code": "skill",
-      "character": 4,
-      "skill": 3
-    },
-    {
-      "code": "skill",
-      "character": 4,
-      "skill": 2
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
     },
     {
       "code": "skill",
       "character": 3,
-      "skill": 1
-    },
-    {
-      "code": "skill",
-      "character": 2,
-      "skill": 1
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
     },
     {
       "code": "attack",
@@ -46,11 +45,6 @@
     },
     {
       "code": "reload"
-    },
-    {
-      "code": "summon",
-      "slot": 2,
-      "waitForNetwork": "summon_result.json"
     },
     {
       "code": "attack",
@@ -65,7 +59,7 @@
         },
         {
           "code": "exit_if_score",
-          "targetScore": 1580000
+          "targetScore": 1430000
         },
         {
           "code": "attack",

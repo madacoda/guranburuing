@@ -14,10 +14,21 @@ The Blue Chest drop rate scales with individual honors, reaching maximum drop pr
 
 ---
 
-## 2. Recommended Party & Setup
+## 2. Recommended Party & Setup (Fire Agni Burst & Legacy Dark)
 
-The combat engine is optimized for the standard dark **Ereshkigal burst setup**:
+### Primary Setup: Fire Agni Burst Setup (`gb-pbhl` / `gb-pbhl-universal`)
+The active production universal workflow is configured for the **Fire Agni Burst Setup**:
 
+| Slot | Character / Summon | Role & Key Actions |
+| :---: | :--- | :--- |
+| **Summon #1 / Friend** | **Agni** | Summoned on turn 1 (`summon agni`) to trigger field/aura buff |
+| **Char #4** | **Grand Percival** | Primary buffer & burst enabler; casts Skill 3 (`Königsschlag`) & Skill 4 (`Macht`) |
+| **Quick Call** | **Beelzebub / Triple Zero / Sun** | Instant summon call (`quick_call`) followed by animation skip reload |
+| **MC (Char #1)** | **Lucha / Berserker / Viking** | Casts Skill 3 (e.g. *Tag Team* / offensive steroid) -> Reload |
+| **Char #2** | **Wilnas / Michael / Zeta** | Casts Skill 3 -> Reload |
+| **Attack Loop** | **Normal Attack -> Reload** | Executes normal attack and loops until **1,800,000 pt** blue chest threshold is verified |
+
+### Legacy Setup: Dark Ereshkigal Burst Setup
 | Slot | Character / Summon | Role & Key Actions |
 | :---: | :--- | :--- |
 | **MC** | Viking / Berserker | Equipped with Ereshkigal for unconditional team Triple Attack + Bonus Dark DMG |
@@ -91,17 +102,65 @@ If no eligible PBHL raid appears within **10 continuous minutes**, the engine gr
 
 On the supporter selection screen (`#quest/supporter_raid/...`), the engine switches to the **Dark Element tab** (`data-element="6"`) and evaluates candidates using the following priority:
 
-1. **Priority 1**: `Lvl 250 Hades` (Optimal Dark Primal aura)
-2. **Priority 2**: `Lvl 250 Bahamut` (Optimal Dark Omega / Elemental aura)
-3. **Priority 3**: `Lvl <= 250 Hades` (Any uncapped Hades: 210, 220, 230, 240)
-4. **Fallback**: First visible Dark supporter on screen
+1. **Priority 1**: `Lvl 250 Agni` (Fire Primal aura - Primary for `gb-pbhl`)
+2. **Priority 2**: `Lvl 250 Bahamut` (Omega / Elemental aura)
+3. **Priority 3**: `Lvl 250 Shiva / Michael` (Fire supplemental / ATK aura)
+4. **Priority 4**: `Lvl 250 Hades` (Legacy Dark setup fallback)
+5. **Fallback**: First visible Fire or Dark supporter on screen
 
 ---
 
 ## 6. Combat Rotation & Human Mimicry
 
-Once the combat HUD is confirmed active, the engine executes the strict sequence:
+### Primary Pipeline: Fire Agni Universal Rotation (`gb-pbhl` / `gb-pbhl-universal`)
+```
+[Start Combat]
+      |
+      v
+[Step 1] Summon Agni (Dynamic lookup across Main / Friend / Sub summon or Slot 1)
+      |
+      v
+[Step 2] Char #4 (Grand Percival) -> Skill 3 (Königsschlag: 3T Fire Atk Up, 100% TA, 30% Echo)
+      |
+      v
+[Step 3] Quick Call (.btn-quick-summon, e.g. Beelzebub / Triple Zero / Sun)
+      |
+      v
+[Step 4] Instant F5 Reload (Bypasses summon call & skill animations)
+      |
+      v
+[Step 5] Char #4 (Grand Percival) -> Skill 4 (Macht: 1T massive burst)
+      |
+      v
+[Step 6] Char #1 (MC) -> Skill 3 (Tag Team / Burst skill)
+      |
+      v
+[Step 7] Instant F5 Reload
+      |
+      v
+[Step 8] Char #2 (Wilnas / Michael / Zeta) -> Skill 3
+      |
+      v
+[Step 9] Instant F5 Reload
+      |
+      v
+[Step 10] Normal Attack (.btn-attack-start)
+      |
+      v
+[Step 11] Instant F5 Reload
+      |
+      v
+[Step 12] Repeat Loop (Up to 10x):
+      +---> Check Honors: if Honors >= 1,800,000 pt -> Exit Repeat Immediately
+      |     Execute Normal Attack
+      |     Instant F5 Reload
+      +--- (Repeat until target score reached or raid concludes)
+      |
+      v
+[Step 13] Confirm Result (Dismiss loot / pending battles)
+```
 
+### Legacy Pipeline: Dark Ereshkigal Rotation
 ```
 [Start Combat]
       |
