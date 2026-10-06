@@ -157,6 +157,7 @@ try {
 
   console.log('\n9. Testing Discord Presence Activity formatting...');
   const { discordPresence } = await import('../src/relay/discord-presence.js');
+  discordPresence.setMode('gbf', undefined, false);
 
   const activityAkasha = discordPresence.formatActivityData({
     raidName: 'Akasha HL',

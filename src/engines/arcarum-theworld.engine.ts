@@ -40,8 +40,8 @@ export interface TheWorldOptions {
   runs?: number;
   /** Automatically consume Half Elixir/Elixirs if AAP is depleted (default: true) */
   autoReplenishAap?: boolean;
-  /** Combat execution mode: 'full_auto' | 'manual_skills' (default: 'full_auto') */
-  mode?: 'full_auto' | 'manual_skills';
+  /** Combat execution mode: 'tactical_skills' | 'full_auto' | 'manual_skills' (default: 'tactical_skills') */
+  mode?: 'tactical_skills' | 'full_auto' | 'manual_skills';
   /** Path to save run logs (default: 'logs/arcarum-theworld.md') */
   logPath?: string;
 }
@@ -89,7 +89,7 @@ export class ArcarumTheWorldEngine {
     const {
       runs = Infinity,
       autoReplenishAap = true,
-      mode = 'full_auto',
+      mode = 'tactical_skills',
       logPath = 'logs/arcarum-theworld.md'
     } = options;
 
@@ -276,7 +276,7 @@ export class ArcarumTheWorldEngine {
   /**
    * Executes the turn-by-turn combat stage until The World is defeated.
    */
-  private async executeCombatStage(runNumber: number, mode: 'full_auto' | 'manual_skills'): Promise<{ success: boolean; turnsElapsed: number; message: string }> {
+  private async executeCombatStage(runNumber: number, mode: 'tactical_skills' | 'full_auto' | 'manual_skills'): Promise<{ success: boolean; turnsElapsed: number; message: string }> {
     // 1. Wait for combat HUD
     console.log(`[ArcarumTheWorld] [Run ${runNumber}] Waiting for combat HUD...`);
     const hudReady = await this.waitForCombatHudReady(25000);
@@ -345,14 +345,18 @@ export class ArcarumTheWorldEngine {
       if (shouldJustAttack) {
         console.log(`[ArcarumTheWorld] Natural motor variance: Directly clicking Attack (skipping skills this turn)...`);
         await this.dispatchAttack();
+      } else if (mode === 'full_auto') {
+        console.log(`[ArcarumTheWorld] Activating in-game Full Auto...`);
+        await this.activateFullAutoOrAttack();
       } else if (mode === 'manual_skills') {
         console.log(`[ArcarumTheWorld] Executing skills left-to-right (Characters 1 to 4)...`);
         await this.executeLeftToRightSkills();
         await this.dispatchAttack();
       } else {
-        // Full Auto mode:
-        console.log(`[ArcarumTheWorld] Activating Full Auto...`);
-        await this.activateFullAutoOrAttack();
+        // Default: Methodological Tactical Skills (Field -> Debuff -> Buff -> Nuke -> Conditional Heal)
+        console.log(`[ArcarumTheWorld] Executing Methodological Tactical Skills...`);
+        await this.executeTacticalSkills();
+        await this.dispatchAttack();
       }
 
       // Wait for attack to be dispatched (Full Auto queues skills first, then attacks)
@@ -591,6 +595,262 @@ export class ArcarumTheWorldEngine {
         if (backBtn) {
           await humanizedClick(this.page, backBtn);
           await randomDelay(250, 400);
+        }
+      }
+    } catch {}
+  }
+
+  /**
+   * Methodological Tactical Skill Execution for The World:
+   * 1. Evaluates frontline cooldowns & status in < 1ms via stage.pJsnData and DOM.
+   * 2. Categorizes skills: Field (5) -> Debuffs (4) -> Buffs (3) -> Nukes (1) -> Needed Heals (2).
+   * 3. Zero-latency: if no skills off cooldown, opens 0 drawers.
+   * 4. Groups preparation skills (Field + Debuff + Buff) per character, then groups nukes per character.
+   */
+  private async executeTacticalSkills(healHpThreshold = 0.75, minHealHpThreshold = 0.60): Promise<void> {
+    if (this.stopRequested) return;
+    if (await this.isBattleEnded()) return;
+
+    const scan = await this.page.evaluate(
+      (healThresh: number, minHealThresh: number) => {
+        const stage = (window as any).stage;
+        const pJsn = stage?.pJsnData;
+        const gStatus = stage?.gGameStatus;
+
+        const players = pJsn?.player?.param || gStatus?.player?.param || [];
+        let totalHp = 0;
+        let totalMaxHp = 0;
+        let minHpRatio = 1.0;
+        let hasDebuffedAlly = false;
+
+        const frontline = players.slice(0, 4);
+        for (const p of frontline) {
+          if (p && p.alive !== 0) {
+            const cur = Number(p.hp) || 0;
+            const max = Number(p.hpmax) || 1;
+            const ratio = cur / max;
+            totalHp += cur;
+            totalMaxHp += max;
+            if (ratio < minHpRatio) minHpRatio = ratio;
+            if (p.condition?.debuff && Array.isArray(p.condition.debuff) && p.condition.debuff.length > 0) {
+              hasDebuffedAlly = true;
+            }
+          }
+        }
+        const avgHpRatio = totalMaxHp > 0 ? (totalHp / totalMaxHp) : 1.0;
+        const needsHealing = (avgHpRatio < healThresh) || (minHpRatio < minHealThresh) || hasDebuffedAlly;
+
+        interface ScannedTacticalSkill {
+          charIndex: number;
+          charNum: number;
+          slot: number;
+          abilityId: string;
+          abilityName: string;
+          iconType: number;
+          category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal';
+        }
+
+        const scanned: ScannedTacticalSkill[] = [];
+        const abilityMap = pJsn?.ability || {};
+        const charKeys = Object.keys(abilityMap);
+
+        if (charKeys.length > 0) {
+          for (const charKey of charKeys) {
+            const charObj = abilityMap[charKey];
+            if (!charObj || charObj.alive === 0) continue;
+            const charPos = charObj.pos !== undefined ? Number(charObj.pos) : (Number(charKey) - 1);
+            const charNum = charPos + 1;
+            if (charNum < 1 || charNum > 4) continue;
+
+            const list = charObj.list || {};
+            for (const [slotKey, abilityArray] of Object.entries(list) as [string, any][]) {
+              const slotNum = Number(slotKey);
+              if (slotNum < 1 || slotNum > 4) continue;
+              const ab = Array.isArray(abilityArray) ? abilityArray[0] : abilityArray;
+              if (!ab) continue;
+
+              const recast = String(ab['ability-recast'] ?? '');
+              const reqMet = ab['requirement_result_flag'] !== false;
+              const isReady = (recast === '0' || recast === '') && reqMet;
+              if (!isReady) continue;
+
+              const iconType = Number(ab['icon-type'] || '1');
+              let category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal' = 'damage';
+              if (iconType === 5) category = 'field';
+              else if (iconType === 4) category = 'debuff';
+              else if (iconType === 3) category = 'buff';
+              else if (iconType === 2) category = 'heal';
+              else if (iconType === 1) category = 'damage';
+
+              if (category === 'heal' && !needsHealing) continue;
+
+              scanned.push({
+                charIndex: charPos,
+                charNum,
+                slot: slotNum,
+                abilityId: String(ab['ability-id'] || ''),
+                abilityName: String(ab['ability-name'] || ''),
+                iconType,
+                category
+              });
+            }
+          }
+        } else {
+          // DOM fallback
+          for (let c = 1; c <= 4; c++) {
+            for (let s = 1; s <= 4; s++) {
+              const sel = `.ability-character-num-${c}-${s}`;
+              const el = document.querySelector(sel) as HTMLElement;
+              if (!el) continue;
+
+              const isUnavail = el.classList.contains('btn-ability-unavailable') || el.classList.contains('empty');
+              if (isUnavail) continue;
+
+              let iconType = 1;
+              const match = el.className.match(/ico-ability\d+_([1-5])/);
+              if (match) iconType = Number(match[1]);
+
+              let category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal' = 'damage';
+              if (iconType === 5) category = 'field';
+              else if (iconType === 4) category = 'debuff';
+              else if (iconType === 3) category = 'buff';
+              else if (iconType === 2) category = 'heal';
+              else if (iconType === 1) category = 'damage';
+
+              if (category === 'heal' && !needsHealing) continue;
+
+              scanned.push({
+                charIndex: c - 1,
+                charNum: c,
+                slot: s,
+                abilityId: el.getAttribute('ability-id') || '',
+                abilityName: '',
+                iconType,
+                category
+              });
+            }
+          }
+        }
+
+        return {
+          avgHpRatio,
+          minHpRatio,
+          needsHealing,
+          scanned
+        };
+      },
+      healHpThreshold,
+      minHealHpThreshold
+    ).catch(() => null);
+
+    if (!scan || scan.scanned.length === 0) {
+      console.log(`[ArcarumTheWorld] [Turn ${this.currentTurn}] ⚡ Zero actionable skills ready (all on CD or heals unneeded). Passing directly to Attack.`);
+      return;
+    }
+
+    const fieldSkills = scan.scanned.filter(s => s.category === 'field');
+    const debuffSkills = scan.scanned.filter(s => s.category === 'debuff');
+    const buffSkills = scan.scanned.filter(s => s.category === 'buff');
+    const damageSkills = scan.scanned.filter(s => s.category === 'damage');
+    const healSkills = scan.scanned.filter(s => s.category === 'heal');
+
+    console.log(
+      `[ArcarumTheWorld] 🎯 [Turn ${this.currentTurn}] Tactical Skill Plan (${scan.scanned.length} skills | HP: ${(scan.avgHpRatio * 100).toFixed(0)}%): ` +
+      `[Field: ${fieldSkills.length}, Debuff: ${debuffSkills.length}, Buff: ${buffSkills.length}, Damage: ${damageSkills.length}, Heal: ${healSkills.length}]`
+    );
+
+    let currentOpenChar: number | null = null;
+
+    const openCharDrawer = async (charNum: number) => {
+      if (currentOpenChar === charNum) return true;
+      const charIndex = charNum - 1;
+      const charSelector = `.lis-character${charIndex}.btn-command-character, .lis-character${charIndex}`;
+      const charEl = await this.page.$(charSelector).catch(() => null);
+      if (!charEl) return false;
+
+      await humanReactionDelay(130, 0.1);
+      await humanizedClick(this.page, charEl);
+      await randomDelay(160, 240);
+      currentOpenChar = charNum;
+      return true;
+    };
+
+    const castSkill = async (skill: { charNum: number; slot: number }) => {
+      if (this.stopRequested || await this.isBattleEnded()) return false;
+      const opened = await openCharDrawer(skill.charNum);
+      if (!opened) return false;
+
+      const abilitySelector = `.ability-character-num-${skill.charNum}-${skill.slot}:not(.btn-ability-unavailable):not(.empty), .ability-character-num-${skill.charNum}-${skill.slot}`;
+      const skillEl = await this.page.$(abilitySelector).catch(() => null);
+      if (!skillEl) return false;
+
+      const canClick = await this.page.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement;
+        return el && el.offsetParent !== null && !el.classList.contains('btn-ability-unavailable') && !el.classList.contains('empty');
+      }, abilitySelector).catch(() => false);
+
+      if (!canClick) return false;
+
+      await humanReactionDelay(100, 0.1);
+      await humanizedClick(this.page, skillEl);
+      await randomDelay(180, 260);
+
+      const targetPopup = await this.page.$('.pop-usual .lis-character0, .pop-usual .btn-command-character, .pop-usual .btn-usual-ok').catch(() => null);
+      if (targetPopup) {
+        await humanReactionDelay(110, 0.1);
+        await humanizedClick(this.page, targetPopup);
+        await randomDelay(180, 260);
+      }
+      return true;
+    };
+
+    // Phase 1: Field Effects
+    for (const skill of fieldSkills) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      await castSkill(skill);
+    }
+
+    // Phase 2: Preparation (Debuffs & Buffs grouped per character)
+    const prepSkills = [...debuffSkills, ...buffSkills];
+    const prepCharNums = Array.from(new Set(prepSkills.map(s => s.charNum))).sort((a, b) => a - b);
+    for (const charNum of prepCharNums) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      const charPrep = prepSkills.filter(s => s.charNum === charNum);
+      charPrep.sort((a, b) => (b.iconType - a.iconType));
+      for (const skill of charPrep) {
+        if (this.stopRequested || await this.isBattleEnded()) break;
+        await castSkill(skill);
+      }
+    }
+
+    // Phase 3: Damage Nukes
+    const nukeCharNums = Array.from(new Set(damageSkills.map(s => s.charNum))).sort((a, b) => a - b);
+    for (const charNum of nukeCharNums) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      const charNukes = damageSkills.filter(s => s.charNum === charNum);
+      for (const skill of charNukes) {
+        if (this.stopRequested || await this.isBattleEnded()) break;
+        await castSkill(skill);
+      }
+    }
+
+    // Phase 4: Conditional Heals
+    for (const skill of healSkills) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      await castSkill(skill);
+    }
+
+    // Ensure drawer is closed
+    try {
+      const isBackVisible = await this.page.evaluate(() => {
+        const el = document.querySelector('.btn-command-back, .ico-back') as HTMLElement;
+        return !!(el && el.offsetParent !== null && window.getComputedStyle(el).display !== 'none');
+      }).catch(() => false);
+      if (isBackVisible) {
+        const backBtn = await this.page.$('.btn-command-back, .ico-back');
+        if (backBtn) {
+          await humanizedClick(this.page, backBtn);
+          await randomDelay(180, 280);
         }
       }
     } catch {}

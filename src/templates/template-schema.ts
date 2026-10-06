@@ -77,7 +77,11 @@ export const ACTION_ALIASES: Record<string, WorkflowActionType> = {
   dismiss_popup: 'dismiss_popups',
   dismiss_modal: 'dismiss_popups',
   dismiss_modals: 'dismiss_popups',
-  dismiss: 'dismiss_popups'
+  dismiss: 'dismiss_popups',
+  smart_full_auto: 'smart_full_auto',
+  fast_full_auto: 'smart_full_auto',
+  smart_auto: 'smart_full_auto',
+  fast_auto: 'smart_full_auto'
 };
 
 export function normalizeActionCode(raw: string): WorkflowActionType {
@@ -120,6 +124,7 @@ export const WorkflowActionTypeSchema = z.enum([
   'skip_story_scene',
   'pro_skip_favorites',
   'dismiss_popups',
+  'smart_full_auto',
   'custom'
 ]);
 
@@ -157,6 +162,12 @@ export const WorkflowStepCoreSchema = z.object({
   timeoutMs: z.number().int().positive('timeoutMs must be positive').optional(),
   waitForNetwork: z.string().optional(),
   delayAfterMs: z.number().int().min(0, 'delayAfterMs must be non-negative').optional(),
+  skillsTurn1Only: z.boolean().optional(),
+  tacticalSkillsMode: z.enum(['smart', 'turn1_only', 'off']).optional(),
+  healHpThreshold: z.number().min(0).max(1).optional(),
+  minHealHpThreshold: z.number().min(0).max(1).optional(),
+  characters: z.array(z.number().int().min(1).max(4)).optional(),
+  quickSummon: z.boolean().optional(),
   optional: z.boolean().optional(),
   retries: z.number().int().min(0).max(5).optional(),
   label: z.string().optional(),
@@ -337,7 +348,7 @@ export function validateWorkflowTemplate(raw: unknown): TemplateValidationResult
     }
 
     if (template.steps.length > 0 && template.mode !== 'routine') {
-      const hasAttack = template.steps.some(s => s.code === 'attack' || s.code === 'auto' || s.code === 'tap_ready');
+      const hasAttack = template.steps.some(s => s.code === 'attack' || s.code === 'auto' || s.code === 'smart_full_auto' || s.code === 'tap_ready');
       if (!hasAttack) {
         warnings.push('Template contains no attack, auto, or tap_ready steps. Battles may not advance.');
       }

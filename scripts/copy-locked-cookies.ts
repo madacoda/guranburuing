@@ -1,9 +1,10 @@
 // scripts/copy-locked-cookies.ts
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { Database } from 'bun:sqlite';
 
-const src = 'C:/Users/YOUR_USER/AppData/Local/Google/Chrome/User Data/Default/Network/Cookies';
+const src = path.join(os.homedir(), 'AppData/Local/Google/Chrome/User Data/Default/Network/Cookies');
 const dst = path.resolve('data', 'chrome_default_cookies.db');
 
 try {

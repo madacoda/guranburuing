@@ -1,9 +1,10 @@
 // scripts/find-gbf-profile.ts
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { Database } from 'bun:sqlite';
 
-const baseDir = 'C:/Users/YOUR_USER/AppData/Local/Google/Chrome/User Data';
+const baseDir = path.join(os.homedir(), 'AppData/Local/Google/Chrome/User Data');
 const dirs = fs.readdirSync(baseDir);
 
 for (const d of dirs) {

@@ -35,6 +35,7 @@ export type WorkflowActionType =
   | 'skip_story_scene'
   | 'pro_skip_favorites'
   | 'dismiss_popups'
+  | 'smart_full_auto'
   | 'custom';
 
 export interface WorkflowStepCondition {
@@ -72,6 +73,12 @@ export interface WorkflowStep {
   timeoutMs?: number;       // Maximum wait time for action
   waitForNetwork?: string;  // e.g. "summon_result.json", "ability_result.json", "normal_attack_result.json"
   delayAfterMs?: number;    // Optional pause after action
+  skillsTurn1Only?: boolean; // For smart_full_auto: only cast skills on turn 1, subsequent turns attack/reload only
+  tacticalSkillsMode?: 'smart' | 'turn1_only' | 'off'; // For smart_full_auto: tactical skill decision engine mode (default: 'smart')
+  healHpThreshold?: number;     // For smart_full_auto: only cast Green (Heal) skills if party avg HP drops below this ratio (default: 0.75)
+  minHealHpThreshold?: number;  // For smart_full_auto: only cast Green (Heal) skills if any frontline character HP drops below this ratio (default: 0.60)
+  characters?: number[];    // For smart_full_auto: specific character slots to cast skills for (e.g. [1] for MC only)
+  quickSummon?: boolean;    // For smart_full_auto: whether to cast quick summon on turn 1 (default: true)
   optional?: boolean;       // If true, step failure does not abort the run
   retries?: number;         // Step-level retries on failure (default: 1)
   label?: string;           // Step label for jump targets

@@ -88,6 +88,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Session & Cookie Synchronization Tests',
     file: 'tests/test-session-sync.ts',
     description: 'Cookie sanitization, CDP Network.setCookies compliance, cross-platform path normalization, and token authentication'
+  },
+  {
+    name: 'Discord Presence Multi-Template Tests',
+    file: 'tests/test-presence-templates.ts',
+    description: 'Work, trade, and GBF status formatting, trading quotes, project customisation, and mode switching'
+  },
+  {
+    name: 'Arcarum: The World Template & AAP Engine Tests',
+    file: 'tests/test-arcarum-theworld-template.ts',
+    description: 'The World Zone Mundus quest start, AAP recovery modal, optimal skills, attack-wait-reload, and DSL round-trip'
+  },
+  {
+    name: 'Granblue Fantasy Methodological Tactical Skills Tests',
+    file: 'tests/test-tactical-skills-unit.ts',
+    description: 'Field -> Debuff -> Buff -> Nuke ordering, conditional healing, and zero-latency cooldown checks'
   }
 ];
 

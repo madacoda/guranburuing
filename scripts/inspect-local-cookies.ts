@@ -1,14 +1,16 @@
 // scripts/inspect-local-cookies.ts
 import { Database } from 'bun:sqlite';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
+const home = os.homedir();
 const userProfiles = [
-  'C:/Users/YOUR_USER/.gbf-iron-profile/Default/Network/Cookies',
-  'C:/Users/YOUR_USER/.gbf-chrome-profile/Default/Network/Cookies',
-  'C:/Users/YOUR_USER/.gbf-profiles/acc1/Default/Network/Cookies',
-  'C:/Users/YOUR_USER/.gbf-profiles/acc1/Profile 1/Network/Cookies',
-  'C:/Users/YOUR_USER/.gbf-profiles/acc2/Default/Network/Cookies',
+  path.join(home, '.gbf-iron-profile/Default/Network/Cookies'),
+  path.join(home, '.gbf-chrome-profile/Default/Network/Cookies'),
+  path.join(home, '.gbf-profiles/acc1/Default/Network/Cookies'),
+  path.join(home, '.gbf-profiles/acc1/Profile 1/Network/Cookies'),
+  path.join(home, '.gbf-profiles/acc2/Default/Network/Cookies'),
 ];
 
 for (const p of userProfiles) {

@@ -1,0 +1,20 @@
+{
+  "name": "Arcarum Sandbox - Grani Militis (Smart Full Auto)",
+  "description": "High-speed optimal smart Grani Militis loop (Zone Kalendae): Turn 1 Quick Summon + Optimal Skills -> Attack -> Wait 350ms & Reload -> Turn 2+ Fast Attack/Reload Loop until victory",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/7/7/16/816091/25/0/25076",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

@@ -43,10 +43,15 @@ export class CdpConnectionManager {
       try {
         console.log(`[CDP] Connecting to Chrome on port ${port} (Attempt ${attempt}/${maxRetries}, Headless: ${isHeadless})...`);
         
-        this.browser = await puppeteer.connect({
+        const connectPromise = puppeteer.connect({
           browserURL: `http://127.0.0.1:${port}`,
           defaultViewport: null, // Maintain genuine window dimensions
         });
+
+        this.browser = await Promise.race([
+          connectPromise,
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('puppeteer.connect timed out after 8000ms')), 8000))
+        ]);
 
         this.browser.on('disconnected', () => {
           if (this.isExplicitDisconnect) return;
@@ -56,13 +61,32 @@ export class CdpConnectionManager {
           this.reconnect();
         });
 
-        // Locate active GBF tab
-        const pages = await this.browser.pages();
-        let targetPage = pages.find(p => p.url().includes('game.granbluefantasy.jp') || p.url().includes('gbf.game.mbga.jp'));
+        // Locate active GBF tab with timeout and direct target fallback
+        let targetPage: puppeteer.Page | null = null;
+        try {
+          const pagesPromise = this.browser.pages();
+          const pages = await Promise.race([
+            pagesPromise,
+            new Promise<puppeteer.Page[]>((_, reject) => setTimeout(() => reject(new Error('browser.pages() timed out after 6000ms')), 6000))
+          ]);
+          targetPage = pages.find(p => p.url().includes('game.granbluefantasy.jp') || p.url().includes('gbf.game.mbga.jp')) || null;
+        } catch (pageErr: any) {
+          console.warn(`[CDP] Tab enumeration notice (${pageErr.message}). Resolving GBF target directly...`);
+          // Resilient fallback: locate target without attaching to every frame
+          const targets = this.browser.targets();
+          const gbfTarget = targets.find(t => t.type() === 'page' && (t.url().includes('game.granbluefantasy.jp') || t.url().includes('gbf.game.mbga.jp')));
+          if (gbfTarget) {
+            targetPage = await Promise.race([
+              gbfTarget.page(),
+              new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 4000))
+            ]);
+          }
+        }
 
         if (!targetPage) {
           console.log('[CDP] GBF tab not found in active browser. Opening https://game.granbluefantasy.jp/#mypage...');
-          targetPage = pages[0] || (await this.browser.newPage());
+          const existingPages = await this.browser.pages().catch(() => []);
+          targetPage = existingPages[0] || (await this.browser.newPage());
           await targetPage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
         }
 

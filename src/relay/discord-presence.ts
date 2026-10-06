@@ -1,8 +1,22 @@
-// src/relay/discord-presence.ts
 import net from 'net';
 import { config } from '../config.js';
+import {
+  type PresenceMode,
+  type FormattedPresence,
+  type PresenceCustomOptions,
+  formatPresenceByMode,
+  loadPresenceConfig,
+  savePresenceConfig
+} from './presence-templates.js';
+
+export type { PresenceMode, FormattedPresence, PresenceCustomOptions };
 
 export interface PresenceState {
+  mode?: PresenceMode;
+  project?: string;
+  task?: string;
+  quote?: string;
+  quoteAuthor?: string;
   raidName?: string;
   runNumber?: number;
   totalRuns?: number;
@@ -31,6 +45,8 @@ export class DiscordPresenceManager {
   private lastIpcAttempt = 0;
 
   private currentState: PresenceState = {};
+  private currentMode: PresenceMode = 'gbf';
+  private customOptions: PresenceCustomOptions = {};
   private updateDebounceTimer: any = null;
   private sessionStartTime = Date.now();
   private lastGatewaySignature = '';
@@ -38,10 +54,45 @@ export class DiscordPresenceManager {
   private isConnectingIpc = false;
 
   constructor() {
-    // Lazy connection upon first presence update
+    // Initialize active template mode from persistence or config
+    const saved = loadPresenceConfig();
+    this.currentMode = saved.mode || (config.DISCORD_PRESENCE_MODE as PresenceMode) || 'gbf';
+    this.customOptions = {
+      project: saved.project || config.DISCORD_PRESENCE_PROJECT || 'Every Hero',
+      task: saved.task,
+      quote: saved.quote,
+    };
+  }
+
+  public setMode(mode: PresenceMode, options?: PresenceCustomOptions, immediate = true): void {
+    this.currentMode = mode;
+    if (options) {
+      this.customOptions = { ...this.customOptions, ...options };
+    }
+    savePresenceConfig({
+      mode,
+      project: this.customOptions.project,
+      task: this.customOptions.task,
+      quote: this.customOptions.quote,
+    });
+    if (immediate) {
+      this.ensureConnected();
+      this.dispatchCurrentPresence();
+    }
+  }
+
+  public getMode(): PresenceMode {
+    return this.currentMode;
+  }
+
+  public getCustomOptions(): PresenceCustomOptions {
+    return { ...this.customOptions };
   }
 
   public isEnabled(): boolean {
+    if (process.env.DISCORD_PRESENCE_ENABLED === 'false' || process.env.DISCORD_PRESENCE_ENABLED === '0') {
+      return false;
+    }
     return Boolean(config.DISCORD_PRESENCE_ENABLED && config.DISCORD_BOT_TOKEN);
   }
 
@@ -286,87 +337,16 @@ export class DiscordPresenceManager {
 
   /**
    * Translates internal PresenceState into human-friendly Discord activity strings.
-   * Matches user requirement: "Raid Akasha 152 - 2 GB Drop"
+   * Dispatches according to active template mode (gbf, work, trade).
    */
-  public formatActivityData(state: PresenceState): { name: string; state: string; details: string } {
-    let rawName = state.raidName || 'Granblue Fantasy';
-    // Clean up template name
-    let cleanName = rawName
-      .replace(/^GB\s*Farm\s*-\s*/i, '')
-      .replace(/\s*HL$/i, ' HL')
-      .trim();
-
-    if (cleanName.toLowerCase().includes('akasha')) cleanName = 'Akasha';
-    else if (cleanName.toLowerCase().includes('pbhl') || cleanName.toLowerCase().includes('proto bahamut')) cleanName = 'PBHL';
-    else if (cleanName.toLowerCase().includes('go') || cleanName.toLowerCase().includes('grand order')) cleanName = 'GO';
-
-    const runNum = state.runNumber || 1;
-    const gbCount = state.goldBars || 0;
-    const gbLabel = gbCount === 1 ? '1 GB Drop' : `${gbCount} GB Drop`;
-
-    // Activity Name (Displayed on Bot Status: e.g. "Raid Akasha 152 - 2 GB Drop")
-    let name = `Raid ${cleanName} ${runNum} - ${gbLabel}`;
-    if (!state.raidName) {
-      name = `GBF Automation ${runNum}`;
-    }
-
-    // Activity Details (In-Combat Turn / Status)
-    let details = `Raid ${cleanName}`;
-    if (state.status === 'In Combat' && state.turn && state.turn > 0) {
-      details = `Combat Turn ${state.turn}`;
-    } else if (state.status === 'Searching') {
-      details = 'Searching Raid';
-    } else if (state.status && !state.status.toLowerCase().startsWith('farming')) {
-      details = state.status;
-    }
-
-    // Activity State (Blue Chests, Dry Streak & Honors)
-    const dryMode = state.dryStreakMode || 'blue_chest';
-    const dryCount = state.dryStreak !== undefined ? state.dryStreak : 0;
-    const blueCount = state.blueChests !== undefined ? state.blueChests : 0;
-
-    let honorsStr = '';
-    const numericHonors = typeof state.honors === 'number'
-      ? state.honors
-      : (typeof state.honors === 'string' ? parseInt(state.honors.replace(/\D/g, ''), 10) || 0 : 0);
-
-    if (numericHonors >= 1000000) {
-      honorsStr = `${(numericHonors / 1000000).toFixed(2)}M`;
-    } else if (numericHonors > 0) {
-      honorsStr = `${Math.round(numericHonors / 1000)}k`;
-    } else if (state.honors) {
-      honorsStr = String(state.honors).replace(/\s*pt/i, '').trim();
-    }
-
-    const stateParts: string[] = [];
-    if (dryMode === 'blue_chest') {
-      stateParts.push(`💎 Blue: ${blueCount} (Dry: ${dryCount})`);
-    } else if (dryMode === 'min_honor') {
-      stateParts.push(`💎 Blue: ${blueCount} (Dry: ${dryCount} Met)`);
-    } else {
-      stateParts.push(`💎 Blue: ${blueCount}`);
-      stateParts.push(`Dry: ${dryCount} Runs`);
-    }
-
-    if (state.goldBarsToday !== undefined) {
-      let gbStr = `🌟 Today: ${state.goldBarsToday}`;
-      if (state.goldBarsSession && state.goldBarsSession > 0) {
-        gbStr += ` (+${state.goldBarsSession}s)`;
-      }
-      stateParts.push(gbStr);
-    }
-
-    if (honorsStr) {
-      stateParts.push(`${honorsStr} honors`);
-    }
-
-    const stateLine = stateParts.join(' | ') || 'Active Session';
-
-    return {
-      name,
-      details,
-      state: stateLine,
-    };
+  public formatActivityData(state: PresenceState): FormattedPresence {
+    const targetMode = state.mode || this.currentMode || 'gbf';
+    return formatPresenceByMode(targetMode, state, {
+      project: state.project || this.customOptions.project,
+      task: state.task || this.customOptions.task,
+      quote: state.quote || this.customOptions.quote,
+      author: state.quoteAuthor || this.customOptions.author,
+    });
   }
 
   /**
@@ -456,8 +436,8 @@ export class DiscordPresenceManager {
               start: this.currentState.startTimestamp || this.sessionStartTime,
             },
             assets: {
-              large_text: act.name,
-              small_text: `${this.currentState.goldBars || 0} Total Gold Bars (${this.currentState.goldBarsToday || 0} Today)`,
+              large_text: act.largeText || act.name,
+              small_text: act.smallText || act.details,
             },
           },
         },

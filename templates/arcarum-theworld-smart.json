@@ -1,0 +1,20 @@
+{
+  "name": "Arcarum Sandbox - The World (Smart Full Auto)",
+  "description": "Smart full auto The World loop: Autonomous optimal skills + Quick Summon -> Attack -> Wait & Reload animation skip loop until victory",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/16/819131/25/0/25085",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

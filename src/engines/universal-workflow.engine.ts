@@ -1300,6 +1300,9 @@ export class UniversalWorkflowEngine {
       case 'dismiss_popups':
         return await this.handleDismissPopups(step);
 
+      case 'smart_full_auto':
+        return await this.handleSmartFullAuto(step, runNumber);
+
       case 'do_until_finish':
       case 'run_daily_target':
         return await this.handleDoUntilFinish(step, runNumber);
@@ -1682,6 +1685,50 @@ export class UniversalWorkflowEngine {
     await logNormalDelay(400, 0.15);
     await this.sentinel.assertSafe();
     return true;
+  }
+
+  /**
+   * Detects and handles Replicard AAP (Arcarum Action Points) recovery modal.
+   * Restores AAP using Half-Elixir / Elixir and confirms replenishment dialog.
+   */
+  public async handleAapRecoveryModal(autoReplenishAap = true): Promise<boolean> {
+    try {
+      const isAapModal = await this.page.evaluate(() => {
+        const pop = document.querySelector('.pop-usual');
+        if (!pop) return false;
+        const text = (pop as HTMLElement).innerText || '';
+        return text.includes('AAP') || text.includes('回復') || text.includes('recover') || !!pop.querySelector('.btn-use-item');
+      });
+
+      if (!isAapModal) return false;
+
+      console.log(`[${this.accountId}] [Replicard] AAP recovery modal detected.`);
+      if (!autoReplenishAap) {
+        console.warn(`[${this.accountId}] [Replicard] AAP replenishment is disabled. Canceling modal.`);
+        const cancelBtn = await this.page.$('.pop-usual .btn-usual-cancel');
+        if (cancelBtn) await humanizedClick(this.page, cancelBtn);
+        return false;
+      }
+
+      console.log(`[${this.accountId}] [Replicard] Consuming item to restore AAP...`);
+      const useItemBtn = await this.page.waitForSelector('.pop-usual .btn-use-item, .btn-use-item', { visible: true, timeout: 5000 }).catch(() => null);
+      if (useItemBtn) {
+        await humanReactionDelay(250, 0.18);
+        await humanizedClick(this.page, useItemBtn);
+        await logNormalDelay(600, 0.15);
+
+        const confirmBtn = await this.page.waitForSelector('.pop-usual .btn-usual-ok, .btn-usual-ok', { visible: true, timeout: 5000 }).catch(() => null);
+        if (confirmBtn) {
+          await humanReactionDelay(250, 0.18);
+          await humanizedClick(this.page, confirmBtn);
+          await logNormalDelay(800, 0.15);
+        }
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -2575,18 +2622,28 @@ export class UniversalWorkflowEngine {
     const skill = step.skill || 1;
     const skillSelector = `.ability-character-num-${char}-${skill}`;
 
-    // 1. Proactively dismiss any open character ability drawers, popups, or canvas READY overlays
-    await this.dismissCombatDrawersAndPopups();
+    // 1. Check if the target skill button is already visible in the open drawer
+    let isVisible = await this.page.evaluate((sel: string) => {
+      const el = document.querySelector(sel) as HTMLElement;
+      return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
+    }, skillSelector).catch(() => false);
+
+    // If not visible, dismiss open drawers/popups to switch character or clear overlays
+    if (!isVisible) {
+      await this.dismissCombatDrawersAndPopups();
+    }
 
     // 2. Wait for combat state to be ready (lock === false and not attacking)
     await this.waitForCombatInputReady(5000);
     if (await this.isBattleEnded()) return true;
 
-    // 3. Check if the target skill button is currently visible & mounted with positive layout dimensions
-    let isVisible = await this.page.evaluate((sel: string) => {
-      const el = document.querySelector(sel) as HTMLElement;
-      return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
-    }, skillSelector).catch(() => false);
+    // 3. Re-verify visibility after HUD ready
+    if (!isVisible) {
+      isVisible = await this.page.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement;
+        return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
+      }, skillSelector).catch(() => false);
+    }
 
     // 3. If skill button is not visible, we must open or switch to this character's ability drawer
     if (!isVisible) {
@@ -2811,6 +2868,518 @@ export class UniversalWorkflowEngine {
       }
     }
     return false;
+  }
+
+  /**
+   * High-speed optimized Full Auto ("The Full Auto Version of Us"):
+   * - Eliminates built-in Full Auto UI latency.
+   * - Optimally uses frontline character abilities with humanized reaction times.
+   * - Detects plain damage omen (calls Beelzebub summon if available).
+   * - Dispatches normal attack.
+   * - Waits for server confirmation ('normal_attack_result.json') + calibrated delay (e.g. step.delayAfterMs || 350ms).
+   * - Immediately reloads (F5) to cancel normal attack & charge attack animations, advancing turns instantly.
+   * - Repeats turn-by-turn until the boss is defeated or safety turn limit reached.
+   */
+  private async handleSmartFullAuto(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    const maxTurns = step.maxLoops || 25;
+    const delayAfterAttack = step.delayAfterMs !== undefined ? step.delayAfterMs : 350;
+    const targetChars = step.characters; // Optional character filter (e.g. [1] for MC only)
+    const healHpThreshold = step.healHpThreshold ?? 0.75;
+    const minHealHpThreshold = step.minHealHpThreshold ?? 0.60;
+    const tacticalMode = step.tacticalSkillsMode ?? (step.skillsTurn1Only === true ? 'turn1_only' : 'smart');
+
+    console.log(`[Workflow] ⚡ [Run ${runNumber}] Initiating Methodological Tactical Auto (max turns: ${maxTurns}, mode: ${tacticalMode}, post-attack wait: ${delayAfterAttack}ms)...`);
+
+    for (let turn = 1; turn <= maxTurns; turn++) {
+      if (this.stopRequested) return false;
+      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
+
+      // Check if battle already concluded
+      if (await this.isBattleEnded()) {
+        console.log(`[Workflow] [Run ${runNumber}] Battle concluded at Turn ${turn}.`);
+        return true;
+      }
+
+      // Check combat HUD readiness
+      await this.waitForCombatInputReady(6000);
+      if (await this.isBattleEnded()) return true;
+
+      // 1. Check for Plain Damage Omen ("Deal 1,000,000 plain damage")
+      const omenActive = await this.isPlainDamageOmenActive();
+      if (omenActive) {
+        console.log(`[Workflow] ⚠️ Omen detected: [Deal 1,000,000 Plain Damage]! Checking Beelzebub summon...`);
+        const bubsCalled = await this.executeBeelzebubSummonIfAvailable();
+        if (bubsCalled) {
+          console.log(`[Workflow] 🎉 Beelzebub summon cast! Plain Damage omen canceled.`);
+          await this.waitForCombatInputReady(5000);
+          if (await this.isBattleEnded()) return true;
+        }
+      }
+
+      // 2. Quick summon call on Turn 1 if available
+      if (turn === 1 && step.quickSummon !== false) {
+        const qsReady = await this.page.evaluate(() => {
+          const btn = document.querySelector('.btn-quick-summon.qs-ready') as HTMLElement;
+          return !!(btn && btn.offsetParent !== null && !btn.classList.contains('disabled'));
+        }).catch(() => false);
+        if (qsReady) {
+          console.log(`[Workflow] [Turn ${turn}] Invoking Quick Summon...`);
+          await this.handleQuickCall({ code: 'quick_call', waitForNetwork: 'summon_result.json' });
+          await logNormalDelay(150, 0.1);
+        }
+      }
+
+      // 3. Methodological tactical skills execution across frontline characters
+      // High-level GBF doctrine: Field (5) -> Debuff (4) -> Buff (3) -> Nuke (1) -> Needed Heal (2)
+      // Evaluates readiness in < 1ms via stage.pJsnData; skips opening trays if no actionable skills are ready.
+      const shouldCastSkills = tacticalMode === 'smart' || (tacticalMode === 'turn1_only' && turn === 1);
+      if (shouldCastSkills) {
+        await this.executeTacticalReadySkills(targetChars, healHpThreshold, minHealHpThreshold, turn);
+      }
+
+      if (await this.isBattleEnded()) return true;
+
+      // 4. Attack dispatch
+      console.log(`[Workflow] [Turn ${turn}] Dispatching Attack command...`);
+      const attackDispatched = await this.handleAttack({
+        code: 'attack',
+        waitForNetwork: 'normal_attack_result.json'
+      });
+
+      if (!attackDispatched && !(await this.isBattleEnded())) {
+        console.warn(`[Workflow] [Turn ${turn}] Attack dispatch failed or unconfirmed.`);
+      }
+
+      // 5. User requirement: "wait a bit then do reload so it cancels animation and a bit faster"
+      if (delayAfterAttack > 0) {
+        await new Promise(r => setTimeout(r, delayAfterAttack));
+      }
+
+      // 6. Fast animation cancel via reload (F5)
+      console.log(`[Workflow] [Turn ${turn}] Reloading (F5) to cancel attack animation...`);
+      await this.handleReload({ code: 'reload' });
+
+      await logNormalDelay(150, 0.1);
+
+      if (await this.isBattleEnded()) {
+        console.log(`[Workflow] [Run ${runNumber}] Boss defeated after Turn ${turn}!`);
+        return true;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Methodological Tactical Skill Engine for Granblue Fantasy:
+   * 
+   * Grounded in GBF game theory and competitive combat mechanics:
+   * 1. Evaluates frontline combat state & cooldowns in < 1ms via `stage.pJsnData.ability` and DOM.
+   * 2. Categorizes skills into the 5 Granblue battle roles:
+   *    - Purple (Type 5): Field / Special auras (amplifies damage, raises caps).
+   *    - Blue (Type 4): Debuffs & Dispels (strips buffs, caps enemy DEF down to -50% to double outgoing damage).
+   *    - Yellow (Type 3): Offensive Buffs (ATK, Echoes, Guaranteed TA, Skill Specs Up, Limit Burst).
+   *    - Red (Type 1): Damage Nukes (unleashed ONLY after Debuffs & Buffs are active for maximum payload).
+   *    - Green (Type 2): Recovery / Heals (STRICTLY CONDITIONAL: evaluated against frontline HP & lethal debuffs).
+   * 
+   * Zero-Latency Optimization:
+   * - If NO actionable skills are ready on any turn, opens 0 drawers (takes 0ms) and advances directly to Attack.
+   * - Traversal minimization: groups prep skills (Field + Debuff + Buff) per character, then groups nukes per character.
+   */
+  private async executeTacticalReadySkills(
+    targetCharacters?: number[],
+    healHpThreshold = 0.75,
+    minHealHpThreshold = 0.60,
+    turn = 1
+  ): Promise<void> {
+    if (this.stopRequested) return;
+    if (await this.isBattleEnded()) return;
+
+    // 1. Zero-latency telemetry scan (< 1ms)
+    const scan = await this.page.evaluate(
+      (healThresh: number, minHealThresh: number, targetChars?: number[]) => {
+        const stage = (window as any).stage;
+        const pJsn = stage?.pJsnData;
+        const gStatus = stage?.gGameStatus;
+
+        // Triage frontline HP & conditions
+        const players = pJsn?.player?.param || gStatus?.player?.param || [];
+        let totalHp = 0;
+        let totalMaxHp = 0;
+        let minHpRatio = 1.0;
+        let hasDebuffedAlly = false;
+
+        const frontline = players.slice(0, 4);
+        for (const p of frontline) {
+          if (p && p.alive !== 0) {
+            const cur = Number(p.hp) || 0;
+            const max = Number(p.hpmax) || 1;
+            const ratio = cur / max;
+            totalHp += cur;
+            totalMaxHp += max;
+            if (ratio < minHpRatio) minHpRatio = ratio;
+            if (p.condition?.debuff && Array.isArray(p.condition.debuff) && p.condition.debuff.length > 0) {
+              hasDebuffedAlly = true;
+            }
+          }
+        }
+        const avgHpRatio = totalMaxHp > 0 ? (totalHp / totalMaxHp) : 1.0;
+        const needsHealing = (avgHpRatio < healThresh) || (minHpRatio < minHealThresh) || hasDebuffedAlly;
+
+        interface ScannedTacticalSkill {
+          charIndex: number; // 0..3
+          charNum: number;   // 1..4
+          slot: number;      // 1..4
+          abilityId: string;
+          abilityName: string;
+          iconType: number;  // 1: Red, 2: Green, 3: Yellow, 4: Blue, 5: Purple
+          category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal';
+          requiresPick: boolean;
+        }
+
+        const scanned: ScannedTacticalSkill[] = [];
+        const targetSet = (targetChars && targetChars.length > 0)
+          ? new Set(targetChars.map(c => Number(c)))
+          : null;
+
+        // A. Primary extraction via stage.pJsnData.ability (server ground truth)
+        const abilityMap = pJsn?.ability || {};
+        const charKeys = Object.keys(abilityMap);
+
+        if (charKeys.length > 0) {
+          for (const charKey of charKeys) {
+            const charObj = abilityMap[charKey];
+            if (!charObj || charObj.alive === 0) continue;
+            const charPos = charObj.pos !== undefined ? Number(charObj.pos) : (Number(charKey) - 1);
+            const charNum = charPos + 1;
+
+            if (charNum < 1 || charNum > 4) continue;
+            if (targetSet && !targetSet.has(charNum)) continue;
+
+            const list = charObj.list || {};
+            for (const [slotKey, abilityArray] of Object.entries(list) as [string, any][]) {
+              const slotNum = Number(slotKey);
+              if (slotNum < 1 || slotNum > 4) continue;
+              const ab = Array.isArray(abilityArray) ? abilityArray[0] : abilityArray;
+              if (!ab) continue;
+
+              const recast = String(ab['ability-recast'] ?? '');
+              const reqMet = ab['requirement_result_flag'] !== false;
+              const isReady = (recast === '0' || recast === '') && reqMet;
+              if (!isReady) continue;
+
+              const iconType = Number(ab['icon-type'] || '1');
+              let category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal' = 'damage';
+              if (iconType === 5) category = 'field';
+              else if (iconType === 4) category = 'debuff';
+              else if (iconType === 3) category = 'buff';
+              else if (iconType === 2) category = 'heal';
+              else if (iconType === 1) category = 'damage';
+
+              // TACTICAL FILTER: If green healing skill and party is healthy, do NOT waste it!
+              if (category === 'heal' && !needsHealing) {
+                continue;
+              }
+
+              scanned.push({
+                charIndex: charPos,
+                charNum,
+                slot: slotNum,
+                abilityId: String(ab['ability-id'] || ''),
+                abilityName: String(ab['ability-name'] || ''),
+                iconType,
+                category,
+                requiresPick: ab['ability-pick'] === '1' || ab['ability-pick'] === 1
+              });
+            }
+          }
+        } else {
+          // B. DOM Fallback
+          for (let c = 1; c <= 4; c++) {
+            if (targetSet && !targetSet.has(c)) continue;
+            for (let s = 1; s <= 4; s++) {
+              const sel = `.ability-character-num-${c}-${s}`;
+              const el = document.querySelector(sel) as HTMLElement;
+              if (!el) continue;
+
+              const isUnavail = el.classList.contains('btn-ability-unavailable') ||
+                                el.classList.contains('empty');
+              if (isUnavail) continue;
+
+              let iconType = 1;
+              const match = el.className.match(/ico-ability\d+_([1-5])/);
+              if (match) {
+                iconType = Number(match[1]);
+              }
+
+              let category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal' = 'damage';
+              if (iconType === 5) category = 'field';
+              else if (iconType === 4) category = 'debuff';
+              else if (iconType === 3) category = 'buff';
+              else if (iconType === 2) category = 'heal';
+              else if (iconType === 1) category = 'damage';
+
+              if (category === 'heal' && !needsHealing) continue;
+
+              scanned.push({
+                charIndex: c - 1,
+                charNum: c,
+                slot: s,
+                abilityId: el.getAttribute('ability-id') || '',
+                abilityName: '',
+                iconType,
+                category,
+                requiresPick: false
+              });
+            }
+          }
+        }
+
+        return {
+          avgHpRatio,
+          minHpRatio,
+          needsHealing,
+          scanned
+        };
+      },
+      healHpThreshold,
+      minHealHpThreshold,
+      targetCharacters
+    ).catch(() => null);
+
+    if (!scan || scan.scanned.length === 0) {
+      console.log(`[Workflow] [Turn ${turn}] ⚡ Zero actionable skills ready (all on cooldown or heals unneeded). Instant pass to attack (0ms drawer overhead).`);
+      return;
+    }
+
+    const fieldSkills = scan.scanned.filter(s => s.category === 'field');
+    const debuffSkills = scan.scanned.filter(s => s.category === 'debuff');
+    const buffSkills = scan.scanned.filter(s => s.category === 'buff');
+    const damageSkills = scan.scanned.filter(s => s.category === 'damage');
+    const healSkills = scan.scanned.filter(s => s.category === 'heal');
+
+    console.log(
+      `[Workflow] 🎯 [Turn ${turn}] Tactical Skill Execution Plan (${scan.scanned.length} skills | Party HP: ${(scan.avgHpRatio * 100).toFixed(0)}%): ` +
+      `[Field: ${fieldSkills.length}, Debuff: ${debuffSkills.length}, Buff: ${buffSkills.length}, Damage: ${damageSkills.length}, Heal: ${healSkills.length}]`
+    );
+
+    let currentOpenChar: number | null = null;
+
+    const openCharDrawer = async (charNum: number) => {
+      if (currentOpenChar === charNum) return true;
+      const charIndex = charNum - 1;
+      const charSelector = `.lis-character${charIndex}.btn-command-character, .lis-character${charIndex}`;
+      const charEl = await this.page.$(charSelector).catch(() => null);
+      if (!charEl) return false;
+
+      await humanReactionDelay(130, 0.1);
+      await humanizedClick(this.page, charEl);
+      await randomDelay(160, 240);
+      currentOpenChar = charNum;
+      return true;
+    };
+
+    const castSkill = async (skill: { charNum: number; slot: number; abilityName: string; category: string; requiresPick: boolean }) => {
+      if (this.stopRequested) return false;
+      if (await this.isBattleEnded()) return false;
+
+      const opened = await openCharDrawer(skill.charNum);
+      if (!opened) return false;
+
+      const abilitySelector = `.ability-character-num-${skill.charNum}-${skill.slot}:not(.btn-ability-unavailable):not(.empty), .ability-character-num-${skill.charNum}-${skill.slot}`;
+      const skillEl = await this.page.$(abilitySelector).catch(() => null);
+      if (!skillEl) return false;
+
+      // Verify button is actually clickable
+      const canClick = await this.page.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement;
+        return el && el.offsetParent !== null && !el.classList.contains('btn-ability-unavailable') && !el.classList.contains('empty');
+      }, abilitySelector).catch(() => false);
+
+      if (!canClick) return false;
+
+      await humanReactionDelay(100, 0.1);
+      await humanizedClick(this.page, skillEl);
+      // Snappy skill queue pacing (180ms - 260ms)
+      await randomDelay(180, 260);
+
+      // Handle single-target ally popup if it appeared
+      const targetPopup = await this.page.$('.pop-usual .lis-character0, .pop-usual .btn-command-character, .pop-usual .btn-usual-ok').catch(() => null);
+      if (targetPopup) {
+        await humanReactionDelay(110, 0.1);
+        await humanizedClick(this.page, targetPopup);
+        await randomDelay(180, 260);
+      }
+
+      return true;
+    };
+
+    // Phase 1: Field Effects (Purple / Type 5)
+    for (const skill of fieldSkills) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      await castSkill(skill);
+    }
+
+    // Phase 2: Team Preparation (Debuffs & Buffs grouped per character to minimize drawer flips)
+    // Debuff first, then Buff for that character
+    const prepSkills = [...debuffSkills, ...buffSkills];
+    const prepCharNums = Array.from(new Set(prepSkills.map(s => s.charNum))).sort((a, b) => a - b);
+    for (const charNum of prepCharNums) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      const charPrep = prepSkills.filter(s => s.charNum === charNum);
+      // Sort: debuff (4) before buff (3)
+      charPrep.sort((a, b) => (b.iconType - a.iconType));
+      for (const skill of charPrep) {
+        if (this.stopRequested || await this.isBattleEnded()) break;
+        await castSkill(skill);
+      }
+    }
+
+    // Phase 3: Damage Nukes (Red / Type 1)
+    // Now all debuffs are capped on boss and buffs active on team!
+    const nukeCharNums = Array.from(new Set(damageSkills.map(s => s.charNum))).sort((a, b) => a - b);
+    for (const charNum of nukeCharNums) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      const charNukes = damageSkills.filter(s => s.charNum === charNum);
+      for (const skill of charNukes) {
+        if (this.stopRequested || await this.isBattleEnded()) break;
+        await castSkill(skill);
+      }
+    }
+
+    // Phase 4: Conditional Recovery / Clears (Green / Type 2)
+    for (const skill of healSkills) {
+      if (this.stopRequested || await this.isBattleEnded()) break;
+      await castSkill(skill);
+    }
+
+    // Final Step: Ensure character ability drawer is closed and Attack button is exposed
+    try {
+      const isBackVisible = await this.page.evaluate(() => {
+        const el = document.querySelector('.btn-command-back, .ico-back') as HTMLElement;
+        return !!(el && el.offsetParent !== null && window.getComputedStyle(el).display !== 'none');
+      }).catch(() => false);
+      if (isBackVisible) {
+        const backBtn = await this.page.$('.btn-command-back, .ico-back');
+        if (backBtn) {
+          await humanizedClick(this.page, backBtn);
+          await randomDelay(180, 280);
+        }
+      }
+    } catch {}
+  }
+
+  /**
+   * Fast-executes available abilities across frontline characters (1 to 4).
+   * Backwards-compatible alias for executeTacticalReadySkills.
+   */
+  private async executeOptimalReadySkills(targetCharacters?: number[]): Promise<void> {
+    await this.executeTacticalReadySkills(targetCharacters);
+  }
+
+  /**
+   * Scans DOM and combat telemetry for the "Deal 1,000,000 plain damage" omen.
+   */
+  private async isPlainDamageOmenActive(): Promise<boolean> {
+    try {
+      return await this.page.evaluate(() => {
+        const omenContainers = document.querySelectorAll(
+          '.prt-cancel-condition, .prt-condition-detail, .txt-condition, .prt-condition, .prt-special-motion, .pop-target-detail, .prt-boss-condition'
+        );
+
+        for (const el of Array.from(omenContainers)) {
+          const text = (el as HTMLElement).innerText || '';
+          const has1M = text.includes('1,000,000') || text.includes('1000000');
+          const hasPlain = text.includes('plain') || text.includes('Plain') || text.includes('無属性');
+          if (has1M && hasPlain) return true;
+        }
+
+        const bodyText = document.body ? document.body.innerText || '' : '';
+        const regex1MPlain = /(?:1,?000,?000[\s\S]{0,40}(?:plain|無属性))|(?:(?:plain|無属性)[\s\S]{0,40}1,?000,?000)/i;
+        if (regex1MPlain.test(bodyText)) return true;
+
+        const stage = (window as any).stage;
+        const boss = stage?.gGameStatus?.boss?.param?.[0] || stage?.pJsnData?.boss?.param?.[0];
+        if (boss?.special_skill) {
+          const specStr = JSON.stringify(boss.special_skill);
+          if (regex1MPlain.test(specStr)) return true;
+        }
+
+        return false;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Locates and calls Beelzebub summon if available in deck, then reloads to skip summon animation.
+   */
+  private async executeBeelzebubSummonIfAvailable(): Promise<boolean> {
+    try {
+      const bubsInfo = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        const rawSummons = stage?.pJsnData?.summon || stage?.gGameStatus?.summon || {};
+        const summonsList = Array.isArray(rawSummons) ? rawSummons : Object.values(rawSummons);
+
+        let bubsIndex = -1;
+        let isAvailable = false;
+
+        summonsList.forEach((s: any, idx: number) => {
+          const idStr = String(s?.id || '');
+          const nameStr = String(s?.name || '');
+          if (idStr === '2040408000' || nameStr.toLowerCase().includes('beelzebub') || nameStr.includes('ベルゼバブ')) {
+            bubsIndex = idx;
+            isAvailable = s?.available_flag === 1 || s?.available_flag === true || s?.recast === '0' || s?.recast === 0;
+          }
+        });
+
+        const summonEls = document.querySelectorAll('.lis-summon');
+        summonEls.forEach((el, idx) => {
+          const img = el.querySelector('img')?.getAttribute('src') || '';
+          if (img.includes('2040408000')) {
+            bubsIndex = idx;
+            if (el.classList.contains('btn-summon-available') || el.classList.contains('on')) {
+              isAvailable = true;
+            }
+          }
+        });
+
+        return { bubsIndex, isAvailable };
+      });
+
+      if (bubsInfo.bubsIndex === -1 || !bubsInfo.isAvailable) {
+        return false;
+      }
+
+      console.log(`[Workflow] Calling Beelzebub (Summon Slot ${bubsInfo.bubsIndex})...`);
+      const summonTab = await this.page.$('.prt-list-top.btn-command-summon:not(.summon-on)');
+      if (summonTab) {
+        await humanizedClick(this.page, summonTab);
+        await randomDelay(250, 400);
+      }
+
+      const summonCards = await this.page.$$('.lis-summon');
+      const bubsCard = summonCards[bubsInfo.bubsIndex];
+      if (!bubsCard) return false;
+
+      await humanReactionDelay(220, 0.15);
+      await humanizedClick(this.page, bubsCard);
+      await randomDelay(450, 700);
+
+      const callBtn = await this.page.$('.pop-usual .btn-usual-ok, .btn-call, .btn-summon-start, #pop .btn-usual-ok');
+      if (callBtn) {
+        await humanReactionDelay(220, 0.15);
+        await humanizedClick(this.page, callBtn);
+        await randomDelay(600, 900);
+      }
+
+      await this.page.evaluate(() => location.reload()).catch(() => null);
+      await randomDelay(600, 900);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -3120,7 +3689,7 @@ export class UniversalWorkflowEngine {
 
     // 3. Dismiss result screen OK buttons
     await this.page.evaluate(() => {
-      const okBtns = Array.from(document.querySelectorAll('.btn-usual-ok, .btn-settle, .btn-usual-close, .pop-raid-result .btn-usual-ok')) as HTMLElement[];
+      const okBtns = Array.from(document.querySelectorAll('.btn-usual-ok, .btn-settle, .btn-usual-close, .pop-raid-result .btn-usual-ok, .btn-result-close, .btn-control.location-href, .prt-popup-body .btn-usual-ok')) as HTMLElement[];
       for (const btn of okBtns) {
         if (btn.offsetParent !== null) {
           const $ = (window as any).$ || (window as any).Zepto;
@@ -3443,11 +4012,11 @@ export class UniversalWorkflowEngine {
       try {
         const check = await this.page.evaluate(() => {
           const hash = window.location.hash;
-          const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
+          const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash) || hash.includes('replicard/battle') || hash.includes('stage');
           const stage = (window as any).stage;
           const hasGameStatus = !!stage?.gGameStatus;
-          const isRes = hash.includes('result') || !!document.querySelector('.pop-raid-result');
-          const hasReadyStage = isCombatHash && hasGameStatus && !!document.querySelector('.lis-character0, .btn-attack-start.display-on, .btn-quick-summon.qs-ready');
+          const isRes = hash.includes('result') || !!document.querySelector('.pop-raid-result, .prt-result-head');
+          const hasReadyStage = (isCombatHash || !!document.querySelector('.lis-character0')) && (hasGameStatus || !!document.querySelector('.lis-character0, .btn-attack-start.display-on, .btn-quick-summon.qs-ready'));
           if (hasReadyStage || isRes) {
             return 'MOUNTED';
           }
@@ -3566,6 +4135,13 @@ export class UniversalWorkflowEngine {
         } else if (combined.includes('not enough required items') || combined.includes('トレジャーが足りません') || combined.includes('chunky meat') || combined.includes('お肉')) {
           isOutOfMeat = true;
           reason = 'Insufficient Meat / Treasure to host this raid (Chunky Meat / 肉 depleted)';
+        } else if (
+          combined.includes('aap') ||
+          rawCombined.includes('AAP') ||
+          combined.includes('arcarum action point')
+        ) {
+          isOutOfAp = true;
+          reason = 'Insufficient AAP (Arcarum Action Points) / Half-Elixirs needed for Replicard';
         } else if (combined.includes('not enough ap') || combined.includes('apが不足') || combined.includes('half elixir')) {
           isOutOfAp = true;
           reason = 'Insufficient AP / Half-Elixirs depleted';
@@ -3607,6 +4183,12 @@ export class UniversalWorkflowEngine {
     // Check if lingering in an actual unfinished battle (e.g. #raid/12345 or #battle/12345)
     // Note: Do NOT match #quest/supporter_raid or #quest/assist as active combat!
     const initHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+    const isReplicard = targetUrl.includes('replicard') || targetUrl.includes('819131') || targetUrl.includes('815091') || targetUrl.includes('816091');
+    if (isReplicard && (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash) || initHash.includes('replicard/battle') || initHash.includes('stage'))) {
+      console.log(`[${this.accountId}] [Replicard] Active combat detected (${initHash}). Resuming combat directly...`);
+      return true;
+    }
+
     const isActualBattle = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash);
     if (isActualBattle) {
       console.log(`[Workflow] Existing battle detected (${initHash}). Resolving prior battle...`);
@@ -3646,6 +4228,15 @@ export class UniversalWorkflowEngine {
         continue;
       }
 
+      // Check Replicard AAP recovery modal before clicking start
+      if (isReplicard && autoReplenishAp) {
+        const aapHandled = await this.handleAapRecoveryModal(true);
+        if (aapHandled) {
+          await logNormalDelay(400, 0.1);
+          continue;
+        }
+      }
+
       // 1. Deck confirmation / Quest Start OK button (.btn-usual-ok.se-quest-start)
       const autoOk = await this.page.evaluate(() => {
         const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
@@ -3659,10 +4250,17 @@ export class UniversalWorkflowEngine {
       }).catch(() => false);
 
       if (autoOk) {
+        if (isReplicard && autoReplenishAp) {
+          await this.handleAapRecoveryModal(true);
+        }
         const mounted = await this.waitForBattleToMount(12000);
         if (mounted) return true;
         if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
           continue;
+        }
+        if (isReplicard && autoReplenishAp) {
+          const aapAfter = await this.handleAapRecoveryModal(true);
+          if (aapAfter) continue;
         }
         return false;
       }

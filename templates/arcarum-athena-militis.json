@@ -1,0 +1,67 @@
+{
+  "name": "Arcarum Sandbox - Athena Militis",
+  "description": "High-speed Athena Militis battle loop (Zone Kalendae): Quick Call -> MC & Frontline Skills -> Attack -> Wait & Reload (Animation Skip) -> Multi-Turn Fast Attack/Reload Loop -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/6/6/16/815091/25/0/25075",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 2
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "repeat",
+      "repeatCount": 15,
+      "subSteps": [
+        {
+          "code": "attack",
+          "optional": true,
+          "waitForNetwork": "normal_attack_result.json",
+          "delayAfterMs": 350
+        },
+        {
+          "code": "reload"
+        }
+      ]
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

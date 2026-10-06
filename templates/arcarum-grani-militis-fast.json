@@ -1,0 +1,42 @@
+{
+  "name": "Arcarum Sandbox - Grani Militis (Fast 0-Button / Quick Summon)",
+  "description": "Ultra-fast 0-button / 1-button Grani Militis OTK loop (Zone Kalendae): Quick Call -> Attack -> Wait 350ms & Reload -> Finish Loop -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/7/7/16/816091/25/0/25076",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "turbo",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "repeat",
+      "repeatCount": 3,
+      "subSteps": [
+        {
+          "code": "attack",
+          "optional": true,
+          "waitForNetwork": "normal_attack_result.json",
+          "delayAfterMs": 350
+        },
+        {
+          "code": "reload"
+        }
+      ]
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

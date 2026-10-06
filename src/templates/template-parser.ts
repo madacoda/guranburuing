@@ -460,14 +460,17 @@ export class TemplateParser {
       };
     }
 
-    // 3. Attack / Atk
-    if (/^attack|^atk/i.test(line)) {
+    // 3. Attack / Atk (supports optional delay: "attack 350", "attack wait 350ms")
+    const atkMatch = line.match(/^(?:attack|atk)(?:[\s_]+(?:wait[\s_]+)?(\d+)(?:ms)?)?/i);
+    if (atkMatch) {
+      const delay = atkMatch[1] ? parseInt(atkMatch[1], 10) : undefined;
       return {
         id: `step_${stepIndex}`,
         name: 'Execute Normal Attack',
         code: 'attack',
         action: 'attack',
-        waitForNetwork: 'normal_attack_result.json'
+        waitForNetwork: 'normal_attack_result.json',
+        ...(delay !== undefined ? { delayAfterMs: delay } : {})
       };
     }
 
@@ -657,8 +660,16 @@ export class TemplateParser {
       };
     }
 
-    // 18. Auto / Full Auto / Semi Auto
-    if (/full_auto/i.test(line)) {
+    // 18. Auto / Smart Full Auto / Full Auto / Semi Auto
+    if (/^(?:smart_full_auto|fast_full_auto|smart_auto|fast_auto)/i.test(line)) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Smart Full Auto Execution',
+        code: 'smart_full_auto',
+        action: 'smart_full_auto'
+      };
+    }
+    if (/^full_auto\b/i.test(line)) {
       return {
         id: `step_${stepIndex}`,
         name: 'Toggle Full Auto Mode',
@@ -842,6 +853,8 @@ export class TemplateParser {
           return `${indent}pro_skip_favorites`;
         case 'dismiss_popups':
           return `${indent}dismiss_popups`;
+        case 'smart_full_auto':
+          return `${indent}smart_full_auto`;
         case 'loop_while':
           if (step.subSteps && step.subSteps.length > 0) {
             const subLines = step.subSteps.map(s => serializeStep(s, `${indent}  `)).join('\n');
