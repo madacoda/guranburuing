@@ -1,0 +1,58 @@
+{
+  "$schema": "../schemas/raid-catalog.schema.json",
+  "version": "2.0.0",
+  "description": "Combat physics, damage-to-honors conversion, attack lockout duration formulas, and F5 reload timing.",
+  "formulas": {
+    "damageToHonors": {
+      "expression": "Math.floor(damage / 1000)",
+      "sample": "148,000,000 damage yields 148,000 honors (plus over-kill bonuses where applicable)",
+      "contributionWeights": {
+        "normalDamage": 0.001,
+        "healing": 0.0,
+        "debuffBonus": "Small flat honor increment per applied debuff"
+      }
+    },
+    "lockoutDuration": {
+      "baseSeconds": 1.0,
+      "hitMultiplier": 0.35,
+      "ougiPenalties": {
+        "0": 0.0,
+        "1": 4.0,
+        "2": 6.5,
+        "3": 9.0,
+        "4": 13.0,
+        "overBurst": 16.0
+      },
+      "formula": "baseSeconds + (totalAttackHits * hitMultiplier) + ougiPenalty",
+      "examples": [
+        {
+          "type": "Single Attack (4 characters x 1 hit = 4 hits, 0 ougi)",
+          "calculation": "1.0 + (4 * 0.35) + 0.0",
+          "lockoutSeconds": 2.4
+        },
+        {
+          "type": "Triple Attack (4 characters x 3 hits = 12 hits, 0 ougi)",
+          "calculation": "1.0 + (12 * 0.35) + 0.0",
+          "lockoutSeconds": 5.2
+        },
+        {
+          "type": "Full Chain Burst (4 characters ougi)",
+          "calculation": "1.0 + (4 * 0.35) + 13.0",
+          "lockoutSeconds": 15.4
+        }
+      ]
+    },
+    "fastF5Reload": {
+      "concept": "Granblue Fantasy animations execute client-side via CreateJS while the server state is computed immediately upon HTTP response. Reloading (F5) cancels client animations, allowing instant transition to the next turn once the server lockout timer expires.",
+      "pipeline": [
+        "1. Dispatch POST /rest/multiraid/normal_attack_result.json.",
+        "2. Await HTTP 200 response with animation scenario payload.",
+        "3. Record timestamp T_sent.",
+        "4. Trigger CDP Page.reload or router navigate.",
+        "5. Await battle scene DOM mount (#cnt-raid).",
+        "6. Calculate remaining lockout: Math.max(0, LockoutDuration - (Now - T_sent)).",
+        "7. Sleep for remaining lockout duration before dispatching next turn skills or attack."
+      ]
+    }
+  }
+}

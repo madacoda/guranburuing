@@ -1,9 +1,37 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "gbf-technical-data-compendium",
-  "version": "1.0.0",
-  "generatedAt": "2026-09-23T08:38:00.000Z",
-  "description": "Machine-readable technical catalog of Granblue Fantasy client protocols, raid specifications, combat mechanics, and automation engine configurations.",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-07T08:00:00.000Z",
+  "description": "Enterprise machine-readable technical catalog of Granblue Fantasy client protocols, comprehensive raid specifications, combat mechanics, and automation engine configurations.",
+  "architecture": {
+    "standard": "Domain-Driven Design (DDD) & Senior Gold Industry Standard",
+    "modules": {
+      "raids": {
+        "catalog": "data/raids/raids.catalog.json",
+        "categories": "data/raids/categories.json",
+        "dropTables": "data/raids/drop-tables.json"
+      },
+      "ui": {
+        "selectors": "data/ui/selectors.catalog.json",
+        "modals": "data/ui/modals.catalog.json",
+        "routes": "data/ui/navigation-routes.json"
+      },
+      "network": {
+        "endpoints": "data/network/endpoints.catalog.json",
+        "auth": "data/network/auth-and-login.json",
+        "cdn": "data/network/cdn-assets.json"
+      },
+      "combat": {
+        "physics": "data/combat/combat-physics.json",
+        "battleSystems": "data/combat/battle-systems.json"
+      },
+      "automation": {
+        "dailyRoutines": "data/automation/daily-routines.json",
+        "antiDetection": "data/automation/anti-detection.json"
+      }
+    }
+  },
   "endpoints": {
     "raidInfo": {
       "path": "/quest/raid_info",
@@ -50,6 +78,33 @@
       },
       "description": "Invokes summon. Limited to once per turn."
     },
+    "guardSetting": {
+      "path": "/rest/multiraid/guard_setting.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Toggles V2 battle system character guard state."
+    },
+    "requestBackup": {
+      "path": "/rest/multiraid/request_assist.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Broadcasts backup request to Everyone, Friends, and Crew."
+    },
+    "temporaryItem": {
+      "path": "/rest/multiraid/temporary_item_result.json",
+      "method": "POST",
+      "headers": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json"
+      },
+      "description": "Consumes green or blue potions during combat."
+    },
     "proSkip": {
       "path": "/quest/pro_skip",
       "method": "POST",
@@ -67,15 +122,24 @@
         "Content-Type": "application/json"
       },
       "description": "Validates and joins a raid using an 8-character battle key."
+    },
+    "multiResult": {
+      "path": "/resultmulti/data.json",
+      "method": "GET",
+      "description": "Fetches multiplayer battle reward payload: blue chests, gold chests, MVP status, honors, and player rankings."
     }
   },
   "raids": [
     {
       "id": "pbhl",
-      "name": "Prototype Bahamut HL",
+      "name": "Wings of Terror (Impossible)",
+      "commonName": "Prototype Bahamut HL",
       "japaneseName": "プロトバハムートHL",
-      "nickname": "つよバハ / Tsuno",
-      "questId": "300291",
+      "nickname": "つよバハ / Tsuno / PBHL",
+      "stageId": "12061",
+      "questId": "301061",
+      "chapterId": "30106",
+      "apCost": 45,
       "epCost": 3,
       "maxPlayers": 18,
       "bossHp": 2000000000,
@@ -84,14 +148,19 @@
       "blueChestThreshold": 1480000,
       "blueChestGuaranteedDamage": 148000000,
       "goldBrickChance": 0.015,
-      "recommendedTurns": 2
+      "recommendedTurns": 2,
+      "dailyLimit": 1
     },
     {
       "id": "akasha",
-      "name": "Akasha HL",
+      "name": "Omen of the Broken Skies",
+      "commonName": "Akasha HL",
       "japaneseName": "アーカーシャHL",
-      "nickname": "アーカーシャ",
-      "questId": "300421",
+      "nickname": "アーカーシャ / Akasha",
+      "stageId": "12061",
+      "questId": "303251",
+      "chapterId": "30325",
+      "apCost": 45,
       "epCost": 3,
       "maxPlayers": 18,
       "bossHp": 1200000000,
@@ -101,14 +170,19 @@
       "blueChestThreshold": 1560000,
       "blueChestGuaranteedDamage": 156000000,
       "goldBrickChance": 0.012,
-      "recommendedTurns": 3
+      "recommendedTurns": 3,
+      "dailyLimit": 1
     },
     {
       "id": "gohl",
-      "name": "Grand Order HL",
+      "name": "The Peacemaker's Wings (Impossible)",
+      "commonName": "Grand Order HL",
       "japaneseName": "ジ・オーダー・グランデHL",
       "nickname": "グランデHL / GOHL",
-      "questId": "300411",
+      "stageId": "12061",
+      "questId": "305161",
+      "chapterId": "30516",
+      "apCost": 45,
       "epCost": 3,
       "maxPlayers": 18,
       "bossHp": 1350000000,
@@ -118,14 +192,166 @@
       "blueChestThreshold": 1480000,
       "blueChestGuaranteedDamage": 148000000,
       "goldBrickChance": 0.012,
-      "recommendedTurns": 1
+      "recommendedTurns": 1,
+      "dailyLimit": 1
+    },
+    {
+      "id": "lindwurm",
+      "name": "Empyreal Ascension (Impossible)",
+      "commonName": "Lindwurm HL",
+      "japaneseName": "リンドブルムHL",
+      "nickname": "リンドブルム / Lindwurm",
+      "stageId": "12061",
+      "questId": "303141",
+      "chapterId": "30314",
+      "apCost": 50,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 800000000,
+      "element": "Wind",
+      "battleSystem": "V1",
+      "blueChestThreshold": 800000,
+      "blueChestGuaranteedDamage": 80000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 2,
+      "dailyLimit": 1
+    },
+    {
+      "id": "tiamat_aura",
+      "name": "Tiamat Aura Omega (Impossible)",
+      "commonName": "Tiamat Aura Magna",
+      "japaneseName": "ティアマト・アウラ・マグナ (HL)",
+      "nickname": "M3 風 / Tiamat M3",
+      "stageId": "12042",
+      "questId": "305601",
+      "chapterId": "30560",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 850000000,
+      "element": "Wind",
+      "battleSystem": "V2",
+      "blueChestThreshold": 700000,
+      "blueChestGuaranteedDamage": 70000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 3,
+      "dailyLimit": 3
+    },
+    {
+      "id": "colossus_ira",
+      "name": "Colossus Ira Omega (Impossible)",
+      "commonName": "Colossus Ira Magna",
+      "japaneseName": "コロッサス・アイラ・マグナ (HL)",
+      "nickname": "M3 火 / Colossus M3",
+      "stageId": "12042",
+      "questId": "305611",
+      "chapterId": "30561",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 880000000,
+      "element": "Fire",
+      "battleSystem": "V2",
+      "blueChestThreshold": 700000,
+      "blueChestGuaranteedDamage": 70000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 3,
+      "dailyLimit": 3
+    },
+    {
+      "id": "leviathan_mare",
+      "name": "Leviathan Mare Omega (Impossible)",
+      "commonName": "Leviathan Mare Magna",
+      "japaneseName": "リヴァイアサン・マレ・マグナ (HL)",
+      "nickname": "M3 水 / Leviathan M3",
+      "stageId": "12042",
+      "questId": "305631",
+      "chapterId": "30563",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 850000000,
+      "element": "Water",
+      "battleSystem": "V2",
+      "blueChestThreshold": 700000,
+      "blueChestGuaranteedDamage": 70000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 3,
+      "dailyLimit": 3
+    },
+    {
+      "id": "yggdrasil_arbos",
+      "name": "Yggdrasil Arbos Omega (Impossible)",
+      "commonName": "Yggdrasil Arbos Magna",
+      "japaneseName": "ユグドラシル・アルボス・マグナ (HL)",
+      "nickname": "M3 土 / Yggdrasil M3",
+      "stageId": "12042",
+      "questId": "305641",
+      "chapterId": "30564",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 860000000,
+      "element": "Earth",
+      "battleSystem": "V2",
+      "blueChestThreshold": 700000,
+      "blueChestGuaranteedDamage": 70000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 3,
+      "dailyLimit": 3
+    },
+    {
+      "id": "luminiera_credo",
+      "name": "Luminiera Credo Omega (Impossible)",
+      "commonName": "Luminiera Credo Magna",
+      "japaneseName": "シュヴァリエ・クレド・マグナ (HL)",
+      "nickname": "M3 光 / Chev M3",
+      "stageId": "12042",
+      "questId": "305591",
+      "chapterId": "30559",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 890000000,
+      "element": "Light",
+      "battleSystem": "V2",
+      "blueChestThreshold": 700000,
+      "blueChestGuaranteedDamage": 70000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 3,
+      "dailyLimit": 3
+    },
+    {
+      "id": "celeste_ater",
+      "name": "Celeste Ater Omega (Impossible)",
+      "commonName": "Celeste Ater Magna",
+      "japaneseName": "セレスト・アテル・マグナ (HL)",
+      "nickname": "M3 闇 / Celeste M3",
+      "stageId": "12042",
+      "questId": "305621",
+      "chapterId": "30562",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 880000000,
+      "element": "Dark",
+      "battleSystem": "V2",
+      "blueChestThreshold": 700000,
+      "blueChestGuaranteedDamage": 70000000,
+      "goldBrickChance": 0.0,
+      "recommendedTurns": 3,
+      "dailyLimit": 3
     },
     {
       "id": "subhl",
-      "name": "Super Ultimate Bahamut",
+      "name": "Rage of Super Ultimate Bahamut",
+      "commonName": "Super Ultimate Bahamut",
       "japaneseName": "スーパーアルティメットバハムート",
       "nickname": "スパバハ / SUBHL",
-      "questId": "300581",
+      "stageId": "12081",
+      "questId": "305311",
+      "chapterId": "30531",
+      "apCost": 100,
       "epCost": 5,
       "maxPlayers": 6,
       "bossHp": 3000000000,
@@ -135,7 +361,59 @@
       "blueChestThreshold": 0,
       "blueChestGuaranteedDamage": 0,
       "goldBrickChance": 0.0,
-      "recommendedTurns": 15
+      "recommendedTurns": 15,
+      "dailyLimit": 1
+    },
+    {
+      "id": "peacemaker_standard",
+      "name": "The Peacemaker's Wings",
+      "commonName": "Grand Order Normal",
+      "japaneseName": "降臨、調停の翼 (ジ・オーダー・グランデ)",
+      "nickname": "グランデN / GO Normal",
+      "stageId": "11041",
+      "questId": "301051",
+      "chapterId": "30105",
+      "apCost": 80,
+      "epCost": 3,
+      "maxPlayers": 30,
+      "bossHp": 380000000,
+      "element": "Light",
+      "battleSystem": "V1",
+      "dailyLimit": 2
+    },
+    {
+      "id": "wings_of_terror_standard",
+      "name": "Wings of Terror",
+      "commonName": "Prototype Bahamut Normal",
+      "japaneseName": "邂逅、黒銀の翼 (プロトバハムート)",
+      "nickname": "よわバハ / PB Normal",
+      "stageId": "11041",
+      "questId": "300291",
+      "chapterId": "30029",
+      "apCost": 80,
+      "epCost": 3,
+      "maxPlayers": 30,
+      "bossHp": 240000000,
+      "element": "Dark",
+      "battleSystem": "V1",
+      "dailyLimit": 3
+    },
+    {
+      "id": "empyreal_ascension_standard",
+      "name": "Empyreal Ascension",
+      "commonName": "Lindwurm",
+      "japaneseName": "降臨、白銀の翼 (リンドヴルム)",
+      "nickname": "リンドヴルム / Lindwurm",
+      "stageId": "11061",
+      "questId": "303131",
+      "chapterId": "30313",
+      "apCost": 80,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 450000000,
+      "element": "All",
+      "battleSystem": "V1",
+      "dailyLimit": 1
     },
     {
       "id": "gw_ex_plus",

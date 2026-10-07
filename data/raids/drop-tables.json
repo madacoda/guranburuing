@@ -1,0 +1,62 @@
+{
+  "$schema": "../schemas/raid-catalog.schema.json",
+  "version": "2.0.0",
+  "description": "Drop mechanics, blue chest thresholds, Gold Brick (ヒヒイロカネ) rates, and Eternity Sand (刻の流砂) formulas.",
+  "mechanics": {
+    "blueChest": {
+      "overview": "Special reward chest awarded based on individual player contribution (honors). In high-level raids, honors scale the probability of earning a Blue Chest from 0% up to 100% (guaranteed). Once a Blue Chest is obtained, the item inside is rolled independently from fixed probability tables.",
+      "probabilityFormula": "min(1.0, playerHonors / guaranteedThresholdHonors)",
+      "goldBrickChests": ["pbhl", "akasha", "gohl"],
+      "eternitySandChests": ["magna3", "revans", "subhl", "hexachromatic", "dark_rapture_zero", "world"]
+    },
+    "goldBrick": {
+      "pbhl": {
+        "chestType": "Blue Chest",
+        "guaranteedHonors": 1480000,
+        "guaranteedDamage": 148000000,
+        "goldBrickDropRateInChest": 0.015,
+        "notes": "1.5% drop rate inside blue chest. Best overall farming efficiency per unit time."
+      },
+      "akasha": {
+        "chestType": "Blue Chest",
+        "guaranteedHonors": 1560000,
+        "guaranteedDamage": 156000000,
+        "goldBrickDropRateInChest": 0.012,
+        "notes": "1.2% drop rate inside blue chest. Features turn acceleration mechanics."
+      },
+      "gohl": {
+        "chestType": "Blue Chest",
+        "guaranteedHonors": 1480000,
+        "guaranteedDamage": 148000000,
+        "goldBrickDropRateInChest": 0.012,
+        "notes": "1.2% drop rate inside blue chest. Multi-element team compositions benefit from Grand Order field buff."
+      }
+    },
+    "redChest": {
+      "hostChest": {
+        "description": "Awarded unconditionally to the host upon raid completion.",
+        "pbhlGoldBrickRate": 0.02,
+        "notes": "Self-hosting PBHL daily yields ~2.0% Gold Brick chance in the host chest."
+      },
+      "mvpChest": {
+        "description": "Awarded to 1st place honor contributor. In modern HL raids, does NOT contain Gold Bricks (Gold Bricks were migrated strictly to Blue Chests to combat room sniping)."
+      }
+    },
+    "eternitySand": {
+      "magna3": {
+        "chestType": "Blue Chest",
+        "dropRate": 0.005,
+        "thresholdHonors": 700000
+      },
+      "revans": {
+        "chestType": "Blue Chest",
+        "dropRate": 0.01,
+        "thresholdHonors": 4000000
+      },
+      "subhl": {
+        "chestType": "Blue Chest / Host Chest",
+        "dropRate": 0.015
+      }
+    }
+  }
+}

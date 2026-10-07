@@ -1,0 +1,100 @@
+{
+  "$schema": "../schemas/selectors.schema.json",
+  "version": "2.0.0",
+  "description": "Exhaustive registry of Granblue Fantasy modals, overlay containers, action buttons, and automated resolution handlers.",
+  "modals": [
+    {
+      "id": "stage_detail_modal",
+      "name": "Stage Quest Category Detail Modal",
+      "trigger": "Clicking .btn-stage-detail[data-stage-id='...'] on #quest/multi/0",
+      "containerSelector": ".pop-stage-detail.pop-show, .pop-usual.pop-show",
+      "closeButtonSelector": ".pop-stage-detail .btn-usual-close, .pop-usual .btn-usual-close, .btn-usual-close",
+      "eventType": "Zepto tap + DOM click",
+      "dismissBehavior": "Must dismiss completely before opening another stage card to prevent overlay blockages.",
+      "timeoutMs": 3500
+    },
+    {
+      "id": "treasure_offer_modal",
+      "name": "Raid Host Treasure Verification Modal",
+      "trigger": "Clicking .btn-set-quest on quest banner",
+      "containerSelector": ".pop-treasure-raid, .pop-usual.pop-show",
+      "confirmButtonSelector": ".btn-offer, .pop-treasure-raid .btn-offer, .pop-treasure-raid .btn-usual-ok",
+      "cancelButtonSelector": ".btn-usual-cancel, .pop-treasure-raid .btn-usual-cancel",
+      "itemSelectionSelector": ".btn-article-image",
+      "dismissBehavior": "Click cancel if materials are insufficient (Held < Required or button disabled). Click offer to confirm."
+    },
+    {
+      "id": "ap_recovery_modal",
+      "name": "AP Replenishment Modal (Half-Elixir)",
+      "trigger": "Entering quest without sufficient AP",
+      "containerSelector": ".pop-usual.pop-show",
+      "itemSelector": ".btn-use-item[data-item-id='1']",
+      "confirmButtonSelector": ".btn-usual-ok",
+      "cancelButtonSelector": ".btn-usual-cancel",
+      "dismissBehavior": "Select item 1 (Half Elixir) and confirm with .btn-usual-ok."
+    },
+    {
+      "id": "ep_recovery_modal",
+      "name": "EP Replenishment Modal (Soul Berry)",
+      "trigger": "Entering multiplayer raid without sufficient EP",
+      "containerSelector": ".pop-usual.pop-show",
+      "itemSelector": ".btn-use-item[data-item-id='2']",
+      "confirmButtonSelector": ".btn-usual-ok",
+      "cancelButtonSelector": ".btn-usual-cancel",
+      "dismissBehavior": "Select item 2 (Soul Berry / Balm) and confirm with .btn-usual-ok."
+    },
+    {
+      "id": "aap_recovery_modal",
+      "name": "Arcarum AAP Replenishment Modal",
+      "trigger": "Entering Replicard Sandbox quest without AAP",
+      "containerSelector": ".pop-usual.pop-show",
+      "itemSelector": ".btn-use-item[data-item-id='30031']",
+      "confirmButtonSelector": ".btn-usual-ok",
+      "cancelButtonSelector": ".btn-usual-cancel",
+      "dismissBehavior": "Consume AAP recovery potion and confirm."
+    },
+    {
+      "id": "backup_request_modal",
+      "name": "Request Backup Modal (Pub)",
+      "trigger": "Clicking .btn-assist inside active battle (when not on 180s cooldown)",
+      "containerSelector": ".pop-usual.pop-start-assist, .pop-start-assist",
+      "scopeSelectors": {
+        "all": ".btn-check[type='all'], .btn-check.all",
+        "friends": ".btn-check[type='friend'], .btn-check.friend",
+        "crew": ".btn-check[type='guild'], .btn-check.guild"
+      },
+      "activeAttribute": "active",
+      "cooldownDurationMs": 180000,
+      "submitButtonSelector": ".pop-start-assist .btn-usual-text.with-potion, .pop-start-assist .prt-popup-footer .btn-usual-text, .pop-start-assist .btn-usual-text",
+      "confirmButtonSelector": "#pop.popup-view-root .btn-usual-ok, .pop-usual .btn-usual-ok, .btn-usual-ok",
+      "dismissBehavior": "Ensure Everyone (all), Friends (friend), and Crew (guild) checkboxes have attribute active='1'. Submit and dismiss confirmation popup."
+    },
+    {
+      "id": "ascendant_prayer_modal",
+      "name": "Ascendant Prayer Confirmation Modal",
+      "trigger": "Launching specific high-level solo/host quests offering prayer buffs",
+      "containerSelector": ".pop-ascendant-prayer-confirm",
+      "confirmButtonSelector": ".pop-ascendant-prayer-confirm .btn-usual-ok",
+      "cancelButtonSelector": ".btn-usual-cancel",
+      "dismissBehavior": "Acknowledge and proceed."
+    },
+    {
+      "id": "active_raid_in_progress_modal",
+      "name": "Active Raid In-Progress Alert Modal",
+      "trigger": "Attempting to host or join a quest when an active hosted raid is already live",
+      "containerSelector": ".popRestartQuest, #pop.popup-view-root",
+      "confirmButtonSelector": ".btn-usual-ok",
+      "cancelButtonSelector": ".btn-usual-cancel",
+      "dismissBehavior": "Acknowledge and route to the active raid to resolve it before hosting next raid."
+    },
+    {
+      "id": "captcha_verification_modal",
+      "name": "Anti-Bot Verification Modal (CAPTCHA)",
+      "trigger": "Automated behavior flagged by server risk engine",
+      "containerSelector": "#cnt-verification, .pop-verification",
+      "imageSelector": ".img-verify",
+      "optionsSelector": ".prt-select-item",
+      "dismissBehavior": "HALT automation immediately, ring high-priority sentinel bell, alert operator."
+    }
+  ]
+}

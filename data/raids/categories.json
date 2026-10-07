@@ -1,0 +1,133 @@
+{
+  "$schema": "../schemas/raid-catalog.schema.json",
+  "version": "2.0.0",
+  "description": "Granblue Fantasy raid categories, tier classifications, stage card IDs, and level requirements.",
+  "categories": [
+    {
+      "id": "hl_gold_bar",
+      "name": "High Level 6-Star (Gold Bar Tier)",
+      "japaneseName": "高難易度マルチバトル (ヒヒイロカネ帯)",
+      "stageId": "12061",
+      "stageType": "high",
+      "minRank": 150,
+      "description": "Premier multiplayer raids with guaranteed Blue Chest drops containing Gold Bricks (ヒヒイロカネ)."
+    },
+    {
+      "id": "magna3",
+      "name": "Magna 3 / Omega 3 Series",
+      "japaneseName": "マグナ3 / オメガ3",
+      "stageId": "12042",
+      "stageType": "high",
+      "minRank": 151,
+      "description": "High difficulty 6-element Omega 3 series raids for obtaining endgame Magna III weapons and animas."
+    },
+    {
+      "id": "six_dragons",
+      "name": "Six Dragons (Impossible)",
+      "japaneseName": "六竜討伐戦 (マルチバトル)",
+      "stageId": "12051",
+      "stageType": "high",
+      "minRank": 151,
+      "description": "High-level V2 raid battles for dragon jewels, ancestral weapon uncap materials, and ear-rings."
+    },
+    {
+      "id": "revans",
+      "name": "Revans Series",
+      "japaneseName": "レヴァンスシリーズ",
+      "stageId": "12072",
+      "stageType": "high",
+      "minRank": 200,
+      "description": "Extremely challenging 6-man V2 raids yielding Mk II Revans weapons and materials."
+    },
+    {
+      "id": "super_ultimate",
+      "name": "Super Ultimate & Dark Rapture Zero (Endgame)",
+      "japaneseName": "極致・高難易度マルチバトル",
+      "stageId": "12081",
+      "stageType": "high",
+      "minRank": 200,
+      "description": "Ultimate difficulty raids including Super Ultimate Bahamut (SUBHL) and Dark Rapture Zero (Faa-san Zero)."
+    },
+    {
+      "id": "super_ultimate_stage_2",
+      "name": "Dark Rapture Zero & Hexachromatic",
+      "japaneseName": "ダーク・ラプチャー・ゼロ / 天元",
+      "stageId": "12091",
+      "stageType": "high",
+      "minRank": 250,
+      "description": "Rank 250+ apex endgame raids with complex executive omens."
+    },
+    {
+      "id": "trials_mastery",
+      "name": "Mastery Trials",
+      "japaneseName": "武芸の試練",
+      "stageId": "12073",
+      "stageType": "high",
+      "minRank": 200,
+      "description": "Trials for class mastery uncapping and special character upgrades."
+    },
+    {
+      "id": "dark_rapture_and_bubz",
+      "name": "Dark Rapture Hard & Beelzebub & Belial",
+      "japaneseName": "ルシファーHL / バブHL / ベリアルHL",
+      "stageId": "12071",
+      "stageType": "high",
+      "minRank": 170,
+      "description": "Foundational endgame 6-man raids for Opus uncaps, Astral weapons, and Chains of Temptation."
+    },
+    {
+      "id": "malice_menace",
+      "name": "Malice & Menace Series",
+      "japaneseName": "マリス・メナスシリーズ",
+      "stageId": "12031",
+      "stageType": "high",
+      "minRank": 120,
+      "description": "Corrupted primal beast raids yielding malice weapons and specialized animas."
+    },
+    {
+      "id": "ennead",
+      "name": "Ennead Series",
+      "japaneseName": "エニアドシリーズ",
+      "stageId": "12022",
+      "stageType": "high",
+      "minRank": 120,
+      "description": "Egyptian-mythology inspired V2 raid series yielding Ennead weapons and awakening materials."
+    },
+    {
+      "id": "primarch_and_qilin",
+      "name": "Primarchs & Huanglong / Qilin",
+      "japaneseName": "四大天司HL / 黄龍・黒麒麟HL",
+      "stageId": "12041",
+      "stageType": "high",
+      "minRank": 100,
+      "description": "Key uncap raids including The Four Primarchs, Huanglong & Qilin, and Lindwurm."
+    },
+    {
+      "id": "regalia_m2",
+      "name": "Regalia / Magna 2 (Impossible)",
+      "japaneseName": "マグナ2 (レガリアシリーズ)",
+      "stageId": "12021",
+      "stageType": "high",
+      "minRank": 120,
+      "description": "Standard Magna 2 farming raids (Shiva, Europa, Alexiel, Grimnir, Metatron, Avatar)."
+    },
+    {
+      "id": "omega1_impossible",
+      "name": "Omega 1 (Impossible)",
+      "japaneseName": "マグナ1 (HL)",
+      "stageId": "12011",
+      "stageType": "high",
+      "minRank": 101,
+      "description": "Original 6 Omega impossible raids for Tier 1 uncapping and centrum farming."
+    },
+    {
+      "id": "standard_hl",
+      "name": "Standard Tier Multi Battles",
+      "japaneseName": "標準マルチバトル",
+      "stageId": "11041",
+      "stageType": "normal",
+      "minRank": 80,
+      "description": "Standard multiplayer raids on #quest/multi/0 under the Standard tab including Wings of Terror, The Peacemaker's Wings, and Empyreal Ascension."
+    }
+  ]
+}

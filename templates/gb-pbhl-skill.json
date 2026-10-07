@@ -1,0 +1,81 @@
+{
+  "name": "GB Farm - PBHL (Skill & Burst Rotation)",
+  "description": "PBHL Skill Burst: C4S3 -> Quick Call -> Reload -> C4S4 -> C1S3 -> Reload -> C2S3 -> Reload -> Attack -> Reload -> Summon 2 -> Attack -> Reload -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 4,
+  "targetScore": 1500000,
+  "logPath": "logs/gb-pbhl.md",
+  "supporterPriority": [
+    "Agni",
+    "Bahamut",
+    "Shiva",
+    "Michael"
+  ],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": false,
+  "autoBerry": true,
+  "defaultRuns": 1000,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 4,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "summon",
+      "slot": 2,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

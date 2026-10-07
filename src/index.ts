@@ -19,6 +19,10 @@ export * from './engines/index.js';
 export * from './auth/index.js';
 export * from './gateway/index.js';
 export * from './core/index.js';
+export * from './domain/index.js';
+export * from './services/index.js';
+export * from './workflows/index.js';
+
 
 export async function bootstrap() {
   console.log('=====================================================');

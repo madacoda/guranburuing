@@ -1,0 +1,545 @@
+{
+  "$schema": "../schemas/raid-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-07T08:00:00.000Z",
+  "description": "Comprehensive authoritative catalog of Granblue Fantasy multiplayer raids, verified live via browser CDP inspection.",
+  "raids": [
+    {
+      "id": "pbhl",
+      "name": "Wings of Terror (Impossible)",
+      "commonName": "Prototype Bahamut HL",
+      "japaneseName": "プロトバハムートHL",
+      "nickname": "つよバハ / Tsuno / PBHL",
+      "category": "hl_gold_bar",
+      "stageId": "12061",
+      "questId": "301061",
+      "chapterId": "30106",
+      "apCost": 45,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 2000000000,
+      "element": "Dark / All",
+      "battleSystem": "V1",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Dragon Core", "itemId": "520", "count": 1 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 1480000,
+        "guaranteedDamage": 148000000,
+        "goldBrickChance": 0.015,
+        "eternitySandChance": 0.0
+      },
+      "tacticalRecommendations": {
+        "speedProfile": "fast",
+        "recommendedTurns": 2,
+        "supportSummonPriority": ["Hades", "Bahamut", "Zeus", "Kaguya"]
+      }
+    },
+    {
+      "id": "akasha",
+      "name": "Omen of the Broken Skies",
+      "commonName": "Akasha HL",
+      "japaneseName": "アーカーシャHL",
+      "nickname": "アーカーシャ / Akasha",
+      "category": "hl_gold_bar",
+      "stageId": "12061",
+      "questId": "303251",
+      "chapterId": "30325",
+      "apCost": 45,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 1200000000,
+      "element": "Dark",
+      "battleSystem": "V1",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "Hollow Key", "itemId": "521", "count": 1 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 1560000,
+        "guaranteedDamage": 156000000,
+        "goldBrickChance": 0.012,
+        "eternitySandChance": 0.0
+      },
+      "specialPhysics": {
+        "turnAcceleration": true,
+        "description": "Akasha warps time; single attacks may advance turn counter by 1, 2, or 3 turns randomly."
+      },
+      "tacticalRecommendations": {
+        "speedProfile": "fast",
+        "recommendedTurns": 3,
+        "supportSummonPriority": ["Zeus", "Lucifer", "Hades", "Kaguya"]
+      }
+    },
+    {
+      "id": "gohl",
+      "name": "The Peacemaker's Wings (Impossible)",
+      "commonName": "Grand Order HL",
+      "japaneseName": "ジ・オーダー・グランデHL",
+      "nickname": "グランデHL / GOHL",
+      "category": "hl_gold_bar",
+      "stageId": "12061",
+      "questId": "305161",
+      "chapterId": "30516",
+      "apCost": 45,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 1350000000,
+      "element": "Light",
+      "battleSystem": "V1",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "Heavenly Horn", "itemId": "522", "count": 1 },
+        { "name": "Silver Centrum", "itemId": "523", "count": 1 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 1480000,
+        "guaranteedDamage": 148000000,
+        "goldBrickChance": 0.012,
+        "eternitySandChance": 0.0
+      },
+      "specialPhysics": {
+        "fieldBuff": "Peacemaker's Judgment - Multi-element bonus buffs active"
+      },
+      "tacticalRecommendations": {
+        "speedProfile": "fast",
+        "recommendedTurns": 1,
+        "supportSummonPriority": ["Hades", "Bahamut", "Agni", "Zeus"]
+      }
+    },
+    {
+      "id": "lindwurm",
+      "name": "Empyreal Ascension (Impossible)",
+      "commonName": "Lindwurm HL",
+      "japaneseName": "リンドブルムHL",
+      "nickname": "リンドブルム / Lindwurm",
+      "category": "hl_gold_bar",
+      "stageId": "12061",
+      "questId": "303141",
+      "chapterId": "30314",
+      "apCost": 50,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 800000000,
+      "element": "Wind",
+      "battleSystem": "V1",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "Dragon Scale", "itemId": "524", "count": 2 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 800000,
+        "guaranteedDamage": 80000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.0
+      }
+    },
+    {
+      "id": "tiamat_aura",
+      "name": "Tiamat Aura Omega (Impossible)",
+      "commonName": "Tiamat Aura Magna",
+      "japaneseName": "ティアマト・アウラ・マグナ (HL)",
+      "nickname": "M3 風 / Tiamat M3",
+      "category": "magna3",
+      "stageId": "12042",
+      "questId": "305601",
+      "chapterId": "30560",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 850000000,
+      "element": "Wind",
+      "battleSystem": "V2",
+      "dailyLimit": 3,
+      "hostMaterials": [
+        { "name": "Wind Crystal", "itemId": "1311", "count": 1 },
+        { "name": "Wind Quartz", "itemId": "5004", "count": 5 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 700000,
+        "guaranteedDamage": 70000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.005
+      }
+    },
+    {
+      "id": "colossus_ira",
+      "name": "Colossus Ira Omega (Impossible)",
+      "commonName": "Colossus Ira Magna",
+      "japaneseName": "コロッサス・アイラ・マグナ (HL)",
+      "nickname": "M3 火 / Colossus M3",
+      "category": "magna3",
+      "stageId": "12042",
+      "questId": "305611",
+      "chapterId": "30561",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 880000000,
+      "element": "Fire",
+      "battleSystem": "V2",
+      "dailyLimit": 3,
+      "hostMaterials": [
+        { "name": "Fire Crystal", "itemId": "1312", "count": 1 },
+        { "name": "Fire Quartz", "itemId": "5001", "count": 5 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 700000,
+        "guaranteedDamage": 70000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.005
+      }
+    },
+    {
+      "id": "leviathan_mare",
+      "name": "Leviathan Mare Omega (Impossible)",
+      "commonName": "Leviathan Mare Magna",
+      "japaneseName": "リヴァイアサン・マレ・マグナ (HL)",
+      "nickname": "M3 水 / Leviathan M3",
+      "category": "magna3",
+      "stageId": "12042",
+      "questId": "305631",
+      "chapterId": "30563",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 850000000,
+      "element": "Water",
+      "battleSystem": "V2",
+      "dailyLimit": 3,
+      "hostMaterials": [
+        { "name": "Water Crystal", "itemId": "1313", "count": 1 },
+        { "name": "Water Quartz", "itemId": "5002", "count": 5 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 700000,
+        "guaranteedDamage": 70000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.005
+      }
+    },
+    {
+      "id": "yggdrasil_arbos",
+      "name": "Yggdrasil Arbos Omega (Impossible)",
+      "commonName": "Yggdrasil Arbos Magna",
+      "japaneseName": "ユグドラシル・アルボス・マグナ (HL)",
+      "nickname": "M3 土 / Yggdrasil M3",
+      "category": "magna3",
+      "stageId": "12042",
+      "questId": "305641",
+      "chapterId": "30564",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 860000000,
+      "element": "Earth",
+      "battleSystem": "V2",
+      "dailyLimit": 3,
+      "hostMaterials": [
+        { "name": "Earth Crystal", "itemId": "1314", "count": 1 },
+        { "name": "Earth Quartz", "itemId": "5003", "count": 5 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 700000,
+        "guaranteedDamage": 70000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.005
+      }
+    },
+    {
+      "id": "luminiera_credo",
+      "name": "Luminiera Credo Omega (Impossible)",
+      "commonName": "Luminiera Credo Magna",
+      "japaneseName": "シュヴァリエ・クレド・マグナ (HL)",
+      "nickname": "M3 光 / Chev M3",
+      "category": "magna3",
+      "stageId": "12042",
+      "questId": "305591",
+      "chapterId": "30559",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 890000000,
+      "element": "Light",
+      "battleSystem": "V2",
+      "dailyLimit": 3,
+      "hostMaterials": [
+        { "name": "Light Crystal", "itemId": "1315", "count": 1 },
+        { "name": "Light Quartz", "itemId": "5005", "count": 5 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 700000,
+        "guaranteedDamage": 70000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.005
+      }
+    },
+    {
+      "id": "celeste_ater",
+      "name": "Celeste Ater Omega (Impossible)",
+      "commonName": "Celeste Ater Magna",
+      "japaneseName": "セレスト・アテル・マグナ (HL)",
+      "nickname": "M3 闇 / Celeste M3",
+      "category": "magna3",
+      "stageId": "12042",
+      "questId": "305621",
+      "chapterId": "30562",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 880000000,
+      "element": "Dark",
+      "battleSystem": "V2",
+      "dailyLimit": 3,
+      "hostMaterials": [
+        { "name": "Dark Crystal", "itemId": "1316", "count": 1 },
+        { "name": "Dark Quartz", "itemId": "5006", "count": 5 }
+      ],
+      "blueChest": {
+        "thresholdHonors": 700000,
+        "guaranteedDamage": 70000000,
+        "goldBrickChance": 0.0,
+        "eternitySandChance": 0.005
+      }
+    },
+    {
+      "id": "wilnas",
+      "name": "Wilnas (Impossible)",
+      "commonName": "Wilnas",
+      "japaneseName": "ウィルナス (HL)",
+      "nickname": "六竜 火 / Wilnas",
+      "category": "six_dragons",
+      "stageId": "12051",
+      "questId": "305191",
+      "chapterId": "30519",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 720000000,
+      "element": "Fire",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Fire Anima", "itemId": "1001", "count": 3 }
+      ]
+    },
+    {
+      "id": "wamdus",
+      "name": "Wamdus (Impossible)",
+      "commonName": "Wamdus",
+      "japaneseName": "ワムデュス (HL)",
+      "nickname": "六竜 水 / Wamdus",
+      "category": "six_dragons",
+      "stageId": "12051",
+      "questId": "305201",
+      "chapterId": "30520",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 720000000,
+      "element": "Water",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Water Anima", "itemId": "1002", "count": 3 }
+      ]
+    },
+    {
+      "id": "galleon",
+      "name": "Galleon (Impossible)",
+      "commonName": "Galleon",
+      "japaneseName": "ガレオン (HL)",
+      "nickname": "六竜 土 / Galleon",
+      "category": "six_dragons",
+      "stageId": "12051",
+      "questId": "305211",
+      "chapterId": "30521",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 720000000,
+      "element": "Earth",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Earth Anima", "itemId": "1003", "count": 3 }
+      ]
+    },
+    {
+      "id": "ewiyar",
+      "name": "Ewiyar (Impossible)",
+      "commonName": "Ewiyar",
+      "japaneseName": "イーウィヤ (HL)",
+      "nickname": "六竜 風 / Ewiyar",
+      "category": "six_dragons",
+      "stageId": "12051",
+      "questId": "305221",
+      "chapterId": "30522",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 720000000,
+      "element": "Wind",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Wind Anima", "itemId": "1004", "count": 3 }
+      ]
+    },
+    {
+      "id": "lu_woh",
+      "name": "Lu Woh (Impossible)",
+      "commonName": "Lu Woh",
+      "japaneseName": "ル・オー (HL)",
+      "nickname": "六竜 光 / Lu Woh",
+      "category": "six_dragons",
+      "stageId": "12051",
+      "questId": "305231",
+      "chapterId": "30523",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 720000000,
+      "element": "Light",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Light Anima", "itemId": "1005", "count": 3 }
+      ]
+    },
+    {
+      "id": "fediel",
+      "name": "Fediel (Impossible)",
+      "commonName": "Fediel",
+      "japaneseName": "フェディエル (HL)",
+      "nickname": "六竜 闇 / Fediel",
+      "category": "six_dragons",
+      "stageId": "12051",
+      "questId": "305241",
+      "chapterId": "30524",
+      "apCost": 25,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 720000000,
+      "element": "Dark",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "hostMaterials": [
+        { "name": "True Dark Anima", "itemId": "1006", "count": 3 }
+      ]
+    },
+    {
+      "id": "subhl",
+      "name": "Rage of Super Ultimate Bahamut",
+      "commonName": "Super Ultimate Bahamut",
+      "japaneseName": "スーパーアルティメットバハムート",
+      "nickname": "スパバハ / SUBHL",
+      "category": "super_ultimate",
+      "stageId": "12081",
+      "questId": "305311",
+      "chapterId": "30531",
+      "apCost": 100,
+      "epCost": 5,
+      "maxPlayers": 6,
+      "bossHp": 3000000000,
+      "element": "All",
+      "battleSystem": "V2",
+      "dailyLimit": 1,
+      "specialPhysics": {
+        "omens": "Executive 60-hit / 20M damage omens",
+        "environmentalGimmick": "Genesis Level / 6-attribute test"
+      }
+    },
+    {
+      "id": "dark_rapture_zero",
+      "name": "Dark Rapture Zero",
+      "commonName": "Faa-san Zero",
+      "japaneseName": "ダーク・ラプチャー・ゼロ",
+      "nickname": "ルシゼロ / Faa0",
+      "category": "super_ultimate_stage_2",
+      "stageId": "12091",
+      "questId": "305581",
+      "chapterId": "30558",
+      "apCost": 100,
+      "epCost": 5,
+      "maxPlayers": 6,
+      "bossHp": 3500000000,
+      "element": "Dark",
+      "battleSystem": "V2",
+      "dailyLimit": 1
+    },
+    {
+      "id": "hexachromatic",
+      "name": "Hexachromatic Hierarch",
+      "commonName": "Tengen",
+      "japaneseName": "天元たる六色の理",
+      "nickname": "天元 / Hexa",
+      "category": "super_ultimate_stage_2",
+      "stageId": "12091",
+      "questId": "305491",
+      "chapterId": "30549",
+      "apCost": 100,
+      "epCost": 5,
+      "maxPlayers": 6,
+      "bossHp": 3200000000,
+      "element": "All",
+      "battleSystem": "V2",
+      "dailyLimit": 1
+    },
+    {
+      "id": "peacemaker_standard",
+      "name": "The Peacemaker's Wings",
+      "commonName": "Grand Order Normal",
+      "japaneseName": "降臨、調停の翼 (ジ・オーダー・グランデ)",
+      "nickname": "グランデN / GO Normal",
+      "category": "standard_hl",
+      "stageId": "11041",
+      "questId": "301051",
+      "chapterId": "30105",
+      "apCost": 80,
+      "epCost": 3,
+      "maxPlayers": 30,
+      "bossHp": 380000000,
+      "element": "Light",
+      "battleSystem": "V1",
+      "dailyLimit": 2
+    },
+    {
+      "id": "wings_of_terror_standard",
+      "name": "Wings of Terror",
+      "commonName": "Prototype Bahamut Normal",
+      "japaneseName": "邂逅、黒銀の翼 (プロトバハムート)",
+      "nickname": "よわバハ / PB Normal",
+      "category": "standard_hl",
+      "stageId": "11041",
+      "questId": "300291",
+      "chapterId": "30029",
+      "apCost": 80,
+      "epCost": 3,
+      "maxPlayers": 30,
+      "bossHp": 240000000,
+      "element": "Dark",
+      "battleSystem": "V1",
+      "dailyLimit": 3
+    },
+    {
+      "id": "empyreal_ascension_standard",
+      "name": "Empyreal Ascension",
+      "commonName": "Lindwurm",
+      "japaneseName": "降臨、白銀の翼 (リンドヴルム)",
+      "nickname": "リンドヴルム / Lindwurm",
+      "category": "standard_hl",
+      "stageId": "11061",
+      "questId": "303131",
+      "chapterId": "30313",
+      "apCost": 80,
+      "epCost": 3,
+      "maxPlayers": 18,
+      "bossHp": 450000000,
+      "element": "All",
+      "battleSystem": "V1",
+      "dailyLimit": 1
+    }
+  ]
+}

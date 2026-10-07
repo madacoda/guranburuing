@@ -1,0 +1,59 @@
+{
+  "$schema": "../schemas/raid-catalog.schema.json",
+  "version": "2.0.0",
+  "description": "Granblue Fantasy battle systems: Battle System 1.0 (V1) vs Battle System 2.0 (V2), Omens, and Guard mechanics.",
+  "systems": {
+    "v1": {
+      "name": "Battle System 1.0 (Classic)",
+      "raids": ["pbhl", "akasha", "gohl", "lindwurm", "dark_rapture_hard", "belial", "magna2", "magna1"],
+      "mechanics": {
+        "chargeDiamonds": "Diamonds fill by 1 each turn. Boss executes special attack when all diamonds are full.",
+        "modeBar": {
+          "normal": "Standard state.",
+          "overdrive": "Triggered when boss takes sustained damage; special attacks become enhanced (OD special).",
+          "break": "Triggered when overdrive gauge is fully depleted; boss cannot charge diamonds and takes bonus damage."
+        },
+        "breakAssassin": "Skills providing massive damage bonus strictly while the boss is in Break state."
+      }
+    },
+    "v2": {
+      "name": "Battle System 2.0 (Modern Tactical)",
+      "raids": ["magna3", "six_dragons", "revans", "subhl", "hexachromatic", "dark_rapture_zero", "world", "ennead"],
+      "mechanics": {
+        "omens": {
+          "description": "Visual telegraph (予兆) announcing upcoming special attacks and required cancel conditions.",
+          "cancelConditions": [
+            {
+              "type": "hitCount",
+              "sampleRequirement": "Deal 35 or 60 hits in 1 turn",
+              "counterStrategy": "Multi-hit skills, echoing normal attacks, triple attack buffs."
+            },
+            {
+              "type": "damageThreshold",
+              "sampleRequirement": "Deal 10M, 15M, or 20M damage in 1 turn",
+              "counterStrategy": "Full chain ougi, high-multiplier nukes, assassin buffs."
+            },
+            {
+              "type": "skillCategory",
+              "sampleRequirement": "Activate 4 Damage Skills, 3 Buff Skills, or 3 Debuffs",
+              "counterStrategy": "Reserved cooldown cycling."
+            },
+            {
+              "type": "fatalChain",
+              "sampleRequirement": "Activate Fatal Chain (100% FC)",
+              "counterStrategy": "Accumulate 4-ougi bursts to fill 30-100% FC bar."
+            }
+          ]
+        },
+        "guard": {
+          "description": "Individual character toggle reducing incoming damage by 80% to 99% while forfeiting that character's action.",
+          "domSelector": ".btn-guard[data-member='{index}']",
+          "allGuardSelector": ".btn-guard-all"
+        },
+        "fatalChain": {
+          "description": "Special gauge charged by chaining character charge attacks (10% per ougi, bonus on full chain). Discharges a high-damage party elemental nuke and fulfills V2 omens."
+        }
+      }
+    }
+  }
+}

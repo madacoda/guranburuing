@@ -1,0 +1,95 @@
+{
+  "$schema": "../schemas/selectors.schema.json",
+  "version": "2.0.0",
+  "description": "Granblue Fantasy client-side Backbone.js router navigation paths, hash patterns, and state transitions.",
+  "routes": [
+    {
+      "hash": "#mypage",
+      "name": "My Page (Dashboard)",
+      "description": "Primary user hub displaying character leader, current AP/EP, rank, notifications, and events.",
+      "view": "view.mypage",
+      "allowedTransitions": ["#quest", "#party", "#gacha", "#present", "#casino"]
+    },
+    {
+      "hash": "#quest",
+      "name": "Quest Hub",
+      "description": "Main quest selector for Main Quest, Extra Quests, Arcarum, and Multi-Raid.",
+      "view": "view.quest.index",
+      "allowedTransitions": ["#quest/multi/0", "#quest/extra", "#quest/assist", "#arcarum2"]
+    },
+    {
+      "hash": "#quest/multi/0",
+      "name": "Multiplayer Raid Host List (Normal/Impossible)",
+      "description": "Stage card carousel for hosting multiplayer battles.",
+      "view": "view.quest.multi",
+      "subTabs": {
+        "normal": "Standard Omega & Story Raids",
+        "high": "Impossible, Magna 3, Six Dragons, Revans, Gold Bar HL",
+        "event": "Active Guild Wars / Event Raids"
+      },
+      "allowedTransitions": ["#quest/supporter/{questId}/1"]
+    },
+    {
+      "hash": "#quest/supporter/{questId}/{questType}",
+      "name": "Supporter Summon Selection",
+      "description": "Select helper summon from friends and non-friends across 7 elemental tabs.",
+      "view": "view.quest.supporter",
+      "allowedTransitions": ["#party/{questId}", "#raid_multi/{battleId}"]
+    },
+    {
+      "hash": "#party/{questId}",
+      "name": "Party Deck Confirmation",
+      "description": "Finalize party set, weapon grid, sub-summons, and launch quest start.",
+      "view": "view.party.index",
+      "allowedTransitions": ["#raid_multi/{battleId}", "#battle/{battleId}"]
+    },
+    {
+      "hash": "#raid_multi/{battleId}",
+      "name": "Active Multiplayer Battle Scene",
+      "description": "Active multiplayer combat scene with CreateJS canvas and DOM HUD overlay.",
+      "view": "view.quest.raid",
+      "allowedTransitions": ["#result_multi/{battleId}", "#quest/assist"]
+    },
+    {
+      "hash": "#result_multi/{battleId}",
+      "name": "Multiplayer Battle Results",
+      "description": "Drop breakdown (Blue, Gold, Red chests), EXP, Rupies, Honors, and Player Ranking.",
+      "view": "view.result.multi",
+      "allowedTransitions": ["#quest/multi/0", "#mypage", "#quest/assist"]
+    },
+    {
+      "hash": "#quest/assist",
+      "name": "Backup Requests (Raid Finder / Join)",
+      "description": "Join active multiplayer raids hosted by other players using EP or 8-digit battle keys.",
+      "view": "view.quest.assist",
+      "subTabs": {
+        "multi": "Recent / In-Progress raids joined",
+        "unclaimed": "Unclaimed pending battle rewards"
+      }
+    },
+    {
+      "hash": "#quest/extra",
+      "name": "Special & Extra Quests",
+      "description": "Angel Halo, Showdowns, Primarch Trials, and Pro-Skip menu.",
+      "view": "view.quest.extra"
+    },
+    {
+      "hash": "#gacha/normal",
+      "name": "Rupie Gacha",
+      "description": "Daily 100-draw Rupie gacha for bronze/silver moons and plus marks.",
+      "view": "view.gacha.normal"
+    },
+    {
+      "hash": "#mission",
+      "name": "Skyscope Missions",
+      "description": "Daily, weekly, and monthly mission claims for crystals and treasure.",
+      "view": "view.mission"
+    },
+    {
+      "hash": "#casino/exchange",
+      "name": "Casino Exchange",
+      "description": "Daily casino chip trading for Half-Elixirs and Soul Berries.",
+      "view": "view.casino.exchange"
+    }
+  ]
+}

@@ -29,8 +29,10 @@ This guide establishes the architectural standards, runtime environment, and ope
 | Action | Primary (Bun) | Node Fallback |
 | :--- | :--- | :--- |
 | **Run Daily Routine** | `bun run daily` | `npm run daily` |
-| **Daily Multi-Account**| `bun run daily:all` | `npm run daily:all` |
-| **Daily Windowed** | `bun run daily:windowed` | `npm run daily:windowed` |
+| **Run Daily Host Raids** | `bun run daily:host` | `bun src/cli/run-daily-host.ts` |
+| **Daily Host Categories**| `bun run daily:host:hl` / `:m3` / `:dragons` | `bun src/cli/run-daily-host.ts <category>` |
+| **Daily Multi-Account**| `bun run daily:all` / `bun run daily:host:all` | `npm run daily:all` |
+| **Daily Windowed** | `bun run daily:windowed` / `bun run daily:host:windowed` | `npm run daily:windowed` |
 | **Fate Episodes** | `bun run fate` | `npm run fate` |
 | **Event Story / Clear** | `bun run event` / `bun run event:all` | `bun src/cli/run-clear-event.ts ...` |
 | **Custom Script** | `bun src/cli/run-workflow.ts acc1 <template> <runs>` | `tsx src/cli/run-workflow.ts ...` |
@@ -46,7 +48,7 @@ This guide establishes the architectural standards, runtime environment, and ope
 
 ## 2. Multi-Account & CDP Architecture
 
-Accounts are registered in [accounts.config.json](file:///c:/laragon/www/gbf/accounts.config.json):
+Accounts are registered in [accounts.config.json](file:///c:/laragon/www/guranburuing/accounts.config.json):
 
 ```json
 [
@@ -127,6 +129,32 @@ bun run daily:acc2
 bun run daily:windowed
 ```
 
+### Daily Host Raids Routine (`daily:host`):
+Automates hosting the 16 critical daily raids from `#quest/multi/0` with material checks, automatic public backup broadcasting, and Smart Full Auto:
+- **High Level (HL)**: Wings of Terror (PBHL), Omen of the Broken Skies (Akasha), The Peacemaker's Wings (GOHL), Empyreal Ascension (Lindwurm).
+- **Magna 3 (Omega 3)**: Tiamat Aura, Colossus Ira, Leviathan Mare, Yggdrasil Arbos, Luminiera Credo, Celeste Ater.
+- **Six Dragons (Impossible)**: Wilnas, Wamdus, Galleon, Ewiyar, Lu Woh, Fediel.
+- **Execution Rules**:
+  - Auto-skips if daily host limit is 0 or if host treasure is insufficient.
+  - Automatically sends backup request to **Everyone** (`.btn-assist-all`) on Turn 1.
+  - Runs **Smart Full Auto**: Turn 1 Quick Summon, frontline tactical skills (Field -> Debuff -> Buff -> Nuke -> Heal), attack + animation cancel reload (F5).
+  - Waits and confirms battle result before moving to the next raid.
+
+```bash
+# Host all 16 daily raids sequentially:
+bun run daily:host
+
+# Host specific raid categories:
+bun run daily:host:hl         # PBHL + Akasha + GOHL + Lindwurm
+bun run daily:host:m3         # All 6 Magna 3 raids
+bun run daily:host:dragons    # All 6 Six-Dragon raids
+
+# Host in visual windowed mode or multi-account:
+bun run daily:host:windowed
+bun run daily:host:all
+bun run daily:host acc2
+```
+
 ### Fate Stories Auto-Farmer (`fate-stories`):
 Loops through unread character fate episodes, fast-skips dialogues, enables Full Auto on combat, claims crystal rewards, and returns to `#mypage`:
 
@@ -147,7 +175,7 @@ Automates monthly scenario events (`#event/treasureraid<ID>`, e.g., "Farewell, C
 - **Token Gacha**: Automated Draw 1 Drawbox clearer (`bun run event:gacha` / `bun run event:token`). Automatically clicks Draw 1 Drawbox (`.btn-bulk-play-box`), taps to skip crystal animation, reloads to bypass loot roll, clicks Reset Drawbox (`.btn-reset`), confirms modal, and loops up to 200 boxes or until tokens are depleted (~9.8s per complete drawbox).
 
 - **Raid Auto-Farming**: Dedicated sub-4s looper for Extreme (`947431`), Very Hard (`947421`), and Impossible (`947441`), with auto Quick Summon instakill, Full Auto fallback, and Half-Elixir AP restoration.
-- **Reference Guide**: Full technical specification in [`docs/events/scenario-event-architecture.md`](file:///c:/laragon/www/gbf/docs/events/scenario-event-architecture.md).
+- **Reference Guide**: Full technical specification in [`docs/events/scenario-event-architecture.md`](file:///c:/laragon/www/guranburuing/docs/events/scenario-event-architecture.md).
 
 ```bash
 # Farm Extreme Raid (0-Button Quick Summon, default 500 runs):
@@ -175,6 +203,40 @@ bun run event:nightmare 177 50   # Skip up to 50 batches (500 battles)
 bun run event:gacha              # Autonomous Token Drawbox Clearer (all remaining boxes)
 bun run event:token              # Alias for event:gacha
 bun run event:gacha 177 50       # Clear up to 50 drawboxes for event 177
+```
+
+### Daily Host Automation (16-Raid SOLID Industry Architecture):
+The Daily Host system (`bun run daily:host`) autonomously hosts and clears all 16 daily HL, Magna 3, and Six Dragons raids sequentially:
+- **SOLID Enterprise Architecture**:
+  - `src/domain/daily-host/`: Standard domain models, immutable definitions (`DailyRaidHostDefinition`), and segregated interfaces (`daily-host.interfaces.ts`).
+  - `src/services/daily-host/`: Dedicated Single-Responsibility services:
+    - `ActiveHostedRaidScanner`: Detects and clears any in-progress self-hosted raids before hosting new ones.
+    - `StageModalNavigator`: High-level navigation and category modal manipulation.
+    - `HostPreconditionValidator`: Checks daily limits, banner masks, and treasure requirements (`.pop-treasure-raid`).
+    - `SupporterPartyLauncher`: Supporter summon selection, AP recovery, and Ascendant Prayer handling.
+    - `BackupBroadcastService`: Broadcasts backup requests to **ALL 3 SCOPES** (`Everyone`, `Friends`, `Crew`).
+    - `HostedCombatRunner`: Tactical Smart Full Auto combat, Turn 1 Quick Summon, frontline skill triage, and fast F5 reload lockout bypass.
+    - `DailyHostReporter`: Formatted console and disk audit markdown reports.
+  - `src/engines/daily-host.engine.ts`: Clean Orchestrator (`DailyHostOrchestrator`) coordinating the workflow via Dependency Injection (DIP).
+
+```bash
+# Run full 16-raid daily host routine:
+bun run daily:host
+
+# Run specific raid categories:
+bun run daily:host:hl       # 4 High Level Raids (PBHL, Akasha, GOHL, Lindwurm)
+bun run daily:host:m3       # 6 Magna 3 Raids (Tiamat, Colossus, Leviathan, Yggdrasil, Luminiera, Celeste)
+bun run daily:host:dragons  # 6 Six Dragons Raids (Wilnas, Wamdus, Galleon, Ewiyar, Lu Woh, Fediel)
+
+# Host a specific raid:
+bun run daily:host galleon
+bun run daily:host pbhl
+
+# Multi-account hosting:
+bun run daily:host:all
+
+# Windowed mode:
+bun run daily:host:windowed
 ```
 
 ### Raid & Combat Farming:
@@ -236,6 +298,63 @@ bun run session:sync acc1 --remote http://localhost:3000
 bun run session:export acc1
 
 # 2. On VPS: Import directly from JSON string or file
-bun run session:import acc1 --json '<pasted_json>'
 ```
+
+---
+
+## 6. Daily Raid Hosting Automation (`bun run daily:host`)
+
+Automates sequential hosting of up to 16 daily raids with strict material checking, backup requests, and tactical Full Auto clearing:
+
+### 16-Raid Comprehensive Catalog:
+1. **High-Level Gold Bar / Uncapping Raids (Stage 12061)**:
+   - Wings of Terror (Impossible) - PBHL (`12061` / `301061`)
+   - Omen of the Broken Skies - Akasha (`12061` / `303251`)
+   - The Peacemaker's Wings (Impossible) - GOHL (`12061` / `305161`)
+   - Empyreal Ascension (Impossible) - Lindwurm HL (`12061` / `303141`)
+2. **Magna 3 / Omega 3 Raids (Stage 12042)**:
+   - Tiamat Aura Omega (Impossible) (`12042` / `305601`)
+   - Colossus Ira Omega (Impossible) (`12042` / `305611`)
+   - Leviathan Mare Omega (Impossible) (`12042` / `305631`)
+   - Yggdrasil Arbos Omega (Impossible) (`12042` / `305641`)
+   - Luminiera Credo Omega (Impossible) (`12042` / `305591`)
+   - Celeste Ater Omega (Impossible) (`12042` / `305621`)
+3. **Six Dragons (Impossible) (Stage 12051)**:
+   - Wilnas (Impossible) (`12051` / `305191`)
+   - Wamdus (Impossible) (`12051` / `305201`)
+   - Galleon (Impossible) (`12051` / `305211`)
+   - Ewiyar (Impossible) (`12051` / `305221`)
+   - Lu Woh (Impossible) (`12051` / `305231`)
+   - Fediel (Impossible) (`12051` / `305241`)
+
+### Standard Host Commands:
+```bash
+# Host all 16 raids sequentially:
+bun run daily:host
+
+# Host specific category:
+bun run daily:host:hl         # PBHL, Subaha, GOHL, Akasha
+bun run daily:host:m3         # 6 Magna 3 raids
+bun run daily:host:dragons    # 6 Six Dragons raids
+
+# Multi-account hosting:
+bun run daily:host:all
+```
+
+---
+
+## 7. Domain-Driven & SOLID Architecture
+
+The codebase adheres strictly to gold industry standard senior software architecture:
+- **`src/domain/`**: Enterprise business models, entities, immutable catalogs (`GOLD_BAR_RAID_CATALOG`, `DAILY_HOST_CATALOG`), and interfaces (`IRecoveryModalService`, `IPendingBattleService`, `ICombatActionService`, `ILootTrackerService`, `IGoldBarHunterEngine`).
+- **`src/services/`**: Focused application domain services obeying SRP (Single Responsibility Principle) and DIP (Dependency Inversion Principle):
+  - `RecoveryModalService`: AP/EP/AAP replenishment modals.
+  - `PendingBattleService`: 3-raid/5-battle backup limit resolution and Gold Bar detection.
+  - `SupporterSelectionService`: Attribute-aware supporter summon pickers.
+  - `CombatActionService`: Skill/summon/attack/backup DOM interactions.
+  - `LootTrackerService`: Telemetry, drop parsing, and proof captures.
+- **`src/engines/`**: High-level workflow orchestrators obeying LSP (Liskov Substitution Principle) and OCP (Open-Closed Principle):
+  - `GoldBarHunterEngine`: Base hunter engine extended by `PbhlEngine`, `GoEngine`, and `AkashaEngine`.
+  - `DailyHostEngine`: 16-raid hosting engine.
+  - `UniversalWorkflowEngine`: Config-driven workflow engine.
 

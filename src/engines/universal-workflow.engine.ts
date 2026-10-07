@@ -24,6 +24,10 @@ import {
 } from '../types/workflow.types.js';
 import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions } from './raid-evaluator.js';
 import { AccountRegistry } from '../auth/account-registry.js';
+import { RecoveryModalService, PendingBattleService, SupporterSelectionService } from '../services/navigation/index.js';
+import { CombatActionService } from '../services/combat/index.js';
+import { LootTrackerService } from '../services/telemetry/index.js';
+import { StepHandlerRegistry, createDefaultStepHandlerRegistry, WorkflowExecutionContext } from '../workflows/index.js';
 
 export interface WorkflowLoopOptions {
   runs?: number;
@@ -61,6 +65,13 @@ export class UniversalWorkflowEngine {
   private lastStartFailureWasRaidWait = false;
   private deadRaidIds = new Map<string, number>();
   private playerName?: string;
+  private lastAttackLockoutExpires = 0;
+  private recoveryModalService: RecoveryModalService;
+  private pendingBattleService: PendingBattleService;
+  private supporterSelectionService: SupporterSelectionService;
+  private combatActionService: CombatActionService;
+  private lootTrackerService: LootTrackerService;
+  private stepRegistry: StepHandlerRegistry;
 
   constructor(
     private page: Page,
@@ -68,6 +79,13 @@ export class UniversalWorkflowEngine {
     private template: WorkflowTemplate,
     private accountId: string
   ) {
+    this.recoveryModalService = new RecoveryModalService(page);
+    this.pendingBattleService = new PendingBattleService(page);
+    this.supporterSelectionService = new SupporterSelectionService(page);
+    this.combatActionService = new CombatActionService(page);
+    this.lootTrackerService = new LootTrackerService(page);
+    this.stepRegistry = createDefaultStepHandlerRegistry();
+
     setSpeedProfile(template.speedProfile || 'fast');
     this.currentBatchThreshold = this.calculateNextBatchThreshold();
     const accConfig = AccountRegistry.getAccountById(this.accountId);
@@ -108,6 +126,11 @@ export class UniversalWorkflowEngine {
   public updatePage(newPage: Page): void {
     console.log(`[Workflow] 🔄 Re-binding active page for [${this.accountId}] following CDP reconnect.`);
     this.page = newPage;
+    this.recoveryModalService?.updatePage(newPage);
+    this.pendingBattleService?.updatePage(newPage);
+    this.supporterSelectionService?.updatePage(newPage);
+    this.combatActionService?.updatePage(newPage);
+    this.lootTrackerService?.updatePage(newPage);
     this.responseListenerInitialized = false;
     this.setupResponseListener();
   }
@@ -189,6 +212,7 @@ export class UniversalWorkflowEngine {
 
         // 2. Normal Attack Result
         if (url.includes('normal_attack_result.json')) {
+          this.lastAttackLockoutExpires = Date.now() + 2400;
           const json = await res.json().catch(() => null);
           if (json) {
             if (json.user_id && !this.myUserId) this.myUserId = String(json.user_id);
@@ -243,6 +267,20 @@ export class UniversalWorkflowEngine {
         if (url.includes('ability_result.json')) {
           const json = await res.json().catch(() => null);
           if (json) {
+            // Check if this ability triggered an attack without using a turn (e.g. Tag Team, König)
+            const hasAttackCmd = Array.isArray(json.scenario) && json.scenario.some((s: any) => s && s.cmd === 'attack');
+            if (hasAttackCmd) {
+              this.lastAttackLockoutExpires = Date.now() + 2400;
+              const abilityDmg = this.extractTurnDamage(json);
+              if (abilityDmg > 0) {
+                const abilityHonors = Math.floor(abilityDmg / 100);
+                this.currentScore += abilityHonors;
+                const targetHonors = this.template.targetScore || 1500000;
+                const pct = ((this.currentScore / targetHonors) * 100).toFixed(1);
+                console.log(`[Combat] ⚔️ Skill Attack Dmg: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+              }
+            }
+
             const abilityPoint =
               (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
               (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
@@ -1264,6 +1302,49 @@ export class UniversalWorkflowEngine {
     }
 
     return true;
+  }
+
+  private createExecutionContext(): WorkflowExecutionContext {
+    return {
+      page: this.page,
+      template: this.template,
+      accountId: this.accountId,
+      playerName: this.playerName,
+      services: {
+        combat: this.combatActionService,
+        recovery: this.recoveryModalService,
+        pending: this.pendingBattleService,
+        supporter: this.supporterSelectionService,
+        loot: this.lootTrackerService,
+        sentinel: this.sentinel,
+        alertRelay: this.alertRelay,
+        dropLogger: this.dropLogger
+      },
+      state: {
+        currentScore: this.currentScore,
+        currentTurn: this.currentTurn,
+        currentRaidId: this.currentRaidId,
+        isCombatActive: true,
+        totalGoldBarsAccumulated: this.totalGoldBarsAccumulated,
+        totalBlueChestsAccumulated: this.totalBlueChestsAccumulated,
+        totalHonorsAccumulated: this.totalHonorsAccumulated,
+        totalCompletedRuns: this.totalCompletedRuns,
+        lastAttackLockoutExpires: this.lastAttackLockoutExpires,
+        stopRequested: this.stopRequested,
+        myUserId: this.myUserId
+      },
+      executeSubSteps: async (steps, runNum) => {
+        for (let i = 0; i < steps.length; i++) {
+          const ok = await this.executeSingleStep(steps[i], i + 1, runNum);
+          if (!ok && !steps[i].optional) return false;
+        }
+        return true;
+      },
+      executeStep: async (s, num, runNum) => this.executeSingleStep(s, num, runNum),
+      log: (msg) => console.log(msg),
+      warn: (msg) => console.warn(msg),
+      error: (msg, err) => console.error(msg, err)
+    };
   }
 
   /**
@@ -2673,6 +2754,13 @@ export class UniversalWorkflowEngine {
    * or during character command mode without false display-off timeouts.
    */
   private async waitForCombatInputReady(timeoutMs = 6000): Promise<boolean> {
+    // Respect authoritative Cygames server-side lockout timer (from normal attacks or attack-without-turn abilities)
+    const remainingLockout = this.lastAttackLockoutExpires - Date.now();
+    if (remainingLockout > 0) {
+      const waitTime = Math.min(remainingLockout, timeoutMs);
+      await new Promise(r => setTimeout(r, waitTime));
+    }
+
     const start = Date.now();
     const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     const pollInterval = isTurbo ? 35 : (this.template?.speedProfile === 'fast' ? 50 : 80);
@@ -2901,7 +2989,60 @@ export class UniversalWorkflowEngine {
     }
 
     // 10. Wait for ability_result.json from the server
-    await netPromise;
+    const networkConfirmed = await netPromise;
+    if (!networkConfirmed) {
+      // Check if skill was actually consumed on client (e.g. cooldown classes applied)
+      const isNowUnavailable = await this.page.evaluate((sel: string) => {
+        const el = document.querySelector(sel);
+        return el && (
+          el.classList.contains('btn-ability-unavailable') ||
+          el.classList.contains('disabled')
+        );
+      }, skillSelector).catch(() => false);
+
+      if (!isNowUnavailable && !(await this.isBattleEnded())) {
+        console.warn(`[Combat] Skill C${char}S${skill} unacknowledged by server (likely server lockout or dropped click). Checking popups and retrying once...`);
+        await this.checkAndDismissProcessingTurnPopup();
+        // Allow lingering server lockout or network hitch to settle
+        await new Promise(r => setTimeout(r, 800));
+
+        // Re-arm network listener and re-click
+        const retryNetPromise = this.waitForNetworkResponse('ability_result.json', 3500);
+        await humanizedClick(this.page, skillBtn);
+        await skillBtn.evaluate((el: any) => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(el).trigger('tap');
+        }).catch(() => null);
+
+        const retryConfirm = await this.page.waitForSelector('.btn-usual-ok.btn-ability-use, .pop-usual .btn-usual-ok, .btn-usual-ok.se-ability-use', {
+          visible: true,
+          timeout: 400
+        }).catch(() => null);
+        if (retryConfirm) {
+          await humanizedClick(this.page, retryConfirm);
+          await retryConfirm.evaluate((el: any) => {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(el).trigger('tap');
+          }).catch(() => null);
+        }
+
+        const retryConfirmed = await retryNetPromise;
+        if (!retryConfirmed && !step.optional && !(await this.isBattleEnded())) {
+          const finalUnavailable = await this.page.evaluate((sel: string) => {
+            const el = document.querySelector(sel);
+            return el && (
+              el.classList.contains('btn-ability-unavailable') ||
+              el.classList.contains('disabled')
+            );
+          }, skillSelector).catch(() => false);
+
+          if (!finalUnavailable) {
+            console.error(`[Combat] ❌ Skill C${char}S${skill} failed server acknowledgment after retry.`);
+            return false;
+          }
+        }
+      }
+    }
 
     // Fast-bypass skill cut-in and particle animation, and immediately close ability drawer
     await this.page.evaluate(() => {
@@ -4994,7 +5135,6 @@ export class UniversalWorkflowEngine {
           this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
           this.page.evaluate(() => {
             window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
-            window.location.reload();
           }).catch(() => null)
         ]);
         await logNormalDelay(1000, 0.15);
@@ -5012,18 +5152,37 @@ export class UniversalWorkflowEngine {
         return true;
       }
 
-      // 4. Sort by most HP first, then fewer players
+      // 4. Sort joined raids:
+      // Prioritize raids that are closest to clearing (lower HP) to quickly free up an active slot!
       candidates.sort((a, b) => {
-        const hpDiff = b.hpPct - a.hpPct;
-        if (Math.abs(hpDiff) > 2) return hpDiff;
-        return a.players - b.players;
+        const aLow = a.hpPct <= 40;
+        const bLow = b.hpPct <= 40;
+        if (aLow && !bLow) return -1;
+        if (!aLow && bLow) return 1;
+        if (aLow && bLow) return a.hpPct - b.hpPct;
+
+        const hpDiff = a.hpPct - b.hpPct;
+        if (Math.abs(hpDiff) > 5) return hpDiff;
+        return b.players - a.players;
       });
 
       const selected = candidates[0];
       console.log(`[Workflow] ⚔️ Selected lingering raid to help: "${selected.questName || 'Unknown'}" (HP: ${selected.hpPct}%, Players: ${selected.players}/${selected.maxPlayers}, ID: ${selected.raidId})`);
 
-      // 5. Click the raid card to rejoin
-      await this.clickJoinedRaidCard(selected);
+      // 5. Join the raid! Direct GBF router navigation with card click fallback
+      if (selected.raidId && /^\d+$/.test(selected.raidId)) {
+        console.log(`[Workflow] 🚀 Joining lingering battle via direct hash: #raid_multi/${selected.raidId}...`);
+        await this.page.evaluate((id: string) => {
+          const Game = (window as any).Game;
+          if (Game?.Router?.navigate) {
+            Game.Router.navigate('raid_multi/' + id, { trigger: true });
+          } else {
+            window.location.hash = '#raid_multi/' + id;
+          }
+        }, selected.raidId).catch(() => null);
+      } else {
+        await this.clickJoinedRaidCard(selected);
+      }
 
       // 6. Wait for battle HUD or result
       const mountState = await this.waitForBattleToMountOrResult(12000);
@@ -5034,58 +5193,109 @@ export class UniversalWorkflowEngine {
         this.totalJoinedAndClearedBattles++;
         await this.checkFiveBattleMilestone(logPath, currentRuns);
       } else if (mountState === 'MOUNTED') {
-        // In combat: assist for 5s - 20s
-        const helpDurationMs = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
-        console.log(`[Workflow] ⚔️ Assisting in lingering battle for ${(helpDurationMs / 1000).toFixed(1)}s (buffs -> attack -> reload)...`);
-        const tStart = Date.now();
+        console.log('[Workflow] ⚔️ Active combat mounted! Assisting participants with optimal skills and attack...');
 
         // Step 0: Broadcast backup request if available
-        const assistBtn = await this.page.$('.btn-assist, .btn-request').catch(() => null);
-        if (assistBtn) {
-          console.log('[Workflow] Broadcasting backup request to invite active helpers...');
+        const hasAssist = await this.page.evaluate(() => {
+          const btn = document.querySelector('.btn-assist, .btn-request, .btn-backup') as HTMLElement;
+          return !!btn && btn.offsetParent !== null && !btn.classList.contains('disabled');
+        }).catch(() => false);
+        if (hasAssist) {
+          console.log('[Workflow] 📢 Broadcasting backup request to invite active helpers...');
           await this.handleBackupRequest().catch(() => null);
           await logNormalDelay(250, 0.1);
         }
 
-        // Step A: Click random buff skill
-        if (!await this.isBattleEnded()) {
-          const randChar = Math.floor(Math.random() * 3) + 1; // Character 1, 2, or 3
-          const randSkill = Math.floor(Math.random() * 4) + 1; // Skill 1, 2, 3, or 4
-          console.log(`[Workflow] Using random buff skill (C${randChar}S${randSkill})...`);
-          await this.handleSkill({
-            code: 'skill',
-            character: randChar,
-            skill: randSkill,
-            optional: true
-          });
-          await logNormalDelay(350, 0.15);
+        // Step A: Optimal Skills & Summons Execution
+        // Extract the user's template offensive skills / quick call
+        const skillSteps = (this.template.steps || []).filter(s => 
+          s.code === 'quick_call' || s.code === 'skill' || (s.code === 'summon' && s.slot)
+        );
+
+        let skillsExecuted = 0;
+        if (skillSteps.length > 0) {
+          console.log(`[Workflow] ⚡ Executing template burst skills (${Math.min(skillSteps.length, 5)} optimal actions)...`);
+          for (let sIdx = 0; sIdx < Math.min(skillSteps.length, 5); sIdx++) {
+            if (this.stopRequested || await this.isBattleEnded()) break;
+            const step = skillSteps[sIdx];
+            if (step.code === 'quick_call') {
+              console.log('[Workflow] Calling Quick Summon...');
+              await this.handleQuickCall({ ...step, optional: true });
+            } else if (step.code === 'skill') {
+              console.log(`[Workflow] Casting optimal skill: C${step.character || 1}S${step.skill || 1}...`);
+              await this.handleSkill({ ...step, optional: true });
+            } else if (step.code === 'summon') {
+              console.log(`[Workflow] Invoking summon slot ${step.slot}...`);
+              await this.handleSummon({ ...step, optional: true });
+            }
+            skillsExecuted++;
+            await logNormalDelay(200, 0.1);
+          }
         }
 
-        // Step B: Attack
+        // Fallback if template has no configured skills
+        if (skillsExecuted === 0 && !await this.isBattleEnded()) {
+          const qsReady = await this.page.$('.btn-quick-summon.qs-ready').catch(() => null);
+          if (qsReady) {
+            console.log('[Workflow] Calling Quick Summon...');
+            await this.handleQuickCall({ code: 'quick_call', optional: true });
+            await logNormalDelay(200, 0.1);
+          }
+          if (!await this.isBattleEnded()) {
+            console.log('[Workflow] Triggering frontline offensive abilities...');
+            await this.handleSkill({ code: 'skill', character: 1, skill: 1, optional: true });
+            await this.handleSkill({ code: 'skill', character: 2, skill: 1, optional: true });
+          }
+        }
+
+        // Step B: Trigger Attack Turn 1
         if (!await this.isBattleEnded()) {
-          console.log('[Workflow] Triggering attack in lingering raid...');
+          console.log('[Workflow] 💥 Dispatched high-damage attack in lingering raid...');
           await this.handleAttack({
             code: 'attack',
             waitForNetwork: 'normal_attack_result.json'
           });
-          await logNormalDelay(250, 0.12);
+          await logNormalDelay(250, 0.1);
         }
 
-        // Step C: Reload
+        // Step C: Reload to advance turn & skip animation
         if (!await this.isBattleEnded()) {
-          console.log('[Workflow] Reloading after attack...');
+          console.log('[Workflow] Reloading after attack to advance battle state...');
           await this.handleReload({ code: 'reload' });
-          await this.waitForCombatInputReady(4000).catch(() => null);
+          await this.waitForCombatInputReady(3000).catch(() => null);
         }
 
-        // Step D: Spend remaining time in the 5s - 20s window monitoring if battle clears
-        const remainingMs = helpDurationMs - (Date.now() - tStart);
-        if (remainingMs > 500) {
-          const deadline = Date.now() + remainingMs;
-          while (Date.now() < deadline && !this.stopRequested) {
-            if (await this.isBattleEnded()) break;
-            await new Promise(r => setTimeout(r, 800));
+        // Step D: Check boss HP: If boss is low HP (<= 25%) and alive, deliver a 2nd finishing turn!
+        const bossHpPct = await this.page.evaluate(() => {
+          const stage = (window as any).stage;
+          const boss = stage?.gGameStatus?.boss?.param?.[0] || stage?.pJsnData?.boss?.param?.[0];
+          if (boss?.hp !== undefined && boss?.hpmax !== undefined) {
+            return (Number(boss.hp) / Number(boss.hpmax)) * 100;
           }
+          const gauge = document.querySelector('.prt-enemy-percent') as HTMLElement;
+          if (gauge?.textContent) {
+            const num = parseFloat(gauge.textContent.replace('%', ''));
+            if (!isNaN(num)) return num;
+          }
+          return 100;
+        }).catch(() => 100);
+
+        if (bossHpPct <= 25 && bossHpPct > 0 && !await this.isBattleEnded()) {
+          console.log(`[Workflow] 🎯 Boss HP low (${bossHpPct.toFixed(1)}%). Executing secondary finishing attack turn...`);
+          await this.handleAttack({
+            code: 'attack',
+            waitForNetwork: 'normal_attack_result.json'
+          });
+          await this.handleReload({ code: 'reload' });
+          await this.waitForCombatInputReady(2500).catch(() => null);
+        }
+
+        // Step E: Brief monitoring window (4s) in case other players finish it off right now
+        const tStart = Date.now();
+        const monitorMs = 4000;
+        while (Date.now() - tStart < monitorMs && !this.stopRequested) {
+          if (await this.isBattleEnded()) break;
+          await new Promise(r => setTimeout(r, 600));
         }
 
         // Check if battle cleared
@@ -5094,22 +5304,35 @@ export class UniversalWorkflowEngine {
           await this.handleConfirmResult();
           this.totalJoinedAndClearedBattles++;
           await this.checkFiveBattleMilestone(logPath, currentRuns);
+        } else {
+          console.log('[Workflow] 🏁 Assist contributions complete (damage delivered & backup alerted). Exiting to check lingering queue...');
         }
       }
 
-      // 7. Return to #quest/assist and check lingering count
+      // 7. Return to #quest/assist and check lingering count accurately
       console.log('[Workflow] Returning to Backup Requests (#quest/assist) to recheck lingering slots...');
       await Promise.all([
         this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
         this.page.evaluate(() => {
           window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
-          window.location.reload();
         }).catch(() => null)
       ]);
       await logNormalDelay(1000, 0.15);
 
-      const lingeringRemaining = await this.getLingeringJoinedRaidCount();
-      if (lingeringRemaining >= 0 && lingeringRemaining < 3) {
+      await this.page.waitForSelector('#tab-multi, #tab-search, .cnt-quest-assist', { visible: true, timeout: 6000 }).catch(() => null);
+
+      // Switch to Recent / Joined tab to count physical cards accurately
+      await this.switchToRecentJoinedTab();
+      await logNormalDelay(800, 0.15);
+
+      const remainingJoined = await this.scanJoinedRaidCards();
+      const badgeCount = await this.getLingeringJoinedRaidCount();
+      
+      const lingeringRemaining = remainingJoined.length > 0 
+        ? remainingJoined.length 
+        : (badgeCount >= 0 ? badgeCount : 0);
+
+      if (lingeringRemaining < 3) {
         console.log(`[Workflow] ✅ Lingering raids reduced to ${lingeringRemaining}/3. Slot freed up! Resuming primary GB farm...`);
         this.joinedInCurrentBatch = lingeringRemaining;
         return true;
@@ -5173,35 +5396,90 @@ export class UniversalWorkflowEngine {
    * Switches to the Recent / Joined raids tab (#tab-multi) on #quest/assist.
    */
   private async switchToRecentJoinedTab(): Promise<void> {
-    await this.page.evaluate(() => {
-      const tabs = Array.from(document.querySelectorAll(
-        '#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"], .tab-multi, .tab-recent, .tab-joined, .btn-tabs'
-      )) as HTMLElement[];
-      for (const t of tabs) {
-        const text = (t.innerText || t.textContent || '').toLowerCase();
-        const id = t.id || '';
-        const dataTab = t.getAttribute('data-tab') || '';
-        if (
-          id === 'tab-multi' ||
-          dataTab === 'multi' ||
-          dataTab === 'recent' ||
-          dataTab === 'joined' ||
-          text.includes('joined') ||
-          text.includes('recent') ||
-          text.includes('参戦中')
-        ) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(t).trigger('tap');
-          t.click();
-          return true;
+    try {
+      // 1. Locate the Recent / Joined tab element (ID: tab-multi, class, or data-tab)
+      let recentTab = await this.page.$('#tab-multi, .tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"]');
+
+      if (!recentTab) {
+        // Query all tab buttons inside the assist tab container
+        const allTabs = await this.page.$$('.btn-tabs, .tab, .tab-item, .prt-tabs > div, .cnt-tabs > div, #tab-multi');
+        for (const tab of allTabs) {
+          const isMatch = await tab.evaluate((el: any) => {
+            const text = (el.innerText || el.textContent || '').toLowerCase();
+            const id = el.id || '';
+            const dataTab = el.getAttribute('data-tab') || '';
+            return (
+              id === 'tab-multi' ||
+              dataTab === 'multi' ||
+              dataTab === 'recent' ||
+              dataTab === 'joined' ||
+              text.includes('recent') ||
+              text.includes('joined') ||
+              text.includes('参戦中') ||
+              text.includes('救援中')
+            ) && !text.includes('search') && id !== 'tab-search';
+          }).catch(() => false);
+
+          if (isMatch) {
+            recentTab = tab;
+            break;
+          }
         }
       }
-      return false;
-    }).catch(() => false);
+
+      if (recentTab) {
+        const isAlreadyActive = await recentTab.evaluate((el: any) => el.classList.contains('active') || el.classList.contains('selected')).catch(() => false);
+        if (!isAlreadyActive) {
+          console.log('[Workflow] Switching to Recent / Joined tab (#tab-multi)...');
+          await humanizedClick(this.page, recentTab);
+          await recentTab.evaluate((el: any) => {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(el).trigger('tap');
+            el.click();
+          }).catch(() => null);
+          await logNormalDelay(800, 0.15);
+        }
+      } else {
+        // Fallback: evaluate trigger directly
+        await this.page.evaluate(() => {
+          const tabs = Array.from(document.querySelectorAll(
+            '#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"], .tab-multi, .tab-recent, .tab-joined, .btn-tabs'
+          )) as HTMLElement[];
+          for (const t of tabs) {
+            const text = (t.innerText || t.textContent || '').toLowerCase();
+            const id = t.id || '';
+            const dataTab = t.getAttribute('data-tab') || '';
+            if (
+              (id === 'tab-multi' || dataTab === 'multi' || dataTab === 'recent' || dataTab === 'joined' || text.includes('joined') || text.includes('recent') || text.includes('参戦中')) &&
+              !text.includes('search') && id !== 'tab-search'
+            ) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(t).trigger('tap');
+              t.click();
+              return true;
+            }
+          }
+          return false;
+        }).catch(() => false);
+        await logNormalDelay(600, 0.15);
+      }
+
+      // 2. Wait for the Recent / Joined list container (#prt-multi-list or .cnt-quest-multi) to mount
+      await this.page.waitForFunction(() => {
+        const multiContainer = document.querySelector('#prt-multi-list, .cnt-quest-multi, .prt-multi-list') as HTMLElement;
+        if (!multiContainer) return false;
+        const isVisible = multiContainer.offsetParent !== null && window.getComputedStyle(multiContainer).display !== 'none';
+        const hasContent = multiContainer.querySelectorAll('.btn-multi-raid, .lis-raid, .txt-no-list').length > 0;
+        return isVisible || hasContent;
+      }, { timeout: 3500 }).catch(() => null);
+    } catch {
+      // Best-effort switch
+    }
   }
 
   /**
    * Scans joined raid cards inside the Recent / Joined tab panel.
+   * Guarantees that cards from the Search/Finder list are NEVER matched.
    */
   private async scanJoinedRaidCards(): Promise<Array<{
     index: number;
@@ -5214,14 +5492,35 @@ export class UniversalWorkflowEngine {
     y: number;
   }>> {
     return await this.page.evaluate(() => {
-      const cards = Array.from(document.querySelectorAll(
-        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .cnt-quest-assist .btn-multi-raid, #prt-search-list ~ .prt-raid-list .btn-multi-raid'
+      // Strictly target cards inside the Joined/Recent raid list container (#prt-multi-list or .cnt-quest-multi)
+      // NEVER select cards from #prt-search-list or .cnt-search!
+      const rawCards = Array.from(document.querySelectorAll(
+        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .prt-multi-list .btn-multi-raid, .prt-multi-list .lis-raid'
       )) as HTMLElement[];
 
-      const validCards = cards.filter(c => c.offsetParent !== null);
-      const targetCards = validCards.length > 0
-        ? validCards
-        : (Array.from(document.querySelectorAll('.btn-multi-raid.lis-raid, .btn-multi-raid, .lis-raid')) as HTMLElement[]).filter(c => c.offsetParent !== null);
+      const filteredCards = rawCards.filter((el: any) => {
+        const isSearch = typeof el.closest === 'function' ? (el.closest('#prt-search-list') || el.closest('.cnt-search') || el.closest('#prt-search')) : false;
+        if (isSearch) return false;
+        if (el.offsetParent === null) return false;
+        const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+        if (style && style.display === 'none') return false;
+        return true;
+      });
+
+      // Fallback only if rawCards was empty AND we are confirmed inside a multi/recent tab container
+      let targetCards = filteredCards;
+      if (targetCards.length === 0) {
+        const multiBox = document.querySelector('#prt-multi-list, .cnt-quest-multi, .prt-multi-list');
+        if (multiBox) {
+          targetCards = (Array.from(multiBox.querySelectorAll('.btn-multi-raid, .lis-raid')) as HTMLElement[])
+            .filter((c: any) => {
+              if (c.offsetParent === null) return false;
+              const style = window.getComputedStyle ? window.getComputedStyle(c) : null;
+              if (style && style.display === 'none') return false;
+              return true;
+            });
+        }
+      }
 
       return targetCards.map((el, i) => {
         const gauge = el.querySelector('.prt-raid-gauge-inner, .prt-gauge-inner, .prt-hp-gauge-inner') as HTMLElement;
@@ -5234,11 +5533,17 @@ export class UniversalWorkflowEngine {
         const players = match ? parseInt(match[1], 10) : 1;
         const maxPlayers = match ? parseInt(match[2], 10) : 30;
 
-        const nameEl = el.querySelector('.txt-quest-name, .prt-quest-name, .txt-name, .txt-title') as HTMLElement;
+        const nameEl = el.querySelector('.txt-quest-name, .prt-quest-name, .txt-name, .txt-title, .prt-raid-name') as HTMLElement;
         const questName = nameEl ? (nameEl.innerText?.trim() || '') : '';
 
-        const raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || el.getAttribute('data-href') || '';
-        const rect = el.getBoundingClientRect();
+        let raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || '';
+        if (!raidId) {
+          const href = el.getAttribute('data-href') || el.getAttribute('href') || '';
+          const m = href.match(/\d{8,}/);
+          if (m) raidId = m[0];
+        }
+
+        const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
 
         return {
           index: i,
@@ -5257,19 +5562,37 @@ export class UniversalWorkflowEngine {
   /**
    * Clicks a joined raid card from the Recent / Joined list to rejoin combat.
    */
-  private async clickJoinedRaidCard(candidate: { index: number; x: number; y: number }): Promise<void> {
-    const cardElements = await this.page.$$(
-      '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .cnt-quest-assist .btn-multi-raid, .btn-multi-raid.lis-raid, .btn-multi-raid, .lis-raid'
-    );
-    const targetEl = cardElements[candidate.index];
-    if (targetEl) {
-      await humanizedClick(this.page, targetEl);
-      await targetEl.evaluate((el: any) => {
+  private async clickJoinedRaidCard(candidate: { index: number; x: number; y: number; raidId?: string }): Promise<void> {
+    if (candidate.raidId && /^\d+$/.test(candidate.raidId)) {
+      await this.page.evaluate((id: string) => {
+        const Game = (window as any).Game;
+        if (Game?.Router?.navigate) {
+          Game.Router.navigate('raid_multi/' + id, { trigger: true });
+        } else {
+          window.location.hash = '#raid_multi/' + id;
+        }
+      }, candidate.raidId).catch(() => null);
+      return;
+    }
+
+    const clicked = await this.page.evaluate((idx: number) => {
+      const cards = Array.from(document.querySelectorAll(
+        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid'
+      )).filter((c: any) => {
+        const isSearch = typeof c.closest === 'function' ? (c.closest('#prt-search-list') || c.closest('.cnt-search')) : false;
+        return !isSearch && (c as HTMLElement).offsetParent !== null;
+      }) as HTMLElement[];
+      const card = cards[idx];
+      if (card) {
         const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(el).trigger('tap');
-        el.click();
-      }).catch(() => null);
-    } else if (candidate.x > 0 && candidate.y > 0) {
+        if ($) $(card).trigger('tap');
+        card.click();
+        return true;
+      }
+      return false;
+    }, candidate.index).catch(() => false);
+
+    if (!clicked && candidate.x > 0 && candidate.y > 0) {
       await this.page.touchscreen.tap(candidate.x, candidate.y).catch(() => null);
     }
   }

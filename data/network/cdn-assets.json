@@ -1,0 +1,25 @@
+{
+  "$schema": "../schemas/endpoints.schema.json",
+  "version": "2.0.0",
+  "description": "Granblue Fantasy Content Delivery Network (CDN) layout, asset patterns, and media routing.",
+  "cdn": {
+    "primaryOrigin": "https://prd-game-a-granbluefantasy.akamaized.net",
+    "backupOrigin": "https://prd-game-a1-granbluefantasy.akamaized.net",
+    "languageVariants": ["assets_en", "assets"],
+    "assetPaths": {
+      "questLobbyThumb": "/{lang}/img/sp/quest/assets/lobby/{questId}.png",
+      "stageCategoryThumb": "/{lang}/img/sp/lobby/room_index/thumb/{stageType}.png",
+      "characterLeader": "/{lang}/img/sp/assets/leader/m/{jobId}_{style}.jpg",
+      "npcCharacter": "/{lang}/img/sp/assets/npc/m/{characterId}_{uncap}.jpg",
+      "summonThumbnail": "/{lang}/img/sp/assets/summon/m/{summonId}.jpg",
+      "treasureItem": "/{lang}/img/sp/assets/item/article/s/{itemId}.jpg",
+      "battleEnemySpine": "/{lang}/img/sp/cjs/spine/{enemyCjs}.png",
+      "audioBgm": "/assets/sound/bgm/{bgmId}.mp3",
+      "audioSfx": "/assets/sound/se/{seId}.mp3"
+    },
+    "cachingRules": {
+      "immutableAssets": "Assets with content hashes or fixed quest IDs are cached indefinitely (Cache-Control: max-age=31536000).",
+      "manifestFile": "/manifest.json (checked upon version change)."
+    }
+  }
+}

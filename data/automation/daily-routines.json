@@ -1,0 +1,180 @@
+{
+  "$schema": "../schemas/daily-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-07T08:00:00.000Z",
+  "description": "Granblue Fantasy recurring daily automation catalog: Pro-Skips, Daily Host Routines, Rupie Gacha, Missions, and Casino.",
+  "tasks": [
+    {
+      "id": "hard_pro",
+      "tag": "daily_hard_pro",
+      "name": "Hard+ Pro",
+      "category": "pro_skip",
+      "questId": "305261",
+      "chapterId": "30526",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305261'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30526']",
+      "dailyLimit": 1,
+      "apCost": 180
+    },
+    {
+      "id": "magna_pro",
+      "tag": "daily_magna_pro",
+      "name": "Omega Pro",
+      "category": "pro_skip",
+      "questId": "305441",
+      "chapterId": "30544",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305441'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30544']",
+      "dailyLimit": 1,
+      "apCost": 360
+    },
+    {
+      "id": "manacura_pro",
+      "tag": "daily_manacura_pro",
+      "name": "Omega (Impossible) Pro",
+      "category": "pro_skip",
+      "questId": "305461",
+      "chapterId": "30546",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305461'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30546']",
+      "dailyLimit": 1,
+      "apCost": 360
+    },
+    {
+      "id": "regalia_pro",
+      "tag": "daily_regalia_pro",
+      "name": "Regalia Pro",
+      "category": "pro_skip",
+      "questId": "305561",
+      "chapterId": "30556",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305561'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30556']",
+      "dailyLimit": 1,
+      "apCost": 540
+    },
+    {
+      "id": "primal_pro",
+      "tag": "daily_primal_pro",
+      "name": "Primal Legends Pro",
+      "category": "pro_skip",
+      "questId": "305471",
+      "chapterId": "30547",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305471'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30547']",
+      "dailyLimit": 1,
+      "apCost": 360
+    },
+    {
+      "id": "halo_pro",
+      "tag": "daily_halo_pro",
+      "name": "Angel Halo Pro",
+      "category": "pro_skip",
+      "questId": "305301",
+      "chapterId": "30530",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305301'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30530']",
+      "dailyLimit": 1,
+      "apCost": 150
+    },
+    {
+      "id": "primarch_pro",
+      "tag": "daily_primarch_pro",
+      "name": "Primarch Trials Pro",
+      "category": "pro_skip",
+      "questId": "104081",
+      "chapterId": "10408",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='104081'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10408']",
+      "dailyLimit": 1,
+      "apCost": 160
+    },
+    {
+      "id": "showdown_pro",
+      "tag": "daily_showdown_pro",
+      "name": "Showdown Pro",
+      "category": "pro_skip",
+      "questId": "103951",
+      "chapterId": "10395",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='103951'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10395']",
+      "dailyLimit": 1,
+      "apCost": 180
+    },
+    {
+      "id": "clash_pro",
+      "tag": "daily_clash_pro",
+      "name": "Clash Pro",
+      "category": "pro_skip",
+      "questId": "103991",
+      "chapterId": "10399",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='103991'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10399']",
+      "dailyLimit": 1,
+      "apCost": 360
+    },
+    {
+      "id": "dragon_pro",
+      "tag": "daily_dragon_pro",
+      "name": "Six-Dragon Advent Pro",
+      "category": "pro_skip",
+      "questId": "104111",
+      "chapterId": "10411",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='104111'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10411']",
+      "dailyLimit": 1,
+      "apCost": 960
+    },
+    {
+      "id": "eternals_pro",
+      "tag": "daily_eternals_pro",
+      "name": "Eternals Unlock Treasure Pro",
+      "category": "pro_skip",
+      "questId": "104191",
+      "chapterId": "10419",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='104191'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='10419']",
+      "dailyLimit": 1,
+      "apCost": 360
+    },
+    {
+      "id": "ennead_pro",
+      "tag": "daily_ennead_pro",
+      "name": "Ennead Pro",
+      "category": "pro_skip",
+      "questId": "305321",
+      "chapterId": "30532",
+      "proChapterId": "30583",
+      "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
+      "selector": ".pop-pro-quest-list [data-quest-id='305321'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30532'], .pop-pro-quest-list .btn-set-quest[data-pro-chapter-id='30583']",
+      "dailyLimit": 1,
+      "apCost": 360
+    },
+    {
+      "id": "rupie_gacha",
+      "tag": "daily_rupie",
+      "name": "Daily 100-Draw Rupie Gacha",
+      "category": "gacha",
+      "pageUrl": "https://game.granbluefantasy.jp/#gacha/normal",
+      "selector": ".btn-lupi.multi, .btn-lupi[data-count='100'], .btn-lupi[data-id='6002'], .btn-lupi, .btn-draw-100",
+      "dailyLimit": 1
+    },
+    {
+      "id": "skyscope_missions",
+      "tag": "daily_skyscope",
+      "name": "Claim Skyscope Daily Missions",
+      "category": "mission",
+      "pageUrl": "https://game.granbluefantasy.jp/#mission",
+      "selector": ".btn-claim-all, .btn-receive-all, .prt-mission-complete",
+      "dailyLimit": 1
+    },
+    {
+      "id": "casino_exchange",
+      "tag": "daily_casino",
+      "name": "Casino Daily Half-Elixir & Berry Exchange",
+      "category": "shop",
+      "pageUrl": "https://game.granbluefantasy.jp/#casino/exchange",
+      "selector": ".btn-exchange",
+      "dailyLimit": 1
+    }
+  ]
+}

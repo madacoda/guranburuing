@@ -118,6 +118,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Raid Evaluator Parallel Multi-Condition & High-Performance Tests',
     file: 'tests/test-raid-evaluator-parallel.ts',
     description: 'Parallel condition checking, multi-slot concurrency, O(1) set lookups, disqualification bitmasks, and LRU cache'
+  },
+  {
+    name: 'Daily Host Engine & 16-Raid Catalog Unit Tests',
+    file: 'tests/test-daily-host.ts',
+    description: 'High Level, Magna 3, and Six Dragons daily host verification, stage mappings, and material checks'
+  },
+  {
+    name: 'Senior Gold Industry Standard Data Architecture & Catalog Tests',
+    file: 'tests/test-data-catalog-architecture.ts',
+    description: 'Modular data directory integrity, schema compliance, O(1) DataCatalogService lookups, and backwards compatibility'
+  },
+  {
+    name: 'Backup Broadcast Scope Verification & 3-Min Cooldown Unit Tests',
+    file: 'tests/test-backup-broadcast-cooldown.ts',
+    description: 'Active="1" attribute preservation, Everyone/Friends/Crew checkboxes, 180s cooldown, and combat re-broadcasting'
   }
 ];
 

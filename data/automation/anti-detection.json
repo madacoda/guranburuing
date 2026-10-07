@@ -1,0 +1,50 @@
+{
+  "$schema": "../schemas/daily-catalog.schema.json",
+  "version": "2.0.0",
+  "description": "Biomechanical human motor heuristics, log-normal delay distributions, Bézier mouse kinematics, and anti-cheat mitigations.",
+  "humanMotor": {
+    "speedProfiles": {
+      "fast": {
+        "description": "High-intensity raid farming / honors race (PBHL, GOHL, Akasha)",
+        "baseDelayMs": 300,
+        "variance": 0.15,
+        "clickHoldDurationMs": { "min": 45, "max": 85 }
+      },
+      "normal": {
+        "description": "Standard daily hosting and routine navigation",
+        "baseDelayMs": 750,
+        "variance": 0.20,
+        "clickHoldDurationMs": { "min": 60, "max": 120 }
+      },
+      "stealth": {
+        "description": "High-scrutiny operations with maximum humanized latency",
+        "baseDelayMs": 1500,
+        "variance": 0.30,
+        "clickHoldDurationMs": { "min": 90, "max": 180 }
+      }
+    },
+    "delayDistribution": {
+      "type": "Log-Normal (Box-Muller Transform)",
+      "formula": "medianMs * Math.exp(gaussianNoise * variance)",
+      "properties": "Eliminates rigid robotic sleep timers; exhibits a right-skewed tail mimicking human reaction times and momentary distraction."
+    },
+    "mouseKinematics": {
+      "type": "Cubic Bézier Curve with micro-tremors",
+      "controlPointJitter": "±15px normal distribution",
+      "timeInterpolation": "Ease-in-out quadratic curve"
+    }
+  },
+  "safetyWatchdog": {
+    "maxContinuousRunMinutes": 180,
+    "mandatoryRestMinutes": 15,
+    "maxActionsPerMinute": 45,
+    "captchaDetection": {
+      "selector": "#cnt-verification, .img-verify",
+      "action": "Immediate freeze, audible alarm, emergency Telegram / Discord webhook notification"
+    },
+    "anomalyDetection": {
+      "networkErrorStreakLimit": 3,
+      "pageReloadThreshold": 5
+    }
+  }
+}

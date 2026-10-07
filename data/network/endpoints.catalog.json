@@ -1,0 +1,165 @@
+{
+  "$schema": "../schemas/endpoints.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-07T08:00:00.000Z",
+  "description": "Comprehensive reverse-engineered catalog of Granblue Fantasy HTTP REST endpoints, payload schemas, and headers.",
+  "globalHeaders": {
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "en-US,en;q=0.9,ja;q=0.8",
+    "Content-Type": "application/json; charset=UTF-8",
+    "X-Requested-With": "XMLHttpRequest",
+    "Origin": "https://game.granbluefantasy.jp",
+    "Referer": "https://game.granbluefantasy.jp/"
+  },
+  "endpoints": {
+    "raidInfo": {
+      "path": "/quest/raid_info",
+      "method": "POST",
+      "description": "Polls active raid HP percentage, member count, and personal contribution honors without triggering turn action.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string (numeric raid ID)"
+      },
+      "responseSchema": {
+        "boss": { "hp": "number", "hpmax": "number" },
+        "point": "number (current player honors)",
+        "member_count": "number (active players)"
+      }
+    },
+    "raidStart": {
+      "path": "/rest/multiraid/start.json",
+      "method": "POST",
+      "description": "Initializes battle state, character HP/meter, status effects, and boss parameters.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string"
+      },
+      "responseSchema": {
+        "battle_id": "number",
+        "turn": "number",
+        "multi": "number (0: solo, 1: multi)",
+        "is_v2": "number (0: V1, 1: V2)",
+        "boss": { "param": "array of boss state objects" },
+        "player": { "param": "array of party character objects" }
+      }
+    },
+    "normalAttack": {
+      "path": "/rest/multiraid/normal_attack_result.json",
+      "method": "POST",
+      "description": "Executes turn attack; server resolves damage, triggers, status updates, and returns animation scenario.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string",
+        "ability_id": 0,
+        "character_num": 0
+      },
+      "responseSchema": {
+        "scenario": "array of CreateJS tween/animation commands",
+        "status": {
+          "turn": "number",
+          "boss": { "param": "array of boss params" },
+          "player": { "param": "array of player params" }
+        }
+      }
+    },
+    "ability": {
+      "path": "/rest/multiraid/ability_result.json",
+      "method": "POST",
+      "description": "Activates a single character skill/ability. Requires serial dispatch.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string",
+        "ability_id": "number (internal skill ID)",
+        "character_num": "number (0 to 3 for frontline)",
+        "target_attribute": "string (optional target index for single-target buffs)"
+      },
+      "responseSchema": {
+        "scenario": "array of visual effects",
+        "status": "updated battle status object"
+      }
+    },
+    "summon": {
+      "path": "/rest/multiraid/summon_result.json",
+      "method": "POST",
+      "description": "Invokes main, sub, or supporter summon. Limited to once per turn.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string",
+        "summon_id": "string (summon slot index 1 to 6)"
+      },
+      "responseSchema": {
+        "scenario": "array of summon cutin & damage frames",
+        "status": "updated battle status object"
+      }
+    },
+    "guardSetting": {
+      "path": "/rest/multiraid/guard_setting.json",
+      "method": "POST",
+      "description": "Toggles V2 battle system Guard state for specified party members.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string",
+        "guard_status": "object mapping character index to boolean (0/1)"
+      }
+    },
+    "requestBackup": {
+      "path": "/rest/multiraid/request_assist.json",
+      "method": "POST",
+      "description": "Broadcasts backup assistance request to Everyone (all), Friends, and Crew members.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string",
+        "is_all": "number (1: true, 0: false)",
+        "is_friend": "number (1: true, 0: false)",
+        "is_guild": "number (1: true, 0: false)"
+      }
+    },
+    "temporaryItem": {
+      "path": "/rest/multiraid/temporary_item_result.json",
+      "method": "POST",
+      "description": "Consumes raid-only items such as Green Potion, Blue Potion, Clarity Herb, or Revive.",
+      "requestPayload": {
+        "special_token": null,
+        "raid_id": "string",
+        "item_id": "number",
+        "target_number": "number (target character position)"
+      }
+    },
+    "proSkip": {
+      "path": "/quest/pro_skip",
+      "method": "POST",
+      "description": "Instant batch resolution of daily Omega, Impossible, Regalia, and Trials series.",
+      "requestPayload": {
+        "special_token": null,
+        "chapter_id": "string",
+        "quest_id": "string"
+      }
+    },
+    "battleKeyCheck": {
+      "path": "/quest/battle_key_check",
+      "method": "POST",
+      "description": "Validates and joins a multiplayer raid using an 8-character battle room key.",
+      "requestPayload": {
+        "special_token": null,
+        "room_id": "string (8-character alphanumeric key)"
+      }
+    },
+    "multiStageList": {
+      "path": "/quest/multi_stage_list.json",
+      "method": "GET",
+      "description": "Fetches the list of active multiplayer stage categories and user unlock states."
+    },
+    "multiResult": {
+      "path": "/resultmulti/data.json",
+      "method": "GET",
+      "description": "Fetches multiplayer battle reward payload: blue chests, gold chests, MVP status, honors, and player rankings.",
+      "requestPayload": {
+        "battle_id": "string"
+      },
+      "responseSchema": {
+        "reward_list": "array of drop chest contents with item IDs and quantities",
+        "user_result": { "rank": "number", "point": "number (honors)" }
+      }
+    }
+  }
+}

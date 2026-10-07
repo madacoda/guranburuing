@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DailyCatalogSchema",
+  "type": "object",
+  "required": ["version", "tasks"],
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tag", "name", "category", "pageUrl"],
+        "properties": {
+          "id": { "type": "string" },
+          "tag": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "questId": { "type": "string" },
+          "chapterId": { "type": "string" },
+          "pageUrl": { "type": "string" },
+          "selector": { "type": "string" },
+          "dailyLimit": { "type": "number" },
+          "apCost": { "type": "number" }
+        }
+      }
+    }
+  }
+}

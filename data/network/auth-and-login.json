@@ -1,0 +1,69 @@
+{
+  "$schema": "../schemas/endpoints.schema.json",
+  "version": "2.0.0",
+  "description": "Authentication architectures, platform gateways (Mobage, DMM, GREE), cookie specifications, and session management.",
+  "gateways": {
+    "directGameUrl": "https://game.granbluefantasy.jp",
+    "mobage": {
+      "loginUrl": "https://connect.mobage.jp/login",
+      "oauthEndpoint": "https://game.granbluefantasy.jp/#authentication",
+      "platformDomain": ".mobage.jp",
+      "gameDomain": "game.granbluefantasy.jp",
+      "requiredCookies": [
+        {
+          "name": "user_id",
+          "domain": "game.granbluefantasy.jp",
+          "description": "Unique numeric Mobage player identity identifier."
+        },
+        {
+          "name": "sub_id",
+          "domain": "game.granbluefantasy.jp",
+          "description": "Account sub-identifier or device session binding token."
+        },
+        {
+          "name": "user_token",
+          "domain": "game.granbluefantasy.jp",
+          "description": "Encrypted session token verified on each HTTP API call."
+        },
+        {
+          "name": "auth_token",
+          "domain": "game.granbluefantasy.jp",
+          "description": "Platform authorization credential used for handshake re-authentication."
+        }
+      ]
+    },
+    "dmm": {
+      "gadgetUrl": "https://www.dmm.com/netgame/social/-/gadgets/=/app_id=854854",
+      "gameFrameUrl": "https://gbf.game.mbga.jp/",
+      "platformDomain": ".dmm.com",
+      "requiredCookies": [
+        { "name": "login_secure_id", "domain": ".dmm.com" },
+        { "name": "dmm_token", "domain": ".dmm.com" }
+      ]
+    }
+  },
+  "sessionLifecycle": {
+    "injectionProtocol": {
+      "method": "CDP (Chrome DevTools Protocol) Network.setCookies",
+      "steps": [
+        "1. Read JSON array of cookie objects ({name, value, domain, path, secure, httpOnly, sameSite, expires}).",
+        "2. Iterate and invoke client.send('Network.setCookies', { cookies }).",
+        "3. Navigate to https://game.granbluefantasy.jp/#mypage.",
+        "4. Poll window.Game.userId and player status to verify successful session attachment."
+      ]
+    },
+    "staleSessionDetection": {
+      "indicators": [
+        "Server returns HTTP 302 redirecting to /#authentication or /#login.",
+        "API response payload contains { version: 'outdated' } or { error: 'auth_error' }.",
+        "Page URL changes to https://connect.mobage.jp/login."
+      ],
+      "mitigation": "Alert operator, trigger session re-import, or refresh auth token via headless browser re-login."
+    },
+    "backupStorage": {
+      "defaultAccountDirectory": "data/accounts/{accountId}",
+      "cookiesJsonFile": "data/accounts/{accountId}/cookies.json",
+      "environmentVariable": "GBF_SESSION_COOKIE"
+    }
+  }
+}

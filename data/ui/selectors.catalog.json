@@ -1,0 +1,161 @@
+{
+  "$schema": "../schemas/selectors.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-07T08:00:00.000Z",
+  "description": "Gold-standard catalog of Granblue Fantasy DOM selectors categorized by screen, modal, and subsystem.",
+  "selectors": {
+    "global": {
+      "header": "#header",
+      "footer": "#footer",
+      "canvas": "#canvas, canvas#cjs-canvas",
+      "loadingOverlay": "#loading",
+      "popups": {
+        "activePopup": ".pop-show, .popup-view-root",
+        "usualModal": ".pop-usual",
+        "closeButton": ".btn-usual-close, .btn-close, .pop-show .btn-close",
+        "okButton": ".btn-usual-ok",
+        "cancelButton": ".btn-usual-cancel, .btn-cancel"
+      },
+      "navigation": {
+        "mypage": ".btn-link-sub[data-href='mypage'], a[href='#mypage']",
+        "quest": ".btn-link-sub[data-href='quest'], a[href='#quest']",
+        "party": ".btn-link-sub[data-href='party'], a[href='#party']",
+        "gacha": ".btn-link-sub[data-href='gacha'], a[href='#gacha']",
+        "menu": ".btn-menu, #btn-menu"
+      }
+    },
+    "stageAndRaidList": {
+      "root": "#cnt-quest, #cnt-stage-list",
+      "tabNormal": ".btn-stage-type[data-stage-type='normal']",
+      "tabHigh": ".btn-stage-type[data-stage-type='high']",
+      "tabEvent": ".btn-stage-type[data-stage-type='event']",
+      "stageCard": ".btn-stage-detail[data-stage-id='{stageId}']",
+      "allStageCards": ".btn-stage-detail",
+      "modal": {
+        "container": ".pop-stage-detail.pop-show, .pop-usual.pop-show",
+        "closeButton": ".pop-stage-detail .btn-usual-close, .pop-usual .btn-usual-close, .btn-usual-close",
+        "questBanner": ".prt-stage-quest .prt-quest-banner[data-quest-id='{questId}']",
+        "allQuestBanners": ".prt-stage-quest .prt-quest-banner, .prt-quest-banner",
+        "questPlayButton": ".btn-set-quest[data-quest-id='{questId}']",
+        "limitedCountAttr": "data-limited_count",
+        "chapterIdAttr": "data-chapter-id",
+        "isMaskedClass": "onm-mask",
+        "isDisabledClass": "disable"
+      }
+    },
+    "treasureModal": {
+      "container": ".pop-treasure-raid, .pop-usual.pop-show",
+      "offerButton": ".btn-offer, .pop-treasure-raid .btn-offer, .pop-treasure-raid .btn-usual-ok",
+      "cancelButton": ".btn-usual-cancel, .pop-treasure-raid .btn-usual-cancel",
+      "materialOption": ".btn-article-image",
+      "textContainer": ".prt-popup-body, .txt-popup-body",
+      "heldMatchPattern": "/Held:\\s*(\\d+)/i",
+      "requiredMatchPattern": "/Required:\\s*(\\d+)/i"
+    },
+    "supporterSelection": {
+      "container": "#cnt-supporter, #prt-supporter-list",
+      "attributeTabs": {
+        "fire": ".prt-attribute-tab[data-attribute='1']",
+        "water": ".prt-attribute-tab[data-attribute='2']",
+        "earth": ".prt-attribute-tab[data-attribute='3']",
+        "wind": ".prt-attribute-tab[data-attribute='4']",
+        "light": ".prt-attribute-tab[data-attribute='5']",
+        "dark": ".prt-attribute-tab[data-attribute='6']",
+        "misc": ".prt-attribute-tab[data-attribute='7']"
+      },
+      "supporterCard": ".btn-supporter",
+      "supporterName": ".txt-supporter-name",
+      "summonLevel": ".txt-summon-level",
+      "activeRaidBlockedPopup": ".popRestartQuest, #pop.popup-view-root"
+    },
+    "partyAndLaunch": {
+      "container": "#cnt-party, .prt-deck-slider",
+      "drawerOkButton": ".prt-btn-deck .btn-usual-ok.se-quest-start, .pop-deck .btn-usual-ok.se-quest-start",
+      "generalStartButton": ".btn-usual-ok.se-quest-start, .se-quest-start, .btn-settle",
+      "ascendantPrayerPopup": ".pop-ascendant-prayer-confirm",
+      "ascendantPrayerOk": ".pop-ascendant-prayer-confirm .btn-usual-ok"
+    },
+    "combatHUD": {
+      "container": "#cnt-raid, #prt-command-top",
+      "attackButton": ".btn-attack-start",
+      "autoMode": {
+        "button": ".btn-auto",
+        "semiAutoIndicator": ".btn-lock.auto-semi",
+        "fullAutoIndicator": ".btn-lock.auto-full"
+      },
+      "guard": {
+        "allGuard": ".btn-guard-all",
+        "characterGuard": ".btn-guard[data-member='{index}']"
+      },
+      "abilities": {
+        "container": ".prt-command-ability, .prt-ability-list",
+        "availableAbility": ".lis-ability .btn-ability-available",
+        "abilityById": ".lis-ability .btn-ability-available[data-ability-id='{abilityId}']",
+        "abilityByPos": ".lis-ability[data-pos='{pos}'] .btn-ability-available",
+        "backButton": ".btn-command-back"
+      },
+      "summons": {
+        "container": ".prt-command-summon",
+        "availableSummon": ".btn-summon-available",
+        "quickSummon": ".quick-summon, .btn-quick-summon"
+      },
+      "temporaryItems": {
+        "drawerButton": ".btn-temporary",
+        "greenPotion": ".btn-use-potion[data-item-id='1']",
+        "bluePotion": ".btn-use-potion[data-item-id='2']"
+      },
+      "telemetry": {
+        "enemyHpValue": "#enemy-hp .txt-hp-value",
+        "enemyHpPercent": ".prt-enemy-percent, #enemy-hp .txt-hp-percent",
+        "turnNumber": ".prt-turn-info .txt-turn-num",
+        "honors": ".prt-point, .txt-point-value",
+        "omenAlert": ".prt-special-action-alert",
+        "omenDetails": ".prt-condition-detail"
+      }
+    },
+    "backupRequests": {
+      "openButton": ".btn-assist",
+      "disabledClass": "disable",
+      "cooldownDurationMs": 180000,
+      "gaugeSelector": "#prt-remain-gauge",
+      "modalContainer": ".pop-usual.pop-start-assist, .pop-start-assist",
+      "activeAttribute": "active",
+      "scopes": {
+        "all": ".btn-check[type='all'], .btn-check.all",
+        "friends": ".btn-check[type='friend'], .btn-check.friend",
+        "crew": ".btn-check[type='guild'], .btn-check.guild"
+      },
+      "submitButton": ".pop-start-assist .btn-usual-text.with-potion, .pop-start-assist .prt-popup-footer .btn-usual-text, .pop-start-assist .btn-usual-text",
+      "confirmModalOk": "#pop.popup-view-root .btn-usual-ok, .pop-usual .btn-usual-ok, .btn-usual-ok"
+    },
+    "battleResults": {
+      "container": "#cnt-result-multi, #cnt-result",
+      "dropList": ".prt-drop-list",
+      "chests": {
+        "blue": ".prt-box-blue",
+        "gold": ".prt-box-gold",
+        "red": ".prt-box-red",
+        "silver": ".prt-box-silver"
+      },
+      "dismissButton": ".btn-control .btn-usual-ok, #btn-control .btn-usual-ok, .btn-usual-ok",
+      "playAgainButton": ".btn-again"
+    },
+    "recovery": {
+      "modal": ".pop-usual.pop-show",
+      "halfElixir": ".btn-use-item[data-item-id='1']",
+      "soulBerry": ".btn-use-item[data-item-id='2']",
+      "arcarumAap": ".btn-use-item[data-item-id='30031']",
+      "confirmOk": ".btn-usual-ok"
+    },
+    "unclaimedBattles": {
+      "route": "#quest/assist/unclaimed",
+      "container": ".prt-unclaimed-list",
+      "receiveAllButton": ".btn-usual-ok, .btn-receive-all"
+    },
+    "verification": {
+      "container": "#cnt-verification",
+      "captchaImage": ".prt-popup-body .img-verify",
+      "captchaOptions": ".prt-popup-body .prt-select-item"
+    }
+  }
+}
