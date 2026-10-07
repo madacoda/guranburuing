@@ -133,6 +133,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Backup Broadcast Scope Verification & 3-Min Cooldown Unit Tests',
     file: 'tests/test-backup-broadcast-cooldown.ts',
     description: 'Active="1" attribute preservation, Everyone/Friends/Crew checkboxes, 180s cooldown, and combat re-broadcasting'
+  },
+  {
+    name: 'Dual-Track Assist Interleaving & Background Host Recheck Tests',
+    file: 'tests/test-assist-interleaving.ts',
+    description: 'Frontline wipeout/turn yield triage, assist farming interleaving, 180s cooldown re-broadcast, and slot reclamation'
   }
 ];
 

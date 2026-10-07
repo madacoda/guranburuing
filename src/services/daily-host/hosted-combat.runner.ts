@@ -1,7 +1,7 @@
 // src/services/daily-host/hosted-combat.runner.ts
 import { Page } from 'puppeteer-core';
 import { IHostedCombatRunner, IBackupBroadcastService, IStageModalNavigator } from '../../domain/daily-host/daily-host.interfaces.js';
-import { DailyRaidHostDefinition, HostedCombatOutcome } from '../../domain/daily-host/daily-host.types.js';
+import { DailyRaidHostDefinition, HostedCombatOutcome, DailyHostExecutionOptions } from '../../domain/daily-host/daily-host.types.js';
 import { UniversalWorkflowEngine } from '../../engines/universal-workflow.engine.js';
 import { logNormalDelay } from '../../human-motor.js';
 
@@ -118,7 +118,8 @@ export class HostedCombatRunner implements IHostedCombatRunner {
    */
   public async executeHostedCombat(
     raid: DailyRaidHostDefinition,
-    maxTurns = 60
+    maxTurns = 60,
+    options?: DailyHostExecutionOptions
   ): Promise<HostedCombatOutcome> {
     const t0 = Date.now();
     let backupRequested = false;
@@ -148,7 +149,53 @@ export class HostedCombatRunner implements IHostedCombatRunner {
         };
       }
 
-      // Check for frontline wipeout
+      // Check if combat should yield to background pub clear + assist farming
+      if (this.shouldYieldToAssist(state, turnsElapsed, combatStartTime, options)) {
+        if (!backupRequested) {
+          console.log(`[DailyHost:Combat] 📢 Ensuring Backup Request is dispatched to Everyone & Friends before yielding...`);
+          const res = await this.backupBroadcaster.broadcastBackupRequestToAll();
+          if (res.broadcastSuccessful) {
+            backupRequested = true;
+            console.log(`[DailyHost:Combat] ✅ Backup request successfully sent to: ${res.activeScopes.join(', ')}`);
+          }
+        }
+
+        const rawRaidId = await this.page.evaluate(() => {
+          const stage = (window as any).stage;
+          const pJsn = stage?.pJsnData;
+          if (pJsn?.raid_id) return String(pJsn.raid_id);
+          const m = window.location.hash.match(/\d{8,}/);
+          return m ? m[0] : '';
+        }).catch(() => '');
+
+        const activeRaidId = typeof rawRaidId === 'string'
+          ? rawRaidId
+          : (rawRaidId && typeof (rawRaidId as any).raid_id !== 'undefined'
+              ? String((rawRaidId as any).raid_id)
+              : '');
+
+        console.log(`\n========================================================================`);
+        console.log(`[DailyHost:Combat] ⚡ Combat Yield Triggered for "${raid.name}"!`);
+        console.log(`[DailyHost:Combat] Reason: ${state.isWipedOut ? '💀 Frontline incapacitated' : '⏱️ Burst window / time limit reached'}`);
+        console.log(`[DailyHost:Combat] Boss HP: ${state.bossHpPct.toFixed(1)}% | Honors: ${totalHonors.toLocaleString()} pt | Turns: ${turnsElapsed}`);
+        console.log(`[DailyHost:Combat] Active Hosted Raid ID: ${activeRaidId || 'Active'}`);
+        console.log(`[DailyHost:Combat] 🚀 Yielding to assist / Gold Bar farming while pub clears in background!`);
+        console.log(`========================================================================\n`);
+
+        return {
+          isVictoryConfirmed: false,
+          turnsElapsed,
+          honorsEarned: totalHonors,
+          message: state.isWipedOut
+            ? 'Yielded: frontline incapacitated, pub backup active'
+            : 'Yielded: burst window reached, pub backup active',
+          durationMs: Date.now() - t0,
+          yieldedToAssist: true,
+          activeRaidId: activeRaidId || undefined
+        };
+      }
+
+      // Fallback for frontline wipeout when assist interleaving is explicitly disabled
       if (state.isWipedOut) {
         console.log(
           `[DailyHost:Combat] 💀 Player frontline incapacitated. Backup participants active. Awaiting pub to clear boss (Boss HP: ${state.bossHpPct.toFixed(1)}%)...`
@@ -304,7 +351,9 @@ export class HostedCombatRunner implements IHostedCombatRunner {
       const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
       if (curHash.includes('result_multi') || curHash.includes('result')) {
         console.log('[DailyHost:Combat] 🏆 Result screen reached. Acknowledging rewards...');
-        await (this.workflow as any).handleDismissPopups();
+        if (typeof (this.workflow as any)?.handleDismissPopups === 'function') {
+          await (this.workflow as any).handleDismissPopups();
+        }
         await logNormalDelay(600, 0.15);
         break;
       }
@@ -317,14 +366,20 @@ export class HostedCombatRunner implements IHostedCombatRunner {
 
         if (isDead) {
           console.log('[DailyHost:Combat] Boss at 0% HP. Reloading to trigger result redirect...');
-          await (this.workflow as any).handleReload({ code: 'reload' });
+          if (typeof (this.workflow as any)?.handleReload === 'function') {
+            await (this.workflow as any).handleReload({ code: 'reload' });
+          } else {
+            await this.page.evaluate(() => window.location.reload()).catch(() => null);
+          }
         }
       }
 
       await logNormalDelay(1000, 0.15);
     }
 
-    await (this.workflow as any).handleDismissPopups();
+    if (typeof (this.workflow as any)?.handleDismissPopups === 'function') {
+      await (this.workflow as any).handleDismissPopups();
+    }
     await this.navigator.navigateToMultiList();
 
     const hasRemainingRestart = await this.page.evaluate(() => {
@@ -370,6 +425,46 @@ export class HostedCombatRunner implements IHostedCombatRunner {
       await (this.workflow as any).handleReload({ code: 'reload' });
       await logNormalDelay(6000, 0.15);
     }
+    return false;
+  }
+
+  /**
+   * Evaluates if combat should yield to assist farming:
+   * 1. Player frontline is incapacitated (wipeout).
+   * 2. Max combat burst turns reached without boss death.
+   * 3. Max combat duration reached without boss death.
+   */
+  private shouldYieldToAssist(
+    state: { isMounted: boolean; isVictory: boolean; isWipedOut: boolean; bossHpPct: number },
+    turnsElapsed: number,
+    combatStartTime: number,
+    options?: DailyHostExecutionOptions
+  ): boolean {
+    if (options?.enableAssistInterleaving === false) {
+      return false;
+    }
+
+    if (state.bossHpPct <= 0 || state.isVictory) {
+      return false;
+    }
+
+    // 1. Wipeout condition: all 4 frontline dead
+    if (state.isWipedOut) {
+      return true;
+    }
+
+    // 2. Turns ceiling reached
+    const maxBurstTurns = options?.maxCombatTurnsBeforeYield || options?.maxTurnsPerRaid || 15;
+    if (turnsElapsed >= maxBurstTurns) {
+      return true;
+    }
+
+    // 3. Combat time ceiling reached (default 120s / 2 minutes)
+    const maxDurationMs = options?.maxCombatTimeBeforeYieldMs || 120_000;
+    if (Date.now() - combatStartTime >= maxDurationMs) {
+      return true;
+    }
+
     return false;
   }
 }

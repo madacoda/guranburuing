@@ -1,7 +1,6 @@
-// src/services/daily-host/active-hosted-raid.scanner.ts
 import { Page } from 'puppeteer-core';
-import { IActiveHostedRaidScanner, IHostedCombatRunner } from '../../domain/daily-host/daily-host.interfaces.js';
-import { DailyRaidHostDefinition, DailyRaidExecutionRecord, DailyRaidCategory } from '../../domain/daily-host/daily-host.types.js';
+import { IActiveHostedRaidScanner, IHostedCombatRunner, IAssistInterleaver } from '../../domain/daily-host/daily-host.interfaces.js';
+import { DailyRaidHostDefinition, DailyRaidExecutionRecord, DailyRaidCategory, DailyHostExecutionOptions } from '../../domain/daily-host/daily-host.types.js';
 import { DAILY_HOST_CATALOG } from '../../domain/daily-host/daily-host.catalog.js';
 import { UniversalWorkflowEngine } from '../../engines/universal-workflow.engine.js';
 import { logNormalDelay } from '../../human-motor.js';
@@ -10,16 +9,24 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
   private page: Page;
   private workflow: UniversalWorkflowEngine;
   private combatRunner: IHostedCombatRunner;
+  private interleaver?: IAssistInterleaver;
 
-  constructor(page: Page, workflow: UniversalWorkflowEngine, combatRunner: IHostedCombatRunner) {
+  constructor(
+    page: Page,
+    workflow: UniversalWorkflowEngine,
+    combatRunner: IHostedCombatRunner,
+    interleaver?: IAssistInterleaver
+  ) {
     this.page = page;
     this.workflow = workflow;
     this.combatRunner = combatRunner;
+    this.interleaver = interleaver;
   }
 
   public updatePage(page: Page): void {
     this.page = page;
     this.combatRunner.updatePage(page);
+    this.interleaver?.updatePage(page);
   }
 
   /**
@@ -28,13 +35,17 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
    *
    * @param scanRecentTab If true, inspects #quest/assist Recent tab (used in pre-flight).
    *                      If false, only checks current screen / active battle without navigating away.
+   * @param options       Optional execution options including assist interleaving configuration.
    */
-  public async scanAndResumeActiveHostedRaid(scanRecentTab = true): Promise<DailyRaidExecutionRecord | null> {
+  public async scanAndResumeActiveHostedRaid(
+    scanRecentTab = true,
+    options?: DailyHostExecutionOptions
+  ): Promise<DailyRaidExecutionRecord | null> {
     // 1. Check if already inside an active raid battle
     const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
     if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(curHash)) {
       console.log(`[DailyHost:Scanner] ⚔️ Active raid battle detected in browser (${curHash}). Engaging combat...`);
-      return await this.resolveAndClearActiveRaid();
+      return await this.resolveAndClearActiveRaid('', options);
     }
 
     // 2. Check if popRestartQuest modal is open on screen
@@ -74,7 +85,7 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
       if (clicked) {
         await logNormalDelay(1500, 0.15);
         await (this.workflow as any).waitForBattleToMount(12000);
-        return await this.resolveAndClearActiveRaid(restartInfo.text);
+        return await this.resolveAndClearActiveRaid(restartInfo.text, options);
       }
     }
 
@@ -83,13 +94,13 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
       return null;
     }
 
-    return await this.checkRecentTabForHostedRaid();
+    return await this.checkRecentTabForHostedRaid(options);
   }
 
   /**
    * Scans #quest/assist -> Recent tab (#tab-multi) for self-hosted raids (data-raid-type="0").
    */
-  private async checkRecentTabForHostedRaid(): Promise<DailyRaidExecutionRecord | null> {
+  private async checkRecentTabForHostedRaid(options?: DailyHostExecutionOptions): Promise<DailyRaidExecutionRecord | null> {
     try {
       console.log('[DailyHost:Scanner] 🔍 Checking Backup Requests Recent tab (#quest/assist) for active hosted raids...');
 
@@ -132,7 +143,7 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
         if (clicked) {
           await logNormalDelay(1500, 0.15);
           await (this.workflow as any).waitForBattleToMount(12000);
-          return await this.resolveAndClearActiveRaid(restartInfo);
+          return await this.resolveAndClearActiveRaid(restartInfo, options);
         }
       }
 
@@ -209,7 +220,7 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
 
         await logNormalDelay(1500, 0.15);
         await (this.workflow as any).waitForBattleToMount(12000);
-        return await this.resolveAndClearActiveRaid(hostedCard.questName);
+        return await this.resolveAndClearActiveRaid(hostedCard.questName, options);
       }
 
       // Clean return to #quest/multi/0 after inspect
@@ -232,7 +243,10 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
   /**
    * Resumes and completes an active raid battle until 100% victory confirmation.
    */
-  private async resolveAndClearActiveRaid(modalText = ''): Promise<DailyRaidExecutionRecord> {
+  private async resolveAndClearActiveRaid(
+    modalText = '',
+    options?: DailyHostExecutionOptions
+  ): Promise<DailyRaidExecutionRecord> {
     const t0 = Date.now();
 
     // Match raid from catalog by name or id if found in modal text
@@ -267,8 +281,21 @@ export class ActiveHostedRaidScanner implements IActiveHostedRaidScanner {
     };
 
     console.log(`[DailyHost:Scanner] 🛡️ Resolving active hosted raid: "${raidDef.name}"`);
-    const combatOutcome = await this.combatRunner.executeHostedCombat(raidDef, 60);
-    await this.combatRunner.confirmAndDismissBattleResult();
+    let combatOutcome = await this.combatRunner.executeHostedCombat(
+      raidDef,
+      options?.maxTurnsPerRaid ?? 60,
+      options
+    );
+
+    if (combatOutcome.yieldedToAssist && combatOutcome.activeRaidId && this.interleaver) {
+      combatOutcome = await this.interleaver.interleaveAssistWhileHostedRaidActive(
+        raidDef,
+        combatOutcome.activeRaidId,
+        options || {}
+      );
+    } else {
+      await this.combatRunner.confirmAndDismissBattleResult();
+    }
 
     return {
       raid: raidDef,

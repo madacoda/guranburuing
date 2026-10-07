@@ -25,6 +25,7 @@ import {
   ISupporterPartyLauncher,
   IBackupBroadcastService,
   IHostedCombatRunner,
+  IAssistInterleaver,
   IDailyHostReporter
 } from '../domain/daily-host/daily-host.interfaces.js';
 
@@ -35,6 +36,7 @@ import { HostPreconditionValidator } from '../services/daily-host/host-precondit
 import { SupporterPartyLauncher } from '../services/daily-host/supporter-party.launcher.js';
 import { BackupBroadcastService } from '../services/daily-host/backup-broadcast.service.js';
 import { HostedCombatRunner } from '../services/daily-host/hosted-combat.runner.js';
+import { AssistInterleaverService } from '../services/daily-host/assist-interleaver.service.js';
 import { DailyHostReporter } from '../services/daily-host/daily-host.reporter.js';
 
 /**
@@ -61,6 +63,7 @@ export class DailyHostEngine {
   private launcher: ISupporterPartyLauncher;
   private broadcast: IBackupBroadcastService;
   private combat: IHostedCombatRunner;
+  private interleaver: IAssistInterleaver;
   private reporter: IDailyHostReporter;
 
   constructor(
@@ -75,6 +78,7 @@ export class DailyHostEngine {
       launcher?: ISupporterPartyLauncher;
       broadcast?: IBackupBroadcastService;
       combat?: IHostedCombatRunner;
+      interleaver?: IAssistInterleaver;
       reporter?: IDailyHostReporter;
     }
   ) {
@@ -99,7 +103,15 @@ export class DailyHostEngine {
     this.validator = dependencies?.validator ?? new HostPreconditionValidator(this.page);
     this.launcher = dependencies?.launcher ?? new SupporterPartyLauncher(this.page, this.workflow);
     this.combat = dependencies?.combat ?? new HostedCombatRunner(this.page, this.workflow, this.broadcast, this.navigator);
-    this.scanner = dependencies?.scanner ?? new ActiveHostedRaidScanner(this.page, this.workflow, this.combat);
+    this.interleaver = dependencies?.interleaver ?? new AssistInterleaverService(
+      this.page,
+      this.sentinel,
+      this.broadcast,
+      this.combat,
+      this.navigator,
+      this.accountId
+    );
+    this.scanner = dependencies?.scanner ?? new ActiveHostedRaidScanner(this.page, this.workflow, this.combat, this.interleaver);
     this.reporter = dependencies?.reporter ?? new DailyHostReporter();
   }
 
@@ -115,6 +127,7 @@ export class DailyHostEngine {
     this.validator.updatePage(newPage);
     this.launcher.updatePage(newPage);
     this.combat.updatePage(newPage);
+    this.interleaver.updatePage(newPage);
     this.scanner.updatePage(newPage);
   }
 
@@ -125,6 +138,7 @@ export class DailyHostEngine {
     this.stopRequested = true;
     this.workflow.requestStop();
     this.combat.requestStop();
+    this.interleaver.requestStop();
     if ('requestStop' in this.launcher && typeof (this.launcher as any).requestStop === 'function') {
       (this.launcher as any).requestStop();
     }
@@ -172,7 +186,7 @@ export class DailyHostEngine {
 
     // Pre-flight 2: Check if an active self-hosted raid is already in progress
     console.log('[DailyHost] 🔍 Inspecting for any active in-progress hosted raid first...');
-    const activeRaidRecord = await this.scanner.scanAndResumeActiveHostedRaid();
+    const activeRaidRecord = await this.scanner.scanAndResumeActiveHostedRaid(true, options);
     if (activeRaidRecord) {
       executionRecords.push(activeRaidRecord);
       console.log(`[DailyHost] ✅ In-progress raid "${activeRaidRecord.raid.name}" cleared! Continuing with remaining daily hosts...\n`);
@@ -257,7 +271,7 @@ export class DailyHostEngine {
       await this.navigator.navigateToMultiList();
 
       // Check if blocked by an active raid modal upon navigation
-      const activePreNav = await this.scanner.scanAndResumeActiveHostedRaid(false);
+      const activePreNav = await this.scanner.scanAndResumeActiveHostedRaid(false, options);
       if (activePreNav) {
         if (activePreNav.raid.id === raid.id || activePreNav.raid.name.toLowerCase().includes(raid.name.toLowerCase())) {
           return activePreNav;
@@ -301,8 +315,16 @@ export class DailyHostEngine {
         }).catch(() => null);
 
         await (this.workflow as any).waitForBattleToMount(12000);
-        const combatOutcome = await this.combat.executeHostedCombat(raid, options.maxTurnsPerRaid);
-        await this.combat.confirmAndDismissBattleResult();
+        let combatOutcome = await this.combat.executeHostedCombat(raid, options.maxTurnsPerRaid, options);
+        if (combatOutcome.yieldedToAssist && combatOutcome.activeRaidId) {
+          combatOutcome = await this.interleaver.interleaveAssistWhileHostedRaidActive(
+            raid,
+            combatOutcome.activeRaidId,
+            options
+          );
+        } else {
+          await this.combat.confirmAndDismissBattleResult();
+        }
         return this.createRecord(
           raid,
           combatOutcome.isVictoryConfirmed ? 'CLEARED' : 'FAILED',
@@ -346,8 +368,16 @@ export class DailyHostEngine {
         }
 
         console.log(`[DailyHost] ⚔️ In-progress raid battle active. Engaging combat directly for "${raid.name}"...`);
-        const combatOutcome = await this.combat.executeHostedCombat(raid, options.maxTurnsPerRaid);
-        await this.combat.confirmAndDismissBattleResult();
+        let combatOutcome = await this.combat.executeHostedCombat(raid, options.maxTurnsPerRaid, options);
+        if (combatOutcome.yieldedToAssist && combatOutcome.activeRaidId) {
+          combatOutcome = await this.interleaver.interleaveAssistWhileHostedRaidActive(
+            raid,
+            combatOutcome.activeRaidId,
+            options
+          );
+        } else {
+          await this.combat.confirmAndDismissBattleResult();
+        }
         return this.createRecord(
           raid,
           combatOutcome.isVictoryConfirmed ? 'CLEARED' : 'FAILED',
@@ -359,7 +389,7 @@ export class DailyHostEngine {
       }
 
       // Check if blocked by in-progress raid popup right after clicking play
-      const activeOnPlay = await this.scanner.scanAndResumeActiveHostedRaid(false);
+      const activeOnPlay = await this.scanner.scanAndResumeActiveHostedRaid(false, options);
       if (activeOnPlay) {
         if (activeOnPlay.raid.id === raid.id || activeOnPlay.raid.name.toLowerCase().includes(raid.name.toLowerCase())) {
           return activeOnPlay;
@@ -395,7 +425,7 @@ export class DailyHostEngine {
       const supporterSelected = await this.launcher.selectSupporterSummon();
       if (!supporterSelected) {
         // Re-check if active raid modal intercepted
-        const activeOnSummon = await this.scanner.scanAndResumeActiveHostedRaid(false);
+        const activeOnSummon = await this.scanner.scanAndResumeActiveHostedRaid(false, options);
         if (activeOnSummon) return activeOnSummon;
         return this.createRecord(raid, 'FAILED', 0, 0, Date.now() - t0, 'Supporter summon selection timed out.');
       }
@@ -404,16 +434,25 @@ export class DailyHostEngine {
       console.log('[DailyHost] Confirming party deck and launching battle...');
       const partyLaunched = await this.launcher.confirmPartyAndLaunchQuest();
       if (!partyLaunched) {
-        const activeOnParty = await this.scanner.scanAndResumeActiveHostedRaid(false);
+        const activeOnParty = await this.scanner.scanAndResumeActiveHostedRaid(false, options);
         if (activeOnParty) return activeOnParty;
         return this.createRecord(raid, 'FAILED', 0, 0, Date.now() - t0, 'Failed to confirm party and launch battle.');
       }
 
       // 8. Execute Smart Full Auto Combat + Request Backup to ALL
-      const combatOutcome = await this.combat.executeHostedCombat(raid, options.maxTurnsPerRaid);
+      let combatOutcome = await this.combat.executeHostedCombat(raid, options.maxTurnsPerRaid, options);
 
-      // 9. Confirm and acknowledge battle results
-      await this.combat.confirmAndDismissBattleResult();
+      // Check if combat yielded to background pub clear + assist farming
+      if (combatOutcome.yieldedToAssist && combatOutcome.activeRaidId) {
+        combatOutcome = await this.interleaver.interleaveAssistWhileHostedRaidActive(
+          raid,
+          combatOutcome.activeRaidId,
+          options
+        );
+      } else {
+        // 9. Confirm and acknowledge battle results
+        await this.combat.confirmAndDismissBattleResult();
+      }
 
       return this.createRecord(
         raid,

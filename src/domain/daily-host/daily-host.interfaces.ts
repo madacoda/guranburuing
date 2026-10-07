@@ -4,6 +4,7 @@ import {
   DailyRaidHostDefinition,
   DailyRaidExecutionRecord,
   DailyHostExecutionSummary,
+  DailyHostExecutionOptions,
   HostPreconditionCheck,
   BackupBroadcastResult,
   HostedCombatOutcome
@@ -15,7 +16,7 @@ import {
  */
 export interface IActiveHostedRaidScanner {
   updatePage(page: Page): void;
-  scanAndResumeActiveHostedRaid(scanRecentTab?: boolean): Promise<DailyRaidExecutionRecord | null>;
+  scanAndResumeActiveHostedRaid(scanRecentTab?: boolean, options?: DailyHostExecutionOptions): Promise<DailyRaidExecutionRecord | null>;
 }
 
 /**
@@ -73,8 +74,35 @@ export interface IBackupBroadcastService {
 export interface IHostedCombatRunner {
   updatePage(page: Page): void;
   requestStop(): void;
-  executeHostedCombat(raid: DailyRaidHostDefinition, maxTurns?: number): Promise<HostedCombatOutcome>;
+  executeHostedCombat(
+    raid: DailyRaidHostDefinition,
+    maxTurns?: number,
+    options?: DailyHostExecutionOptions
+  ): Promise<HostedCombatOutcome>;
   confirmAndDismissBattleResult(): Promise<void>;
+  getAuthoritativeBattleState(): Promise<{
+    isMounted: boolean;
+    isVictory: boolean;
+    isWipedOut: boolean;
+    bossHp: number;
+    bossHpMax: number;
+    bossHpPct: number;
+    currentHonors: number;
+  }>;
+}
+
+/**
+ * Interface for interleaving assist / Gold Bar farming while a self-hosted raid clears in the background.
+ * (Single Responsibility: Assist Interleaving & Background Host Recheck Orchestration).
+ */
+export interface IAssistInterleaver {
+  updatePage(page: Page): void;
+  requestStop(): void;
+  interleaveAssistWhileHostedRaidActive(
+    raid: DailyRaidHostDefinition,
+    hostedRaidId: string,
+    options: DailyHostExecutionOptions
+  ): Promise<HostedCombatOutcome>;
 }
 
 /**

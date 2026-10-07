@@ -69,6 +69,8 @@ export interface HostedCombatOutcome {
   readonly honorsEarned: number;
   readonly message: string;
   readonly durationMs: number;
+  readonly yieldedToAssist?: boolean;
+  readonly activeRaidId?: string;
 }
 
 /**
@@ -125,4 +127,11 @@ export interface DailyHostExecutionOptions {
   maxTurnsPerRaid?: number;
   speedProfile?: 'fast' | 'normal' | 'turbo';
   logPath?: string;
+
+  // Senior Gold Standard Interleaved Assist Farming Options
+  enableAssistInterleaving?: boolean;
+  assistActivity?: 'gb-farm' | 'gb-pbhl' | 'gb-akasha' | 'gb-go' | string;
+  maxCombatTimeBeforeYieldMs?: number;
+  maxCombatTurnsBeforeYield?: number;
+  hostedRaidRecheckIntervalMs?: number;
 }

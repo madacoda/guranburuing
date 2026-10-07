@@ -20,9 +20,35 @@ let targetAccountStr = defaultAccount ? defaultAccount.id : 'acc1';
 let categoryFilter: DailyHostCategory | 'all' = 'all';
 let specificRaidId: string | undefined = undefined;
 
+let assistActivity = 'gb-farm';
+let enableAssist = true;
+let maxCombatTurnsBeforeYield = 15;
+let hostedRaidRecheckIntervalMs = 180_000;
+
+for (let i = 0; i < rawArgs.length; i++) {
+  const arg = rawArgs[i];
+  if (arg === '--no-assist') {
+    enableAssist = false;
+  } else if (arg === '--assist' && rawArgs[i + 1] && !rawArgs[i + 1].startsWith('-')) {
+    assistActivity = rawArgs[++i];
+  } else if (arg.startsWith('--assist=')) {
+    assistActivity = arg.split('=')[1];
+  } else if ((arg === '--max-turns' || arg === '--turns') && rawArgs[i + 1]) {
+    maxCombatTurnsBeforeYield = parseInt(rawArgs[++i], 10) || 15;
+  } else if (arg.startsWith('--max-turns=')) {
+    maxCombatTurnsBeforeYield = parseInt(arg.split('=')[1], 10) || 15;
+  } else if (arg === '--recheck-interval' && rawArgs[i + 1]) {
+    hostedRaidRecheckIntervalMs = (parseInt(rawArgs[++i], 10) || 180) * 1000;
+  } else if (arg.startsWith('--recheck-interval=')) {
+    hostedRaidRecheckIntervalMs = (parseInt(arg.split('=')[1], 10) || 180) * 1000;
+  }
+}
+
 for (const arg of positionalArgs) {
   const lower = arg.toLowerCase();
-  if (registeredAccounts.some(a => a.id.toLowerCase() === lower)) {
+  if (['gb-farm', 'gb-akasha', 'gb-pbhl', 'gb-go'].includes(lower)) {
+    assistActivity = lower;
+  } else if (registeredAccounts.some(a => a.id.toLowerCase() === lower)) {
     targetAccountStr = registeredAccounts.find(a => a.id.toLowerCase() === lower)!.id;
   } else if (lower === 'hl' || lower === 'high' || lower === 'goldbrick') {
     categoryFilter = 'hl';
@@ -51,6 +77,8 @@ async function runDailyHostForAccount(account: AccountConfig, options: DailyHost
   if (options.specificRaidId) {
     console.log(`Specific Raid:       ${options.specificRaidId}`);
   }
+  console.log(`Dual-Track Assist:   ${options.enableAssistInterleaving !== false ? `ENABLED [Target: ${options.assistActivity || 'gb-farm'}]` : 'DISABLED'}`);
+  console.log(`Recheck Interval:    ${Math.round((options.hostedRaidRecheckIntervalMs || 180000) / 1000)}s (3-min Backup Cooldown)`);
   console.log(`Browser Mode:        ${isWindowed ? 'WINDOWED' : 'HEADLESS (--headless=new)'}`);
   console.log('========================================================================\n');
 
@@ -113,7 +141,11 @@ async function main() {
     categoryFilter,
     specificRaidId,
     autoReplenishAp: true,
-    maxTurnsPerRaid: 35
+    maxTurnsPerRaid: 35,
+    enableAssistInterleaving: enableAssist,
+    assistActivity,
+    maxCombatTurnsBeforeYield,
+    hostedRaidRecheckIntervalMs
   };
 
   if (isAllAccounts) {
