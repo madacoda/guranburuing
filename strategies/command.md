@@ -58,8 +58,8 @@ AUTO_LAUNCH_CHROME=true
 bun install
 ```
 
-### Step 2: First-Time Account Setup (SRWare Iron or Chrome)
-The bot prioritizes your dedicated **SRWare Iron** browser (`C:\Program Files\SRWare Iron (64-Bit)\iron.exe`), which operates 100% independently from your standard Google Chrome profiles.
+### Step 2A: First-Time Account Setup on Local Desktop (Windows / macOS)
+The bot prioritizes your dedicated **SRWare Iron** browser (`C:\Program Files\SRWare Iron (64-Bit)\iron.exe`) or Chrome, operating 100% independently from your daily browser profiles.
 
 ```bash
 # Setup / login primary account (acc1):
@@ -71,7 +71,93 @@ bun run account:setup acc2
 
 1. This opens the browser in **Windowed (Headful)** mode on port 9222 with the account's isolated profile (`~/.gbf-profiles/acc1`).
 2. Log into your Granblue Fantasy account once (Mobage, Google, etc.) and navigate to `#mypage`.
-3. Once verified, session cookies and local storage remain permanently stored. You can run completely **headless** for all future sessions without Chrome collision or file locks.
+3. Once verified, session cookies (`data/acc1-cookies.json`) and local storage remain permanently stored. You can run completely **headless** for all future sessions without Chrome collision or file locks.
+
+---
+
+### Step 2B: First-Time Account Setup on a Headless / Low-Resource VPS (Ubuntu / Debian)
+
+On a remote VPS (e.g. 1 vCPU, 1 GB RAM), there is **no physical monitor** and running `--windowed` without an X server fails (`cannot open display: :0`). Furthermore, installing heavy desktop environments (GNOME/XFCE) consumes 400MB–800MB RAM, causing Out-Of-Memory (OOM) crashes.
+
+Choose one of these **4 low-resource VPS authentication methods**:
+
+#### Method 1: Instant 1-Command Local ➔ VPS Sync (⭐ Recommended — 0 Extra RAM)
+If you already logged into GBF on your local PC, sync your authenticated session to your VPS in 3 seconds:
+```bash
+# Run on your local Windows PC:
+bun run sync acc1 --remote http://<VPS_IP>:3001 --token <AUTH_TOKEN>
+```
+- Automatically exports your verified local session cookies and uploads them to the VPS Gateway daemon (`/api/cookies/import`).
+- The VPS browser injects the cookies via CDP, verifies on `#profile`, and saves the permanent profile. Zero manual input required on the VPS!
+
+#### Method 2: Direct Midship Token Import (Instant / No Server Exposure)
+You can directly pass your Granblue `midship` cookie value on the VPS terminal:
+```bash
+# Run on your VPS SSH:
+bun run account:setup acc1 --midship "S%3AYOUR_MIDSHIP_COOKIE_VALUE_HERE"
+# or
+bun run session:import acc1 --midship "S%3AYOUR_MIDSHIP_COOKIE_VALUE_HERE"
+```
+> [!TIP]
+> **How to get your `midship` cookie**: Open Chrome DevTools on your PC (`F12`), go to **Application** $\rightarrow$ **Cookies** $\rightarrow$ `game.granbluefantasy.jp`, copy the value of `midship` (starts with `S%3A`).
+> Alternatively, copy `data/acc1-cookies.json` from your PC to the VPS via `scp data/acc1-cookies.json root@<VPS_IP>:~/guranburuing/data/` and run `bun run session:import acc1`.
+
+#### Method 3: Remote Interactive Web Cockpit (Headless Screencast — ~200MB RAM)
+Perform the 1-time login directly on the VPS through your phone or desktop browser with zero VNC:
+```bash
+# Run on your VPS SSH:
+bun run account:setup acc1 --headless
+```
+1. The helper starts an ultra-low-memory headless Chrome and launches the interactive Gateway server on port `3001`.
+2. Open in your local browser or phone:
+   ```text
+   http://<VPS_IP>:3001/?token=gbf_secure_remote_token_2026_x89a1
+   ```
+3. *If port 3001 is firewalled by your cloud provider (AWS/DigitalOcean/Hetzner), create an SSH tunnel from your PC*:
+   ```bash
+   ssh -L 3001:localhost:3001 root@<VPS_IP>
+   # Then open in your PC browser: http://localhost:3001/?token=gbf_secure_remote_token_2026_x89a1
+   ```
+4. You will see a live interactive screencast of the headless browser! Click Mobage/Google, enter credentials / OTP, and navigate to `#mypage`. The script detects `#mypage`, saves the cookies, and finishes!
+
+#### Method 4: Virtual Framebuffer via Xvfb (If you specifically need `--windowed` on Linux)
+If you require windowed mode execution on headless Linux without installing a heavy desktop environment:
+```bash
+# 1. Install lightweight Xvfb virtual display (only ~15MB RAM):
+sudo apt-get update && sudo apt-get install -y xvfb
+
+# 2. Run account setup wrapped in a virtual frame buffer:
+xvfb-run -a bun run account:setup acc1 --windowed
+```
+*(The updated `scripts/launch-gbf-chrome.sh` automatically detects if `$DISPLAY` is missing and wraps with `xvfb-run` or falls back to headless mode so it never crashes!)*
+
+---
+
+### Step 2C: Crucial VPS Memory Tuning for 1 GB RAM Instances
+
+On cheap 1 vCPU / 1 GB RAM VPS tiers, cloud providers default to **0 MB Swap space**. When Chrome bursts to 700MB+ RAM during page load, the Linux kernel Out-Of-Memory (OOM) killer will terminate Chrome or Bun.
+
+**Always configure a 2 GB Swapfile on your VPS**:
+```bash
+# Create and activate a 2 GB swapfile:
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Make permanent across reboots:
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Verify swap status:
+free -h
+```
+
+**Built-In Low-Memory Flags Active in `scripts/launch-gbf-chrome.sh`**:
+- `--js-flags=--max-old-space-size=384` (Caps V8 heap to 384 MB)
+- `--renderer-process-limit=1` (Prevents Chrome from spawning dozens of sub-processes)
+- `--disable-dev-shm-usage` (Prevents `/dev/shm` shared memory crashes on containers)
+- `--disable-gpu` & `--mute-audio` (Disables hardware acceleration and audio daemon overhead)
+- `--disk-cache-size=104857600` (Caps browser disk cache to 100 MB)
 
 ---
 
@@ -137,9 +223,8 @@ The routine executes sequentially with strict verification (`do_until_finish` ve
 4. **Casino Daily Exchange** (`#casino/exchange`):
    - Purchases daily limit of Half-Elixirs and Soul Berries (`daily_casino`).
 
-- Template: [`templates/daily-universal.json`](file:///c:/laragon/www/gbf/templates/daily-universal.json)
-- Shorthand DSL: [`templates/daily-universal.dsl`](file:///c:/laragon/www/gbf/templates/daily-universal.dsl)
-- Execution Log: [`logs/workflow-acc1-daily-universal.md`](file:///c:/laragon/www/gbf/logs/workflow-acc1-daily-universal.md)
+- Template: [`templates/daily-universal.json`](file:///c:/laragon/www/guranburuing/templates/daily-universal.json)
+- Execution Log: [`logs/workflow-acc1-daily-universal.md`](file:///c:/laragon/www/guranburuing/logs/workflow-acc1-daily-universal.md)
 
 ---
 
@@ -239,26 +324,27 @@ bun run gw-meat:swarm 100
 
 ### Running Higher Nightmare Tiers (NM100, NM150, NM200)
 
-To create or run workflows for other Nightmare tiers, you can create a template or shorthand DSL file in `templates/`:
+To create or run workflows for other Nightmare tiers, create a JSON template in `templates/`:
 
-```dsl
-# templates/gw-nm150-light.dsl
-Name: GW NM150 - Light Farm
-Mode: single
-Quest: https://game.granbluefantasy.jp/#quest/supporter/947591/1/0/10116
-Speed: fast
-Runs: 30
-Elixir: true
-Supporter: Zeus, Lucifer
-
----
-quick_call
-skill 1 1
-skill 2 1
-tap_full_auto
-wait_battle_end
-confirm_result
----
+```json
+// templates/gw-nm150-light.json
+{
+  "name": "GW NM150 - Light Farm",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/947591/1/0/10116",
+  "speedProfile": "fast",
+  "defaultRuns": 30,
+  "autoElixir": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "supporterPriority": ["Zeus", "Lucifer"],
+  "steps": [
+    { "code": "quick_call" },
+    { "code": "skill", "character": 1, "skill": 1 },
+    { "code": "skill", "character": 2, "skill": 1 },
+    { "code": "full_auto" },
+    { "code": "confirm_result" }
+  ]
+}
 ```
 
 Run your custom NM workflow:
@@ -323,7 +409,6 @@ bun run fate:10
 bun run src/cli/run-workflow.ts fate-stories 25
 ```
 - Template: [`templates/fate-stories.json`](file:///c:/laragon/www/guranburuing/templates/fate-stories.json)
-- Shorthand DSL: [`templates/fate-stories.dsl`](file:///c:/laragon/www/guranburuing/templates/fate-stories.dsl)
 
 ---
 
@@ -377,9 +462,8 @@ bun run event:workflow
 - Raid Runner: [`src/cli/run-event-raid.ts`](file:///c:/laragon/www/gbf/src/cli/run-event-raid.ts)
 - Engine: [`src/engines/event.engine.ts`](file:///c:/laragon/www/gbf/src/engines/event.engine.ts)
 - Story Runner: [`src/cli/run-clear-event.ts`](file:///c:/laragon/www/gbf/src/cli/run-clear-event.ts)
-- Raid Template: [`templates/event-raid.json`](file:///c:/laragon/www/gbf/templates/event-raid.json)
-- Story Template: [`templates/event-story.json`](file:///c:/laragon/www/gbf/templates/event-story.json)
-- Shorthand DSL: [`templates/event-story.dsl`](file:///c:/laragon/www/gbf/templates/event-story.dsl)
+- Raid Template: [`templates/event-raid.json`](file:///c:/laragon/www/guranburuing/templates/event-raid.json)
+- Story Template: [`templates/event-story.json`](file:///c:/laragon/www/guranburuing/templates/event-story.json)
 
 ---
 
@@ -433,7 +517,45 @@ bun run gb-farm
 
 ---
 
-## 9. Special Encounters & Farming
+## 10. OTK Raid Bursting & Leeching (`otkraid`)
+
+Engineered for ultra-fast raid participation and leeching where loot is awarded based on joining rather than blue-chest/honor score thresholds (e.g. Colossus Ira anima & materials).
+
+### Core Optimization Mechanics:
+- **Burst Filter Criteria**:
+  - **Boss HP**: `HP <= 20%` (strictly ignores high-health or fresh raids to avoid stall).
+  - **Player Count**: `Joined Players >= 3` (ensures sufficient player swarm to finish the raid within seconds).
+  - **Tie-Breaking**: Prioritizes lowest HP first and highest player count first.
+- **Combat Rotation**:
+  - Sub-second pipeline: Quick Summon (Varuna / Yatima) $\rightarrow$ Skill 1 $\rightarrow$ Attack $\rightarrow$ Immediate reload.
+  - Leaves the room instantly after applying burst to re-enter `#quest/assist` without lingering.
+- **3-Battle Pending Limit Self-Healing**:
+  - When reaching the 3/3 active battle limit, switches to active assist mode.
+  - Automatically navigates to `#quest/assist` pending list, re-enters unresolved battles, broadcasts in-game backup requests, and taps attack to help resolve lingering battles and unblock room slots.
+
+```bash
+# Continuous Colossus Ira fast burst loop on default account (acc1):
+bun run otkraid
+# or
+bun run otkraid:colossus
+
+# Run in visible GUI browser window:
+bun run otkraid:colossus:windowed
+
+# Run specific number of raids (e.g., 50 raids on acc2):
+bun run otkraid acc2 otkraid-colossus-ira 50
+
+# Run with custom account flag:
+bun run otkraid --account acc1 --runs 30
+```
+
+- Template: [`templates/otkraid-colossus-ira.json`](file:///c:/laragon/www/guranburuing/templates/otkraid-colossus-ira.json)
+- Evaluator Engine: [`src/engines/raid-evaluator.ts`](file:///c:/laragon/www/guranburuing/src/engines/raid-evaluator.ts)
+- Runner CLI: [`src/cli/run-otkraid.ts`](file:///c:/laragon/www/guranburuing/src/cli/run-otkraid.ts)
+
+---
+
+## 11. Special Encounters & Farming
 
 ### Rise of the Beasts (`rotb`)
 ```bash
@@ -457,7 +579,7 @@ bun run arcarum-theworld
 
 ---
 
-## 10. Universal Template CLI & Multi-Account Operations
+## 12. Universal Template CLI & Multi-Account Operations
 
 Execute any template for any account dynamically:
 
@@ -479,7 +601,7 @@ bun run workflow:validate
 
 ---
 
-## 11. Remote Controller Daemon & Mobile Companion PWA
+## 13. Remote Controller Daemon & Mobile Companion PWA
 
 Run the long-lived HTTP and WebSocket daemon to control the game and monitor live screencasts from your mobile phone or browser:
 
@@ -508,22 +630,57 @@ http://<YOUR-IP>:3001/?token=gbf_secure_remote_token_2026_x89a1
 
 ---
 
-## 12. Diagnostics & Testing Utilities
+## 14. Discord Rich Presence Integration (`presence`)
+
+Synchronize real-time activity status with Discord via local IPC / Bot Gateway. Supports 3 operational modes: `work` (deep focus / project tracking), `trade` (trading & risk quotes), and `gbf` (live raid drops & honors telemetry).
+
+### Work Presence Commands
+
+| Action | Command | Description |
+| :--- | :--- | :--- |
+| **Foreground (Default)** | `bun run presence:work` | Launches active session with default project (`Every Hero`) |
+| **Custom Project & Task** | `bun run presence work "Project Name" "Task details"` | Customizes status name and detail subtitle |
+| **One-Shot Config Update** | `bun run presence work "Project" "Task" --once` | Saves to `.env` & config without holding terminal open |
+| **Background Daemon** | `bun run presence:bg` | Starts detached silent background daemon (no open window) |
+| **Custom Background** | `powershell -ExecutionPolicy Bypass -File ./scripts/start-presence-daemon.ps1 -Mode work -Project "MyProject" -Task "Deep Work"` | Starts daemon with custom project & task |
+| **Stop / Clear** | `bun run presence:stop` *(or `bun run presence:clear`)* | Terminates background daemon and wipes Discord status |
+
+### Status & Other Templates
+
+```bash
+# Check current active template and activity preview:
+bun run presence status
+
+# Trading discipline quotes:
+bun run presence:trade
+bun run presence trade "Cut your losses quickly, let your winners run."
+bun run presence:bg:trade
+
+# GBF Live battle & raid drop telemetry (watches Akasha, PBHL, GO logs):
+bun run presence:watch
+bun run presence:gbf
+bun run presence:bg:gbf
+```
+
+---
+
+## 15. Diagnostics & Testing Utilities
 
 Run the unified test runner or target specific modules:
 
 | Test Command | Purpose |
 | :--- | :--- |
-| `bun run test` | Unified test runner executing all 8 test suites |
+| `bun run test` | Unified test runner executing all 22 test suites |
 | `bun run test:templates` | Validates all workflow template schemas and boundaries |
-| `bun run test:parser` | Tests advanced DSL compiler, serializing, and round-trip conversion |
+| `bun run test:parser` | Tests template parser, serialization, and round-trip conversion |
 | `bun run test:engine` | Unit and telemetry mock tests for UniversalWorkflowEngine |
+| `bun run test:evaluator` | Parallel condition checks, multi-slot concurrency & LRU cache tests |
 | `bun run test:daily` | Daily routine reconnect, loop, and Pro Skip verification |
-| `bun run workflow:validate` | Validates all 10 templates in `templates/` against gold standard |
+| `bun run workflow:validate` | Validates all 22 templates in `templates/` against gold standard |
 
 ---
 
-## 13. Common Troubleshooting & FAQs
+## 16. Common Troubleshooting & FAQs
 
 ### Q1: Chrome connection fails with "Could not attach to Chrome on port 9222"
 - **Cause**: Chrome/Iron is not running or port 9222 is occupied.

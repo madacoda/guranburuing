@@ -135,6 +135,7 @@ CHROME_ARGS=(
   "--disk-cache-size=104857600"
 )
 
+WRAPPER_CMD=()
 if [[ "$HEADLESS" == "true" ]]; then
   CHROME_ARGS+=(
     "--headless=new"
@@ -143,6 +144,25 @@ if [[ "$HEADLESS" == "true" ]]; then
     "--use-gl=angle"
     "--use-angle=swiftshader"
   )
+else
+  # Windowed mode requested on Linux
+  if [[ -z "$DISPLAY" ]]; then
+    if command -v xvfb-run &> /dev/null; then
+      echo "💡 [Launcher] No physical display ($DISPLAY) detected on VPS. Wrapping with xvfb-run virtual display..."
+      WRAPPER_CMD=("xvfb-run" "-a" "-s" "-screen 0 1280x1024x24")
+    else
+      echo "⚠️ [Launcher] Windowed mode requested on headless VPS, but no DISPLAY or xvfb-run found."
+      echo "👉 Gracefully falling back to --headless=new to prevent crash."
+      echo "👉 Tip: Install Xvfb for virtual display: sudo apt-get install -y xvfb"
+      CHROME_ARGS+=(
+        "--headless=new"
+        "--disable-blink-features=AutomationControlled"
+        "--enable-unsafe-swiftshader"
+        "--use-gl=angle"
+        "--use-angle=swiftshader"
+      )
+    fi
+  fi
 fi
 
 if [[ -n "$PROXY" ]]; then
@@ -154,8 +174,12 @@ CHROME_ARGS+=("$TARGET_URL")
 echo "🚀 [Launcher] Starting $CHROME_BIN on port $PORT (Headless: $HEADLESS)..."
 echo "📁 [Launcher] Profile directory: $USER_DATA_DIR"
 
-# Launch in background detached
-nohup "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
+# Launch in background detached (with optional xvfb wrapper)
+if [[ ${#WRAPPER_CMD[@]} -gt 0 ]]; then
+  nohup "${WRAPPER_CMD[@]}" "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
+else
+  nohup "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
+fi
 
 # Wait up to 10 seconds for the debugging port to open
 READY=false

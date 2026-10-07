@@ -106,9 +106,12 @@ export interface WorkflowTemplate {
   minBatchClaim?: number;   // Min raids before checking pending battles (default: 3)
   maxBatchClaim?: number;   // Max raids before checking pending battles (default: 5)
   batchClaimSize?: number;  // Fixed override for pending batch claim
-  minHpPct?: number;        // Minimum boss HP% filter for raid join (e.g. 50)
-  maxPlayers?: number;      // Maximum players filter for raid join (e.g. 5)
+  minHpPct?: number;        // Minimum boss HP% filter for raid join (e.g. 50 for honor, 1 for OTK burst)
+  maxHpPct?: number;        // Maximum boss HP% filter for raid join (e.g. 20 for OTK burst)
+  minPlayers?: number;      // Minimum active players filter for raid join (e.g. 3 for OTK burst)
+  maxPlayers?: number;      // Maximum players filter for raid join (e.g. 5 for honor, 29 for OTK burst)
   minRaidScore?: number;    // Minimum viability score (0-100) to join raid (default: 40)
+  evaluatorStrategy?: 'honor' | 'otk_burst'; // Scoring model: 'honor' (high HP, low players) or 'otk_burst' (low HP <= 20%, active players >= 3)
   logPath?: string;         // Custom path to drop log (e.g. 'logs/gb-pbhl.md')
 }
 

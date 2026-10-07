@@ -2,7 +2,7 @@
 
 ## 1. Universal Workflow as Architecture Staple
 - [x] **Universal Workflow Engine (`UniversalWorkflowEngine`) is now the single system backbone**:
-  - All strategy flows (Daily routines, Fate episodes, Raid Gold Bar farming, Guild Wars) are standardized as declarative templates (`templates/*.json`, `templates/*.dsl`).
+  - All strategy flows (Daily routines, Fate episodes, Raid Gold Bar farming, Guild Wars) are standardized as declarative JSON templates (`templates/*.json`).
   - Unified multi-account CDP session routing (`acc1`, `acc2`), automated reconnect watchdog, mobile viewport enforcement, anti-captcha sentinel freeze, and human motor jitter across all workflows.
   - Refactored `package.json` and strategy runners (`pbhl`, `gb-pbhl`, `gb-akasha`, `gb-go`, `gb-farm`, `fate`, `gw-meat-light`, `gw-nm95-light`) to route through the universal engine.
 
@@ -21,16 +21,16 @@
 ## 3. Verified Fate Stories & Strategy Templates
 - [x] **Fate Stories (`fate-stories`) fully operational**:
   - Fixed `handleSkipStoryScene` in `src/engines/universal-workflow.engine.ts` to support `.btn-scene-skip` and `.pop-synopsis .btn-scene-skip` modal confirmations.
-  - Updated `templates/fate-stories.json` and `templates/fate-stories.dsl` with live GBF DOM selectors (`.btn-quest-list.fate`, `.prt-list-contents:not(.is-cleared)`).
+  - Updated `templates/fate-stories.json` with live GBF DOM selectors (`.btn-quest-list.fate`, `.prt-list-contents:not(.is-cleared)`).
   - Resolved dynamic AJAX render timing in `handleLoopWhile` by adding an initial settle polling window.
   - **Live Verification**: Successfully processed 25 consecutive Fate Episodes on `acc1`, auto-skipping dialogues, collecting rewards, and returning home with zero manual intervention.
-- [x] **All 10 production workflow templates verified 100% compliant via `bun run workflow:validate`**.
-- [x] **Unit test scorecard**: 8/8 suites passing (100% pass rate).
+- [x] **All 21 production workflow templates verified 100% compliant via `bun run workflow:validate`**.
+- [x] **Unit test scorecard**: 20/20 suites passing (100% pass rate).
 
 ## 4. Daily Pro Skip Catalog Expansion & Command Guide
 - [x] **Athena Showdown (Primal Legends Pro) Resolution**:
   - Identified Athena Showdown belongs to **Primal Legends Pro** (`data-pro-chapter-id="30547"`, `questId: "305471"`).
-  - Added `daily_primal_pro` (`Primal Legends Pro`) and `daily_eternals_pro` (`Eternals Unlock Treasure Pro`) to [`templates/daily-universal.dsl`](file:///c:/laragon/www/gbf/templates/daily-universal.dsl) and compiled to [`templates/daily-universal.json`](file:///c:/laragon/www/gbf/templates/daily-universal.json).
+  - Added `daily_primal_pro` (`Primal Legends Pro`) and `daily_eternals_pro` (`Eternals Unlock Treasure Pro`) to [`templates/daily-universal.json`](file:///c:/laragon/www/guranburuing/templates/daily-universal.json).
   - Refined `executeAutomatedProSkip` in [`src/engines/universal-workflow.engine.ts`](file:///c:/laragon/www/gbf/src/engines/universal-workflow.engine.ts) to scope banner detection strictly to `.pop-pro-quest-list .prt-stage-quest.active .prt-quest-banner`.
   - Added `waitForSelector` for `.btn-pro-list, .btn-pro-quest` in `ensureProListModalOpen` to eliminate page-transition timing glitches.
   - **Live Verification**: `bun run daily:acc1` executed and cleared `Primal Legends Pro`, `Showdown Pro`, `Clash Pro`, `Six-Dragon Advent Pro`, and `Eternals Unlock Treasure Pro` with 100% pass.
@@ -47,3 +47,24 @@
   - Added full multi-selector modal confirmation support (`.pop-summon-detail .btn-usual-ok`, `.btn-usual-ok.btn-summon-use`, `.btn-call`, `.se-summon-call`).
   - Added summon animation lock settling (`waitForCombatInputReady`) to ensure MC and party skill queues never fire prematurely while the game canvas is locked.
   - Enhanced `dismissCombatDrawersAndPopups` to detect fixed overlays and dismiss error dialogs (such as "Not enough Machine Cells").
+
+## 6. OTK Raid Bursting & Leeching (`otkraid`)
+- [x] **Leech/Participation Burst Strategy Engine (`otk_burst`)**:
+  - Implemented `RaidEvaluatorStrategy = 'honor' | 'otk_burst'` with custom evaluation criteria in `src/engines/raid-evaluator.ts`.
+  - Configured raid filters: `boss HP <= 20%` AND `joined players >= 3` to ensure rapid kill without lingering or stalling.
+  - Prioritizes lowest HP first and highest player count first for optimal cycle times.
+- [x] **Colossus Ira Fast Leech Template (`templates/otkraid-colossus-ira.json`)**:
+  - Targets `#quest/assist` Tab 1 (Raid Slot 1) for Colossus Ira.
+  - Priority supporter: `Varuna` (with fallbacks `Leviathan`, `Kaguya`).
+  - Ultra-fast 5-step combat pipeline: Quick Summon $\rightarrow$ Skill 1 $\rightarrow$ Attack $\rightarrow$ Immediate reload $\rightarrow$ Return to `#quest/assist`.
+- [x] **Active Assist 3-Pending Battle Self-Healing**:
+  - Detects 3 active battle limit popup modal (`.pop-raid-limit`, `limit_multi_raid`).
+  - Automatically switches to active assist mode: re-enters pending battles, triggers in-game backup requests (`handleBackupRequest`) to draw assistance, and executes quick attack turns to clear slots.
+- [x] **CLI Runners & NPM Scripts**:
+  - Created `src/cli/run-otkraid.ts` supporting `--runs`, `--windowed`, `--account`, and headless execution.
+  - Added `bun run otkraid`, `bun run otkraid:colossus`, `bun run otkraid:colossus:windowed`.
+- [x] **Comprehensive Testing & Validation**:
+  - Added Suite 21 (`tests/test-otkraid-evaluator.ts`) covering all OTK burst candidate scenarios (qualifying, stalled, bulky, full/dead).
+  - All 22 templates verified with `bun run workflow:validate`.
+  - All 21 test suites passed 100% with `bun run test`.
+  - Full TypeScript validation passed with `bun run typecheck`.

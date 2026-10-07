@@ -108,6 +108,16 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Proto Bahamut HL Universal Workflow & Shorthand DSL Tests',
     file: 'tests/test-pbhl-universal-workflow.ts',
     description: 'PBHL Fire burst rotation, named summon resolution, natural language DSL parsing, and round-trip validation'
+  },
+  {
+    name: 'OTK Raid Burst & Leech Evaluator Unit Tests',
+    file: 'tests/test-otkraid-evaluator.ts',
+    description: 'Fast burst raid evaluation (HP <= 20%, players >= 3), Colossus Ira template validation, and active assist limit recovery'
+  },
+  {
+    name: 'Raid Evaluator Parallel Multi-Condition & High-Performance Tests',
+    file: 'tests/test-raid-evaluator-parallel.ts',
+    description: 'Parallel condition checking, multi-slot concurrency, O(1) set lookups, disqualification bitmasks, and LRU cache'
   }
 ];
 

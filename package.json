@@ -73,6 +73,10 @@
     "gb-akasha": "bun src/cli/run-workflow.ts gb-akasha",
     "gb-go": "bun src/cli/run-workflow.ts gb-go",
     "gb-farm": "bun src/cli/run-workflow.ts gb-farm",
+    "otkraid": "bun src/cli/run-otkraid.ts",
+    "otkraid:colossus": "bun src/cli/run-otkraid.ts colossus-ira",
+    "otkraid:colossus:windowed": "bun src/cli/run-otkraid.ts colossus-ira --windowed",
+    "otkraid:windowed": "bun src/cli/run-otkraid.ts --windowed",
     "arcarum-theworld": "bun src/cli/run-workflow.ts arcarum-theworld",
     "theworld": "bun src/cli/run-workflow.ts arcarum-theworld",
     "theworld:smart": "bun src/cli/run-workflow.ts arcarum-theworld-smart",
@@ -142,7 +146,8 @@
     "test:templates": "bun tests/test-template-schema.ts",
     "test:parser": "bun tests/test-template-parser-advanced.ts",
     "test:engine": "bun tests/test-universal-engine-unit.ts",
-    "test:daily": "bun tests/test-daily-universal-unit.ts"
+    "test:daily": "bun tests/test-daily-universal-unit.ts",
+    "test:evaluator": "bun tests/test-raid-evaluator-parallel.ts"
   },
   "dependencies": {
     "puppeteer-core": "^23.3.0",

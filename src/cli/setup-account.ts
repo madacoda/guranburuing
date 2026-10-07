@@ -61,6 +61,55 @@ async function main(targetAccount: AccountConfig) {
   const publicIp = await getPublicIp();
 
   let gateway: GatewayServer | null = null;
+  const midshipArgIdx = args.indexOf('--midship');
+  const rawMidship = midshipArgIdx !== -1 ? args[midshipArgIdx + 1] : null;
+  const fileArgIdx = args.indexOf('--file');
+  const customFile = fileArgIdx !== -1 ? args[fileArgIdx + 1] : null;
+  const jsonArgIdx = args.indexOf('--json');
+  const rawJson = jsonArgIdx !== -1 ? args[jsonArgIdx + 1] : null;
+
+  // 1. Direct Cookie Import Mode (--midship, --file, or --json)
+  if (rawMidship || customFile || rawJson) {
+    console.log(`[Setup] Direct cookie injection requested for account [${targetAccount.id}]...`);
+    let cookiesToInject: any[] = [];
+
+    if (rawMidship) {
+      const cleanMidship = rawMidship.trim().replace(/^["']|["']$/g, '');
+      const expiry = Math.floor(Date.now() / 1000) + 365 * 24 * 3600;
+      cookiesToInject = [
+        { name: 'midship', value: cleanMidship, domain: 'game.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry },
+        { name: 'midship', value: cleanMidship, domain: '.game.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry },
+        { name: 'midship', value: cleanMidship, domain: '.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry }
+      ];
+    } else if (rawJson) {
+      try {
+        const parsed = JSON.parse(rawJson);
+        cookiesToInject = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e: any) {
+        console.error(`❌ Failed to parse inline --json: ${e.message}`);
+        process.exit(1);
+      }
+    } else if (customFile) {
+      const resolvedFile = path.resolve(process.cwd(), customFile);
+      if (!fs.existsSync(resolvedFile)) {
+        console.error(`❌ Specified cookie file not found: ${resolvedFile}`);
+        process.exit(1);
+      }
+      const raw = fs.readFileSync(resolvedFile, 'utf-8');
+      const parsed = JSON.parse(raw);
+      cookiesToInject = Array.isArray(parsed) ? parsed : [parsed];
+    }
+
+    if (cookiesToInject.length > 0) {
+      console.log(`[Setup] Injecting ${cookiesToInject.length} cookies via Chrome DevTools Protocol...`);
+      const client = await page.target().createCDPSession();
+      await client.send('Network.clearBrowserCookies');
+      await client.send('Network.setCookies', { cookies: cookiesToInject });
+      await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
+      await new Promise(r => setTimeout(r, 2500));
+    }
+  }
+
   if (forceHeadless) {
     try {
       const sentinel = new SentinelWatchdog(page);
@@ -74,6 +123,11 @@ async function main(targetAccount: AccountConfig) {
       console.log(`\n 🔒 If port ${config.PORT} is firewalled, forward it securely from your PC:`);
       console.log(`    ssh -L ${config.PORT}:localhost:${config.PORT} root@${publicIp}`);
       console.log(`    and navigate to: http://localhost:${config.PORT}/?token=${config.AUTH_TOKEN}`);
+      console.log('\n 💡 FASTEST ALTERNATIVES (ZERO VNC / ZERO RAM OVERHEAD):');
+      console.log(`    1. Sync session from local PC:`);
+      console.log(`       bun run sync ${targetAccount.id} --remote http://${publicIp}:${config.PORT}`);
+      console.log(`    2. Direct token import:`);
+      console.log(`       bun run account:setup ${targetAccount.id} --midship "S%3A..."`);
       console.log('========================================================================\n');
     } catch (gwErr: any) {
       console.warn('[Setup] Companion cockpit notice:', gwErr.message);

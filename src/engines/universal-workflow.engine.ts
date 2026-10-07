@@ -4777,11 +4777,16 @@ export class UniversalWorkflowEngine {
         if (now - ts > 120000) this.deadRaidIds.delete(id);
       }
 
+      const isOtk = this.template.evaluatorStrategy === 'otk_burst';
       const evalOptions: RaidEvaluationOptions = {
+        strategy: this.template.evaluatorStrategy || 'honor',
         minScore: this.template.minRaidScore ?? RaidEvaluator.DEFAULT_MIN_SCORE,
-        minHpPct: this.template.minHpPct ?? RaidEvaluator.DEFAULT_MIN_HP,
-        maxPlayers: this.template.maxPlayers ?? RaidEvaluator.DEFAULT_MAX_PLAYERS,
-        deadRaidIds: Array.from(this.deadRaidIds.keys())
+        minHpPct: this.template.minHpPct ?? (isOtk ? 1 : RaidEvaluator.DEFAULT_MIN_HP),
+        maxHpPct: this.template.maxHpPct ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MAX_HP : undefined),
+        minPlayers: this.template.minPlayers ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MIN_PLAYERS : 1),
+        maxPlayers: this.template.maxPlayers ?? (isOtk ? 29 : RaidEvaluator.DEFAULT_MAX_PLAYERS),
+        deadRaidIds: this.deadRaidIds,
+        useCache: true
       };
 
       const selection = RaidEvaluator.selectBestCandidate(rawCandidates, evalOptions);
@@ -4955,11 +4960,12 @@ export class UniversalWorkflowEngine {
       return true;
     }
 
-    // 4. Decide strategy: ~80% Active Assist Helper, ~20% Passive Wait
-    const shouldActivelyHelp = Math.random() < 0.80;
+    // 4. Decide strategy: In otk_burst mode, 100% active assist cycle to clear fast; otherwise ~80% Active Assist Helper, ~20% Passive Wait
+    const isOtk = this.template?.evaluatorStrategy === 'otk_burst';
+    const shouldActivelyHelp = isOtk || (Math.random() < 0.80);
 
     if (shouldActivelyHelp) {
-      console.log(`[Workflow] ⚔️ Strategy chosen: ACTIVE ASSIST (~80% probability).`);
+      console.log(`[Workflow] ⚔️ Strategy chosen: ACTIVE ASSIST (${isOtk ? '100% OTK burst clearing' : '~80% probability'}).`);
       const assisted = await this.performActiveAssistCycle(logPath, currentRuns);
       if (assisted) return true;
       // If active assist didn't free a slot (e.g. raid was still bulky), fall back to passive wait
@@ -5032,6 +5038,14 @@ export class UniversalWorkflowEngine {
         const helpDurationMs = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
         console.log(`[Workflow] ⚔️ Assisting in lingering battle for ${(helpDurationMs / 1000).toFixed(1)}s (buffs -> attack -> reload)...`);
         const tStart = Date.now();
+
+        // Step 0: Broadcast backup request if available
+        const assistBtn = await this.page.$('.btn-assist, .btn-request').catch(() => null);
+        if (assistBtn) {
+          console.log('[Workflow] Broadcasting backup request to invite active helpers...');
+          await this.handleBackupRequest().catch(() => null);
+          await logNormalDelay(250, 0.1);
+        }
 
         // Step A: Click random buff skill
         if (!await this.isBattleEnded()) {
