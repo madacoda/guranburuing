@@ -273,6 +273,8 @@ export class GatewayServer {
       console.warn('[Gateway] ⚠️ Session cookies injected, but player profile verification returned empty.');
     }
 
+    this.screencast.triggerImmediateCapture(100);
+
     return { sanitizedCount: sanitizedCookies.length, profile };
   }
 
@@ -322,6 +324,7 @@ export class GatewayServer {
       if (typeof x === 'number' && typeof y === 'number') {
         try {
           await this.page.mouse.click(x, y);
+          this.screencast.triggerImmediateCapture(120);
         } catch (e: any) {
           console.warn('[Gateway] Tap event error:', e.message);
         }
@@ -335,6 +338,7 @@ export class GatewayServer {
       if (typeof text === 'string') {
         try {
           await this.page.keyboard.type(text, { delay: 20 });
+          this.screencast.triggerImmediateCapture(120);
         } catch (e: any) {
           console.warn('[Gateway] Type event error:', e.message);
         }
@@ -348,6 +352,7 @@ export class GatewayServer {
       if (typeof key === 'string') {
         try {
           await this.page.keyboard.press(key as any);
+          this.screencast.triggerImmediateCapture(120);
         } catch (e: any) {
           console.warn('[Gateway] Key event error:', e.message);
         }

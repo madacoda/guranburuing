@@ -124,10 +124,11 @@ async function main(targetAccount: AccountConfig) {
       console.log(`    ssh -L ${config.PORT}:localhost:${config.PORT} root@${publicIp}`);
       console.log(`    and navigate to: http://localhost:${config.PORT}/?token=${config.AUTH_TOKEN}`);
       console.log('\n 💡 FASTEST ALTERNATIVES (ZERO VNC / ZERO RAM OVERHEAD):');
-      console.log(`    1. Sync session from local PC:`);
+      console.log(`    1. Sync full session from local PC (exports all ~30 cookies):`);
       console.log(`       bun run sync ${targetAccount.id} --remote http://${publicIp}:${config.PORT}`);
-      console.log(`    2. Direct token import:`);
-      console.log(`       bun run account:setup ${targetAccount.id} --midship "S%3A..."`);
+      console.log(`    2. Import full cookies file via SCP:`);
+      console.log(`       scp ./data/${targetAccount.id}-cookies.json root@${publicIp}:/var/www/guranburuing/data/`);
+      console.log(`       bun run session:import ${targetAccount.id}`);
       console.log('========================================================================\n');
     } catch (gwErr: any) {
       console.warn('[Setup] Companion cockpit notice:', gwErr.message);

@@ -75,27 +75,28 @@ if [[ -z "$CHROME_BIN" ]]; then
   exit 1
 fi
 
-# 2. Check if port is already listening and responsive to CDP
+# 2. Check if port is already listening AND responsive to CDP
 PORT_ACTIVE=false
-if curl -s -m 1 "http://127.0.0.1:$PORT/json/version" &> /dev/null; then
+VERSION_RESP=$(curl -s -m 2 "http://127.0.0.1:$PORT/json/version" 2>/dev/null || true)
+
+if [[ -n "$VERSION_RESP" && "$VERSION_RESP" == *"webSocketDebuggerUrl"* ]]; then
   PORT_ACTIVE=true
-elif command -v ss &> /dev/null; then
-  if ss -tln | grep -qE "[:.]$PORT\b"; then
-    PORT_ACTIVE=true
-  fi
-elif command -v nc &> /dev/null; then
-  if nc -z 127.0.0.1 "$PORT" 2>/dev/null; then
-    PORT_ACTIVE=true
-  fi
-elif command -v lsof &> /dev/null; then
-  if lsof -i ":$PORT" &> /dev/null; then
-    PORT_ACTIVE=true
-  fi
 fi
 
 if [[ "$PORT_ACTIVE" == "true" ]]; then
-  echo "✅ [Launcher] Chrome is ALREADY running and listening on port $PORT. Reusing session."
+  echo "✅ [Launcher] Chrome is ALREADY running and responsive on port $PORT. Reusing session."
   exit 0
+else
+  # If port was bound by something else or a dead/frozen Chrome zombie, clean it up!
+  echo "🧹 [Launcher] Port $PORT is not responsive to CDP. Purging stale sockets and zombie processes..."
+  if command -v fuser &> /dev/null; then
+    fuser -k -n tcp "$PORT" 2>/dev/null || true
+  fi
+  if command -v lsof &> /dev/null; then
+    lsof -ti :"$PORT" | xargs -r kill -9 2>/dev/null || true
+  fi
+  pkill -9 -f "remote-debugging-port=$PORT" 2>/dev/null || true
+  sleep 0.5
 fi
 
 # 3. Clean up stale lock and socket files from ungraceful shutdowns / OOMs

@@ -81,44 +81,43 @@ On a remote VPS (e.g. 1 vCPU, 1 GB RAM), there is **no physical monitor** and ru
 
 Choose one of these **4 low-resource VPS authentication methods**:
 
-#### Method 1: Instant 1-Command Local ➔ VPS Sync (⭐ Recommended — 0 Extra RAM)
-If you already logged into GBF on your local PC, sync your authenticated session to your VPS in 3 seconds:
-```bash
-# Run on your local Windows PC:
-bun run sync acc1 --remote http://<VPS_IP>:3001 --token <AUTH_TOKEN>
-```
-- Automatically exports your verified local session cookies and uploads them to the VPS Gateway daemon (`/api/cookies/import`).
-- The VPS browser injects the cookies via CDP, verifies on `#profile`, and saves the permanent profile. Zero manual input required on the VPS!
+#### Method 1: Full Cookie Jar Sync from Local PC (⭐ Recommended — 0 Extra RAM)
+> [!IMPORTANT]
+> **Why `midship` alone NEVER works**: Granblue Fantasy is a Mobage/DMM-backed platform game. It does **not** authenticate on the `midship` cookie alone. The game client checks for Mobage platform authentication tokens (`connect.mobage.jp`, `sp.mbga.jp`, `.mobage.jp`, `_mobage_...`) and the anti-CSRF token `access_gbtk`. If only `midship` is provided on a fresh browser profile, Cygames' server immediately rejects the session and redirects to the login screen.
+> 
+> To authenticate without GUI, you must export the **complete cookie jar** (~25–35 cookies covering all auth domains):
 
-#### Method 2: Direct Midship Token Import (Instant / No Server Exposure)
-You can directly pass your Granblue `midship` cookie value on the VPS terminal:
-```bash
-# Run on your VPS SSH:
-bun run account:setup acc1 --midship "S%3AYOUR_MIDSHIP_COOKIE_VALUE_HERE"
-# or
-bun run session:import acc1 --midship "S%3AYOUR_MIDSHIP_COOKIE_VALUE_HERE"
-```
-> [!TIP]
-> **How to get your `midship` cookie**: Open Chrome DevTools on your PC (`F12`), go to **Application** $\rightarrow$ **Cookies** $\rightarrow$ `game.granbluefantasy.jp`, copy the value of `midship` (starts with `S%3A`).
-> Alternatively, copy `data/acc1-cookies.json` from your PC to the VPS via `scp data/acc1-cookies.json root@<VPS_IP>:~/guranburuing/data/` and run `bun run session:import acc1`.
+1. **Export full session on your local PC (Windows)**:
+   ```bash
+   bun scripts/export-session.ts acc1
+   # Or: powershell -ExecutionPolicy Bypass -File .\scripts\export-session-windows.ps1 -Account acc1
+   ```
+   *This extracts all cookies across `game.granbluefantasy.jp`, `mobage.jp`, `mbga.jp`, and `dmm.com` into `data/acc1-cookies.json`.*
 
-#### Method 3: Remote Interactive Web Cockpit (Headless Screencast — ~200MB RAM)
-Perform the 1-time login directly on the VPS through your phone or desktop browser with zero VNC:
+2. **Copy to your VPS and import**:
+   ```powershell
+   # From your local machine:
+   scp ./data/acc1-cookies.json root@<VPS_IP>:/var/www/guranburuing/data/
+   ```
+   ```bash
+   # On your VPS:
+   bun run session:import acc1
+   ```
+   *The importer injects all 30+ cookies via Chrome DevTools Protocol, verifies against `#profile`, and outputs your verified player name and rank.*
+
+#### Method 2: Remote Interactive Web Cockpit (Headless Screencast — ~200MB RAM)
+Log in natively on the VPS IP address through your phone or desktop browser with zero VNC:
 ```bash
 # Run on your VPS SSH:
 bun run account:setup acc1 --headless
 ```
-1. The helper starts an ultra-low-memory headless Chrome and launches the interactive Gateway server on port `3001`.
+1. The helper starts headless Chrome and boots the interactive Gateway server on port `3000` (or configured `PORT`).
 2. Open in your local browser or phone:
    ```text
-   http://<VPS_IP>:3001/?token=gbf_secure_remote_token_2026_x89a1
+   http://<VPS_IP>:3000/?token=<AUTH_TOKEN>
    ```
-3. *If port 3001 is firewalled by your cloud provider (AWS/DigitalOcean/Hetzner), create an SSH tunnel from your PC*:
-   ```bash
-   ssh -L 3001:localhost:3001 root@<VPS_IP>
-   # Then open in your PC browser: http://localhost:3001/?token=gbf_secure_remote_token_2026_x89a1
-   ```
-4. You will see a live interactive screencast of the headless browser! Click Mobage/Google, enter credentials / OTP, and navigate to `#mypage`. The script detects `#mypage`, saves the cookies, and finishes!
+3. *(If firewalled, create an SSH tunnel from your PC: `ssh -L 3000:localhost:3000 root@<VPS_IP>` and visit `http://localhost:3000/?token=<AUTH_TOKEN>`)*.
+4. With the adaptive screencast fix, you will see the live browser screen immediately. Click Mobage, enter your credentials/OTP in the remote input bar, and once `#mypage` loads, the helper automatically exports cookies and completes setup!
 
 #### Method 4: Virtual Framebuffer via Xvfb (If you specifically need `--windowed` on Linux)
 If you require windowed mode execution on headless Linux without installing a heavy desktop environment:
