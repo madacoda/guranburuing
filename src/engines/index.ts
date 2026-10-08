@@ -15,3 +15,4 @@ export * from './event.engine.js';
 export * from './unf-gacha.engine.js';
 export * from './daily-host.engine.js';
 export * from './gold-bar-hunter.engine.js';
+export * from './fate.engine.js';

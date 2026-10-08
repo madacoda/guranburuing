@@ -1,0 +1,39 @@
+{
+  "$schema": "../schemas/cooldown-and-pacing.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy server cooldowns, API rate-limiting thresholds, and human biomechanical pacing rest schedules.",
+  "gameServerCooldowns": {
+    "backupRequestBroadcastAllMs": 180000,
+    "raidFinderApiIntervalMs": 1500,
+    "gachaDrawDebounceMs": 800,
+    "questRematchDelayMs": 1200
+  },
+  "humanPacingBudgets": {
+    "maxActionsPerMinute": 45,
+    "targetActionsPerMinute": 32,
+    "restCycles": {
+      "microBreak": {
+        "intervalMinutes": 15,
+        "durationSeconds": 15
+      },
+      "mesoBreak": {
+        "intervalMinutes": 60,
+        "durationMinutes": 5
+      },
+      "macroBreak": {
+        "intervalHours": 3,
+        "durationMinutes": 20
+      },
+      "mandatorySleep": {
+        "durationHours": 7,
+        "enforce24hWindow": true
+      }
+    },
+    "fatigueCurves": {
+      "enabled": true,
+      "fatigueStepRuns": 25,
+      "delayScalingMultiplier": 1.15
+    }
+  }
+}

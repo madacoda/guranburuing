@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/daily-catalog.schema.json",
+  "$schema": "../schemas/anti-detection.schema.json",
   "version": "2.0.0",
   "description": "Biomechanical human motor heuristics, log-normal delay distributions, Bézier mouse kinematics, and anti-cheat mitigations.",
   "humanMotor": {

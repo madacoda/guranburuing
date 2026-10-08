@@ -1,0 +1,73 @@
+{
+  "$schema": "../schemas/event-automation.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Granblue Fantasy monthly scenario event (treasureraid) story auto-clearing, token gacha (Senka Drawbox) reset heuristics, and Nightmare skip rules.",
+  "storyPipeline": {
+    "maxEpisodesPerEvent": 40,
+    "cutsceneHandling": {
+      "detectHashPattern": "#quest/scene/",
+      "skipButtonSelector": ".btn-skip, .btn-scene-skip",
+      "synopsisSkipButtonSelector": ".pop-synopsis .btn-scene-skip, .pop-usual .btn-scene-skip"
+    },
+    "combatHandling": {
+      "enableFullAuto": true,
+      "autoButtonSelector": ".btn-auto, .btn-command-auto"
+    },
+    "rewardDismissal": {
+      "rewardModalSelectors": [
+        ".pop-usual .btn-usual-ok",
+        "#pop .btn-usual-ok",
+        ".btn-usual-ok",
+        ".btn-reward-check"
+      ]
+    }
+  },
+  "challengeQuest": {
+    "oneTimeClear": true,
+    "fixedParty": true,
+    "autoRun": true
+  },
+  "dailyManiac": {
+    "dailyLimit": 2,
+    "hellGuaranteedProc": true,
+    "selector": ".btn-quest-list.type-treasureraid-maniac, .btn-quest-list[data-quest-type=\"maniac\"]"
+  },
+  "nightmareHell": {
+    "difficulties": [60, 90, 100],
+    "tenBatchSkipSupported": true,
+    "skipUnlockedSelector": ".btn-skip-play, .btn-hell-skip",
+    "combatFallbackEnabled": true
+  },
+  "tokenGacha": {
+    "costPerDraw": 2,
+    "boxRules": {
+      "boxes1to4": {
+        "earlyResetOnSsr": true,
+        "targetItemType": "event_summon_or_weapon",
+        "description": "Reset immediately upon acquiring the primary SSR event summon or weapon to maximize token efficiency."
+      },
+      "boxes5to20": {
+        "drawTargetItems": true,
+        "targetItemTypes": [
+          "damascus_crystal",
+          "half_elixir",
+          "soul_berry"
+        ],
+        "description": "Draw until all high-value Damascus Crystals and Half-Elixirs are obtained, then reset to the next box."
+      },
+      "boxes21Plus": {
+        "infinitePool": true,
+        "bulkDrawBatchSize": 100,
+        "description": "Infinite replenishment pool. Execute Draw 1 Drawbox, tap to bypass animation, quick reload, reset box, and repeat."
+      }
+    },
+    "bulkDrawAutomation": {
+      "draw1BoxButtonSelector": ".btn-bulk-play-box, .btn-bulk-play",
+      "tapToSkipAnimationSelector": ".cnt-anim-play, .prt-gacha-anim, canvas#cjs-canvas",
+      "reloadBypassSupported": true,
+      "resetBoxButtonSelector": ".btn-reset, .btn-box-reset",
+      "confirmResetButtonSelector": ".pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-usual-ok"
+    }
+  }
+}

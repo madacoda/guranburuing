@@ -560,7 +560,9 @@ export class DropLogger {
         await discordDmRelay.sendMessage(
           content,
           details.screenshotBuffer,
-          `gold-bar-${cleanRaidId || 'drop'}.png`
+          `gold-bar-${cleanRaidId || 'drop'}.png`,
+          undefined,
+          true // force = true
         );
         console.log('[DropLogger] ✅ Gold Bar Discord DM alert delivered successfully!');
       } catch (err: any) {

@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/supporter-summons.schema.json",
+  "title": "GBFSupporterSummonsAndGridDecisionSchema",
+  "description": "Gold Industry Standard schema for Granblue Fantasy Supporter Summons, Grid Archetypes, Supporter Tab Routing, and Autonomous Pre-Battle Summon Selection Decision Matrix.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "gridArchetypes", "elementalSupporters", "uncapTierRanking", "selectionMatrix"],
+  "properties": {
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "gridArchetypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "weaponSkillBoostType", "optimalSupporterAura", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "weaponSkillBoostType": { "type": "string" },
+          "optimalSupporterAura": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "elementalSupporters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["element", "supporterTabAttribute", "magnaSummons", "primalSummons", "elementalSummons", "utilitySummons"],
+        "properties": {
+          "element": { "type": "string" },
+          "supporterTabAttribute": { "type": "number" },
+          "magnaSummons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "auraEffect", "maxUncapLevel"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "auraEffect": { "type": "string" },
+                "maxUncapLevel": { "type": "number" }
+              }
+            }
+          },
+          "primalSummons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "auraEffect", "maxUncapLevel"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "auraEffect": { "type": "string" },
+                "maxUncapLevel": { "type": "number" }
+              }
+            }
+          },
+          "elementalSummons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "auraEffect"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "auraEffect": { "type": "string" }
+              }
+            }
+          },
+          "utilitySummons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "auraEffect"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "auraEffect": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "uncapTierRanking": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tier", "level", "starRating", "priorityScore"],
+        "properties": {
+          "tier": { "type": "string" },
+          "level": { "type": "number" },
+          "starRating": { "type": "string" },
+          "priorityScore": { "type": "number" }
+        }
+      }
+    },
+    "selectionMatrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["questType", "preferredArchetype", "fallbackHierarchy", "quickSummonPreferred"],
+        "properties": {
+          "questType": { "type": "string" },
+          "preferredArchetype": { "type": "string" },
+          "fallbackHierarchy": { "type": "array", "items": { "type": "string" } },
+          "quickSummonPreferred": { "type": "boolean" },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/endpoints.schema.json",
+  "$schema": "../schemas/cdn-assets.schema.json",
   "version": "2.0.0",
   "description": "Granblue Fantasy Content Delivery Network (CDN) layout, asset patterns, and media routing.",
   "cdn": {

@@ -1,0 +1,84 @@
+{
+  "$schema": "../schemas/sentinel-watchdog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy security sentinel catalog: CAPTCHA signatures, DOM tripwires, network inspection patterns, anomaly thresholds, and escalation matrix.",
+  "captchaSignatures": {
+    "domSelectors": [
+      "#cnt-verification",
+      ".cnt-verification",
+      ".prt-verification",
+      ".pop-usual.verification",
+      "div[class*=\"verification\"][class*=\"pop\"]",
+      "div[id*=\"verification\"]",
+      "div[data-location-href*=\"verification\"]",
+      ".cnt-captcha",
+      ".pop-captcha",
+      "#c-a-i-frm-group",
+      ".prt-c-a-i-input",
+      ".prt-c-a-i-image",
+      ".lis-c-a-i-image",
+      "li.c-a-i-image",
+      "img.img-verification",
+      "img[src*=\"c/i?\"]",
+      "img[src*=\"/c/i\"]",
+      "img.image[src*=\"c/i\"]",
+      ".prt-popup-body .img-verification",
+      "#c-a-i-frm-group .btn-talk-message",
+      ".prt-c-a-i-input .btn-talk-message",
+      ".prt-c-a-i-input textarea",
+      "#c-a-i-frm-group textarea",
+      ".cnt-verification .btn-usual-ok",
+      ".pop-usual.verification .btn-usual-ok",
+      ".btn-verify",
+      "iframe[src*=\"recaptcha\"]",
+      "iframe[src*=\"turnstile\"]",
+      "iframe[src*=\"challenges.cloudflare.com\"]",
+      "iframe[src*=\"hcaptcha\"]",
+      "iframe[src*=\"sec_challenge\"]",
+      ".geetest_holder",
+      ".geetest_popup",
+      ".cf-turnstile"
+    ],
+    "networkPatterns": [
+      "/c/i?",
+      "/c/i",
+      "/rest/verification/",
+      "sec_challenge",
+      "challenges.cloudflare.com"
+    ],
+    "thirdPartyChallenges": [
+      "cloudflare_turnstile",
+      "google_recaptcha",
+      "hcaptcha",
+      "geetest"
+    ]
+  },
+  "anomalyThresholds": {
+    "maxConsecutiveNetworkErrors": 3,
+    "maxPageReloadStreak": 5,
+    "maxActionsPerMinute": 45,
+    "maxSessionHoursWithoutRest": 3.0
+  },
+  "escalationMatrix": {
+    "tier1Freeze": {
+      "haltInputs": true,
+      "latencyCeilingMs": 10
+    },
+    "tier2Snapshot": {
+      "captureScreenshot": true,
+      "captureDomHtml": true,
+      "storagePath": "artifacts/sentinel-captures"
+    },
+    "tier3Alert": {
+      "audibleAlarm": true,
+      "discordWebhook": true,
+      "telegramWebhook": true
+    },
+    "tier4Unfreeze": {
+      "requireHumanToken": true,
+      "unfreezeVerificationRoute": "#mypage",
+      "maxWaitTimeoutMinutes": 15
+    }
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "$schema": "../schemas/recovery-policies.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Granblue Fantasy operational consumable replenishment policies (AP, EP, AAP), pending battle limit unjamming, and session recovery.",
+  "consumables": {
+    "ap": [
+      {
+        "id": "half_elixir",
+        "itemId": "1",
+        "name": "Half Elixir",
+        "recoveryAmount": 50,
+        "isPercentage": false,
+        "priority": 1
+      },
+      {
+        "id": "full_elixir",
+        "itemId": "2",
+        "name": "Full Elixir",
+        "recoveryAmount": 100,
+        "isPercentage": true,
+        "priority": 2
+      }
+    ],
+    "ep": [
+      {
+        "id": "soul_berry",
+        "itemId": "5",
+        "name": "Soul Berry",
+        "recoveryAmount": 1,
+        "priority": 1
+      },
+      {
+        "id": "soul_balm",
+        "itemId": "6",
+        "name": "Soul Balm",
+        "recoveryAmount": 5,
+        "priority": 2
+      }
+    ],
+    "aap": [
+      {
+        "id": "sephira_aap_pack",
+        "itemId": "1001",
+        "name": "Sephira AAP",
+        "recoveryAmount": 100
+      }
+    ]
+  },
+  "apRecovery": {
+    "enabled": true,
+    "triggerRule": "currentAP < questAPCost",
+    "defaultItemId": "half_elixir",
+    "fallbackItemId": "full_elixir",
+    "allowFullElixir": false,
+    "maxItemsPerRun": 1,
+    "safetyReserveFloor": 50,
+    "modalSelectors": [
+      ".pop-usual .btn-use-item",
+      ".pop-show .btn-use-item",
+      ".btn-use-item.btn-usual-use",
+      ".btn-usual-ok.se-use",
+      ".btn-use-item"
+    ]
+  },
+  "epRecovery": {
+    "enabled": true,
+    "triggerRule": "currentEP < raidCost",
+    "defaultItemId": "soul_berry",
+    "fallbackItemId": "soul_balm",
+    "bulkConsumeAllowed": true,
+    "maxItemsPerRun": 5,
+    "safetyReserveFloor": 100,
+    "modalSelectors": [
+      ".pop-usual .btn-use-item",
+      ".pop-show .btn-use-item",
+      ".btn-use-item.btn-usual-use"
+    ]
+  },
+  "aapRecovery": {
+    "enabled": true,
+    "triggerRule": "currentAAP < sectorCost",
+    "defaultItemId": "sephira_aap_pack",
+    "maxItemsPerRun": 1
+  },
+  "pendingBattlesPolicy": {
+    "activeBattleLimit": 3,
+    "unclaimedLootLimit": 5,
+    "unjamRoute": "quest/assist/unclaimed/0/0",
+    "maxUnclaimPasses": 10,
+    "detectLimitKeywords": [
+      "three raid",
+      "up to three",
+      "provide backup in up to",
+      "only provide backup",
+      "pending",
+      "unclaimed",
+      "未確認",
+      "five or more",
+      "3 battles",
+      "3 raid",
+      "participating in 3",
+      "more than 3",
+      "up to 3",
+      "3件まで",
+      "同時に参戦できる",
+      "参戦中",
+      "3件",
+      "5件"
+    ],
+    "cardSelectors": [
+      ".btn-unclaimed",
+      ".btn-reward-check",
+      ".btn-claim",
+      "[data-location-href*=\"result\"]"
+    ],
+    "goldBarItemId": "20004",
+    "blueChestSelectors": [
+      ".prt-blue-chest",
+      ".ico-blue-chest"
+    ]
+  },
+  "sessionRecovery": {
+    "reconnectOnSessionLoss": true,
+    "maxAuthRetries": 3,
+    "authRedirectPatterns": [
+      "#authentication",
+      "#top",
+      "connect.mobage.jp"
+    ],
+    "platformGateway": "mobage"
+  }
+}

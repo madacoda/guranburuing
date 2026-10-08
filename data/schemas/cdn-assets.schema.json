@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/cdn-assets.schema.json",
+  "title": "GBFCDNAssetsSchema",
+  "description": "Authoritative schema for Granblue Fantasy Content Delivery Network (Akamai CDN) layouts, asset URL templates, and client-side caching policies.",
+  "type": "object",
+  "required": ["version", "description", "cdn"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "cdn": {
+      "type": "object",
+      "required": ["primaryOrigin", "backupOrigin", "languageVariants", "assetPaths", "cachingRules"],
+      "properties": {
+        "primaryOrigin": { "type": "string" },
+        "backupOrigin": { "type": "string" },
+        "languageVariants": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "assetPaths": {
+          "type": "object",
+          "required": [
+            "questLobbyThumb",
+            "stageCategoryThumb",
+            "characterLeader",
+            "npcCharacter",
+            "summonThumbnail",
+            "treasureItem",
+            "battleEnemySpine",
+            "audioBgm",
+            "audioSfx"
+          ],
+          "properties": {
+            "questLobbyThumb": { "type": "string" },
+            "stageCategoryThumb": { "type": "string" },
+            "characterLeader": { "type": "string" },
+            "npcCharacter": { "type": "string" },
+            "summonThumbnail": { "type": "string" },
+            "treasureItem": { "type": "string" },
+            "battleEnemySpine": { "type": "string" },
+            "audioBgm": { "type": "string" },
+            "audioSfx": { "type": "string" }
+          }
+        },
+        "cachingRules": {
+          "type": "object",
+          "required": ["immutableAssets", "manifestFile"],
+          "properties": {
+            "immutableAssets": { "type": "string" },
+            "manifestFile": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

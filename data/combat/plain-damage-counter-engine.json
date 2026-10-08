@@ -1,0 +1,64 @@
+{
+  "$schema": "../schemas/plain-damage-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Algorithmic decision tree and autonomous solver pipeline for resolving Plain Damage omens and surviving incoming plain damage attacks in Battle System 2.0.",
+  "solverPipeline": [
+    {
+      "step": 1,
+      "name": "Omen Requirement Interception",
+      "logic": "Extract required plain damage amount (D_req) and hit count from active omen condition (e.g. 2,000,000 in Lucilius Labor 7, or 777,777 in specialized trials)."
+    },
+    {
+      "step": 2,
+      "name": "Yamato Pre-Execution Bypass / Reduction",
+      "logic": "If Main Character class is Yamato: evaluate Seasplitter (instant cancel if Yashiori stacks == max) or Take the Head (reduces D_req by 20% to 30%, lowering 2.0M to 1.4M)."
+    },
+    {
+      "step": 3,
+      "name": "Quick Summon Triage (Priority 1: Zero Action Cost)",
+      "logic": "Check if Beelzebub (4★) is callable with Trance Lv >= 2. If callable, trigger Beelzebub call -> deals 3,000,000 plain damage immediately. Solves up to 3M requirement with 1 button."
+    },
+    {
+      "step": 4,
+      "name": "Character Plain Nuke Triage (Priority 2: On-Demand Skills)",
+      "logic": "Check availability of character skills: Threo Ground Zero (up to 2.04M), Lunalu Facsimile (duplicate Ground Zero for +2.04M), Clarisse Atomic Resolution (710k + Dispel), Catura Moo-Licious (800k). Dispatch in order of highest damage yield until sum >= D_req."
+    },
+    {
+      "step": 5,
+      "name": "Charge Attack Alignment (Priority 3: Ougi Phase)",
+      "logic": "If plain damage can be delivered via Charge Attack (e.g. Water Yodarha 3 stacks = 999,999 plain; Gwynne high HP = 1,200,000 plain): toggle Charge Attack ON and ensure sufficient charge bar before normal attack phase."
+    },
+    {
+      "step": 6,
+      "name": "Guard Fallback Evaluation (Priority 4: Survival Mitigation)",
+      "logic": "If sum of available plain damage is strictly less than D_req: DO NOT waste cooldowns. Immediately dispatch .btn-guard-all. In Battle System 2.0, Guard reduces incoming Plain damage by 90% (e.g. 70% Max HP becomes 7% Max HP, 99,999 Plain becomes 9,999 Plain), preserving the party for subsequent turns."
+    }
+  ],
+  "raidOmenMappings": [
+    {
+      "raidId": "dark_rapture_hard",
+      "raidName": "Lucilius (Hard) / FaaHL",
+      "labor": "Labor 7",
+      "requiredPlainDamage": 2000000,
+      "optimalSolver": "Beelzebub call (3M plain) OR Threo Ground Zero (2.04M plain) OR Clarisse + nuke",
+      "failurePenalty": "Lucilius gains Dark Elemental damage penetration on all subsequent attacks."
+    },
+    {
+      "raidId": "siete",
+      "raidName": "Siete (Revans)",
+      "trigger": "Carro Magnifico (10% HP)",
+      "requiredPlainDamage": 0,
+      "incomingDamage": 77777,
+      "mitigationStrategy": "All allies take 77,777 Plain damage. Survive by having > 77,777 HP, calling Titan summon (1 HP survival guts), or Guarding (.btn-guard-all reduces plain damage to ~7,777)."
+    },
+    {
+      "raidId": "subhl",
+      "raidName": "Super Ultimate Bahamut",
+      "trigger": "Genesis Nova (10% HP)",
+      "requiredPlainDamage": 0,
+      "incomingDamage": 999999,
+      "mitigationStrategy": "Uncancelable 999,999 Plain damage inflicting permanent Death Ineluctable. Bypass with 10% execution nuke or sacrifice frontline character with Guts/Tenacity."
+    }
+  ]
+}

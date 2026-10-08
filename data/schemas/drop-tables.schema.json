@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/drop-tables.schema.json",
+  "title": "GBFDropTablesSchema",
+  "description": "Authoritative schema for Granblue Fantasy drop mechanics, Blue Chest formulas, Gold Brick probability rates, and Eternity Sand drop pools.",
+  "type": "object",
+  "required": ["version", "description", "mechanics"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "mechanics": {
+      "type": "object",
+      "required": ["blueChest", "goldBrick", "redChest", "eternitySand"],
+      "properties": {
+        "blueChest": {
+          "type": "object",
+          "required": ["overview", "probabilityFormula", "goldBrickChests", "eternitySandChests"],
+          "properties": {
+            "overview": { "type": "string" },
+            "probabilityFormula": { "type": "string" },
+            "goldBrickChests": { "type": "array", "items": { "type": "string" } },
+            "eternitySandChests": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "goldBrick": {
+          "type": "object",
+          "required": ["pbhl", "akasha", "gohl"],
+          "properties": {
+            "pbhl": {
+              "type": "object",
+              "required": ["chestType", "guaranteedHonors", "guaranteedDamage", "goldBrickDropRateInChest", "notes"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "guaranteedHonors": { "type": "number" },
+                "guaranteedDamage": { "type": "number" },
+                "goldBrickDropRateInChest": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            },
+            "akasha": {
+              "type": "object",
+              "required": ["chestType", "guaranteedHonors", "guaranteedDamage", "goldBrickDropRateInChest", "notes"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "guaranteedHonors": { "type": "number" },
+                "guaranteedDamage": { "type": "number" },
+                "goldBrickDropRateInChest": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            },
+            "gohl": {
+              "type": "object",
+              "required": ["chestType", "guaranteedHonors", "guaranteedDamage", "goldBrickDropRateInChest", "notes"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "guaranteedHonors": { "type": "number" },
+                "guaranteedDamage": { "type": "number" },
+                "goldBrickDropRateInChest": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        },
+        "redChest": {
+          "type": "object",
+          "required": ["hostChest", "mvpChest"],
+          "properties": {
+            "hostChest": {
+              "type": "object",
+              "required": ["description", "pbhlGoldBrickRate", "notes"],
+              "properties": {
+                "description": { "type": "string" },
+                "pbhlGoldBrickRate": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            },
+            "mvpChest": {
+              "type": "object",
+              "required": ["description"],
+              "properties": {
+                "description": { "type": "string" }
+              }
+            }
+          }
+        },
+        "eternitySand": {
+          "type": "object",
+          "required": ["magna3", "revans", "subhl"],
+          "properties": {
+            "magna3": {
+              "type": "object",
+              "required": ["chestType", "dropRate", "thresholdHonors"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" },
+                "thresholdHonors": { "type": "number" }
+              }
+            },
+            "revans": {
+              "type": "object",
+              "required": ["chestType", "dropRate", "thresholdHonors"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" },
+                "thresholdHonors": { "type": "number" }
+              }
+            },
+            "subhl": {
+              "type": "object",
+              "required": ["chestType", "dropRate"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

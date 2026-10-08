@@ -10,74 +10,8 @@
   "speedProfile": "fast",
   "steps": [
     {
-      "name": "Navigate to Fate Episodes Page",
-      "code": "navigate",
-      "target": "https://game.granbluefantasy.jp/#quest/fate"
-    },
-    {
-      "name": "Await Fate Episodes List Mounted",
-      "code": "wait_element",
-      "target": ".btn-quest-list.fate, .prt-list-contents, .cnt-quest-scene, .prt-null-quest, .prt-no-quest",
-      "timeoutMs": 8000
-    },
-    {
-      "name": "Loop Through Available Fate Episodes",
-      "code": "loop_while",
-      "target": ".prt-fate-list .btn-quest-list.fate, .btn-quest-list.fate, .prt-fate-list .prt-list-contents:not(.is-cleared)",
-      "maxLoops": 25,
-      "subSteps": [
-        {
-          "name": "Click First Unread Fate Episode Card",
-          "code": "click",
-          "target": ".prt-fate-list .btn-quest-list.fate, .btn-quest-list.fate, .prt-list-contents:not(.is-cleared)"
-        },
-        {
-          "name": "Confirm Start Episode Modal",
-          "code": "click",
-          "target": ".pop-synopsis .btn-scene-skip, .pop-synopsis .btn-usual-ok, .btn-usual-ok.se-quest-start, .pop-usual .btn-usual-ok",
-          "optional": true,
-          "timeoutMs": 3000
-        },
-        {
-          "name": "Fast-Skip Story Dialogue and Scene Cutscenes",
-          "code": "skip_story_scene",
-          "timeoutMs": 12000
-        },
-        {
-          "name": "If Episode Contains Combat: Enable Full Auto",
-          "code": "auto",
-          "mode": "full",
-          "optional": true
-        },
-        {
-          "name": "Dismiss Rewards, Crystal Unlocks & Result Screens",
-          "code": "confirm_result"
-        },
-        {
-          "name": "Dismiss Any Remaining Notifications",
-          "code": "dismiss_popups"
-        },
-        {
-          "name": "Return to Fate List Page",
-          "code": "navigate",
-          "target": "https://game.granbluefantasy.jp/#quest/fate"
-        },
-        {
-          "name": "Await Fate List Ready",
-          "code": "wait_element",
-          "target": ".btn-quest-list.fate, .prt-list-contents, .cnt-quest-scene, .prt-null-quest, .prt-no-quest",
-          "timeoutMs": 6000
-        }
-      ]
-    },
-    {
-      "name": "Return to Home Page When Finished",
-      "code": "navigate",
-      "target": "https://game.granbluefantasy.jp/#mypage"
-    },
-    {
-      "name": "Dismiss Trailing Popups on Home",
-      "code": "dismiss_popups"
+      "name": "Clear Fate Episode (Cutscene Skip & Full Auto Combat)",
+      "code": "auto_fate_episode"
     }
   ]
 }

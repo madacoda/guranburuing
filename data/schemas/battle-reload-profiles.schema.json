@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Battle Reload & Fast-Forward Profiles Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "profiles",
+    "turnProcessingRecovery"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "profiles": {
+      "type": "object",
+      "required": ["turbo", "fast", "normal", "stealth"],
+      "properties": {
+        "turbo": { "$ref": "#/$defs/reloadProfile" },
+        "fast": { "$ref": "#/$defs/reloadProfile" },
+        "normal": { "$ref": "#/$defs/reloadProfile" },
+        "stealth": { "$ref": "#/$defs/reloadProfile" }
+      }
+    },
+    "turnProcessingRecovery": {
+      "type": "object",
+      "required": [
+        "maxWaitTurnProcessingMs",
+        "retryCount",
+        "popupDismissSelector",
+        "whiteScreenTimeoutMs",
+        "whiteScreenAction"
+      ],
+      "properties": {
+        "maxWaitTurnProcessingMs": { "type": "integer", "minimum": 1000 },
+        "retryCount": { "type": "integer", "minimum": 1 },
+        "popupDismissSelector": { "type": "string" },
+        "whiteScreenTimeoutMs": { "type": "integer", "minimum": 1000 },
+        "whiteScreenAction": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "reloadProfile": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "reloadOnAttack",
+        "reloadOnSkill",
+        "reloadOnSummon",
+        "createJsOptimization",
+        "postReloadDelayMs",
+        "dialogAutoDismiss"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "reloadOnAttack": { "type": "boolean" },
+        "reloadOnSkill": { "type": "boolean" },
+        "reloadOnSummon": { "type": "boolean" },
+        "createJsOptimization": {
+          "type": "object",
+          "required": ["tickerFramerate", "tweenFastForwardMs", "resetStageStatus"],
+          "properties": {
+            "tickerFramerate": { "type": "integer", "minimum": 30 },
+            "tweenFastForwardMs": { "type": "integer", "minimum": 0 },
+            "resetStageStatus": { "type": "boolean" }
+          }
+        },
+        "postReloadDelayMs": {
+          "type": "object",
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 }
+          }
+        },
+        "dialogAutoDismiss": { "type": "boolean" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

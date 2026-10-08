@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Scenario Event & Token Gacha Automation Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "storyPipeline",
+    "challengeQuest",
+    "dailyManiac",
+    "nightmareHell",
+    "tokenGacha"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "storyPipeline": {
+      "type": "object",
+      "required": ["maxEpisodesPerEvent", "cutsceneHandling", "combatHandling", "rewardDismissal"],
+      "properties": {
+        "maxEpisodesPerEvent": { "type": "integer", "minimum": 1 },
+        "cutsceneHandling": {
+          "type": "object",
+          "required": ["detectHashPattern", "skipButtonSelector", "synopsisSkipButtonSelector"],
+          "properties": {
+            "detectHashPattern": { "type": "string" },
+            "skipButtonSelector": { "type": "string" },
+            "synopsisSkipButtonSelector": { "type": "string" }
+          }
+        },
+        "combatHandling": {
+          "type": "object",
+          "required": ["enableFullAuto", "autoButtonSelector"],
+          "properties": {
+            "enableFullAuto": { "type": "boolean" },
+            "autoButtonSelector": { "type": "string" }
+          }
+        },
+        "rewardDismissal": {
+          "type": "object",
+          "required": ["rewardModalSelectors"],
+          "properties": {
+            "rewardModalSelectors": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "challengeQuest": {
+      "type": "object",
+      "required": ["oneTimeClear", "fixedParty", "autoRun"],
+      "properties": {
+        "oneTimeClear": { "type": "boolean" },
+        "fixedParty": { "type": "boolean" },
+        "autoRun": { "type": "boolean" }
+      }
+    },
+    "dailyManiac": {
+      "type": "object",
+      "required": ["dailyLimit", "hellGuaranteedProc", "selector"],
+      "properties": {
+        "dailyLimit": { "type": "integer", "minimum": 1 },
+        "hellGuaranteedProc": { "type": "boolean" },
+        "selector": { "type": "string" }
+      }
+    },
+    "nightmareHell": {
+      "type": "object",
+      "required": ["difficulties", "tenBatchSkipSupported", "skipUnlockedSelector", "combatFallbackEnabled"],
+      "properties": {
+        "difficulties": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "tenBatchSkipSupported": { "type": "boolean" },
+        "skipUnlockedSelector": { "type": "string" },
+        "combatFallbackEnabled": { "type": "boolean" }
+      }
+    },
+    "tokenGacha": {
+      "type": "object",
+      "required": ["costPerDraw", "boxRules", "bulkDrawAutomation"],
+      "properties": {
+        "costPerDraw": { "type": "integer", "minimum": 1 },
+        "boxRules": {
+          "type": "object",
+          "required": ["boxes1to4", "boxes5to20", "boxes21Plus"],
+          "properties": {
+            "boxes1to4": {
+              "type": "object",
+              "required": ["earlyResetOnSsr", "targetItemType", "description"],
+              "properties": {
+                "earlyResetOnSsr": { "type": "boolean" },
+                "targetItemType": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            },
+            "boxes5to20": {
+              "type": "object",
+              "required": ["drawTargetItems", "targetItemTypes", "description"],
+              "properties": {
+                "drawTargetItems": { "type": "boolean" },
+                "targetItemTypes": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "description": { "type": "string" }
+              }
+            },
+            "boxes21Plus": {
+              "type": "object",
+              "required": ["infinitePool", "bulkDrawBatchSize", "description"],
+              "properties": {
+                "infinitePool": { "type": "boolean" },
+                "bulkDrawBatchSize": { "type": "integer", "minimum": 1 },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        },
+        "bulkDrawAutomation": {
+          "type": "object",
+          "required": [
+            "draw1BoxButtonSelector",
+            "tapToSkipAnimationSelector",
+            "reloadBypassSupported",
+            "resetBoxButtonSelector",
+            "confirmResetButtonSelector"
+          ],
+          "properties": {
+            "draw1BoxButtonSelector": { "type": "string" },
+            "tapToSkipAnimationSelector": { "type": "string" },
+            "reloadBypassSupported": { "type": "boolean" },
+            "resetBoxButtonSelector": { "type": "string" },
+            "confirmResetButtonSelector": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

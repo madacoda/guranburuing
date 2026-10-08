@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Security Sentinel & CAPTCHA Tripwire Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "captchaSignatures",
+    "anomalyThresholds",
+    "escalationMatrix"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "captchaSignatures": {
+      "type": "object",
+      "required": ["domSelectors", "networkPatterns", "thirdPartyChallenges"],
+      "properties": {
+        "domSelectors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "networkPatterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "thirdPartyChallenges": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "anomalyThresholds": {
+      "type": "object",
+      "required": [
+        "maxConsecutiveNetworkErrors",
+        "maxPageReloadStreak",
+        "maxActionsPerMinute",
+        "maxSessionHoursWithoutRest"
+      ],
+      "properties": {
+        "maxConsecutiveNetworkErrors": { "type": "integer", "minimum": 1 },
+        "maxPageReloadStreak": { "type": "integer", "minimum": 1 },
+        "maxActionsPerMinute": { "type": "integer", "minimum": 10 },
+        "maxSessionHoursWithoutRest": { "type": "number", "minimum": 0.5 }
+      }
+    },
+    "escalationMatrix": {
+      "type": "object",
+      "required": ["tier1Freeze", "tier2Snapshot", "tier3Alert", "tier4Unfreeze"],
+      "properties": {
+        "tier1Freeze": {
+          "type": "object",
+          "required": ["haltInputs", "latencyCeilingMs"],
+          "properties": {
+            "haltInputs": { "type": "boolean" },
+            "latencyCeilingMs": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "tier2Snapshot": {
+          "type": "object",
+          "required": ["captureScreenshot", "captureDomHtml", "storagePath"],
+          "properties": {
+            "captureScreenshot": { "type": "boolean" },
+            "captureDomHtml": { "type": "boolean" },
+            "storagePath": { "type": "string" }
+          }
+        },
+        "tier3Alert": {
+          "type": "object",
+          "required": ["audibleAlarm", "discordWebhook", "telegramWebhook"],
+          "properties": {
+            "audibleAlarm": { "type": "boolean" },
+            "discordWebhook": { "type": "boolean" },
+            "telegramWebhook": { "type": "boolean" }
+          }
+        },
+        "tier4Unfreeze": {
+          "type": "object",
+          "required": ["requireHumanToken", "unfreezeVerificationRoute", "maxWaitTimeoutMinutes"],
+          "properties": {
+            "requireHumanToken": { "type": "boolean" },
+            "unfreezeVerificationRoute": { "type": "string" },
+            "maxWaitTimeoutMinutes": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

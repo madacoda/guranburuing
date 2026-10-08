@@ -1,0 +1,155 @@
+{
+  "$schema": "../schemas/state-machine-recovery.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Automation engine state machine taxonomy, failure modes, error classification, and self-healing action transitions.",
+  "states": [
+    {
+      "state": "IDLE",
+      "description": "Engine standing by, awaiting workflow or routine invocation.",
+      "isTerminal": false
+    },
+    {
+      "state": "NAVIGATING",
+      "description": "Transitioning between Backbone.js hash routes and verifying page mount.",
+      "isTerminal": false
+    },
+    {
+      "state": "IN_COMBAT_LOCKED",
+      "description": "In combat awaiting turn processing, skill lockout, or server damage resolution.",
+      "isTerminal": false
+    },
+    {
+      "state": "IN_COMBAT_READY",
+      "description": "In combat with HUD active and action buttons clickable.",
+      "isTerminal": false
+    },
+    {
+      "state": "AWAITING_RELOAD",
+      "description": "Page reload triggered, awaiting DOMContentLoaded, Zepto, and CreateJS re-initialization.",
+      "isTerminal": false
+    },
+    {
+      "state": "POST_BATTLE_SUMMARY",
+      "description": "Battle concluded, inspecting rewards, honors, tokens, and Blue/Gold chests.",
+      "isTerminal": false
+    },
+    {
+      "state": "UNCLAIMED_LOOT_DRAWER",
+      "description": "Pending battle unjamming in progress at #quest/assist/unclaimed.",
+      "isTerminal": false
+    },
+    {
+      "state": "MODAL_INTERCEPTION",
+      "description": "Handling unexpected dialogs, confirmation prompts, or AP/EP recovery modals.",
+      "isTerminal": false
+    },
+    {
+      "state": "AUTHENTICATION_GATEWAY",
+      "description": "Session expired or redirect to #top, executing Mobage OAuth handshake.",
+      "isTerminal": false
+    },
+    {
+      "state": "CAPTCHA_HALTED",
+      "description": "Active verification challenge detected, inputs halted, awaiting human intervention.",
+      "isTerminal": true
+    },
+    {
+      "state": "FATAL_ERROR",
+      "description": "Unrecoverable failure or safety ceiling breached, shutting down cleanly.",
+      "isTerminal": true
+    }
+  ],
+  "errorTaxonomy": [
+    {
+      "errorCode": "DETACHED_FRAME",
+      "description": "DOM frame or execution context detached during navigation or iframe transitions.",
+      "severity": "MEDIUM",
+      "maxRetryAttempts": 3,
+      "backoffDelayMs": 500,
+      "recoveryActions": [
+        "rebind_page_reference",
+        "ensure_viewport_and_mobile"
+      ]
+    },
+    {
+      "errorCode": "EXECUTION_CONTEXT_DESTROYED",
+      "description": "Browser navigation or F5 reload destroyed the active JavaScript evaluation context.",
+      "severity": "LOW",
+      "maxRetryAttempts": 5,
+      "backoffDelayMs": 300,
+      "recoveryActions": [
+        "await_domcontentloaded",
+        "rebind_page_reference",
+        "verify_route"
+      ]
+    },
+    {
+      "errorCode": "NETWORK_SOCKET_TIMEOUT",
+      "description": "CDP WebSocket disconnected or remote browser unresponsive.",
+      "severity": "HIGH",
+      "maxRetryAttempts": 3,
+      "backoffDelayMs": 2000,
+      "recoveryActions": [
+        "cdp_reconnect",
+        "rebind_page_reference",
+        "verify_session"
+      ]
+    },
+    {
+      "errorCode": "STUCK_POPUP_MODAL",
+      "description": "Unregistered modal dialog blocking user interaction with the combat HUD or menu.",
+      "severity": "MEDIUM",
+      "maxRetryAttempts": 3,
+      "backoffDelayMs": 400,
+      "recoveryActions": [
+        "dismiss_popups",
+        "scan_modal_catalog",
+        "click_cancel_fallback"
+      ]
+    },
+    {
+      "errorCode": "RAID_DISMISSED_OR_RETREAT",
+      "description": "Raid was defeated by other players or player was evicted due to 0 HP party wipe.",
+      "severity": "LOW",
+      "maxRetryAttempts": 2,
+      "backoffDelayMs": 800,
+      "recoveryActions": [
+        "dismiss_popups",
+        "claim_unclaimed_battles",
+        "return_to_quest_list"
+      ]
+    },
+    {
+      "errorCode": "WHITE_SCREEN_HANG",
+      "description": "DOM mounted with blank canvas or CreateJS ticker failed to advance after reload.",
+      "severity": "HIGH",
+      "maxRetryAttempts": 2,
+      "backoffDelayMs": 1500,
+      "recoveryActions": [
+        "force_page_reload",
+        "re_navigate_to_target",
+        "reset_createjs_stage"
+      ]
+    },
+    {
+      "errorCode": "CAPTCHA_TRIPWIRE",
+      "description": "Anti-cheat verification container, image puzzle, or Cloudflare challenge detected.",
+      "severity": "CRITICAL",
+      "maxRetryAttempts": 0,
+      "backoffDelayMs": 0,
+      "recoveryActions": [
+        "freeze_all_inputs",
+        "capture_snapshot",
+        "trigger_audible_alarm",
+        "dispatch_webhook_alert"
+      ]
+    }
+  ],
+  "fatalPolicy": {
+    "maxConsecutiveErrors": 3,
+    "haltAction": "emergency_halt_and_dump_diagnostics",
+    "notifyWebhook": true,
+    "cleanupOnHalt": true
+  }
+}

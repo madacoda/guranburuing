@@ -1,0 +1,71 @@
+{
+  "$schema": "../schemas/tactical-action-priority.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T09:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy Combat Tactical Action Priority Matrix, defining autonomous skill classification, lockout-optimized execution ordering, and combat safety interlocks.",
+  "executionTiers": [
+    {
+      "tier": 0,
+      "category": "omen_interception",
+      "name": "V2 Omen Interception & Triage",
+      "description": "Evaluate active V2 omen cancel conditions (hit count, skill damage, charge attack count, plain damage, dispels). If cancel condition is solvable, prioritize designated solver skills/summons before general rotation.",
+      "safetyInterlocks": ["guard_fallback_if_unsolvable"]
+    },
+    {
+      "tier": 1,
+      "category": "emergency_survival",
+      "name": "Status Effect Safety Interlocks & Cleanse/Dispel",
+      "description": "If party is afflicted by Zombified, lock out all healing. If boss has Repel, 100% Cut, or Absorption, immediately fire Dispel before any damage.",
+      "safetyInterlocks": ["zombified_healing_lockout", "repel_suicide_prevention"]
+    },
+    {
+      "tier": 2,
+      "category": "field_effects",
+      "name": "Field & Domain Abilities (Zone Setup)",
+      "description": "Cast field effects first (e.g. Field of Death, Flare, Blizzard) as they persist across multiple turns and amplify all subsequent damage without being consumed.",
+      "safetyInterlocks": ["prevent_field_overwrite"]
+    },
+    {
+      "tier": 3,
+      "category": "debuffs",
+      "name": "Enemy Debuff Application & Defense Lowering",
+      "description": "Apply Single DEF Down (25%) + Dual DEF Down (Miserable Mist 25%) to reach the hard 50% DEF Down cap before casting offensive steroids or nukes.",
+      "safetyInterlocks": ["cap_check_50_percent_def_down"]
+    },
+    {
+      "tier": 4,
+      "category": "offensive_buffs",
+      "name": "Team Steroids, Multi-Attack & Damage Amplification",
+      "description": "Apply team buffs (ATK Up, Guaranteed TA, Supplemental Damage, Echoes, Strike/Assassin buffs) to ensure all following attacks/ougis hit maximum damage cap.",
+      "safetyInterlocks": ["order_assassin_last_before_attack"]
+    },
+    {
+      "tier": 5,
+      "category": "damaging_nukes",
+      "name": "Multi-Hit & High-Multiplier Skill Nukes",
+      "description": "Cast damaging skills. Benefits from full 50% DEF down, team steroids, and supplemental damage buffs established in Tiers 3 & 4.",
+      "safetyInterlocks": ["save_nukes_if_upcoming_omen_requires_damage"]
+    },
+    {
+      "tier": 6,
+      "category": "summon_invocations",
+      "name": "Quick Summon & Summon Calls",
+      "description": "Invoke Quick Summon (Beelzebub, The Sun, Triple Zero, Death) to inflict debuffs, force party double strike, or guarantee triple attacks.",
+      "safetyInterlocks": ["one_summon_per_turn_limit"]
+    },
+    {
+      "tier": 7,
+      "category": "normal_or_charge_attack",
+      "name": "Attack Dispatch & Lockout-Optimized Animation Skip",
+      "description": "Click .btn-attack-start. In high-speed farming, execute F5 reload to bypass CreateJS battle animations, taking advantage of deterministic server lockout.",
+      "safetyInterlocks": ["verify_server_lockout_completion"]
+    }
+  ],
+  "skillClassificationMap": {
+    "field": ["field_of_death", "flare", "blizzard", "sanatana_dharma"],
+    "debuff": ["miserable_mist", "armor_break", "gravity", "delay", "elemental_def_down"],
+    "buff": ["rage", "dual_arts", "splitting_spirit", "elemental_atk_up", "echoes", "assassin"],
+    "nuke": ["decimate", "arrow_rain", "atomic_resolution", "ground_zero", "twin_flash"],
+    "heal": ["panacea", "sanatio", "clear_mind", "potion", "revive"]
+  }
+}

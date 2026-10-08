@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Plain Damage Sources & V2 Counter Engine Schema",
+  "description": "Schema for Plain Damage sources (summons, characters, classes, weapons) and algorithmic decision rules for resolving V2 Plain damage omens.",
+  "type": "object",
+  "required": ["version", "sources"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "sources": {
+      "type": "object",
+      "required": ["summons", "characters", "mcClassesAndWeapons"],
+      "properties": {
+        "summons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "callName", "plainDamageMax", "scalingType", "conditions"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "callName": { "type": "string" },
+              "plainDamageMax": { "type": "number" },
+              "scalingType": {
+                "type": "string",
+                "enum": ["fixed", "hp_percentage", "random", "turn_end_tick"]
+              },
+              "conditions": { "type": "string" },
+              "additionalUtility": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "characters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "element", "actionType", "actionName", "plainDamageMax", "scalingType"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "element": { "type": "string" },
+              "actionType": {
+                "type": "string",
+                "enum": ["skill", "charge_attack", "auto_counter", "support_skill"]
+              },
+              "actionName": { "type": "string" },
+              "plainDamageMax": { "type": "number" },
+              "scalingType": {
+                "type": "string",
+                "enum": ["consumed_hp", "fixed_stack", "hp_percentage", "charge_bar", "flat"]
+              },
+              "cooldownTurns": { "type": "integer" },
+              "conditions": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "mcClassesAndWeapons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "category", "name", "mechanism", "plainDamageMax"],
+            "properties": {
+              "id": { "type": "string" },
+              "category": { "type": "string", "enum": ["class_skill", "weapon_awaken", "secret_gear"] },
+              "name": { "type": "string" },
+              "mechanism": { "type": "string" },
+              "plainDamageMax": { "type": "number" },
+              "specialEffect": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

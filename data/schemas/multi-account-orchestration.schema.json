@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Multi-Account Orchestration & CDP Topology Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "portAllocation",
+    "topologies",
+    "safetyPolicies"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "portAllocation": {
+      "type": "object",
+      "required": ["basePort", "registeredAccounts"],
+      "properties": {
+        "basePort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "registeredAccounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "cdpPort", "profileDirPattern", "isPrimary"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "cdpPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+              "profileDirPattern": { "type": "string" },
+              "defaultSpeedProfile": { "type": "string" },
+              "isPrimary": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "topologies": {
+      "type": "object",
+      "required": ["sequential", "interleaved", "isolatedParallel"],
+      "properties": {
+        "sequential": {
+          "type": "object",
+          "required": ["description", "enforceCleanTearDown"],
+          "properties": {
+            "description": { "type": "string" },
+            "enforceCleanTearDown": { "type": "boolean" }
+          }
+        },
+        "interleaved": {
+          "type": "object",
+          "required": ["description", "hostedRaidCheckIntervalMs"],
+          "properties": {
+            "description": { "type": "string" },
+            "hostedRaidCheckIntervalMs": { "type": "integer", "minimum": 1000 }
+          }
+        },
+        "isolatedParallel": {
+          "type": "object",
+          "required": ["description", "minStaggerDelayMs"],
+          "properties": {
+            "description": { "type": "string" },
+            "minStaggerDelayMs": { "type": "integer", "minimum": 1000 }
+          }
+        }
+      }
+    },
+    "safetyPolicies": {
+      "type": "object",
+      "required": [
+        "minStaggerDelayMs",
+        "maxConcurrentHeadlessInstances",
+        "cookieSyncProtocol"
+      ],
+      "properties": {
+        "minStaggerDelayMs": { "type": "integer", "minimum": 5000 },
+        "maxConcurrentHeadlessInstances": { "type": "integer", "minimum": 1 },
+        "cookieSyncProtocol": {
+          "type": "object",
+          "required": ["localExtractionMethod", "remotePostEndpoint", "verificationRoute"],
+          "properties": {
+            "localExtractionMethod": { "type": "string" },
+            "remotePostEndpoint": { "type": "string" },
+            "verificationRoute": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

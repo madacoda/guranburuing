@@ -1,0 +1,114 @@
+{
+  "$schema": "../schemas/party-selection-rules.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Algorithmic decision rules and heuristics for automated Granblue Fantasy party, weapon grid, and supporter summon selection.",
+  "partySelectionRules": {
+    "bossElementToPartyElement": {
+      "fire": {
+        "optimalPartyElement": "water",
+        "supporterTabAttribute": 2,
+        "rationale": "Water deals 1.5x damage and takes 0.75x damage vs Fire. Crits and Seraphic amplification active.",
+        "recommendedSupporterSummons": ["Varuna", "Leviathan Omega", "Gabriel", "Beelzebub", "Triple Zero", "Kaguya"]
+      },
+      "water": {
+        "optimalPartyElement": "earth",
+        "supporterTabAttribute": 3,
+        "rationale": "Earth deals 1.5x damage and takes 0.75x damage vs Water. Crits and Seraphic amplification active.",
+        "recommendedSupporterSummons": ["Titan", "Yggdrasil Omega", "Uriel", "Beelzebub", "Triple Zero", "Kaguya"]
+      },
+      "earth": {
+        "optimalPartyElement": "wind",
+        "supporterTabAttribute": 4,
+        "rationale": "Wind deals 1.5x damage and takes 0.75x damage vs Earth. Crits and Seraphic amplification active.",
+        "recommendedSupporterSummons": ["Zephyrus", "Tiamat Omega", "Raphael", "Beelzebub", "Triple Zero", "Kaguya"]
+      },
+      "wind": {
+        "optimalPartyElement": "fire",
+        "supporterTabAttribute": 1,
+        "rationale": "Fire deals 1.5x damage and takes 0.75x damage vs Wind. Crits and Seraphic amplification active.",
+        "recommendedSupporterSummons": ["Agni", "Colossus Omega", "Michael", "Beelzebub", "Triple Zero", "Kaguya"]
+      },
+      "light": {
+        "optimalPartyElement": "dark",
+        "supporterTabAttribute": 6,
+        "rationale": "Dark deals 1.5x superior damage vs Light. Normal damage taken. Crits and Seraphic amplification active.",
+        "recommendedSupporterSummons": ["Hades", "Celeste Omega", "Bahamut", "Sariel", "Beelzebub", "Triple Zero", "Kaguya"]
+      },
+      "dark": {
+        "optimalPartyElement": "light",
+        "supporterTabAttribute": 5,
+        "rationale": "Light deals 1.5x superior damage vs Dark. Normal damage taken. Crits and Seraphic amplification active.",
+        "recommendedSupporterSummons": ["Zeus", "Luminiera Omega", "Lucifer", "Metatron", "Beelzebub", "Triple Zero", "Kaguya"]
+      },
+      "plain": {
+        "optimalPartyElement": "dark",
+        "fallbackPartyElement": "light",
+        "supporterTabAttribute": 7,
+        "rationale": "Plain/Null enemies have no elemental weakness. High raw burst setups (e.g. Dark Ereshkigal or Light Nehan/Viking) are preferred.",
+        "recommendedSupporterSummons": ["Hades", "Bahamut", "Zeus", "Lucifer", "Beelzebub", "Triple Zero", "Kaguya"]
+      }
+    },
+    "multiElementRaidExceptions": {
+      "pbhl": {
+        "name": "Prototype Bahamut HL",
+        "questId": "301061",
+        "bossElement": "Dark / All",
+        "recommendedPartyElements": ["light", "dark"],
+        "reasoning": "Starts Dark, shifts through Fire/Water/Earth/Wind phases (50-25%), then returns to Dark. Light burst (Viking/Nehan) and Dark burst (Ereshkigal) dominate the 1.48M blue chest race.",
+        "supporterSummonPriority": ["Hades", "Bahamut", "Zeus", "Lucifer", "Kaguya"]
+      },
+      "akasha": {
+        "name": "Akasha HL",
+        "questId": "303251",
+        "bossElement": "Dark",
+        "recommendedPartyElements": ["light", "dark"],
+        "reasoning": "Boss is Dark. Light is natural superior element; Dark burst setups with turn compression also compete effectively.",
+        "supporterSummonPriority": ["Zeus", "Luminiera Omega", "Hades", "Lucifer"]
+      },
+      "gohl": {
+        "name": "Grand Order HL",
+        "questId": "305161",
+        "bossElement": "Light / All",
+        "recommendedPartyElements": ["dark", "light"],
+        "reasoning": "Boss has multi-element forms and Peacemaker buff. Light and Dark racing setups achieve the fastest 1.48M honor burst.",
+        "supporterSummonPriority": ["Hades", "Zeus", "Bahamut", "Lucifer"]
+      },
+      "subhl": {
+        "name": "Super Ultimate Bahamut",
+        "questId": "305311",
+        "bossElement": "Plain / Multi",
+        "recommendedPartyElements": ["earth", "wind", "water", "light", "fire", "dark"],
+        "reasoning": "Requires coordinated 6-player elemental labor fulfillment (Ten Thousand Paths, 20M damage omens, 60-hit omens).",
+        "supporterSummonPriority": ["Titan", "Zephyrus", "Varuna", "Zeus", "Agni", "Hades"]
+      }
+    },
+    "gridSynergyRules": [
+      {
+        "ruleId": "MAINHAND_ELEMENT_MATCH",
+        "severity": "CRITICAL",
+        "description": "Main Character (MC) mainhand weapon element MUST match the intended party element. MC normal attacks and ougi element are dictated by the mainhand weapon."
+      },
+      {
+        "ruleId": "FRONTLINE_ELEMENT_HOMOGENEITY",
+        "severity": "CRITICAL",
+        "description": "All frontline characters must share the party element to receive weapon grid skill multipliers (Magna / Primal ATK & HP). Off-element characters receive near-zero grid bonuses."
+      },
+      {
+        "ruleId": "SERAPHIC_AMPLIFICATION_COMPLIANCE",
+        "severity": "HIGH",
+        "description": "When fighting on-element, the party MUST include a Seraphic weapon (e.g. Sword of Michael) or an Ultima Weapon with Seraphic Gauph Key for +20% to +25% un-capped damage amplification."
+      },
+      {
+        "ruleId": "OFF_ELEMENT_RESISTANCE_ENFORCEMENT",
+        "severity": "CRITICAL",
+        "description": "For high-level raids (Magna 3, Six Dragons, Revans, Guild Wars), bosses feature 50%-100% off-element damage resistance. Attempting these raids with an off-element party results in immediate failure or sub-10% honors."
+      },
+      {
+        "ruleId": "CRITICAL_GRID_REQUIREMENT",
+        "severity": "MEDIUM",
+        "description": "Weapon grid critical hit rate (Verity / Tech) is only effective on superior element. Do not build crit-focused grids for neutral or off-element encounters."
+      }
+    ]
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "$schema": "../schemas/plain-damage-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Authoritative catalog of Plain Damage sources in Granblue Fantasy, including summon calls, character abilities, ougi nukes, MC classes, and weapon mechanisms.",
+  "sources": {
+    "summons": [
+      {
+        "id": "beelzebub",
+        "name": "Beelzebub (4★)",
+        "callName": "Chaos Void",
+        "plainDamageMax": 3000000,
+        "scalingType": "fixed",
+        "conditions": "Main Character Trance Level >= 2 (guaranteed at battle start when set as Main Summon, or gained via C.A.)",
+        "additionalUtility": [
+          "3 Dispels (Trance Lv 1)",
+          "40% DEF Down & 20% Debuff Resistance Lowered (180s)",
+          "Borehole (Trance Lv 3: 50% DEF Down + 100k Supplemental Damage for 1 turn)"
+        ]
+      },
+      {
+        "id": "belial",
+        "name": "Belial (4★)",
+        "callName": "Parade's Lust",
+        "plainDamageMax": 3000000,
+        "scalingType": "random",
+        "conditions": "Random roll call outcome",
+        "additionalUtility": [
+          "Sub-aura adds up to 30,000 supplemental damage to all damage instances",
+          "Can grant team Double Strike, Unchallenged, or instant charge bar"
+        ]
+      },
+      {
+        "id": "michael",
+        "name": "Michael (4★)",
+        "callName": "Ignis Iudicium",
+        "plainDamageMax": 1500000,
+        "scalingType": "hp_percentage",
+        "conditions": "Scales based on enemy current HP (up to 1,500,000 at 4★)",
+        "additionalUtility": [
+          "Inflicts Delay on all foes",
+          "Dispels 1 buff from all foes"
+        ]
+      },
+      {
+        "id": "the_tower",
+        "name": "The Tower (Arcarum SSR / 5★)",
+        "callName": "Tower of Destruction",
+        "plainDamageMax": 1000000,
+        "scalingType": "turn_end_tick",
+        "conditions": "Inflicts Tower of Destruction debuff dealing up to 1,000,000 plain damage at the end of each turn for 3 turns",
+        "additionalUtility": [
+          "Passive DEF & Max HP sub-aura for Earth allies"
+        ]
+      },
+      {
+        "id": "grand_order",
+        "name": "Grand Order (4★ / 5★)",
+        "callName": "Peacemaker's Judgment",
+        "plainDamageMax": 1000000,
+        "scalingType": "fixed",
+        "conditions": "Deals plain damage to all foes on call",
+        "additionalUtility": [
+          "Grants team Drain (heal on attack)",
+          "Team ATK up"
+        ]
+      }
+    ],
+    "characters": [
+      {
+        "id": "threo",
+        "name": "Threo (Sarasa)",
+        "element": "earth",
+        "actionType": "skill",
+        "actionName": "Ground Zero",
+        "plainDamageMax": 2040000,
+        "scalingType": "consumed_hp",
+        "cooldownTurns": 6,
+        "conditions": "Consumes 99% of current HP. Deals ~820,000 at base, ~1,230,000 at Lv 95, ~2,040,000 at Lv 130 Transcendence",
+        "notes": "Premier HP-scaling plain damage nuke; grants 100% Shield to protect low HP."
+      },
+      {
+        "id": "pengy",
+        "name": "Pengy (SSR)",
+        "element": "earth",
+        "actionType": "skill",
+        "actionName": "P-Engy Full Blast",
+        "plainDamageMax": 999999,
+        "scalingType": "fixed_stack",
+        "cooldownTurns": 7,
+        "conditions": "Consumes all P-Engy stacks; deals up to 999,999 Plain damage and knocks herself out",
+        "notes": "Deliberate sacrifice nuke; brings backline Evoker (Caim/Lobelia) to frontline immediately."
+      },
+      {
+        "id": "yodarha_water",
+        "name": "Yodarha (SSR)",
+        "element": "water",
+        "actionType": "charge_attack",
+        "actionName": "Ultimate Flash",
+        "plainDamageMax": 999999,
+        "scalingType": "fixed_stack",
+        "cooldownTurns": 0,
+        "conditions": "Consumes 3 Triple Shroud stacks on Charge Attack (333,333 plain damage per stack)",
+        "notes": "Guaranteed 999,999 plain damage on Turn 1 ougi; ignores enemy defense."
+      },
+      {
+        "id": "gwynne",
+        "name": "Gwynne",
+        "element": "water",
+        "actionType": "charge_attack",
+        "actionName": "Lunatic Lashings",
+        "plainDamageMax": 1200000,
+        "scalingType": "flat",
+        "cooldownTurns": 0,
+        "conditions": "Deals 3 hits of 400,000 plain damage (1.2M total) when HP is >= 76% (2 hits at 51-75%, 1 hit below 50%)",
+        "notes": "Consistently generates up to 1.2M plain damage on every Charge Attack."
+      },
+      {
+        "id": "kolulu_summer",
+        "name": "Kolulu (Summer)",
+        "element": "water",
+        "actionType": "auto_counter",
+        "actionName": "Sun-Drenched Tallyho",
+        "plainDamageMax": 700000,
+        "scalingType": "flat",
+        "cooldownTurns": 0,
+        "conditions": "Auto-activates when HP is below 25% (Red HP) or upon enduring lethal damage",
+        "notes": "Passive plain damage retaliation."
+      },
+      {
+        "id": "clarisse_fire",
+        "name": "Clarisse (Fire)",
+        "element": "fire",
+        "actionType": "skill",
+        "actionName": "Atomic Resolution",
+        "plainDamageMax": 710000,
+        "scalingType": "hp_percentage",
+        "cooldownTurns": 6,
+        "conditions": "Deals 1% to 5% of enemy's current HP as plain damage (capped at 710,000) and dispels 1 buff",
+        "notes": "Simultaneously counters both Plain Damage omens and Dispel omens."
+      },
+      {
+        "id": "catura",
+        "name": "Catura",
+        "element": "wind",
+        "actionType": "skill",
+        "actionName": "Moo-Licious",
+        "plainDamageMax": 800000,
+        "scalingType": "charge_bar",
+        "cooldownTurns": 6,
+        "conditions": "Consumes charge bar to deal scaling plain damage to all foes",
+        "notes": "Team multi-attack buff and C.A. battery coupled with plain damage."
+      },
+      {
+        "id": "yodarha_wind",
+        "name": "Yodarha (Wind)",
+        "element": "wind",
+        "actionType": "skill",
+        "actionName": "Twin Flash",
+        "plainDamageMax": 600000,
+        "scalingType": "fixed_stack",
+        "cooldownTurns": 5,
+        "conditions": "Consumes Perpetual Flash stacks to deal plain damage nukes",
+        "notes": "Reliable plain damage skill for Wind grids."
+      },
+      {
+        "id": "clarisse_light",
+        "name": "Clarisse (Light)",
+        "element": "light",
+        "actionType": "skill",
+        "actionName": "Atomic Resolution II",
+        "plainDamageMax": 710000,
+        "scalingType": "hp_percentage",
+        "cooldownTurns": 6,
+        "conditions": "Deals up to 710,000 plain damage + Dispels 1 buff; grants team Supplemental DMG with Dissolution charge",
+        "notes": "Omen counter + team damage buffer."
+      },
+      {
+        "id": "horus",
+        "name": "Horus",
+        "element": "light",
+        "actionType": "skill",
+        "actionName": "Eye of the Sun",
+        "plainDamageMax": 500000,
+        "scalingType": "flat",
+        "cooldownTurns": 6,
+        "conditions": "Deals 500,000 plain damage, grants C.A. charge bar, and inflicts Blind",
+        "notes": "Light charge attack looping enabler with plain damage utility."
+      },
+      {
+        "id": "lunalu_ssr",
+        "name": "Lunalu (SSR)",
+        "element": "dark",
+        "actionType": "skill",
+        "actionName": "Facsimile II",
+        "plainDamageMax": 2040000,
+        "scalingType": "consumed_hp",
+        "cooldownTurns": 6,
+        "conditions": "100% guaranteed copy of an ally's damage skill (copies Threo's Ground Zero for duplicate 2.04M nuke)",
+        "notes": "Allows dealing 4.08M+ total plain damage in 1 turn when deployed with Threo."
+      },
+      {
+        "id": "black_knight",
+        "name": "Black Knight",
+        "element": "dark",
+        "actionType": "skill",
+        "actionName": "Acumen",
+        "plainDamageMax": 500000,
+        "scalingType": "flat",
+        "cooldownTurns": 5,
+        "conditions": "Deals 500,000 plain damage and inflicts Delay on target",
+        "notes": "Controls boss diamonds while chipping plain damage."
+      }
+    ],
+    "mcClassesAndWeapons": [
+      {
+        "id": "yamato_class",
+        "category": "class_skill",
+        "name": "Yamato (Row V Class)",
+        "mechanism": "Take the Head (reduces omen cancel condition by 20% to 30%) and Seasplitter (instant omen cancel)",
+        "plainDamageMax": 0,
+        "specialEffect": "Bypasses or reduces required plain damage on any V2 cancelable omen."
+      },
+      {
+        "id": "swordmaster_disparia",
+        "category": "weapon_awaken",
+        "name": "Sword Master / Glorybringer + Disparia",
+        "mechanism": "Mainhand Disparia Awaken skill consumes 30% HP to deal 30x (45x at 4★) current HP as plain damage",
+        "plainDamageMax": 1200000,
+        "specialEffect": "Deals 800,000 to 1,200,000 team-wide plain damage instantly on Turn 1."
+      },
+      {
+        "id": "tormentor_secret_gear",
+        "category": "secret_gear",
+        "name": "Tormentor + Well-Worn Blade / Toxic Spike",
+        "mechanism": "Consumes crafted secret gear items to deal up to 1,000,000 plain damage",
+        "plainDamageMax": 1000000,
+        "specialEffect": "On-demand repeatable plain damage without skill cooldown limitations."
+      }
+    ]
+  }
+}

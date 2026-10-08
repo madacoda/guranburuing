@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/raid-catalog.schema.json",
+  "$schema": "../schemas/battle-systems.schema.json",
   "version": "2.0.0",
   "description": "Granblue Fantasy battle systems: Battle System 1.0 (V1) vs Battle System 2.0 (V2), Omens, and Guard mechanics.",
   "systems": {
@@ -52,6 +52,10 @@
         },
         "fatalChain": {
           "description": "Special gauge charged by chaining character charge attacks (10% per ougi, bonus on full chain). Discharges a high-damage party elemental nuke and fulfills V2 omens."
+        },
+        "catalogs": {
+          "omensCatalog": "data/combat/omens.catalog.json",
+          "counterTaxonomy": "data/combat/v2-counter-taxonomy.json"
         }
       }
     }

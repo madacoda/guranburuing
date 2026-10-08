@@ -320,6 +320,7 @@ async function main() {
     await engine.runLoop({ runs: targetRuns });
   } finally {
     await cdpManager.disconnect();
+    process.exit(0);
   }
 }
 

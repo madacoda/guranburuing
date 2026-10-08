@@ -1,0 +1,83 @@
+{
+  "$schema": "../schemas/battle-reload-profiles.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Granblue Fantasy battle reload tactics, animation fast-forwarding, CreateJS acceleration, and turn-processing recovery profiles.",
+  "profiles": {
+    "turbo": {
+      "name": "Turbo Racing Profile",
+      "description": "Ultra-low latency combat reload designed for competitive Gold Bar racing (PBHL, GOHL, Akasha). Unconditional F5 reload on all attack commands.",
+      "reloadOnAttack": true,
+      "reloadOnSkill": true,
+      "reloadOnSummon": true,
+      "createJsOptimization": {
+        "tickerFramerate": 120,
+        "tweenFastForwardMs": 3000,
+        "resetStageStatus": true
+      },
+      "postReloadDelayMs": {
+        "min": 25,
+        "max": 75
+      },
+      "dialogAutoDismiss": true
+    },
+    "fast": {
+      "name": "Fast Farming Profile",
+      "description": "Standard high-efficiency farming reload for Daily Hosts and Magna 3. Reloads on normal attacks to bypass long multi-attack and ougi animations.",
+      "reloadOnAttack": true,
+      "reloadOnSkill": false,
+      "reloadOnSummon": false,
+      "createJsOptimization": {
+        "tickerFramerate": 60,
+        "tweenFastForwardMs": 1500,
+        "resetStageStatus": true
+      },
+      "postReloadDelayMs": {
+        "min": 150,
+        "max": 300
+      },
+      "dialogAutoDismiss": true
+    },
+    "normal": {
+      "name": "Balanced Daily Profile",
+      "description": "Human-safe reload strategy. Only reloads on heavy full-chain burst animations and multi-turn lockouts.",
+      "reloadOnAttack": false,
+      "reloadOnSkill": false,
+      "reloadOnSummon": false,
+      "createJsOptimization": {
+        "tickerFramerate": 30,
+        "tweenFastForwardMs": 0,
+        "resetStageStatus": false
+      },
+      "postReloadDelayMs": {
+        "min": 500,
+        "max": 800
+      },
+      "dialogAutoDismiss": true
+    },
+    "stealth": {
+      "name": "Stealth Human Profile",
+      "description": "Zero reload profile. Completely observes in-game animations with natural biometric hesitation. Recommended for initial account warming and Guild Wars scrutiny.",
+      "reloadOnAttack": false,
+      "reloadOnSkill": false,
+      "reloadOnSummon": false,
+      "createJsOptimization": {
+        "tickerFramerate": 30,
+        "tweenFastForwardMs": 0,
+        "resetStageStatus": false
+      },
+      "postReloadDelayMs": {
+        "min": 800,
+        "max": 1500
+      },
+      "dialogAutoDismiss": false
+    }
+  },
+  "turnProcessingRecovery": {
+    "maxWaitTurnProcessingMs": 6000,
+    "retryCount": 3,
+    "popupDismissSelector": ".pop-usual .btn-usual-ok, #pop .btn-usual-ok, .btn-usual-ok",
+    "whiteScreenTimeoutMs": 8000,
+    "whiteScreenAction": "location_reload"
+  }
+}

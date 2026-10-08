@@ -1,0 +1,492 @@
+{
+  "$schema": "../schemas/omens-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Comprehensive authoritative catalog of Battle System 2.0 (V2) omens, trigger conditions, cancellation requirements, and automated counter-strategies across GBF raids.",
+  "omens": [
+    {
+      "id": "tiamat_aura_skill_omen",
+      "raidId": "tiamat_aura",
+      "raidName": "Tiamat Aura Omega",
+      "omenName": "Aura Gale",
+      "japaneseName": "アウラゲイル",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "skill_damage",
+        "description": "Hit 10 times with skill damage in 1 turn",
+        "targetCount": 10
+      },
+      "dangerLevel": "medium",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "Activate multi-hit damage skills (e.g. Decimate, Manadiver Leviathan/Lu Woh crest nukes, Monk Flurry)",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["decimate", "wild_card", "elemental_flurry"],
+        "targetSummons": ["triple_zero", "beelzebub"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "tiamat_aura_50_omen",
+      "raidId": "tiamat_aura",
+      "raidName": "Tiamat Aura Omega",
+      "omenName": "Typhoon Genesis",
+      "japaneseName": "タイフーン・ジェネシス",
+      "triggerType": "hp_threshold",
+      "triggerValue": "50% HP",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 25 hits in 1 turn",
+        "targetCount": 25
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "elemental_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Activate team Echoes (Bonus DMG) and Triple Attack buffs or Luchador Tag Team",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["tag_team", "chaser", "split_spirit"],
+        "targetSummons": ["the_sun", "yatima"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "colossus_ira_ca_omen",
+      "raidId": "colossus_ira",
+      "raidName": "Colossus Ira Omega",
+      "omenName": "Ira Flare",
+      "japaneseName": "アイラフレア",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "charge_attack_count",
+        "description": "Activate 4 Charge Attacks (Full Burst) in 1 turn",
+        "targetCount": 4
+      },
+      "dangerLevel": "medium",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "Toggle Charge Attack ON and dispatch Relic Buster Tactical Shield / Limit Burst or Kengo burst",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["limit_burst", "tactical_shield", "no_more_doubt"],
+        "targetSummons": ["huanglong", "bahamut"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "colossus_ira_50_omen",
+      "raidId": "colossus_ira",
+      "raidName": "Colossus Ira Omega",
+      "omenName": "Prominence Purge",
+      "japaneseName": "プロミネンス・パージ",
+      "triggerType": "hp_threshold",
+      "triggerValue": "50% HP",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "charge_attack_damage",
+        "description": "Deal 15,000,000 C.A. damage in 1 turn",
+        "targetDamage": 15000000
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "elemental_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Full Chain Ougi with C.A. Specs buffs or Bahamut call",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["limit_burst", "pandemonium"],
+        "targetSummons": ["bahamut", "triple_zero"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "leviathan_mare_hits_omen",
+      "raidId": "leviathan_mare",
+      "raidName": "Leviathan Mare Omega",
+      "omenName": "Mare Deluge",
+      "japaneseName": "マーレデルージュ",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 30 hits in 1 turn",
+        "targetCount": 30
+      },
+      "dangerLevel": "medium",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "Multi-hit skill rotation (Robin Hood / Manadiver) combined with team multi-attacks",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["decimate", "tag_team"],
+        "targetSummons": ["yatima", "beelzebub"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "yggdrasil_arbos_dispel_omen",
+      "raidId": "yggdrasil_arbos",
+      "raidName": "Yggdrasil Arbos Omega",
+      "omenName": "Arbos Canopy",
+      "japaneseName": "アルボスキャノピー",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "dispel",
+        "description": "Dispel 2 buffs in 1 turn",
+        "targetCount": 2
+      },
+      "dangerLevel": "medium",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "Call Beelzebub (3 dispels) or cast Dispel / Dispel on Ougi",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["dispel", "unveil"],
+        "targetSummons": ["beelzebub"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "luminiera_credo_debuff_omen",
+      "raidId": "luminiera_credo",
+      "raidName": "Luminiera Credo Omega",
+      "omenName": "Credo Phalanx",
+      "japaneseName": "クレドファランクス",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "debuff_count",
+        "description": "Land 10 debuffs in 1 turn",
+        "targetCount": 10
+      },
+      "dangerLevel": "medium",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "Dispatch multi-debuff skills (e.g. Miserable Mist, Chaos Ruler / Lich / Fediel abilities)",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["miserable_mist", "chaos_drain", "dark_haze"],
+        "targetSummons": ["beelzebub", "sariel"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "celeste_ater_fc_omen",
+      "raidId": "celeste_ater",
+      "raidName": "Celeste Ater Omega",
+      "omenName": "Ater Abyss",
+      "japaneseName": "アテルアビス",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "fatal_chain",
+        "description": "Activate Fatal Chain (100% FC gauge)",
+        "targetCount": 1
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "elemental_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Discharge 100% Fatal Chain button (.btn-fatal-chain)",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": [],
+        "targetSummons": [],
+        "autoGuardEligible": true
+      }
+    },
+
+    {
+      "id": "wilnas_magma_chamber_omen",
+      "raidId": "wilnas",
+      "raidName": "Wilnas (Impossible)",
+      "omenName": "Magma Chamber",
+      "japaneseName": "マグマチェンバー",
+      "triggerType": "hp_threshold",
+      "triggerValue": "90% HP and 40% HP",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 30 hits in 1 turn",
+        "targetCount": 30
+      },
+      "dangerLevel": "wipe",
+      "incomingDamageType": "plain",
+      "recommendedCounter": {
+        "primaryAction": "High-hit rotation (Echoes + Triple Attacks + Tag Team) or multi-hit skills",
+        "fallbackAction": "Guard targeted members. Note: Guard cuts plain damage by 90% in V2!",
+        "targetSkills": ["tag_team", "decimate", "chaser"],
+        "targetSummons": ["the_sun", "yatima"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "wilnas_hadron_buster_omen",
+      "raidId": "wilnas",
+      "raidName": "Wilnas (Impossible)",
+      "omenName": "Hadron Buster",
+      "japaneseName": "ハドロンバスター",
+      "triggerType": "hp_threshold",
+      "triggerValue": "25% HP / Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "charge_attack_damage",
+        "description": "Deal 12,000,000 C.A. damage in 1 turn",
+        "targetDamage": 12000000
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "4-Chain Full Burst with high damage multipliers",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["limit_burst", "tactical_shield"],
+        "targetSummons": ["bahamut", "triple_zero"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "galleon_swat_omen",
+      "raidId": "galleon",
+      "raidName": "Galleon (Impossible)",
+      "omenName": "Swat",
+      "japaneseName": "スワッター",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "damage_threshold",
+        "description": "Deal 15,000,000 damage in 1 turn",
+        "targetDamage": 15000000
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "elemental_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Burst damage via Full Chain or Assassin normal attacks",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["path_of_destruction", "limit_burst"],
+        "targetSummons": ["beelzebub", "yatima"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "galleon_island_hurl_omen",
+      "raidId": "galleon",
+      "raidName": "Galleon (Impossible)",
+      "omenName": "Island Hurl",
+      "japaneseName": "島投げ",
+      "triggerType": "hp_threshold",
+      "triggerValue": "70% HP and 40% HP",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "fatal_chain",
+        "description": "Activate Fatal Chain (100% FC)",
+        "targetCount": 1
+      },
+      "dangerLevel": "wipe",
+      "incomingDamageType": "plain",
+      "recommendedCounter": {
+        "primaryAction": "Activate Fatal Chain button to immediately cancel omen",
+        "fallbackAction": "Guard all party members (.btn-guard-all) to survive 99,999 Plain damage",
+        "targetSkills": [],
+        "targetSummons": [],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "ewiyar_mach3_omen",
+      "raidId": "ewiyar",
+      "raidName": "Ewiyar (Impossible)",
+      "omenName": "Mach 3",
+      "japaneseName": "マッハ3",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 24 hits in 1 turn",
+        "targetCount": 24
+      },
+      "dangerLevel": "wipe",
+      "incomingDamageType": "elemental_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Multi-hit skill burst (e.g. Decimate + Echo normal attacks)",
+        "fallbackAction": "Guard all party members or apply Substitute with 100% Cut / Guts",
+        "targetSkills": ["decimate", "tag_team"],
+        "targetSummons": ["the_sun"],
+        "autoGuardEligible": true
+      }
+    },
+
+    {
+      "id": "diaspora_emergency_repair_omen",
+      "raidId": "diaspora",
+      "raidName": "Diaspora (Impossible)",
+      "omenName": "Emergency Repair System",
+      "japaneseName": "緊急修復システム",
+      "triggerType": "special_trigger",
+      "triggerValue": "Phase 1: Resistance Gauge 100",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 97 hits in 1 turn to force Phase 2 transition",
+        "targetCount": 97
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "buff_only",
+      "recommendedCounter": {
+        "primaryAction": "Robin Hood / Manadiver / Viking multi-hit skill salvo + multi-hit summon (e.g. Yatima / Belial)",
+        "fallbackAction": "Guard and wait for raid members to contribute hits",
+        "targetSkills": ["decimate", "acrobat_volley", "tag_team"],
+        "targetSummons": ["yatima", "beelzebub"],
+        "autoGuardEligible": false
+      }
+    },
+    {
+      "id": "siegfried_uwe_omen",
+      "raidId": "siegfried",
+      "raidName": "Siegfried (Impossible)",
+      "omenName": "Uwe",
+      "japaneseName": "ウーヴェ",
+      "triggerType": "turn_interval",
+      "triggerValue": "Turn 4 and every 4 turns thereafter",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "skill_category",
+        "description": "Use 3 Debuff skills in 1 turn",
+        "targetCount": 3,
+        "requiredCategory": "debuff"
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "buff_only",
+      "recommendedCounter": {
+        "primaryAction": "Reserve 3 debuff abilities (Miserable Mist, Nio/Lich debuffs) and activate concurrently on omen turn",
+        "fallbackAction": "Guard all members; immediately prepare dispels for Siegfried's defensive buffs",
+        "targetSkills": ["miserable_mist", "chaos_drain", "unveil"],
+        "targetSummons": ["beelzebub"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "siete_infinito_cremona_omen",
+      "raidId": "siete",
+      "raidName": "Siete (Impossible)",
+      "omenName": "Infinito Cremona",
+      "japaneseName": "インフィニート・クレモナ",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "charge_attack_count",
+        "description": "Activate 6 Charge Attacks in 1 turn",
+        "targetCount": 6
+      },
+      "dangerLevel": "wipe",
+      "incomingDamageType": "all_party_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Kengo dual-ougi + Kaneshige + characters with double charge attacks",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["pandemonium", "no_more_doubt"],
+        "targetSummons": ["huanglong", "bahamut"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "cosmos_balance_red_omen",
+      "raidId": "cosmos",
+      "raidName": "Cosmos (Impossible)",
+      "omenName": "Balance Deviation: Red",
+      "japaneseName": "調停崩壊：赤",
+      "triggerType": "special_trigger",
+      "triggerValue": "Balance gauge tilted Red",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 30 hits in 1 turn to re-center balance gauge",
+        "targetCount": 30
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "elemental_multi",
+      "recommendedCounter": {
+        "primaryAction": "Multi-hit normal attacks + Echoes + multi-hit abilities",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["tag_team", "decimate"],
+        "targetSummons": ["the_sun"],
+        "autoGuardEligible": true
+      }
+    },
+
+    {
+      "id": "subhl_crisis_crunch_omen",
+      "raidId": "subhl",
+      "raidName": "Super Ultimate Bahamut",
+      "omenName": "Crisis Crunch",
+      "japaneseName": "クライシスクランチ",
+      "triggerType": "charge_diamonds",
+      "triggerValue": "Phase 2 (50%-10% HP) Full Diamonds",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "damage_threshold",
+        "description": "Deal 20,000,000 damage in 1 turn (or 60 hits)",
+        "targetDamage": 20000000
+      },
+      "dangerLevel": "high",
+      "incomingDamageType": "all_party_nuke",
+      "recommendedCounter": {
+        "primaryAction": "High-multiplier Full Chain burst or Assassin turn",
+        "fallbackAction": "Guard all party members (.btn-guard-all)",
+        "targetSkills": ["limit_burst", "path_of_destruction"],
+        "targetSummons": ["bahamut", "beelzebub"],
+        "autoGuardEligible": true
+      }
+    },
+    {
+      "id": "subhl_genesis_nova_omen",
+      "raidId": "subhl",
+      "raidName": "Super Ultimate Bahamut",
+      "omenName": "Genesis Nova",
+      "japaneseName": "ジェネシス・ノヴァ",
+      "triggerType": "hp_threshold",
+      "triggerValue": "10% HP Trigger",
+      "omenType": "uncancelable_red",
+      "cancelCondition": {
+        "type": "none",
+        "description": "Uncancelable. Deals 999,999 Plain Damage and inflicts Death Ineluctable (Permanent KO)."
+      },
+      "dangerLevel": "wipe",
+      "incomingDamageType": "plain",
+      "recommendedCounter": {
+        "primaryAction": "Bypass trigger via execution nuke (e.g. Fire 10% execute setup) or sacrifice frontline unit with Guts / Autorevive / Tenacity",
+        "fallbackAction": "Trigger 100% All-Elemental Cut + Phalanx or accept sacrificial character swap",
+        "targetSkills": ["substitute", "undying"],
+        "targetSummons": ["titan", "nier"],
+        "autoGuardEligible": false
+      }
+    },
+
+    {
+      "id": "faa0_twelve_labors_omen",
+      "raidId": "dark_rapture_zero",
+      "raidName": "Dark Rapture Zero",
+      "omenName": "Twelve Labors: Trial of Steel",
+      "japaneseName": "十二の試練：鋼の試練",
+      "triggerType": "hp_threshold",
+      "triggerValue": "60% HP / 20% HP",
+      "omenType": "cancelable_yellow",
+      "cancelCondition": {
+        "type": "hit_count",
+        "description": "Deal 60 hits in 1 turn",
+        "targetCount": 60
+      },
+      "dangerLevel": "wipe",
+      "incomingDamageType": "all_party_nuke",
+      "recommendedCounter": {
+        "primaryAction": "Full multi-hit deployment: Double strike + Quadruple attacks + Echoes + multi-hit nukes",
+        "fallbackAction": "Failing this omen depletes the End Gauge and causes an unrecoverable party wipe. Must cancel!",
+        "targetSkills": ["tag_team", "decimate", "split_spirit"],
+        "targetSummons": ["the_sun", "yatima", "triple_zero"],
+        "autoGuardEligible": false
+      }
+    }
+  ]
+}

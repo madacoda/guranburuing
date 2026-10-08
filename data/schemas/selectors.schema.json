@@ -1,11 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SelectorsSchema",
+  "$id": "https://gbf.wiki/schemas/selectors.schema.json",
+  "title": "GBFDOMSelectorsSchema",
+  "description": "Authoritative schema for Granblue Fantasy DOM selector catalog, categorized by game HUD, screen overlays, navigation, and modal selectors.",
   "type": "object",
-  "required": ["version"],
+  "required": ["version", "selectors"],
   "properties": {
+    "$schema": { "type": "string" },
     "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
     "description": { "type": "string" },
-    "selectors": { "type": "object" }
+    "selectors": {
+      "type": "object",
+      "required": ["global", "stageAndRaidList", "treasureModal", "supporterSelection", "combatHUD", "assistRaidFinder"],
+      "properties": {
+        "global": { "type": "object" },
+        "stageAndRaidList": { "type": "object" },
+        "treasureModal": { "type": "object" },
+        "supporterSelection": { "type": "object" },
+        "combatHUD": { "type": "object" },
+        "assistRaidFinder": { "type": "object" }
+      }
+    }
   }
 }

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/auth-and-login.schema.json",
+  "title": "GBFAuthAndLoginSchema",
+  "description": "Authoritative schema for Granblue Fantasy platform authentication gateways, cookie specifications, and CDP session injection protocols.",
+  "type": "object",
+  "required": ["version", "description", "gateways", "sessionLifecycle"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "gateways": {
+      "type": "object",
+      "required": ["directGameUrl", "mobage", "dmm"],
+      "properties": {
+        "directGameUrl": { "type": "string" },
+        "mobage": {
+          "type": "object",
+          "required": ["loginUrl", "oauthEndpoint", "platformDomain", "gameDomain", "requiredCookies"],
+          "properties": {
+            "loginUrl": { "type": "string" },
+            "oauthEndpoint": { "type": "string" },
+            "platformDomain": { "type": "string" },
+            "gameDomain": { "type": "string" },
+            "requiredCookies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "domain", "description"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "domain": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "dmm": {
+          "type": "object",
+          "required": ["gadgetUrl", "gameFrameUrl", "platformDomain", "requiredCookies"],
+          "properties": {
+            "gadgetUrl": { "type": "string" },
+            "gameFrameUrl": { "type": "string" },
+            "platformDomain": { "type": "string" },
+            "requiredCookies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "domain"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "domain": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sessionLifecycle": {
+      "type": "object",
+      "required": ["injectionProtocol", "staleSessionDetection", "backupStorage"],
+      "properties": {
+        "injectionProtocol": {
+          "type": "object",
+          "required": ["method", "steps"],
+          "properties": {
+            "method": { "type": "string" },
+            "steps": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "staleSessionDetection": {
+          "type": "object",
+          "required": ["indicators", "mitigation"],
+          "properties": {
+            "indicators": { "type": "array", "items": { "type": "string" } },
+            "mitigation": { "type": "string" }
+          }
+        },
+        "backupStorage": {
+          "type": "object",
+          "required": ["defaultAccountDirectory", "cookiesJsonFile", "environmentVariable"],
+          "properties": {
+            "defaultAccountDirectory": { "type": "string" },
+            "cookiesJsonFile": { "type": "string" },
+            "environmentVariable": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

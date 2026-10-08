@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/party-selection-rules.schema.json",
+  "title": "GBFPartySelectionRulesSchema",
+  "description": "Authoritative schema for Granblue Fantasy party, weapon grid, and supporter selection rules, multi-element raid exceptions, and grid synergy constraints.",
+  "type": "object",
+  "required": ["version", "description", "partySelectionRules"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "partySelectionRules": {
+      "type": "object",
+      "required": ["bossElementToPartyElement", "multiElementRaidExceptions", "gridSynergyRules"],
+      "properties": {
+        "bossElementToPartyElement": {
+          "type": "object",
+          "required": ["fire", "water", "earth", "wind", "light", "dark", "plain"],
+          "additionalProperties": {
+            "type": "object",
+            "required": ["optimalPartyElement", "supporterTabAttribute", "rationale", "recommendedSupporterSummons"],
+            "properties": {
+              "optimalPartyElement": { "type": "string" },
+              "fallbackPartyElement": { "type": "string" },
+              "supporterTabAttribute": { "type": "number" },
+              "rationale": { "type": "string" },
+              "recommendedSupporterSummons": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "multiElementRaidExceptions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["name", "questId", "bossElement", "recommendedPartyElements", "reasoning", "supporterSummonPriority"],
+            "properties": {
+              "name": { "type": "string" },
+              "questId": { "type": "string" },
+              "bossElement": { "type": "string" },
+              "recommendedPartyElements": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "reasoning": { "type": "string" },
+              "supporterSummonPriority": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "gridSynergyRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ruleId", "severity", "description"],
+            "properties": {
+              "ruleId": { "type": "string" },
+              "severity": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"] },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

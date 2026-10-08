@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/modals.schema.json",
+  "title": "GBFModalsCatalogSchema",
+  "description": "Authoritative schema for Granblue Fantasy modal dialogs, overlay selectors, action buttons, and dismiss behaviors.",
+  "type": "object",
+  "required": ["version", "description", "modals"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "modals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "trigger", "containerSelector", "dismissBehavior"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "trigger": { "type": "string" },
+          "containerSelector": { "type": "string" },
+          "closeButtonSelector": { "type": "string" },
+          "confirmButtonSelector": { "type": "string" },
+          "cancelButtonSelector": { "type": "string" },
+          "itemSelector": { "type": "string" },
+          "itemSelectionSelector": { "type": "string" },
+          "scopeButtons": { "type": "object" },
+          "okButtonSelector": { "type": "string" },
+          "eventType": { "type": "string" },
+          "dismissBehavior": { "type": "string" },
+          "timeoutMs": { "type": "number" }
+        }
+      }
+    }
+  }
+}

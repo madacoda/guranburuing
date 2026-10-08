@@ -1,0 +1,197 @@
+{
+  "$schema": "../schemas/raid-evaluation.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T09:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy Raid Evaluation and Join Decision Catalog, providing dynamic Leech vs Racing heuristics, Time-to-Death (TTD) velocity estimation, and EP Return-on-Investment (ROI) rules.",
+  "actionPolicies": [
+    {
+      "action": "SKIP_DYING",
+      "description": "Abort raid join. Boss HP is too low (< 5%) or Time-to-Death is under 10 seconds; loading into battle will result in empty room or zero honor payout, wasting EP and locking an assist slot.",
+      "minHpPercent": 0,
+      "maxHpPercent": 5,
+      "minParticipants": 1,
+      "maxParticipants": 30,
+      "epCostRange": [1, 2, 3, 5]
+    },
+    {
+      "action": "RAPID_LEECH",
+      "description": "Join immediately for fast 1-button burst or Quick Summon. Target HP is between 5% and 35% with active room clearing pace. Yields instant drop rolls with minimal time investment.",
+      "minHpPercent": 5,
+      "maxHpPercent": 35,
+      "minParticipants": 3,
+      "maxParticipants": 27,
+      "epCostRange": [3, 5]
+    },
+    {
+      "action": "BLUE_CHEST_RACE",
+      "description": "Engage high-performance racing rotation. Boss HP is between 30% and 85% with sufficient runway to secure 100% blue chest probability threshold.",
+      "minHpPercent": 30,
+      "maxHpPercent": 85,
+      "minParticipants": 1,
+      "maxParticipants": 18,
+      "epCostRange": [3, 5]
+    },
+    {
+      "action": "SKIP_STALLED",
+      "description": "Skip raid. Room has only 1-2 participants with high HP remaining and long elapsed time (> 10 minutes), representing an abandoned or failed raid that would trap EP indefinitely.",
+      "minHpPercent": 85,
+      "maxHpPercent": 100,
+      "minParticipants": 1,
+      "maxParticipants": 2,
+      "epCostRange": [3, 5]
+    },
+    {
+      "action": "SKIP_FULL",
+      "description": "Skip raid. Room participant count is >= 29/30; high risk of failing HTTP join handshake due to concurrent incoming joins.",
+      "minHpPercent": 0,
+      "maxHpPercent": 100,
+      "minParticipants": 29,
+      "maxParticipants": 30,
+      "epCostRange": [1, 2, 3, 5]
+    }
+  ],
+  "raidProfiles": [
+    {
+      "raidId": "pbhl",
+      "name": "Prototype Bahamut HL (Wings of Terror)",
+      "targetMode": "blue_chest_race",
+      "minHpJoin": 35,
+      "maxHpJoin": 90,
+      "maxParticipantsAllowed": 16,
+      "blueChestTargetHonors": 1480000,
+      "leechHonorsTarget": 100000,
+      "expectedTimeToDeathSeconds": 45,
+      "primaryDrop": "Gold Brick (1.5% in Blue Chest)",
+      "tacticalNotes": "Deploy Dark Burst or Fire Burst; focus on hitting 1.48M honors before 25% phase."
+    },
+    {
+      "raidId": "akasha",
+      "name": "Akasha HL (Omen of the Broken Skies)",
+      "targetMode": "blue_chest_race",
+      "minHpJoin": 40,
+      "maxHpJoin": 90,
+      "maxParticipantsAllowed": 16,
+      "blueChestTargetHonors": 1560000,
+      "leechHonorsTarget": 100000,
+      "expectedTimeToDeathSeconds": 50,
+      "primaryDrop": "Gold Brick (1.2% in Blue Chest), Hollowsky Key",
+      "tacticalNotes": "Turn acceleration mechanics mean buff durations deplete quickly; favor instant strike skills."
+    },
+    {
+      "raidId": "gohl",
+      "name": "Grand Order HL (The Peacemaker's Wings)",
+      "targetMode": "blue_chest_race",
+      "minHpJoin": 35,
+      "maxHpJoin": 85,
+      "maxParticipantsAllowed": 16,
+      "blueChestTargetHonors": 1480000,
+      "leechHonorsTarget": 100000,
+      "expectedTimeToDeathSeconds": 60,
+      "primaryDrop": "Gold Brick (1.2% in Blue Chest), Heavenly Horn",
+      "tacticalNotes": "Peacemaker field buffs player ATK and cap; deal maximum honors before 50% form change."
+    },
+    {
+      "raidId": "tiamat_aura",
+      "name": "Tiamat Aura Omega (Magna 3)",
+      "targetMode": "rapid_leech",
+      "minHpJoin": 5,
+      "maxHpJoin": 40,
+      "maxParticipantsAllowed": 27,
+      "blueChestTargetHonors": 3000000,
+      "leechHonorsTarget": 200000,
+      "expectedTimeToDeathSeconds": 25,
+      "primaryDrop": "Aura Anima, Magna 3 Weapons",
+      "tacticalNotes": "Rapid leeching via Turn 1 Agni/Beelzebub burst for gold chest and participation animas."
+    },
+    {
+      "raidId": "colossus_ira",
+      "name": "Colossus Ira Omega (Magna 3)",
+      "targetMode": "rapid_leech",
+      "minHpJoin": 5,
+      "maxHpJoin": 40,
+      "maxParticipantsAllowed": 27,
+      "blueChestTargetHonors": 3000000,
+      "leechHonorsTarget": 200000,
+      "expectedTimeToDeathSeconds": 25,
+      "primaryDrop": "Ira Anima, Magna 3 Weapons",
+      "tacticalNotes": "Varuna/Kengo burst for instant water leech; beware Turn 1 Repel/Cut omens."
+    },
+    {
+      "raidId": "wilnas",
+      "name": "Wilnas (Six Dragons Impossible)",
+      "targetMode": "rapid_leech",
+      "minHpJoin": 5,
+      "maxHpJoin": 50,
+      "maxParticipantsAllowed": 26,
+      "blueChestTargetHonors": 1500000,
+      "leechHonorsTarget": 150000,
+      "expectedTimeToDeathSeconds": 30,
+      "primaryDrop": "Wilnas Finger, Hadley Earring",
+      "tacticalNotes": "Quick water burst; avoid prolonged combat without Dispel."
+    },
+    {
+      "raidId": "siete",
+      "name": "Siete (Revans)",
+      "targetMode": "blue_chest_race",
+      "minHpJoin": 75,
+      "maxHpJoin": 100,
+      "maxParticipantsAllowed": 5,
+      "blueChestTargetHonors": 4000000,
+      "leechHonorsTarget": 0,
+      "expectedTimeToDeathSeconds": 180,
+      "primaryDrop": "Sette di Spade, Revans Materials",
+      "tacticalNotes": "Requires dedicated Fire Kengo or Paladin setup. Leeching forbidden due to high raid failure rate."
+    },
+    {
+      "raidId": "subhl",
+      "name": "Super Ultimate Bahamut",
+      "targetMode": "host_only",
+      "minHpJoin": 100,
+      "maxHpJoin": 100,
+      "maxParticipantsAllowed": 6,
+      "blueChestTargetHonors": 0,
+      "leechHonorsTarget": 0,
+      "expectedTimeToDeathSeconds": 300,
+      "primaryDrop": "Ultimate Memory, Ultima Uncaps",
+      "tacticalNotes": "Host with Ascendant Prayer or dedicated coordinated co-op room only."
+    }
+  ],
+  "decisionPipeline": [
+    {
+      "step": 1,
+      "name": "Room Capacity Verification",
+      "formulaOrCondition": "room.participants >= 29",
+      "actionOutput": "SKIP_FULL"
+    },
+    {
+      "step": 2,
+      "name": "Pending Battle Slots Check",
+      "formulaOrCondition": "player.pendingBattlesCount >= 3",
+      "actionOutput": "TRIGGER_PENDING_UNJAM"
+    },
+    {
+      "step": 3,
+      "name": "Lethal Runway Check",
+      "formulaOrCondition": "boss.hpPercent < 5.0",
+      "actionOutput": "SKIP_DYING"
+    },
+    {
+      "step": 4,
+      "name": "Stalled Room Check",
+      "formulaOrCondition": "boss.hpPercent >= 85.0 && room.participants <= 2 && room.elapsedSeconds > 600",
+      "actionOutput": "SKIP_STALLED"
+    },
+    {
+      "step": 5,
+      "name": "Target Mode & Velocity Match",
+      "formulaOrCondition": "profile.targetMode === 'rapid_leech' && boss.hpPercent <= profile.maxHpJoin && boss.hpPercent >= profile.minHpJoin",
+      "actionOutput": "JOIN_RAPID_LEECH"
+    },
+    {
+      "step": 6,
+      "name": "Racing Honor Viability",
+      "formulaOrCondition": "profile.targetMode === 'blue_chest_race' && (room.estimatedTimeToDeath >= 35) && (player.burstPotentialHonors >= profile.blueChestTargetHonors)",
+      "actionOutput": "JOIN_BLUE_CHEST_RACE"
+    }
+  ]
+}

@@ -1,0 +1,346 @@
+{
+  "$schema": "../schemas/supporter-summons.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T09:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy Supporter Summons Catalog, Grid Archetype mappings, attribute tab routing (1-7), and autonomous pre-battle supporter selection engine.",
+  "gridArchetypes": [
+    {
+      "id": "magna",
+      "name": "Magna / Omega (方陣)",
+      "weaponSkillBoostType": "omega",
+      "optimalSupporterAura": "matching_omega_250",
+      "description": "Standard free-to-play grid archetype powered by Omega weapons. Scales exponentially with Omega aura multiplier (up to 170% at Lv 250)."
+    },
+    {
+      "id": "primal",
+      "name": "Optimus / Primal (神石)",
+      "weaponSkillBoostType": "normal",
+      "optimalSupporterAura": "matching_primal_250",
+      "description": "Gacha-intensive premium grid archetype powered by Grand weapons. Scales with Primal series aura multiplier (up to 170% at Lv 250)."
+    },
+    {
+      "id": "elemental",
+      "name": "Elemental / Flat Boost",
+      "weaponSkillBoostType": "elemental_atk",
+      "optimalSupporterAura": "lucifer_or_bahamut_250",
+      "description": "Aura provides flat 150% elemental attack amplification; ideal for mixed grids, new accounts, or double-elemental burst setups."
+    },
+    {
+      "id": "burst_otk",
+      "name": "One-Turn-Kill / Quick Summon Burst",
+      "weaponSkillBoostType": "burst_special",
+      "optimalSupporterAura": "beelzebub_or_triple_zero_or_huanglong",
+      "description": "Optimized for Turn 1 instant raids, leeching, and meat farming. Prioritizes 100% C.A. gauge (Huanglong) or 3M plain nuke + debuffs (Beelzebub)."
+    },
+    {
+      "id": "farming",
+      "name": "Farming / Drop Boost / EXP",
+      "weaponSkillBoostType": "drop_rate_boost",
+      "optimalSupporterAura": "kaguya_4star",
+      "description": "Boosts item drop rates (+25%), EXP (+30%), and Rupie gains for Pro Skips, Angel Halo, and daily scenario quests."
+    }
+  ],
+  "elementalSupporters": [
+    {
+      "element": "fire",
+      "supporterTabAttribute": 1,
+      "magnaSummons": [
+        {
+          "id": "colossus_omega",
+          "name": "Colossus Omega",
+          "auraEffect": "120% (4★) / 140% (5★) / 170% (Lv 250) boost to Fire Omega weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "primalSummons": [
+        {
+          "id": "agni",
+          "name": "Agni",
+          "auraEffect": "140% (4★) / 150% (5★) / 170% (Lv 250) boost to Fire Normal weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "elementalSummons": [
+        {
+          "id": "shiva",
+          "name": "Shiva",
+          "auraEffect": "140% Fire ATK boost + Turn 1 Assassin call"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "michael",
+          "name": "Michael",
+          "auraEffect": "Fire DMG cap up sub-aura + Delay & Dispel call"
+        }
+      ]
+    },
+    {
+      "element": "water",
+      "supporterTabAttribute": 2,
+      "magnaSummons": [
+        {
+          "id": "leviathan_omega",
+          "name": "Leviathan Omega",
+          "auraEffect": "120% (4★) / 140% (5★) / 170% (Lv 250) boost to Water Omega weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "primalSummons": [
+        {
+          "id": "varuna",
+          "name": "Varuna",
+          "auraEffect": "140% (4★) / 150% (5★) / 170% (Lv 250) boost to Water Normal weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "elementalSummons": [
+        {
+          "id": "europa",
+          "name": "Europa",
+          "auraEffect": "140% Water ATK boost + 2-character Revive call"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "gabriel",
+          "name": "Gabriel",
+          "auraEffect": "Water DMG cap up sub-aura + Pure Filter damage cut"
+        }
+      ]
+    },
+    {
+      "element": "earth",
+      "supporterTabAttribute": 3,
+      "magnaSummons": [
+        {
+          "id": "yggdrasil_omega",
+          "name": "Yggdrasil Omega",
+          "auraEffect": "120% (4★) / 140% (5★) / 170% (Lv 250) boost to Earth Omega weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "primalSummons": [
+        {
+          "id": "titan",
+          "name": "Titan",
+          "auraEffect": "140% (4★) / 150% (5★) / 170% (Lv 250) boost to Earth Normal weapon skills + Guts (1 HP survival)",
+          "maxUncapLevel": 250
+        }
+      ],
+      "elementalSummons": [
+        {
+          "id": "uriel",
+          "name": "Uriel",
+          "auraEffect": "Earth DMG cap up sub-aura + 30% Charge Bar & ATK buff call"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "gorilla",
+          "name": "Gorilla",
+          "auraEffect": "Barreling roar grants team Strength + Echoes"
+        }
+      ]
+    },
+    {
+      "element": "wind",
+      "supporterTabAttribute": 4,
+      "magnaSummons": [
+        {
+          "id": "tiamat_omega",
+          "name": "Tiamat Omega",
+          "auraEffect": "120% (4★) / 140% (5★) / 170% (Lv 250) boost to Wind Omega weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "primalSummons": [
+        {
+          "id": "zephyrus",
+          "name": "Zephyrus",
+          "auraEffect": "140% (4★) / 150% (5★) / 170% (Lv 250) boost to Wind Normal weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "elementalSummons": [
+        {
+          "id": "grimnir",
+          "name": "Grimnir",
+          "auraEffect": "140% Wind ATK boost + 10,000 HP Divine Protection shield call"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "raphael",
+          "name": "Raphael",
+          "auraEffect": "Wind DMG cap up sub-aura + Dispel & team charge boost"
+        }
+      ]
+    },
+    {
+      "element": "light",
+      "supporterTabAttribute": 5,
+      "magnaSummons": [
+        {
+          "id": "luminiera_omega",
+          "name": "Luminiera Omega",
+          "auraEffect": "120% (4★) / 140% (5★) / 170% (Lv 250) boost to Light Omega weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "primalSummons": [
+        {
+          "id": "zeus",
+          "name": "Zeus",
+          "auraEffect": "140% (4★) / 150% (5★) / 170% (Lv 250) boost to Light Normal weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "elementalSummons": [
+        {
+          "id": "lucifer",
+          "name": "Lucifer",
+          "auraEffect": "150% All Elemental ATK (Lv 250) + 3,000 HP heal, revive, and dispel"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "metatron",
+          "name": "Metatron",
+          "auraEffect": "Light DMG cap up sub-aura + Dispel & DEF down"
+        }
+      ]
+    },
+    {
+      "element": "dark",
+      "supporterTabAttribute": 6,
+      "magnaSummons": [
+        {
+          "id": "celeste_omega",
+          "name": "Celeste Omega",
+          "auraEffect": "120% (4★) / 140% (5★) / 170% (Lv 250) boost to Dark Omega weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "primalSummons": [
+        {
+          "id": "hades",
+          "name": "Hades",
+          "auraEffect": "140% (4★) / 150% (5★) / 170% (Lv 250) boost to Dark Normal weapon skills",
+          "maxUncapLevel": 250
+        }
+      ],
+      "elementalSummons": [
+        {
+          "id": "bahamut",
+          "name": "Bahamut",
+          "auraEffect": "150% All Elemental ATK (Lv 250) + C.A. DMG Up & Damage Cap Up"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "sariel",
+          "name": "Sariel",
+          "auraEffect": "Dark DMG cap up sub-aura + 30% Charge Bar & 1-turn Delay"
+        }
+      ]
+    },
+    {
+      "element": "misc",
+      "supporterTabAttribute": 7,
+      "magnaSummons": [],
+      "primalSummons": [],
+      "elementalSummons": [
+        {
+          "id": "kaguya",
+          "name": "Kaguya (4★)",
+          "auraEffect": "25% Item Drop Rate Up + 30% EXP Up + Auto-Revive at start of battle"
+        },
+        {
+          "id": "beelzebub",
+          "name": "Beelzebub (4★)",
+          "auraEffect": "Main Summon 50% MC ATK/DEF + Turn 1 3,000,000 Plain DMG + 3 Dispels + 50% DEF Down"
+        },
+        {
+          "id": "triple_zero",
+          "name": "Triple Zero (4★)",
+          "auraEffect": "Turn 1 Call deals massive elemental nuke + Double Strike to MC"
+        }
+      ],
+      "utilitySummons": [
+        {
+          "id": "huanglong",
+          "name": "Huanglong (3★)",
+          "auraEffect": "All allies start battle with 100% Charge Bar (instant 4-chain ougi)"
+        },
+        {
+          "id": "qilin",
+          "name": "Qilin (3★)",
+          "auraEffect": "Resets all skill cooldowns for all allies on call"
+        }
+      ]
+    }
+  ],
+  "uncapTierRanking": [
+    {
+      "tier": "transcendence_5",
+      "level": 250,
+      "starRating": "6★ (Stage 5)",
+      "priorityScore": 100
+    },
+    {
+      "tier": "transcendence_1_4",
+      "level": 240,
+      "starRating": "6★ (Stage 1-4)",
+      "priorityScore": 90
+    },
+    {
+      "tier": "flb",
+      "level": 200,
+      "starRating": "5★",
+      "priorityScore": 80
+    },
+    {
+      "tier": "mlb",
+      "level": 150,
+      "starRating": "4★",
+      "priorityScore": 60
+    },
+    {
+      "tier": "base",
+      "level": 100,
+      "starRating": "3★",
+      "priorityScore": 40
+    }
+  ],
+  "selectionMatrix": [
+    {
+      "questType": "daily_routines_pro_skip",
+      "preferredArchetype": "farming",
+      "fallbackHierarchy": ["kaguya", "white_rabbit", "nobiyo", "matching_omega"],
+      "quickSummonPreferred": false,
+      "notes": "Maximizes drop rate percentage for all skips and loot-dependent quests."
+    },
+    {
+      "questType": "daily_host_hl",
+      "preferredArchetype": "primal_or_magna",
+      "fallbackHierarchy": ["matching_primal_250", "matching_omega_250", "lucifer_250", "bahamut_250"],
+      "quickSummonPreferred": true,
+      "notes": "Selects matching grid multiplier summon at maximum uncapping level (250)."
+    },
+    {
+      "questType": "otk_burst_meat_farming",
+      "preferredArchetype": "burst_otk",
+      "fallbackHierarchy": ["huanglong", "beelzebub", "triple_zero", "matching_omega_250"],
+      "quickSummonPreferred": true,
+      "notes": "Instant 100% ougi gauge or 0-button Quick Summon nuke."
+    },
+    {
+      "questType": "gold_bar_racing",
+      "preferredArchetype": "primal",
+      "fallbackHierarchy": ["matching_primal_250", "beelzebub", "matching_omega_250"],
+      "quickSummonPreferred": true,
+      "notes": "Prioritizes Friend 250 summons for zero-turn call delay and maximum honor rate."
+    }
+  ]
+}

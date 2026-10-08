@@ -156,6 +156,27 @@
       "container": "#cnt-verification",
       "captchaImage": ".prt-popup-body .img-verify",
       "captchaOptions": ".prt-popup-body .prt-select-item"
+    },
+    "fateEpisodes": {
+      "listContainer": "#cnt-quest",
+      "unreadCard": ".lis-quest.unread, .lis-quest.caution, .btn-quest-detail.unread, .btn-quest-detail.caution",
+      "pageNextButton": ".btn-page-next:not(.disable)",
+      "deckCautionModal": ".pop-deck-caution",
+      "deckCautionOk": ".pop-deck-caution .btn-usual-ok",
+      "deckPickerModal": ".pop-picker",
+      "deckPickerAutoSelect": ".pop-picker .btn-auto-select",
+      "deckPickerOk": ".pop-picker .btn-usual-ok",
+      "episodeCautionModal": ".pop-episode-caution",
+      "episodeCautionSpoilMe": ".pop-episode-caution .btn-usual-cancel, .pop-episode-caution .btn-cancel",
+      "episodeCautionOk": ".pop-episode-caution .btn-usual-ok",
+      "synopsisSkipButton": ".pop-synopsis .btn-scene-skip, .btn-scene-skip, .pop-usual .btn-scene-skip",
+      "skipConfirmationModal": ".pop-skip",
+      "skipConfirmOk": ".pop-skip .btn-usual-ok, .pop-skip .btn-skip-confirm, .btn-skip-ok",
+      "startPromptModal": ".pop-startatonce, .pop-use-ap-scene",
+      "startPromptOk": ".pop-startatonce .btn-usual-ok, .pop-use-ap-scene .btn-usual-ok, .pop-usual.pop-startatonce .btn-usual-ok, .pop-usual.pop-use-ap-scene .btn-usual-ok, .pop-usual .btn-usual-ok.start-quest",
+      "questStartButton": ".pop-synopsis .btn-usual-ok:not(.disable), .pop-startatonce .btn-usual-ok, .pop-use-ap-scene .btn-usual-ok, .btn-usual-ok.se-quest-start, .btn-start",
+      "cutsceneSkipButton": ".btn-scene-skip, .btn-skip",
+      "resultModalOk": ".btn-control .btn-usual-ok, #btn-control .btn-usual-ok, .pop-show .btn-usual-ok, .btn-usual-ok"
     }
   }
 }

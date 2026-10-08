@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/endpoints.schema.json",
+  "$schema": "../schemas/auth-and-login.schema.json",
   "version": "2.0.0",
   "description": "Authentication architectures, platform gateways (Mobage, DMM, GREE), cookie specifications, and session management.",
   "gateways": {

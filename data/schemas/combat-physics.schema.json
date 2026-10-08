@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/combat-physics.schema.json",
+  "title": "GBFCombatPhysicsSchema",
+  "description": "Authoritative schema for Granblue Fantasy combat physics, damage-to-honors conversion formulas, server lockout durations, and animation reload skips.",
+  "type": "object",
+  "required": ["version", "description", "formulas"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "formulas": {
+      "type": "object",
+      "required": ["damageToHonors", "lockoutDuration", "fastF5Reload"],
+      "properties": {
+        "damageToHonors": {
+          "type": "object",
+          "required": ["expression", "sample", "contributionWeights"],
+          "properties": {
+            "expression": { "type": "string" },
+            "sample": { "type": "string" },
+            "contributionWeights": {
+              "type": "object",
+              "required": ["normalDamage", "healing", "debuffBonus"],
+              "properties": {
+                "normalDamage": { "type": "number" },
+                "healing": { "type": "number" },
+                "debuffBonus": { "type": "string" }
+              }
+            }
+          }
+        },
+        "lockoutDuration": {
+          "type": "object",
+          "required": ["baseSeconds", "hitMultiplier", "ougiPenalties", "formula", "examples"],
+          "properties": {
+            "baseSeconds": { "type": "number" },
+            "hitMultiplier": { "type": "number" },
+            "ougiPenalties": {
+              "type": "object",
+              "required": ["0", "1", "2", "3", "4", "overBurst"],
+              "properties": {
+                "0": { "type": "number" },
+                "1": { "type": "number" },
+                "2": { "type": "number" },
+                "3": { "type": "number" },
+                "4": { "type": "number" },
+                "overBurst": { "type": "number" }
+              }
+            },
+            "formula": { "type": "string" },
+            "examples": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["type", "calculation", "lockoutSeconds"],
+                "properties": {
+                  "type": { "type": "string" },
+                  "calculation": { "type": "string" },
+                  "lockoutSeconds": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "fastF5Reload": {
+          "type": "object",
+          "required": ["concept", "pipeline"],
+          "properties": {
+            "concept": { "type": "string" },
+            "pipeline": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

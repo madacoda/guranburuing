@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/selectors.schema.json",
+  "$schema": "../schemas/modals.schema.json",
   "version": "2.0.0",
   "description": "Exhaustive registry of Granblue Fantasy modals, overlay containers, action buttons, and automated resolution handlers.",
   "modals": [

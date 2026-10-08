@@ -6,6 +6,7 @@ import { SentinelWatchdog } from '../sentinel-watchdog.js';
 import { AlertRelay } from '../alert-relay.js';
 import { DropLogger } from './drop-logger.js';
 import { discordPresence } from '../relay/discord-presence.js';
+import { discordDmRelay } from '../relay/discord-dm-relay.js';
 import { ProSkipEngine } from './pro-skip.engine.js';
 import {
   humanizedClick,
@@ -28,6 +29,7 @@ import { RecoveryModalService, PendingBattleService, SupporterSelectionService }
 import { CombatActionService } from '../services/combat/index.js';
 import { LootTrackerService } from '../services/telemetry/index.js';
 import { StepHandlerRegistry, createDefaultStepHandlerRegistry, WorkflowExecutionContext } from '../workflows/index.js';
+import { FateEngine } from './fate.engine.js';
 
 export interface WorkflowLoopOptions {
   runs?: number;
@@ -825,6 +827,20 @@ export class UniversalWorkflowEngine {
           `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
           shotBuffer
         );
+
+        if (discordDmRelay.isConfigured()) {
+          try {
+            await discordDmRelay.sendMessage(
+              `🌟 **Gold Brick Drop Confirmed** 🌟\n• **Raid**: ${this.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}\n• **Honors**: ${this.currentScore.toLocaleString()} pt\n• **Total GB**: ${this.totalGoldBarsAccumulated}`,
+              shotBuffer,
+              `gold-bar-${raidId || 'drop'}.png`,
+              undefined,
+              true // force = true
+            );
+          } catch (dmErr: any) {
+            console.error('[Workflow] Direct Discord DM dispatch error:', dmErr.message);
+          }
+        }
       }
     } catch (err: any) {
       console.error(`[Workflow] Error broadcasting Gold Bar:`, err.message);
@@ -1002,7 +1018,11 @@ export class UniversalWorkflowEngine {
             const targetHash = this.template.questUrl.includes('#') ? '#' + this.template.questUrl.split('#')[1] : this.template.questUrl;
             if (!currentHash.includes(targetHash)) {
               console.log(`[${this.accountId}] [Run ${runNumber}] Navigating to routine URL: ${this.template.questUrl}`);
-              await this.page.evaluate((url: string) => { window.location.href = url; }, this.template.questUrl).catch(() => null);
+              if (!this.page.url().includes('granbluefantasy.jp')) {
+                await this.page.goto(this.template.questUrl, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
+              } else {
+                await this.page.evaluate((url: string) => { window.location.href = url; }, this.template.questUrl).catch(() => null);
+              }
               await logNormalDelay(600, 0.2);
             }
           }
@@ -1199,7 +1219,7 @@ export class UniversalWorkflowEngine {
           }
         }
 
-        console.error(`[${this.accountId}] [Run ${runNumber}] Error: ${err.message}`);
+        console.error(`[${this.accountId}] [Run ${runNumber}] Error: ${err.stack || err.message}`);
         await this.resolveLingeringState();
         await new Promise(r => setTimeout(r, 2000));
       }
@@ -1462,6 +1482,10 @@ export class UniversalWorkflowEngine {
       case 'skip_story_scene':
         return await this.handleSkipStoryScene(step);
 
+      case 'auto_fate_episode':
+      case 'skip_fate_episode':
+        return await this.handleFateEpisode(step);
+
       case 'pro_skip_favorites':
         return await this.handleProSkipFavorites(step);
 
@@ -1580,7 +1604,7 @@ export class UniversalWorkflowEngine {
    * Fast-skips story dialogues, scene cutscenes, dialogue selections, and confirms dialog skips.
    */
   private async handleSkipStoryScene(step: WorkflowStep): Promise<boolean> {
-    const timeoutMs = step.timeoutMs || 10000;
+    const timeoutMs = step.timeoutMs || 15000;
     console.log(`[Workflow] 📖 Fast-skipping story scene (timeout: ${timeoutMs}ms)...`);
     const tStart = Date.now();
 
@@ -1590,51 +1614,132 @@ export class UniversalWorkflowEngine {
 
       // Check if scene has already concluded (redirected to result, supporter, or list)
       const currentUrl = this.page.url();
-      if (currentUrl.includes('result') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#raid')) {
+      if (!currentUrl.includes('scene') && (currentUrl.includes('result') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#raid') || currentUrl.includes('#quest/fate'))) {
         break;
       }
 
       // Check and execute scene progression actions
       const actionTaken = await this.page.evaluate(() => {
-        const $ = (window as any).$ || (window as any).Zepto;
+        try {
+          const $ = (window as any).$ || (window as any).Zepto;
 
-        // 1. Skip confirmation popup: ".pop-skip .btn-usual-ok", ".btn-skip-ok", ".btn-scene-skip"
-        const skipOkBtn = document.querySelector('.pop-skip .btn-usual-ok, .btn-skip-ok, .pop-skip .btn-skip-confirm, .pop-usual .btn-usual-ok, .btn-scene-skip, .pop-synopsis .btn-scene-skip, .pop-usual .btn-scene-skip') as HTMLElement;
-        if (skipOkBtn && skipOkBtn.offsetParent !== null) {
-          if ($) $(skipOkBtn).trigger('tap');
-          skipOkBtn.click();
-          return 'confirmed_skip_modal';
+          // 1. Episode prerequisite caution / spoiler warning: tap "Spoil Me", then tap OK
+          const caution = document.querySelector('.pop-episode-caution') as HTMLElement;
+          if (caution && caution.offsetParent !== null) {
+            const spoil = caution.querySelector('.btn-check-caution') as HTMLElement;
+            if (spoil) {
+              if ($) $(spoil).trigger('tap');
+              spoil.click();
+            }
+            const ok = caution.querySelector('.btn-usual-ok.start-fate:not(.disable)') as HTMLElement;
+            if (ok) {
+              if ($) $(ok).trigger('tap');
+              ok.click();
+              return 'confirmed_caution';
+            }
+          }
+
+          // 2. Conflict error dialog: "This quest does not have a battle part"
+          const cannotBattle = document.querySelector('.pop-can-not-multi-battle') as HTMLElement;
+          if (cannotBattle && cannotBattle.offsetParent !== null) {
+            const closeBtn = cannotBattle.querySelector('.btn-usual-close, .btn-usual-ok') as HTMLElement;
+            if (closeBtn) {
+              if ($) $(closeBtn).trigger('tap');
+              closeBtn.click();
+            }
+            return 'conflict_error';
+          }
+
+          // 3. Skip confirmation popup: strictly skip buttons, NOT generic pop-usual OK!
+          const skipOkBtn = document.querySelector(
+            '.pop-synopsis .btn-scene-skip, .btn-scene-skip, .pop-skip .btn-usual-ok, .btn-skip-ok, .pop-skip .btn-skip-confirm'
+          ) as HTMLElement;
+          if (skipOkBtn && skipOkBtn.offsetParent !== null && !skipOkBtn.classList.contains('disable')) {
+            try {
+              if ($) $(skipOkBtn).trigger('tap');
+              skipOkBtn.click();
+              return 'confirmed_skip_modal';
+            } catch {
+              return null;
+            }
+          }
+
+          // 4. Synopsis / start modal OK button
+          const startOk = document.querySelector(
+            '.btn-usual-ok.se-quest-start, .pop-synopsis .btn-usual-ok:not(.disable)'
+          ) as HTMLElement;
+          if (startOk && startOk.offsetParent !== null) {
+            try {
+              if ($) $(startOk).trigger('tap');
+              startOk.click();
+              return 'started_quest';
+            } catch {
+              return null;
+            }
+          }
+
+          // 5. Story scene SKIP button: ".btn-skip", ".prt-scene-setting .btn-skip", "[data-action='skip']"
+          const skipBtn = document.querySelector(
+            '.btn-skip:not(.btn-scene-skip), .prt-scene-setting .btn-skip, [data-action="skip"]'
+          ) as HTMLElement;
+          if (skipBtn && skipBtn.offsetParent !== null) {
+            try {
+              if ($) $(skipBtn).trigger('tap');
+              skipBtn.click();
+              return 'clicked_skip_button';
+            } catch {
+              return null;
+            }
+          }
+
+          // 6. Dialogue choice inside story: ".prt-selection .btn-selection", ".btn-command"
+          const choiceBtn = document.querySelector(
+            '.prt-selection .btn-selection, .btn-selection, .prt-balloon .btn-usual-ok'
+          ) as HTMLElement;
+          if (choiceBtn && choiceBtn.offsetParent !== null) {
+            try {
+              if ($) $(choiceBtn).trigger('tap');
+              choiceBtn.click();
+              return 'selected_choice';
+            } catch {
+              return null;
+            }
+          }
+
+          // 7. Scene canvas or stage active: tap to awaken HUD
+          const sceneCanvas = document.querySelector('canvas#canvas, canvas#cjs-canvas, .prt-scene-comment, .cnt-quest-scene') as HTMLElement;
+          if (sceneCanvas && sceneCanvas.offsetParent !== null) {
+            return 'canvas_ready';
+          }
+
+          return null;
+        } catch {
+          return null;
         }
-
-        // 2. Story scene SKIP button: ".btn-skip", ".prt-scene-setting .btn-skip", "[data-action='skip']"
-        const skipBtn = document.querySelector('.btn-skip:not(.btn-scene-skip), .prt-scene-setting .btn-skip, [data-action="skip"]') as HTMLElement;
-        if (skipBtn && skipBtn.offsetParent !== null) {
-          if ($) $(skipBtn).trigger('tap');
-          skipBtn.click();
-          return 'clicked_skip_button';
-        }
-
-        // 3. Dialogue choice inside story: ".prt-selection .btn-selection", ".btn-command"
-        const choiceBtn = document.querySelector('.prt-selection .btn-selection, .btn-selection, .prt-balloon .btn-usual-ok') as HTMLElement;
-        if (choiceBtn && choiceBtn.offsetParent !== null) {
-          if ($) $(choiceBtn).trigger('tap');
-          choiceBtn.click();
-          return 'selected_choice';
-        }
-
-        // 4. Scene canvas or stage active: tap to awaken HUD
-        const sceneCanvas = document.querySelector('canvas#canvas, canvas#cjs-canvas, .prt-scene-comment, .cnt-quest-scene') as HTMLElement;
-        if (sceneCanvas && sceneCanvas.offsetParent !== null) {
-          return 'canvas_ready';
-        }
-
-        return null;
-      });
+      }).catch(() => null);
 
       if (actionTaken === 'confirmed_skip_modal') {
-        console.log('[Workflow] Confirmed story skip dialog.');
+        console.log('[Workflow] Confirmed story skip dialog. Awaiting transition to result/combat...');
         await logNormalDelay(600, 0.2);
+
+        // Await redirect out of scene
+        const tWait = Date.now();
+        while (Date.now() - tWait < 12000) {
+          const url = this.page.url();
+          if (url.includes('result') || url.includes('#quest/supporter') || url.includes('#raid') || url.includes('#quest/fate') || url.includes('#mypage')) {
+            break;
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
         break;
+      } else if (actionTaken === 'conflict_error') {
+        console.warn('[Workflow] ⚠️ "Skip Cutscenes" conflict detected. Resetting setting via FateEngine...');
+        const fateEngine = new FateEngine(this.page, this.sentinel);
+        await fateEngine.ensureQuestSkipDisabled();
+        continue;
+      } else if (actionTaken === 'confirmed_caution' || actionTaken === 'started_quest') {
+        await logNormalDelay(600, 0.2);
+        continue;
       } else if (actionTaken === 'clicked_skip_button') {
         console.log('[Workflow] Clicked story Skip button.');
         await logNormalDelay(400, 0.2);
@@ -1655,6 +1760,34 @@ export class UniversalWorkflowEngine {
     // Dismiss any post-scene reward dialogues (crystals, EXP, unlocked skills)
     await this.handleDismissPopups(step);
     return true;
+  }
+
+  /**
+   * Autonomous Fate Episode clearer for UniversalWorkflowEngine:
+   * Handles caution spoiler check, dialogues cutscenes, combat if needed, and reward claims.
+   */
+  private async handleFateEpisode(step?: WorkflowStep): Promise<boolean> {
+    console.log('[Workflow] 📖 Processing Fate Episode via FateEngine...');
+    try {
+      const fateEngine = new FateEngine(this.page, this.sentinel);
+      const result = await fateEngine.processSingleFateEpisode();
+      if (result.status === 'SUCCESS') {
+        return true;
+      }
+      if (result.status === 'NO_UNREAD_EPISODES') {
+        console.log('[Workflow] 🏁 All available Fate Episodes are cleared!');
+        this.requestStop();
+        return true;
+      }
+      if (result.status === 'STOPPED') {
+        return false;
+      }
+      console.warn(`[Workflow] ⚠️ Fate Episode ended with status: ${result.status} (${result.message}). Continuing...`);
+      return true;
+    } catch (err: any) {
+      console.warn(`[Workflow] ⚠️ Recovered from exception in handleFateEpisode: ${err?.message || err}`);
+      return true;
+    }
   }
 
   /**
@@ -4097,12 +4230,28 @@ export class UniversalWorkflowEngine {
   }
 
   /**
-   * Clicks an arbitrary selector.
+   * Clicks an arbitrary selector with intelligent child-element unwrapping and dual-dispatch.
    */
   private async handleClick(step: WorkflowStep): Promise<boolean> {
     if (!step.target) return false;
     const el = await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 3000 }).catch(() => null);
     if (el) {
+      const dispatched = await this.page.evaluate((sel: string) => {
+        const item = document.querySelector(sel) as HTMLElement;
+        if (!item) return false;
+        // If selected item is a wrapper div containing an actionable button/card child, select the actionable child
+        const childBtn = item.querySelector('.btn-quest-list, .btn, button, [class*="btn"]') as HTMLElement;
+        const target = childBtn || item;
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(target).trigger('tap');
+        target.click();
+        return true;
+      }, step.target).catch(() => false);
+
+      if (dispatched) {
+        await logNormalDelay(250, 0.15);
+        return true;
+      }
       await humanizedClick(this.page, el);
       return true;
     }
@@ -4133,7 +4282,7 @@ export class UniversalWorkflowEngine {
       this.currentBattleHadBlueChest = true;
       this.totalGoldBarsAccumulated++;
       this.totalBlueChestsAccumulated++;
-      this.broadcastGoldBarFound(domCheck.raidId || this.currentRaidId);
+      await this.broadcastGoldBarFound(domCheck.raidId || this.currentRaidId);
     }
 
     if (!this.currentBattleHadBlueChest) {
@@ -4266,25 +4415,45 @@ export class UniversalWorkflowEngine {
           }
         }
 
-        // Wait for result screen (#result_multi or #result)
+        // Wait for result screen container or data to arrive (up to 6000ms)
         const tWait = Date.now();
         let resultLoaded = false;
-        while (Date.now() - tWait < 8000) {
+        while (Date.now() - tWait < 6000) {
           if (this.stopRequested) break;
           const isResult = await this.page.evaluate(() => {
-            const hash = window.location.hash;
-            return hash.includes('result') || !!document.querySelector('.pop-raid-result, .prt-result-head, .cnt-result, #cnt-result');
+            return !!document.querySelector('.pop-raid-result, .prt-result-head, .cnt-result, #cnt-result, .prt-reward-item, .prt-item-list, .prt-module, .pop-usual, .btn-usual-ok');
           }).catch(() => false);
 
-          if (isResult) {
+          if (isResult || this.latestRewardData !== null) {
             resultLoaded = true;
             break;
           }
           await new Promise(r => setTimeout(r, 200));
         }
 
-        // Allow result settlement and check for Gold Bar drop
-        await logNormalDelay(800, 0.15);
+        // Dismiss any blocking EXP/RP modals to reveal the underlying reward chests
+        await this.page.evaluate(() => {
+          const ok = document.querySelector('.pop-usual .btn-usual-ok, .pop-usual .btn-usual-close') as HTMLElement;
+          if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
+            ok.click();
+          }
+        }).catch(() => null);
+
+        // Allow loot cards and chest opening animations to render
+        await logNormalDelay(1200, 0.15);
+
+        // Tap Blue Chest if present to reveal drop
+        await this.page.evaluate(() => {
+          const blueChest = document.querySelector('.prt-box-special, .prt-special-reward-box, [data-box-type="11"]') as HTMLElement;
+          if (blueChest && blueChest.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(blueChest).trigger('tap');
+            blueChest.click();
+          }
+        }).catch(() => null);
+        await logNormalDelay(600, 0.1);
 
         // 1. Resolve claimed raid ID from location hash
         const urlRaidMatch = await this.page.evaluate(() => {
@@ -4330,6 +4499,23 @@ export class UniversalWorkflowEngine {
               `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle ID: ${finalRaidId}\n• Log URL: https://game.granbluefantasy.jp/#result_multi/detail/${finalRaidId}/1/0/0`,
               shotBuf
             );
+
+            if (discordDmRelay.isConfigured()) {
+              try {
+                const battleUrl = finalRaidId && /^\d+$/.test(finalRaidId)
+                  ? `https://game.granbluefantasy.jp/#result_multi/detail/${finalRaidId}/1/0/0`
+                  : 'https://game.granbluefantasy.jp/#quest/assist';
+                await discordDmRelay.sendMessage(
+                  `🌟 **Gold Brick Drop Confirmed (Claimed Battle)** 🌟\n• **Raid**: ${this.template.name}\n• **Raid ID**: \`${finalRaidId}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}`,
+                  shotBuf,
+                  `gold-bar-${finalRaidId}.png`,
+                  undefined,
+                  true // force = true
+                );
+              } catch (dmErr: any) {
+                console.error('[Workflow] Direct Discord DM dispatch error in claim:', dmErr.message);
+              }
+            }
           }
         }
 

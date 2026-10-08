@@ -33,13 +33,20 @@ async function main() {
       targetRuns = parseInt(pos, 10);
     } else if (pos.toLowerCase().includes('colossus') || pos.toLowerCase() === 'colossus-ira') {
       targetTemplateName = 'otkraid-colossus-ira';
+    } else if (pos.toLowerCase().includes('tiamat') || pos.toLowerCase() === 'tiamat-aura') {
+      targetTemplateName = 'otkraid-tiamat-aura';
     } else {
       targetTemplateName = pos;
     }
   }
 
   const account = AccountRegistry.getAccountById(targetAccountId) || accounts[0];
-  const template = TemplateParser.loadTemplate(targetTemplateName);
+  const availableTemplates = TemplateParser.listAvailableTemplates();
+  let resolvedTemplateName = targetTemplateName;
+  if (!availableTemplates.includes(resolvedTemplateName) && availableTemplates.includes(`otkraid-${resolvedTemplateName}`)) {
+    resolvedTemplateName = `otkraid-${resolvedTemplateName}`;
+  }
+  const template = TemplateParser.loadTemplate(resolvedTemplateName);
 
   console.log(`• Account:          ${account.name} (${account.id})`);
   console.log(`• Target Raid:       ${template.name}`);
@@ -52,6 +59,11 @@ async function main() {
   console.log(`• Browser Mode:      ${isHeadless ? 'HEADLESS (--headless=new)' : 'WINDOWED (Visible GUI)'}`);
   console.log(`• Pending Recovery:  Auto-assist lingering raids on 3 active limit`);
   console.log('========================================================================\n');
+
+  if (flags.has('--dry-run')) {
+    console.log('Dry-run complete. Template structure and arguments are fully valid.\n');
+    process.exit(0);
+  }
 
   const cdpManager = new CdpConnectionManager();
   const { page } = await cdpManager.connectWithRetry(6, 2000, isHeadless, {

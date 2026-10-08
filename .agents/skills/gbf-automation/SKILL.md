@@ -257,6 +257,27 @@ bun run gb-farm
 bun run gw-meat-light
 ```
 
+### OTK Raid Burst & Leech Farming (`otkraid`):
+Target dying raids (HP <= 20%, players >= 3) on Raid Finder tab 1 for rapid leech/participation drops and automatic pending assist unjamming:
+```bash
+# Tiamat Aura (Agni Fire burst):
+bun run otkraid:tiamat
+bun run otkraid-tiamat-aura
+npm run otkraid-tiamat-aura
+
+# Colossus Ira (Varuna Water burst):
+bun run otkraid:colossus
+bun run otkraid-colossus-ira
+npm run otkraid-colossus-ira
+
+# Universal template execution by filename:
+bun run workflow <template-filename>
+npm run workflow -- <template-filename>
+
+# Auto-sync any newly created template to package.json scripts:
+bun run templates:sync
+```
+
 ---
 
 ## 5. VPS Headless Deployment & Cross-Platform Cookie Sync

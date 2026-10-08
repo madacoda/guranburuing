@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/navigation-routes.schema.json",
+  "title": "GBFNavigationRoutesSchema",
+  "description": "Authoritative schema for Granblue Fantasy Backbone.js client-side router navigation paths, hash patterns, and allowed state transitions.",
+  "type": "object",
+  "required": ["version", "description", "routes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["hash", "name", "description", "view"],
+        "properties": {
+          "hash": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "view": { "type": "string" },
+          "subTabs": { "type": "object" },
+          "allowedTransitions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

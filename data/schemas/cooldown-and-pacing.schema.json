@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Operational Cooldowns & Biomechanical Pacing Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "gameServerCooldowns",
+    "humanPacingBudgets"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "gameServerCooldowns": {
+      "type": "object",
+      "required": [
+        "backupRequestBroadcastAllMs",
+        "raidFinderApiIntervalMs",
+        "gachaDrawDebounceMs",
+        "questRematchDelayMs"
+      ],
+      "properties": {
+        "backupRequestBroadcastAllMs": { "type": "integer", "minimum": 1000 },
+        "raidFinderApiIntervalMs": { "type": "integer", "minimum": 500 },
+        "gachaDrawDebounceMs": { "type": "integer", "minimum": 100 },
+        "questRematchDelayMs": { "type": "integer", "minimum": 100 }
+      }
+    },
+    "humanPacingBudgets": {
+      "type": "object",
+      "required": [
+        "maxActionsPerMinute",
+        "targetActionsPerMinute",
+        "restCycles",
+        "fatigueCurves"
+      ],
+      "properties": {
+        "maxActionsPerMinute": { "type": "integer", "minimum": 10, "maximum": 120 },
+        "targetActionsPerMinute": { "type": "integer", "minimum": 10, "maximum": 120 },
+        "restCycles": {
+          "type": "object",
+          "required": ["microBreak", "mesoBreak", "macroBreak", "mandatorySleep"],
+          "properties": {
+            "microBreak": {
+              "type": "object",
+              "required": ["intervalMinutes", "durationSeconds"],
+              "properties": {
+                "intervalMinutes": { "type": "integer", "minimum": 5 },
+                "durationSeconds": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "mesoBreak": {
+              "type": "object",
+              "required": ["intervalMinutes", "durationMinutes"],
+              "properties": {
+                "intervalMinutes": { "type": "integer", "minimum": 15 },
+                "durationMinutes": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "macroBreak": {
+              "type": "object",
+              "required": ["intervalHours", "durationMinutes"],
+              "properties": {
+                "intervalHours": { "type": "integer", "minimum": 1 },
+                "durationMinutes": { "type": "integer", "minimum": 5 }
+              }
+            },
+            "mandatorySleep": {
+              "type": "object",
+              "required": ["durationHours", "enforce24hWindow"],
+              "properties": {
+                "durationHours": { "type": "integer", "minimum": 4 },
+                "enforce24hWindow": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "fatigueCurves": {
+          "type": "object",
+          "required": ["enabled", "fatigueStepRuns", "delayScalingMultiplier"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "fatigueStepRuns": { "type": "integer", "minimum": 5 },
+            "delayScalingMultiplier": { "type": "number", "minimum": 1.0 }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

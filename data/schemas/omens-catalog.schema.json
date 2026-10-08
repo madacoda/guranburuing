@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Battle System 2.0 (V2) Omens Catalog Schema",
+  "description": "Schema for Granblue Fantasy V2 omens, triggers, cancel conditions, incoming damage types, and tactical counter strategies.",
+  "type": "object",
+  "required": ["version", "omens"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "omens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "raidId",
+          "raidName",
+          "omenName",
+          "triggerType",
+          "omenType",
+          "cancelCondition",
+          "dangerLevel",
+          "incomingDamageType",
+          "recommendedCounter"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "raidId": { "type": "string" },
+          "raidName": { "type": "string" },
+          "omenName": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "triggerType": {
+            "type": "string",
+            "enum": ["hp_threshold", "turn_interval", "charge_diamonds", "phase_change", "special_trigger"]
+          },
+          "triggerValue": { "type": "string" },
+          "omenType": {
+            "type": "string",
+            "enum": ["cancelable_yellow", "uncancelable_red"]
+          },
+          "cancelCondition": {
+            "type": "object",
+            "required": ["type", "description"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "hit_count",
+                  "damage_threshold",
+                  "skill_damage",
+                  "charge_attack_count",
+                  "charge_attack_damage",
+                  "fatal_chain",
+                  "dispel",
+                  "debuff_count",
+                  "skill_category",
+                  "plain_damage",
+                  "none"
+                ]
+              },
+              "description": { "type": "string" },
+              "targetCount": { "type": "integer" },
+              "targetDamage": { "type": "number" },
+              "requiredCategory": { "type": "string" }
+            }
+          },
+          "dangerLevel": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "wipe"]
+          },
+          "incomingDamageType": {
+            "type": "string",
+            "enum": ["elemental_multi", "elemental_nuke", "plain", "all_party_nuke", "buff_only"]
+          },
+          "recommendedCounter": {
+            "type": "object",
+            "required": ["primaryAction", "fallbackAction"],
+            "properties": {
+              "primaryAction": { "type": "string" },
+              "fallbackAction": { "type": "string" },
+              "targetSkills": { "type": "array", "items": { "type": "string" } },
+              "targetSummons": { "type": "array", "items": { "type": "string" } },
+              "autoGuardEligible": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

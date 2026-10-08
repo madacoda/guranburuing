@@ -1,0 +1,204 @@
+{
+  "$schema": "../schemas/element-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Authoritative catalog of Granblue Fantasy elements, elemental wheel relationships, summon auras, and party synergy mappings.",
+  "elements": [
+    {
+      "id": "fire",
+      "internalId": 1,
+      "name": "Fire",
+      "japaneseName": "火属性",
+      "kanji": "火",
+      "colorHex": "#ef4444",
+      "supporterTabAttribute": 1,
+      "superiorTo": ["wind"],
+      "weakTo": ["water"],
+      "neutralTo": ["earth", "light", "dark"],
+      "baseDamageMultiplierVsSuperior": 1.5,
+      "baseDamageMultiplierVsInferior": 0.75,
+      "baseDamageTakenMultiplierVsSuperior": 0.75,
+      "baseDamageTakenMultiplierVsInferior": 1.25,
+      "summons": {
+        "magna": ["Colossus Omega", "Colossus Mare Omega"],
+        "primal": ["Agni"],
+        "primarch": ["Michael"],
+        "arcarum": ["The Sun", "The Devil"],
+        "sixDragons": ["Wilnas"]
+      },
+      "weaponSkills": {
+        "magnaPrefix": "Hellfire's",
+        "primalPrefix": "Fire's",
+        "seraphicWeapon": "Sword of Michael"
+      }
+    },
+    {
+      "id": "water",
+      "internalId": 2,
+      "name": "Water",
+      "japaneseName": "水属性",
+      "kanji": "水",
+      "colorHex": "#3b82f6",
+      "supporterTabAttribute": 2,
+      "superiorTo": ["fire"],
+      "weakTo": ["earth"],
+      "neutralTo": ["wind", "light", "dark"],
+      "baseDamageMultiplierVsSuperior": 1.5,
+      "baseDamageMultiplierVsInferior": 0.75,
+      "baseDamageTakenMultiplierVsSuperior": 0.75,
+      "baseDamageTakenMultiplierVsInferior": 1.25,
+      "summons": {
+        "magna": ["Leviathan Omega", "Leviathan Mare Omega"],
+        "primal": ["Varuna"],
+        "primarch": ["Gabriel"],
+        "arcarum": ["The Moon", "Justice"],
+        "sixDragons": ["Wamdus"]
+      },
+      "weaponSkills": {
+        "magnaPrefix": "Tsunami's",
+        "primalPrefix": "Water's",
+        "seraphicWeapon": "Wand of Gabriel"
+      }
+    },
+    {
+      "id": "earth",
+      "internalId": 3,
+      "name": "Earth",
+      "japaneseName": "土属性",
+      "kanji": "土",
+      "colorHex": "#d97706",
+      "supporterTabAttribute": 3,
+      "superiorTo": ["water"],
+      "weakTo": ["wind"],
+      "neutralTo": ["fire", "light", "dark"],
+      "baseDamageMultiplierVsSuperior": 1.5,
+      "baseDamageMultiplierVsInferior": 0.75,
+      "baseDamageTakenMultiplierVsSuperior": 0.75,
+      "baseDamageTakenMultiplierVsInferior": 1.25,
+      "summons": {
+        "magna": ["Yggdrasil Omega", "Yggdrasil Arbos Omega"],
+        "primal": ["Titan"],
+        "primarch": ["Uriel"],
+        "arcarum": ["The Hanged Man", "The Tower"],
+        "sixDragons": ["Galleon"]
+      },
+      "weaponSkills": {
+        "magnaPrefix": "Mountain's",
+        "primalPrefix": "Earth's",
+        "seraphicWeapon": "Gauntlet of Uriel"
+      }
+    },
+    {
+      "id": "wind",
+      "internalId": 4,
+      "name": "Wind",
+      "japaneseName": "風属性",
+      "kanji": "風",
+      "colorHex": "#10b981",
+      "supporterTabAttribute": 4,
+      "superiorTo": ["earth"],
+      "weakTo": ["fire"],
+      "neutralTo": ["water", "light", "dark"],
+      "baseDamageMultiplierVsSuperior": 1.5,
+      "baseDamageMultiplierVsInferior": 0.75,
+      "baseDamageTakenMultiplierVsSuperior": 0.75,
+      "baseDamageTakenMultiplierVsInferior": 1.25,
+      "summons": {
+        "magna": ["Tiamat Omega", "Tiamat Aura Omega"],
+        "primal": ["Zephyrus"],
+        "primarch": ["Raphael"],
+        "arcarum": ["The Judgement", "Temperance"],
+        "sixDragons": ["Ewiyar"]
+      },
+      "weaponSkills": {
+        "magnaPrefix": "Storm's",
+        "primalPrefix": "Wind's",
+        "seraphicWeapon": "Ring of Raphael"
+      }
+    },
+    {
+      "id": "light",
+      "internalId": 5,
+      "name": "Light",
+      "japaneseName": "光属性",
+      "kanji": "光",
+      "colorHex": "#f59e0b",
+      "supporterTabAttribute": 5,
+      "superiorTo": ["dark"],
+      "weakTo": [],
+      "neutralTo": ["fire", "water", "earth", "wind"],
+      "baseDamageMultiplierVsSuperior": 1.5,
+      "baseDamageMultiplierVsInferior": 1.0,
+      "baseDamageTakenMultiplierVsSuperior": 1.0,
+      "baseDamageTakenMultiplierVsInferior": 1.0,
+      "summons": {
+        "magna": ["Luminiera Omega", "Luminiera Credo Omega"],
+        "primal": ["Zeus"],
+        "primarch": ["Metatron"],
+        "arcarum": ["The Star"],
+        "sixDragons": ["Lu Woh"]
+      },
+      "weaponSkills": {
+        "magnaPrefix": "Luminiera's",
+        "primalPrefix": "Light's",
+        "seraphicWeapon": "Harp of The Star"
+      }
+    },
+    {
+      "id": "dark",
+      "internalId": 6,
+      "name": "Dark",
+      "japaneseName": "闇属性",
+      "kanji": "闇",
+      "colorHex": "#8b5cf6",
+      "supporterTabAttribute": 6,
+      "superiorTo": ["light"],
+      "weakTo": [],
+      "neutralTo": ["fire", "water", "earth", "wind"],
+      "baseDamageMultiplierVsSuperior": 1.5,
+      "baseDamageMultiplierVsInferior": 1.0,
+      "baseDamageTakenMultiplierVsSuperior": 1.0,
+      "baseDamageTakenMultiplierVsInferior": 1.0,
+      "summons": {
+        "magna": ["Celeste Omega", "Celeste Ater Omega"],
+        "primal": ["Hades"],
+        "primarch": ["Sariel"],
+        "arcarum": ["Death"],
+        "sixDragons": ["Fediel"]
+      },
+      "weaponSkills": {
+        "magnaPrefix": "Celeste's",
+        "primalPrefix": "Dark's",
+        "seraphicWeapon": "Scythe of Belial"
+      }
+    },
+    {
+      "id": "plain",
+      "internalId": 0,
+      "name": "Plain",
+      "japaneseName": "無属性",
+      "kanji": "無",
+      "colorHex": "#9ca3af",
+      "supporterTabAttribute": 7,
+      "superiorTo": [],
+      "weakTo": [],
+      "neutralTo": ["fire", "water", "earth", "wind", "light", "dark"],
+      "baseDamageMultiplierVsSuperior": 1.0,
+      "baseDamageMultiplierVsInferior": 1.0,
+      "baseDamageTakenMultiplierVsSuperior": 1.0,
+      "baseDamageTakenMultiplierVsInferior": 1.0,
+      "summons": {
+        "magna": [],
+        "primal": [],
+        "primarch": [],
+        "arcarum": [],
+        "sixDragons": []
+      },
+      "weaponSkills": {
+        "magnaPrefix": "None",
+        "primalPrefix": "None",
+        "seraphicWeapon": "None"
+      }
+    }
+  ]
+}

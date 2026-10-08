@@ -6,11 +6,42 @@
   "description": "Enterprise machine-readable technical catalog of Granblue Fantasy client protocols, comprehensive raid specifications, combat mechanics, and automation engine configurations.",
   "architecture": {
     "standard": "Domain-Driven Design (DDD) & Senior Gold Industry Standard",
+    "schemas": {
+      "raidCatalog": "data/schemas/raid-catalog.schema.json",
+      "categories": "data/schemas/categories.schema.json",
+      "dropTables": "data/schemas/drop-tables.schema.json",
+      "raidEvaluation": "data/schemas/raid-evaluation.schema.json",
+      "selectors": "data/schemas/selectors.schema.json",
+      "modals": "data/schemas/modals.schema.json",
+      "navigationRoutes": "data/schemas/navigation-routes.schema.json",
+      "endpoints": "data/schemas/endpoints.schema.json",
+      "authAndLogin": "data/schemas/auth-and-login.schema.json",
+      "cdnAssets": "data/schemas/cdn-assets.schema.json",
+      "combatPhysics": "data/schemas/combat-physics.schema.json",
+      "battleSystems": "data/schemas/battle-systems.schema.json",
+      "omensCatalog": "data/schemas/omens-catalog.schema.json",
+      "plainDamageCatalog": "data/schemas/plain-damage-catalog.schema.json",
+      "statusEffectsCatalog": "data/schemas/status-effects-catalog.schema.json",
+      "supporterSummons": "data/schemas/supporter-summons.schema.json",
+      "tacticalActionPriority": "data/schemas/tactical-action-priority.schema.json",
+      "elementCatalog": "data/schemas/element-catalog.schema.json",
+      "partySelectionRules": "data/schemas/party-selection-rules.schema.json",
+      "dailyCatalog": "data/schemas/daily-catalog.schema.json",
+      "antiDetection": "data/schemas/anti-detection.schema.json",
+      "recoveryPolicies": "data/schemas/recovery-policies.schema.json",
+      "battleReloadProfiles": "data/schemas/battle-reload-profiles.schema.json",
+      "eventAutomation": "data/schemas/event-automation.schema.json",
+      "cooldownAndPacing": "data/schemas/cooldown-and-pacing.schema.json",
+      "multiAccountOrchestration": "data/schemas/multi-account-orchestration.schema.json",
+      "stateMachineRecovery": "data/schemas/state-machine-recovery.schema.json",
+      "sentinelWatchdog": "data/schemas/sentinel-watchdog.schema.json"
+    },
     "modules": {
       "raids": {
         "catalog": "data/raids/raids.catalog.json",
         "categories": "data/raids/categories.json",
-        "dropTables": "data/raids/drop-tables.json"
+        "dropTables": "data/raids/drop-tables.json",
+        "joinDecision": "data/raids/raid-join-decision.json"
       },
       "ui": {
         "selectors": "data/ui/selectors.catalog.json",
@@ -24,11 +55,30 @@
       },
       "combat": {
         "physics": "data/combat/combat-physics.json",
-        "battleSystems": "data/combat/battle-systems.json"
+        "battleSystems": "data/combat/battle-systems.json",
+        "omens": "data/combat/omens.catalog.json",
+        "counterTaxonomy": "data/combat/v2-counter-taxonomy.json",
+        "plainDamage": "data/combat/plain-damage.catalog.json",
+        "plainDamageCounter": "data/combat/plain-damage-counter-engine.json",
+        "statusEffects": "data/combat/status-effects.catalog.json",
+        "supporterSummons": "data/combat/supporter-summons.catalog.json",
+        "tacticalPriority": "data/combat/tactical-action-priority.json"
+      },
+      "elements": {
+        "catalog": "data/elements/elements.catalog.json",
+        "matrix": "data/elements/elemental-matrix.json",
+        "partyRules": "data/elements/party-selection-rules.json"
       },
       "automation": {
         "dailyRoutines": "data/automation/daily-routines.json",
-        "antiDetection": "data/automation/anti-detection.json"
+        "antiDetection": "data/automation/anti-detection.json",
+        "recoveryPolicies": "data/automation/recovery-policies.catalog.json",
+        "battleReloadProfiles": "data/automation/battle-reload-profiles.catalog.json",
+        "eventAutomation": "data/automation/event-automation.catalog.json",
+        "cooldownAndPacing": "data/automation/cooldown-and-pacing.catalog.json",
+        "multiAccountOrchestration": "data/automation/multi-account-orchestration.catalog.json",
+        "stateMachineRecovery": "data/automation/state-machine-recovery.catalog.json",
+        "sentinelWatchdog": "data/automation/sentinel-watchdog.catalog.json"
       }
     }
   },

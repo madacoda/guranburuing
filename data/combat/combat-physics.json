@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/raid-catalog.schema.json",
+  "$schema": "../schemas/combat-physics.schema.json",
   "version": "2.0.0",
   "description": "Combat physics, damage-to-honors conversion, attack lockout duration formulas, and F5 reload timing.",
   "formulas": {

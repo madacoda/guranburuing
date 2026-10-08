@@ -1,0 +1,121 @@
+{
+  "$schema": "../schemas/omens-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Tactical decision taxonomy and algorithmic resolution engine for Battle System 2.0 (V2) omens, counter abilities, and guard fallbacks.",
+  "conditionResolvers": {
+    "hit_count": {
+      "strategyName": "Multi-Hit Saturation",
+      "description": "Fulfills omens requiring 20 to 97 hits in a single turn.",
+      "tacticalSequence": [
+        "1. Dispatch multi-hit damage abilities (e.g. Decimate, Acrobat Volley, Manadiver Leviathan crest nukes).",
+        "2. Activate Team Echoes / Bonus Damage buffs (Frame A, Frame B, or Frame D weapon skills).",
+        "3. Ensure Guaranteed Triple Attack / Quadruple Attack buffs are active.",
+        "4. Trigger extra attack instances (e.g. Luchador Tag Team, Double Strike buffs, Sun summon call).",
+        "5. Normal attack execution calculates: Hits = (Characters * Attacks * (1 + EchoCount)) + SkillHits."
+      ],
+      "candidateClasses": ["Manadiver", "Robin Hood", "Luchador", "Monk", "Viking"],
+      "candidateSkills": ["decimate", "tag_team", "split_spirit", "acrobat_volley", "flurry"],
+      "candidateSummons": ["the_sun", "yatima", "beelzebub", "belial"],
+      "guardFallbackSafety": "Safe for elemental hits; caution against high plain damage triggers."
+    },
+    "damage_threshold": {
+      "strategyName": "High-Multiplier Burst",
+      "description": "Fulfills omens requiring 10M to 30M damage in a single turn.",
+      "tacticalSequence": [
+        "1. Ensure boss has -50% Defense Down applied (Miserable Mist + Armor Break / Elemental DEF Down).",
+        "2. Activate Assassin buffs (Anytime Assassin, Path of Destruction, Salt).",
+        "3. Dispatch high-multiplier damage summons (Beelzebub 3M plain + Borehole debuff, Triple Zero 6.66M, Bahamut 250%).",
+        "4. Combine Full Chain charge attacks with supplemental damage buffs."
+      ],
+      "candidateClasses": ["Relic Buster", "Kengo", "Viking", "Chrysaor"],
+      "candidateSkills": ["limit_burst", "path_of_destruction", "pandemonium", "wild_card"],
+      "candidateSummons": ["beelzebub", "triple_zero", "bahamut", "yatima"],
+      "guardFallbackSafety": "Safe for standard damage omens; Guard reduces incoming damage by 90%."
+    },
+    "skill_damage": {
+      "strategyName": "Skill Damage Salvo",
+      "description": "Fulfills omens requiring 10 to 15 instances of skill damage or 10M+ skill damage.",
+      "tacticalSequence": [
+        "1. Prioritize multi-hit damage skills with supplemental skill damage buffs (e.g. World weapons / Agonize / Pain of the Fallen).",
+        "2. Leverage auto-activating end-of-turn or after-attack skill nukes (e.g. Manadiver Lu Woh/Leviathan crests, Monk martial prowess).",
+        "3. Reset skill cooldowns where possible (e.g. Qilin call if available or character CD reset passives)."
+      ],
+      "candidateClasses": ["Manadiver", "Monk", "Robin Hood", "Iatromantis"],
+      "candidateSkills": ["decimate", "arrow_rain", "elemental_nuke"],
+      "candidateSummons": ["yatima", "beelzebub"],
+      "guardFallbackSafety": "Safe to Guard if skill cooldowns are depleted."
+    },
+    "charge_attack_count": {
+      "strategyName": "Charge Chain Saturation",
+      "description": "Fulfills omens requiring 3 to 6 Charge Attacks in a single turn.",
+      "tacticalSequence": [
+        "1. Verify Charge Attack toggle is ON (.btn-auto / .btn-lock or manual C.A. toggle).",
+        "2. If charge bar is insufficient, activate 100% team battery (Relic Buster Tactical Shield + Limit Burst, or Huanglong call).",
+        "3. For 5+ ougi requirements, deploy Kengo with Unsigned Kaneshige or characters with innate dual-ougi passives."
+      ],
+      "candidateClasses": ["Kengo", "Relic Buster", "Rising Force", "Chrysaor"],
+      "candidateSkills": ["limit_burst", "tactical_shield", "pandemonium", "no_more_doubt"],
+      "candidateSummons": ["huanglong", "bahamut", "kaguya"],
+      "guardFallbackSafety": "Safe to Guard if charge bar generation cannot reach 400% aggregate."
+    },
+    "fatal_chain": {
+      "strategyName": "Fatal Chain Discharge",
+      "description": "Fulfills omens requiring immediate discharge of 100% Fatal Chain.",
+      "tacticalSequence": [
+        "1. Inspect in-page Fatal Chain gauge (must be == 100%).",
+        "2. If gauge == 100%, trigger DOM button: .btn-fatal-chain.",
+        "3. If gauge < 100%, evaluate whether full chain ougi this turn can push gauge to 100% (each ougi adds 10%, 4-chain full burst adds 50% total).",
+        "4. If impossible to fill, activate Guard on all characters."
+      ],
+      "candidateClasses": ["Kengo", "Relic Buster"],
+      "candidateSkills": ["limit_burst"],
+      "candidateSummons": ["huanglong"],
+      "guardFallbackSafety": "Extremely critical. Fatal Chain omens often carry 99,999 Plain damage or massive lethal wipes. Guarding reduces damage to survivable levels."
+    },
+    "dispel": {
+      "strategyName": "Dispel Cascade",
+      "description": "Fulfills omens requiring 1 to 4 dispels in a single turn.",
+      "tacticalSequence": [
+        "1. Call Beelzebub summon (guaranteed 3 dispels on call).",
+        "2. Dispatch character single or double dispel abilities.",
+        "3. Trigger charge attacks for characters with Dispel-on-C.A. (e.g. Vampy, Halluel & Malluel, G.Percival)."
+      ],
+      "candidateClasses": ["Chaos Ruler", "Iatromantis", "Paladin"],
+      "candidateSkills": ["dispel", "unveil", "chaotic_aim"],
+      "candidateSummons": ["beelzebub"],
+      "guardFallbackSafety": "Guarding prevents damage, but failing to dispel leaves boss with lethal permanent buffs (e.g. 100% ATK up, Damage Cut, or Debuff Immunity)."
+    },
+    "debuff_count": {
+      "strategyName": "Ailment Saturation",
+      "description": "Fulfills omens requiring 5 to 12 debuffs landed in a single turn.",
+      "tacticalSequence": [
+        "1. First cast Debuff Resistance Down to ensure subsequent debuffs do not miss.",
+        "2. Dispatch multi-debuff abilities (Miserable Mist lands 2 debuffs; Chaos Ruler / Lich / Fediel land 4-6 debuffs each).",
+        "3. Call summons that inflict multiple status ailments (Beelzebub lands 3 ailments, Sariel lands 2)."
+      ],
+      "candidateClasses": ["Chaos Ruler", "Robin Hood", "Warlock"],
+      "candidateSkills": ["miserable_mist", "chaos_drain", "dark_haze"],
+      "candidateSummons": ["beelzebub", "sariel"],
+      "guardFallbackSafety": "Safe to Guard if debuff cooldowns are exhausted."
+    }
+  },
+  "guardDecisionMatrix": {
+    "cancelableOmen": {
+      "conditionCheckMet": "Execute attack and skill sequence to cancel omen, reset diamonds to 0, and maintain full DPS.",
+      "conditionCheckUnmet": "Do NOT attempt blind attacks. Dispatch .btn-guard-all to reduce incoming damage by 90%."
+    },
+    "uncancelableOmen": {
+      "action": "Always engage Guard (.btn-guard-all) or 100% All-Cut invulnerability, unless sacrificial unit mechanics are specifically intended."
+    },
+    "guardPhysics": {
+      "damageCut": 0.9,
+      "plainDamageMitigation": "Reduces fixed/plain damage by 90% in Battle System 2.0 (e.g. 100k Plain becomes 10k Plain).",
+      "penalties": [
+        "Guarded character cannot attack or deal damage.",
+        "Guarded character cannot gain charge bar from attacking.",
+        "Guarded character cannot activate counter-attacks."
+      ]
+    }
+  }
+}

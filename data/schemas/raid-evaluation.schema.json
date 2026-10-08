@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/raid-evaluation.schema.json",
+  "title": "GBFRaidEvaluationAndJoinDecisionSchema",
+  "description": "Gold Industry Standard schema for Granblue Fantasy Raid Evaluation, Dynamic Leech vs Racing Decision Engine, EP Return-on-Investment (ROI), and Raid Finder Join Heuristics.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "actionPolicies", "raidProfiles", "decisionPipeline"],
+  "properties": {
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "actionPolicies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "description", "minHpPercent", "maxHpPercent", "minParticipants", "maxParticipants", "epCostRange"],
+        "properties": {
+          "action": { "type": "string" },
+          "description": { "type": "string" },
+          "minHpPercent": { "type": "number" },
+          "maxHpPercent": { "type": "number" },
+          "minParticipants": { "type": "number" },
+          "maxParticipants": { "type": "number" },
+          "epCostRange": { "type": "array", "items": { "type": "number" } }
+        }
+      }
+    },
+    "raidProfiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["raidId", "name", "targetMode", "minHpJoin", "maxHpJoin", "blueChestTargetHonors", "leechHonorsTarget", "expectedTimeToDeathSeconds"],
+        "properties": {
+          "raidId": { "type": "string" },
+          "name": { "type": "string" },
+          "targetMode": { "type": "string", "enum": ["blue_chest_race", "rapid_leech", "host_only", "hybrid"] },
+          "minHpJoin": { "type": "number" },
+          "maxHpJoin": { "type": "number" },
+          "maxParticipantsAllowed": { "type": "number" },
+          "blueChestTargetHonors": { "type": "number" },
+          "leechHonorsTarget": { "type": "number" },
+          "expectedTimeToDeathSeconds": { "type": "number" },
+          "primaryDrop": { "type": "string" },
+          "tacticalNotes": { "type": "string" }
+        }
+      }
+    },
+    "decisionPipeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "name", "formulaOrCondition", "actionOutput"],
+        "properties": {
+          "step": { "type": "number" },
+          "name": { "type": "string" },
+          "formulaOrCondition": { "type": "string" },
+          "actionOutput": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/anti-detection.schema.json",
+  "title": "GBFAntiDetectionSchema",
+  "description": "Authoritative schema for human motor distributions, Bézier kinematics, safety watchdog thresholds, and anti-cheat telemetry defenses.",
+  "type": "object",
+  "required": ["version", "description", "humanMotor", "safetyWatchdog"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "humanMotor": {
+      "type": "object",
+      "required": ["speedProfiles", "delayDistribution", "mouseKinematics"],
+      "properties": {
+        "speedProfiles": {
+          "type": "object",
+          "required": ["fast", "normal", "stealth"],
+          "properties": {
+            "fast": {
+              "type": "object",
+              "required": ["description", "baseDelayMs", "variance", "clickHoldDurationMs"],
+              "properties": {
+                "description": { "type": "string" },
+                "baseDelayMs": { "type": "number" },
+                "variance": { "type": "number" },
+                "clickHoldDurationMs": {
+                  "type": "object",
+                  "required": ["min", "max"],
+                  "properties": {
+                    "min": { "type": "number" },
+                    "max": { "type": "number" }
+                  }
+                }
+              }
+            },
+            "normal": {
+              "type": "object",
+              "required": ["description", "baseDelayMs", "variance", "clickHoldDurationMs"],
+              "properties": {
+                "description": { "type": "string" },
+                "baseDelayMs": { "type": "number" },
+                "variance": { "type": "number" },
+                "clickHoldDurationMs": {
+                  "type": "object",
+                  "required": ["min", "max"],
+                  "properties": {
+                    "min": { "type": "number" },
+                    "max": { "type": "number" }
+                  }
+                }
+              }
+            },
+            "stealth": {
+              "type": "object",
+              "required": ["description", "baseDelayMs", "variance", "clickHoldDurationMs"],
+              "properties": {
+                "description": { "type": "string" },
+                "baseDelayMs": { "type": "number" },
+                "variance": { "type": "number" },
+                "clickHoldDurationMs": {
+                  "type": "object",
+                  "required": ["min", "max"],
+                  "properties": {
+                    "min": { "type": "number" },
+                    "max": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "delayDistribution": {
+          "type": "object",
+          "required": ["type", "formula", "properties"],
+          "properties": {
+            "type": { "type": "string" },
+            "formula": { "type": "string" },
+            "properties": { "type": "string" }
+          }
+        },
+        "mouseKinematics": {
+          "type": "object",
+          "required": ["type", "controlPointJitter", "timeInterpolation"],
+          "properties": {
+            "type": { "type": "string" },
+            "controlPointJitter": { "type": "string" },
+            "timeInterpolation": { "type": "string" }
+          }
+        }
+      }
+    },
+    "safetyWatchdog": {
+      "type": "object",
+      "required": ["maxContinuousRunMinutes", "mandatoryRestMinutes", "maxActionsPerMinute", "captchaDetection", "anomalyDetection"],
+      "properties": {
+        "maxContinuousRunMinutes": { "type": "number" },
+        "mandatoryRestMinutes": { "type": "number" },
+        "maxActionsPerMinute": { "type": "number" },
+        "captchaDetection": {
+          "type": "object",
+          "required": ["selector", "action"],
+          "properties": {
+            "selector": { "type": "string" },
+            "action": { "type": "string" }
+          }
+        },
+        "anomalyDetection": {
+          "type": "object",
+          "required": ["networkErrorStreakLimit", "pageReloadThreshold"],
+          "properties": {
+            "networkErrorStreakLimit": { "type": "number" },
+            "pageReloadThreshold": { "type": "number" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Elemental Catalog Schema",
+  "description": "Schema for Granblue Fantasy element definitions, elemental relationships, multipliers, and party selection heuristics.",
+  "type": "object",
+  "required": ["version", "elements"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "internalId",
+          "name",
+          "japaneseName",
+          "kanji",
+          "colorHex",
+          "supporterTabAttribute",
+          "superiorTo",
+          "weakTo"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "internalId": { "type": "integer", "minimum": 0, "maximum": 7 },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "kanji": { "type": "string" },
+          "colorHex": { "type": "string" },
+          "supporterTabAttribute": { "type": "integer" },
+          "superiorTo": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "weakTo": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "neutralTo": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "baseDamageMultiplierVsSuperior": { "type": "number" },
+          "baseDamageMultiplierVsInferior": { "type": "number" },
+          "baseDamageTakenMultiplierVsSuperior": { "type": "number" },
+          "baseDamageTakenMultiplierVsInferior": { "type": "number" },
+          "summons": {
+            "type": "object",
+            "properties": {
+              "magna": { "type": "array", "items": { "type": "string" } },
+              "primal": { "type": "array", "items": { "type": "string" } },
+              "primarch": { "type": "array", "items": { "type": "string" } },
+              "arcarum": { "type": "array", "items": { "type": "string" } },
+              "sixDragons": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "weaponSkills": {
+            "type": "object",
+            "properties": {
+              "magnaPrefix": { "type": "string" },
+              "primalPrefix": { "type": "string" },
+              "seraphicWeapon": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

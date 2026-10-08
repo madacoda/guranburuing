@@ -1,0 +1,470 @@
+{
+  "$schema": "../schemas/status-effects-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T09:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy status effects catalog, covering boss buffs (dispel priority), party debuffs (cleanse priority), dispel/cleanse asset taxonomy, and autonomous survival decision rules.",
+  "bossBuffs": [
+    {
+      "id": "damage_cut_100",
+      "name": "100% Damage Cut / Absolute Barrier",
+      "japaneseName": "全属性ダメージカット 100%",
+      "category": "defensive",
+      "dispelPriority": "immediate",
+      "removable": true,
+      "threatLevel": "high",
+      "description": "Reduces all incoming elemental damage to 0. Must be dispelled immediately before any burst attack or damage skill dispatch.",
+      "commonBosses": ["Lucilius", "Belial", "Grand Order HL", "Six Dragons"]
+    },
+    {
+      "id": "repel",
+      "name": "Repel (Damage Reflection)",
+      "japaneseName": "反射",
+      "category": "defensive",
+      "dispelPriority": "immediate",
+      "removable": true,
+      "threatLevel": "wipe",
+      "description": "Reflects a percentage of incoming damage directly back to attacking party members. Attacking into high-potency Repel causes instant team suicide.",
+      "commonBosses": ["Colossus Omega", "Colossus Ira", "Apollo", "Rose Queen"]
+    },
+    {
+      "id": "mirror_image",
+      "name": "Mirror Image (Other Self)",
+      "japaneseName": "幻影",
+      "category": "defensive",
+      "dispelPriority": "immediate",
+      "removable": true,
+      "threatLevel": "medium",
+      "description": "Evades incoming single-target attacks. Absorbs full skill damage nukes. Dispel or multi-hit AoE required to strip.",
+      "commonBosses": ["Tiamat Omega", "Tiamat Aura", "Ewiyar", "Grand Order"]
+    },
+    {
+      "id": "elemental_absorption",
+      "name": "Elemental Absorption / Healing Guard",
+      "japaneseName": "属性吸収",
+      "category": "defensive",
+      "dispelPriority": "immediate",
+      "removable": true,
+      "threatLevel": "wipe",
+      "description": "Converts all incoming elemental damage into boss HP recovery. Attacking during absorption heals the boss back to full HP.",
+      "commonBosses": ["Lucilius (Hard) Wing Phase", "Belial 50%", "Hexachromatic Hierarch"]
+    },
+    {
+      "id": "tri_slash",
+      "name": "Tri-Slash / Quad-Slash (Multi-Strike)",
+      "japaneseName": "乱打 / 連撃激化",
+      "category": "offensive",
+      "dispelPriority": "high",
+      "removable": true,
+      "threatLevel": "wipe",
+      "description": "Boss attacks 3 or 4 times per turn with catastrophic normal attack potency. Capable of shredding frontline in a single turn.",
+      "commonBosses": ["Wilnas", "Colossus Ira", "Siete (Revans)", "Agastia"]
+    },
+    {
+      "id": "uplift",
+      "name": "Uplift (Charge Diamond Acceleration)",
+      "japaneseName": "高揚",
+      "category": "utility",
+      "dispelPriority": "high",
+      "removable": true,
+      "threatLevel": "high",
+      "description": "Increases boss charge diamonds by 1 or more extra diamonds at the end of each turn, dramatically accelerating special attack / omen triggers.",
+      "commonBosses": ["Proto Bahamut HL", "Akasha", "Wilnas", "Luminiera Credo"]
+    },
+    {
+      "id": "def_up_50",
+      "name": "50% DEF Up / Fortification",
+      "japaneseName": "防御力UP (50%)",
+      "category": "defensive",
+      "dispelPriority": "high",
+      "removable": true,
+      "threatLevel": "medium",
+      "description": "Dramatically lowers player damage output, preventing omen damage thresholds and extending fight duration.",
+      "commonBosses": ["Yggdrasil Arbos", "Leviathan Mare", "Lindwurm HL"]
+    },
+    {
+      "id": "supplemental_damage_boss",
+      "name": "Supplemental Damage (Boss)",
+      "japaneseName": "与ダメージ上昇",
+      "category": "offensive",
+      "dispelPriority": "normal",
+      "removable": true,
+      "threatLevel": "medium",
+      "description": "Adds flat bonus damage per hit to all multi-hit boss normal attacks and special moves.",
+      "commonBosses": ["Fediel", "Lu Woh", "Tiamat Aura"]
+    },
+    {
+      "id": "undispellable_aura",
+      "name": "Transcendent / Golden Border Buff",
+      "japaneseName": "消去不可バフ",
+      "category": "special",
+      "dispelPriority": "ignore",
+      "removable": false,
+      "threatLevel": "high",
+      "description": "Permanent boss mechanic buff marked with a golden border. Immune to all Dispel effects. Automation must NOT waste dispel skills.",
+      "commonBosses": ["Super Ultimate Bahamut", "Dark Rapture Zero", "Siete Revans"]
+    }
+  ],
+  "partyDebuffs": [
+    {
+      "id": "zombified",
+      "name": "Zombified (Undead)",
+      "japaneseName": "アンデッド / ゾンビ",
+      "category": "special",
+      "cleansePriority": "immediate",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "wipe",
+      "description": "CRITICAL LETHAL: Converts all incoming healing into true Plain Damage. Drinking a Green Potion or activating a Heal skill causes instant party wipe.",
+      "incompatibleActions": ["green_potion", "all_potion", "heal_skill", "drain_attack", "revive"]
+    },
+    {
+      "id": "paralysis",
+      "name": "Paralysis / Stun",
+      "japaneseName": "麻痺 / 行動不能",
+      "category": "lockout",
+      "cleansePriority": "immediate",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "wipe",
+      "description": "Renders affected party members completely unable to take actions, attack, use skills, or guard.",
+      "incompatibleActions": ["normal_attack", "skill_dispatch"]
+    },
+    {
+      "id": "petrified",
+      "name": "Petrified (Charge Bar Freeze)",
+      "japaneseName": "石化 / 恐怖",
+      "category": "lockout",
+      "cleansePriority": "high",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "high",
+      "description": "Freezes charge bar accumulation at 0%, preventing charge attacks and fatal chain formation.",
+      "incompatibleActions": ["charge_attack_burst"]
+    },
+    {
+      "id": "skill_seal",
+      "name": "Skill Seal / Silenced",
+      "japaneseName": "アビリティ封印",
+      "category": "lockout",
+      "cleansePriority": "immediate",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "wipe",
+      "description": "Completely prevents casting any ability across all cooldowns. Must be cleansed immediately via summon or auto-cleanse.",
+      "incompatibleActions": ["skill_dispatch"]
+    },
+    {
+      "id": "ca_seal",
+      "name": "C.A. Seal / Charge Attack Blocked",
+      "japaneseName": "奥義封印",
+      "category": "lockout",
+      "cleansePriority": "high",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "high",
+      "description": "Prevents unleashing Charge Attacks even when charge bar is 100%. Blocks C.A. omen cancelation.",
+      "incompatibleActions": ["charge_attack_burst"]
+    },
+    {
+      "id": "strong_poison",
+      "name": "Strong Poison / Putrefy / Death Rot",
+      "japaneseName": "強毒 / 腐食 / 灼熱",
+      "category": "lethal_dot",
+      "cleansePriority": "high",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "high",
+      "description": "Deals massive percentage-based end-of-turn plain damage (15% to 25% max HP per turn), quickly bleeding the party to lethal thresholds.",
+      "incompatibleActions": []
+    },
+    {
+      "id": "charm_confuse",
+      "name": "Charm / Confuse",
+      "japaneseName": "魅了 / 混乱",
+      "category": "offensive_penalty",
+      "cleansePriority": "normal",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "medium",
+      "description": "High chance for party members to skip their turn or attack fellow party members.",
+      "incompatibleActions": []
+    },
+    {
+      "id": "def_down_party",
+      "name": "DEF Down / Armor Shattered",
+      "japaneseName": "防御力DOWN",
+      "category": "defensive_penalty",
+      "cleansePriority": "normal",
+      "cleanseable": true,
+      "blockableByVeil": true,
+      "threatLevel": "medium",
+      "description": "Lowers party defense by 20% to 50%, amplifying incoming boss damage significantly.",
+      "incompatibleActions": []
+    }
+  ],
+  "dispelSources": {
+    "summons": [
+      {
+        "id": "beelzebub",
+        "name": "Beelzebub (4★)",
+        "callName": "Chaos Void",
+        "dispelsCount": 3,
+        "conditions": "Main Character Trance Level >= 1 (deals 3 dispels instantly)",
+        "priorityScore": 100
+      },
+      {
+        "id": "michael",
+        "name": "Michael (4★)",
+        "callName": "Ignis Iudicium",
+        "dispelsCount": 1,
+        "conditions": "Can be called on Turn 1 if equipped as Main or Friend; dispels 1 buff and inflicts Delay",
+        "priorityScore": 90
+      },
+      {
+        "id": "lucifer_250",
+        "name": "Lucifer (Transcendence Lv 250)",
+        "callName": "Paradise Lost +",
+        "dispelsCount": 1,
+        "conditions": "Dispels 1 buff from all foes and restores 3,000 HP to all allies",
+        "priorityScore": 88
+      },
+      {
+        "id": "yatagarasu",
+        "name": "Yatagarasu (4★)",
+        "callName": "Corvine Eclipse",
+        "dispelsCount": 2,
+        "conditions": "Deals 2 dispels to all foes on call",
+        "priorityScore": 85
+      },
+      {
+        "id": "metatron",
+        "name": "Metatron (4★)",
+        "callName": "Cosmic Judgement",
+        "dispelsCount": 1,
+        "conditions": "Dispels 1 buff and inflicts Dark ATK Down and Light DEF Down",
+        "priorityScore": 80
+      }
+    ],
+    "mcSkills": [
+      {
+        "id": "mc_dispel",
+        "name": "Dispel",
+        "classCategory": "Sorcerer Sub-Skill / Universal",
+        "dispelsCount": 1,
+        "cooldownTurns": 5,
+        "notes": "Standard single-target dispel accessible to any Class IV / Row V job."
+      },
+      {
+        "id": "manadiver_leviathan_minit",
+        "name": "Manadiver (Leviathan Minit Passive)",
+        "classCategory": "Row V Class Skill",
+        "dispelsCount": 1,
+        "cooldownTurns": 0,
+        "notes": "Automatically dispels 1 buff from foe whenever foe casts a special attack."
+      },
+      {
+        "id": "kengo_splitting_spirit",
+        "name": "Kengo (Splitting Spirit + C.A. Dispel)",
+        "classCategory": "Class IV Specialist",
+        "dispelsCount": 1,
+        "cooldownTurns": 0,
+        "notes": "Dispels on Charge Attack with specific mainhand Katanas (e.g. Unsigned Kaneshige / Muramasa)."
+      },
+      {
+        "id": "iatromantis_megas_stethos",
+        "name": "Iatromantis (Megas Stethos)",
+        "classCategory": "Row V Class Skill",
+        "dispelsCount": 2,
+        "cooldownTurns": 6,
+        "notes": "Removes 2 buffs from all foes and inflicts Gravity."
+      }
+    ],
+    "characterHighlights": [
+      {
+        "id": "clarisse_fire",
+        "name": "Clarisse (Fire)",
+        "element": "fire",
+        "dispelsCount": 1,
+        "triggerMechanism": "Skill 3 (Atomic Resolution) deals plain damage and dispels 1 buff."
+      },
+      {
+        "id": "cassius_water",
+        "name": "Cassius (Event / Valentine)",
+        "element": "water",
+        "dispelsCount": 2,
+        "triggerMechanism": "Cast on special attack trigger; fires multi-dispel and multi-hit skill nuke."
+      },
+      {
+        "id": "haaselia_water",
+        "name": "Haaselia (5★ FLB)",
+        "element": "water",
+        "dispelsCount": 2,
+        "triggerMechanism": "Tears of the Moon stacks allow double skill activations with dispel rider."
+      },
+      {
+        "id": "lobelia_earth",
+        "name": "Lobelia (Earth Evoker)",
+        "element": "earth",
+        "dispelsCount": 1,
+        "triggerMechanism": "Fires dispel and nuke whenever skill cooldown reductions reset."
+      },
+      {
+        "id": "grimnir_wind",
+        "name": "Grimnir (Valentine)",
+        "element": "wind",
+        "dispelsCount": 1,
+        "triggerMechanism": "Auto-activates dispel and multi-hit skill nuke upon foe special attack."
+      },
+      {
+        "id": "horus_light",
+        "name": "Horus (SSR)",
+        "element": "light",
+        "dispelsCount": 1,
+        "triggerMechanism": "Dispels 1 buff on every Charge Attack."
+      },
+      {
+        "id": "lich_dark",
+        "name": "Lich (Grand)",
+        "element": "dark",
+        "dispelsCount": 1,
+        "triggerMechanism": "Auto-casts Skill 2 at end of turn when debuffs are active; dispels 1 buff."
+      },
+      {
+        "id": "fediel_dark",
+        "name": "Fediel (Grand)",
+        "element": "dark",
+        "dispelsCount": 1,
+        "triggerMechanism": "Field of Death enables recurring end-of-turn dispels."
+      }
+    ]
+  },
+  "cleanseSources": {
+    "mcSkills": [
+      {
+        "id": "clear_mind",
+        "name": "Clear Mind (Bishop / Universal)",
+        "actionType": "cleanse",
+        "cooldownTurns": 3,
+        "notes": "Cleanses 1 debuff from all allies."
+      },
+      {
+        "id": "panacea_sanatio",
+        "name": "Panacea (Sanatio Melior)",
+        "actionType": "hybrid",
+        "cooldownTurns": 5,
+        "notes": "Restores party HP and removes 2 debuffs from all allies."
+      },
+      {
+        "id": "doctor_nutrient",
+        "name": "Doctor (Nutrient + Vaccine)",
+        "actionType": "veil",
+        "cooldownTurns": 6,
+        "notes": "Grants team 1-time debuff immunity (Veil) + Refresh."
+      }
+    ],
+    "summons": [
+      {
+        "id": "baal",
+        "name": "Ba'al (4★)",
+        "actionType": "cleanse"
+      },
+      {
+        "id": "lucifer_250",
+        "name": "Lucifer (Transcendence Lv 250)",
+        "actionType": "cleanse"
+      },
+      {
+        "id": "apollo_4",
+        "name": "Apollo (4★)",
+        "actionType": "veil"
+      }
+    ],
+    "characterHighlights": [
+      {
+        "id": "katalina_grand",
+        "name": "Katalina (Grand)",
+        "element": "water",
+        "actionType": "veil",
+        "notes": "Grants team Veil + 25% damage cut + refresh."
+      },
+      {
+        "id": "tikoh_light",
+        "name": "Tikoh (Light)",
+        "element": "light",
+        "actionType": "cleanse",
+        "notes": "Auto-cleanses 1 debuff and restores HP to all allies at end of every turn."
+      },
+      {
+        "id": "kokkoro_wind",
+        "name": "Kokkoro",
+        "element": "wind",
+        "actionType": "cleanse",
+        "notes": "Charge attack grants team healing and cleanses 1 debuff."
+      },
+      {
+        "id": "mahira_earth",
+        "name": "Mahira (12 Generals)",
+        "element": "earth",
+        "actionType": "hybrid",
+        "notes": "Grants team Veil + cleanses debuffs."
+      }
+    ]
+  },
+  "decisionEngine": {
+    "dispelEvaluationRules": [
+      {
+        "step": 1,
+        "rule": "Scan enemy buff list for removable buffs (removable == true). If none exist, abort dispel dispatch.",
+        "action": "PROCEED_TO_COMBAT"
+      },
+      {
+        "step": 2,
+        "rule": "If enemy buff contains Repel, 100% Damage Cut, or Elemental Absorption (dispelPriority == 'immediate'), pause all attack actions immediately.",
+        "action": "HALT_ATTACK_QUEUE"
+      },
+      {
+        "step": 3,
+        "rule": "Dispatch Beelzebub call if available (strips up to 3 buffs in a single action without skill lockout).",
+        "action": "CALL_BEELZEBUB"
+      },
+      {
+        "step": 4,
+        "rule": "If remaining removable buffs > 0, dispatch MC / character dispel abilities in descending order of dispel count until enemy buffs == 0.",
+        "action": "DISPATCH_DISPEL_SKILLS"
+      }
+    ],
+    "cleanseEvaluationRules": [
+      {
+        "step": 1,
+        "rule": "Scan party debuff statuses at the start of turn prior to any skill/potion execution.",
+        "action": "SCAN_PARTY_DEBUFFS"
+      },
+      {
+        "step": 2,
+        "rule": "If ZOMBIFIED is detected on ANY active frontline party member, immediately activate Zombified Safety Interlock.",
+        "action": "ENGAGE_ZOMBIE_SAFETY_LOCK"
+      },
+      {
+        "step": 3,
+        "rule": "If Skill Seal or Paralysis is detected on MC, attempt Summon Cleanse (Ba'al or Lucifer 250) or backline/passive auto-cleanse.",
+        "action": "DISPATCH_SUMMON_CLEANSE"
+      },
+      {
+        "step": 4,
+        "rule": "If Cleanse skill is available (Panacea / Clear Mind), dispatch immediately before any healing action.",
+        "action": "DISPATCH_CLEANSE_SKILL"
+      }
+    ],
+    "zombifiedSafetyInterlock": {
+      "enabled": true,
+      "rule": "UNDER NO CIRCUMSTANCE shall green_potion, all_potion, or heal_skill be dispatched while Zombified status is active on a party member. Cleanse must confirm resolved before heals unlock.",
+      "lockoutActions": [
+        "green_potion",
+        "all_potion",
+        "heal_skill",
+        "drain_buff",
+        "revive_skill"
+      ]
+    }
+  }
+}

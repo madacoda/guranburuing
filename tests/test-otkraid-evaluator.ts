@@ -122,6 +122,32 @@ if (tmpl.raidSlot !== 1) {
 }
 console.log('  ✅ [PASS] otkraid-colossus-ira template loaded and verified with 100% specification compliance');
 
+// 7. Tiamat Aura Template Verification
+console.log('\n--- 7. Testing Tiamat Aura Production Template ---');
+const tiamatTmpl = TemplateParser.loadTemplate('otkraid-tiamat-aura');
+console.log(`  Template Name:       ${tiamatTmpl.name}`);
+console.log(`  Quest URL:           ${tiamatTmpl.questUrl}`);
+console.log(`  Raid Slot:           ${tiamatTmpl.raidSlot}`);
+console.log(`  Evaluator Strategy:  ${tiamatTmpl.evaluatorStrategy}`);
+console.log(`  Max HP Filter:       <= ${tiamatTmpl.maxHpPct}%`);
+console.log(`  Min Players Filter:  >= ${tiamatTmpl.minPlayers}`);
+console.log(`  Supporters:          ${tiamatTmpl.supporterPriority?.join(', ')}`);
+console.log(`  Steps:               ${tiamatTmpl.steps.length} (${tiamatTmpl.steps.map(s => s.code).join(' -> ')})`);
+
+if (tiamatTmpl.evaluatorStrategy !== 'otk_burst') {
+  throw new Error(`Expected evaluatorStrategy to be 'otk_burst', got ${tiamatTmpl.evaluatorStrategy}`);
+}
+if (tiamatTmpl.maxHpPct !== 20 || tiamatTmpl.minPlayers !== 3) {
+  throw new Error(`Expected maxHpPct: 20 and minPlayers: 3, got maxHpPct: ${tiamatTmpl.maxHpPct}, minPlayers: ${tiamatTmpl.minPlayers}`);
+}
+if (!tiamatTmpl.supporterPriority?.includes('Agni')) {
+  throw new Error('Expected Agni in supporterPriority list');
+}
+if (tiamatTmpl.raidSlot !== 1) {
+  throw new Error(`Expected raidSlot 1 (Tab 1), got ${tiamatTmpl.raidSlot}`);
+}
+console.log('  ✅ [PASS] otkraid-tiamat-aura template loaded and verified with 100% specification compliance');
+
 console.log('\n========================================================================');
 console.log('      🎉 ALL OTK RAID EVALUATOR & TEMPLATE TESTS PASSED (100%)          ');
 console.log('========================================================================\n');

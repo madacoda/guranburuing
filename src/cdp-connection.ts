@@ -43,10 +43,36 @@ export class CdpConnectionManager {
       try {
         console.log(`[CDP] Connecting to Chrome on port ${port} (Attempt ${attempt}/${maxRetries}, Headless: ${isHeadless})...`);
         
-        const connectPromise = puppeteer.connect({
-          browserURL: `http://127.0.0.1:${port}`,
-          defaultViewport: null, // Maintain genuine window dimensions
-        });
+        let wsEndpoint: string | null = null;
+        try {
+          const verRes = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(3000) });
+          if (verRes.ok) {
+            const verData: any = await verRes.json();
+            if (verData && verData.webSocketDebuggerUrl) {
+              wsEndpoint = verData.webSocketDebuggerUrl;
+            }
+          }
+        } catch {
+          // Fall back to browserURL
+        }
+
+        const connectOptions: any = {
+          defaultViewport: null,
+          targetFilter: (target: any) => {
+            if (target.type() === 'browser_ui' || target.url().startsWith('chrome://')) {
+              return false;
+            }
+            return true;
+          }
+        };
+
+        if (wsEndpoint) {
+          connectOptions.browserWSEndpoint = wsEndpoint;
+        } else {
+          connectOptions.browserURL = `http://127.0.0.1:${port}`;
+        }
+
+        const connectPromise = puppeteer.connect(connectOptions);
 
         this.browser = await Promise.race([
           connectPromise,
@@ -72,26 +98,30 @@ export class CdpConnectionManager {
           ]);
         }
 
-        // If not found via gbfTarget, try any existing page target
+        // If not found via gbfTarget, only reuse an existing page target if it is blank
         if (!targetPage) {
-          const anyPageTarget = targets.find(t => t.type() === 'page');
-          if (anyPageTarget) {
+          const blankTarget = targets.find(t => t.type() === 'page' && (t.url() === 'about:blank' || t.url() === '' || t.url() === 'chrome://newtab/'));
+          if (blankTarget) {
             targetPage = await Promise.race([
-              anyPageTarget.page(),
+              blankTarget.page(),
               new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 3000))
             ]);
+            if (targetPage) {
+              console.log('[CDP] Reusing blank tab. Navigating to https://game.granbluefantasy.jp/...');
+              await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
+            }
           }
         }
 
-        // If still no page, open new page
+        // If still no page, open a clean dedicated page for GBF
         if (!targetPage) {
-          console.log('[CDP] GBF tab not found in active browser. Opening https://game.granbluefantasy.jp/...');
+          console.log('[CDP] GBF tab not found in active browser. Opening dedicated https://game.granbluefantasy.jp/ tab...');
           targetPage = await Promise.race([
             this.browser.newPage(),
             new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 5000))
           ]);
           if (targetPage) {
-            await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+            await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
           }
         }
 
@@ -100,6 +130,13 @@ export class CdpConnectionManager {
         }
 
         this.gbfPage = targetPage;
+
+        const currentUrl = targetPage.url();
+        if (!currentUrl.includes('granbluefantasy.jp') && !currentUrl.includes('mbga.jp')) {
+          console.log(`[CDP] Active tab is on non-GBF URL ("${currentUrl}"). Navigating to https://game.granbluefantasy.jp/...`);
+          await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
+        }
+
         let pageTitle = await Promise.race([
           this.gbfPage.title(),
           new Promise<string>(resolve => setTimeout(() => resolve('Granblue Fantasy (Title Timeout)'), 2000))

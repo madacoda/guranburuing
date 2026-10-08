@@ -1,0 +1,58 @@
+{
+  "$schema": "../schemas/multi-account-orchestration.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Multi-account Chrome DevTools Protocol (CDP) port allocations, profile directory isolation, execution topologies, and safety synchronization policies.",
+  "portAllocation": {
+    "basePort": 9222,
+    "registeredAccounts": [
+      {
+        "id": "acc1",
+        "name": "acc1",
+        "cdpPort": 9222,
+        "profileDirPattern": "~/.gbf-profiles/acc1",
+        "defaultSpeedProfile": "fast",
+        "isPrimary": true
+      },
+      {
+        "id": "acc2",
+        "name": "acc2",
+        "cdpPort": 9223,
+        "profileDirPattern": "~/.gbf-profiles/acc2",
+        "defaultSpeedProfile": "fast",
+        "isPrimary": false
+      },
+      {
+        "id": "iron",
+        "name": "iron",
+        "cdpPort": 9224,
+        "profileDirPattern": "C:/Program Files/SRWare Iron/User Data/Default",
+        "defaultSpeedProfile": "stealth",
+        "isPrimary": false
+      }
+    ]
+  },
+  "topologies": {
+    "sequential": {
+      "description": "Complete entire daily routine on the primary account before terminating and launching the secondary account. Recommended for single residential IP setups.",
+      "enforceCleanTearDown": true
+    },
+    "interleaved": {
+      "description": "Host high-tier raid on main account, broadcast to Everyone, and switch active execution to secondary account for Pro-Skips during the 180s pub clear cooldown.",
+      "hostedRaidCheckIntervalMs": 180000
+    },
+    "isolatedParallel": {
+      "description": "Run simultaneous headless Chromium processes on distinct isolated CDP ports with staggered start times to avoid burst network detection.",
+      "minStaggerDelayMs": 45000
+    }
+  },
+  "safetyPolicies": {
+    "minStaggerDelayMs": 45000,
+    "maxConcurrentHeadlessInstances": 2,
+    "cookieSyncProtocol": {
+      "localExtractionMethod": "dpapi_sqlite_extraction",
+      "remotePostEndpoint": "/api/cookies/import",
+      "verificationRoute": "#mypage"
+    }
+  }
+}

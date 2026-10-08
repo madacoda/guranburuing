@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Resource & Session Recovery Policies Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "consumables",
+    "apRecovery",
+    "epRecovery",
+    "aapRecovery",
+    "pendingBattlesPolicy",
+    "sessionRecovery"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "consumables": {
+      "type": "object",
+      "required": ["ap", "ep", "aap"],
+      "properties": {
+        "ap": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "itemId", "name", "recoveryAmount", "isPercentage"],
+            "properties": {
+              "id": { "type": "string" },
+              "itemId": { "type": "string" },
+              "name": { "type": "string" },
+              "recoveryAmount": { "type": "number" },
+              "isPercentage": { "type": "boolean" },
+              "priority": { "type": "integer" }
+            }
+          }
+        },
+        "ep": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "itemId", "name", "recoveryAmount"],
+            "properties": {
+              "id": { "type": "string" },
+              "itemId": { "type": "string" },
+              "name": { "type": "string" },
+              "recoveryAmount": { "type": "number" },
+              "priority": { "type": "integer" }
+            }
+          }
+        },
+        "aap": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "itemId", "name", "recoveryAmount"],
+            "properties": {
+              "id": { "type": "string" },
+              "itemId": { "type": "string" },
+              "name": { "type": "string" },
+              "recoveryAmount": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "apRecovery": {
+      "type": "object",
+      "required": ["enabled", "triggerRule", "defaultItemId", "allowFullElixir", "maxItemsPerRun", "safetyReserveFloor"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "triggerRule": { "type": "string" },
+        "defaultItemId": { "type": "string" },
+        "fallbackItemId": { "type": "string" },
+        "allowFullElixir": { "type": "boolean" },
+        "maxItemsPerRun": { "type": "integer", "minimum": 1 },
+        "safetyReserveFloor": { "type": "integer", "minimum": 0 },
+        "modalSelectors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "epRecovery": {
+      "type": "object",
+      "required": ["enabled", "triggerRule", "defaultItemId", "maxItemsPerRun", "safetyReserveFloor"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "triggerRule": { "type": "string" },
+        "defaultItemId": { "type": "string" },
+        "fallbackItemId": { "type": "string" },
+        "bulkConsumeAllowed": { "type": "boolean" },
+        "maxItemsPerRun": { "type": "integer", "minimum": 1 },
+        "safetyReserveFloor": { "type": "integer", "minimum": 0 },
+        "modalSelectors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "aapRecovery": {
+      "type": "object",
+      "required": ["enabled", "triggerRule", "defaultItemId", "maxItemsPerRun"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "triggerRule": { "type": "string" },
+        "defaultItemId": { "type": "string" },
+        "maxItemsPerRun": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "pendingBattlesPolicy": {
+      "type": "object",
+      "required": [
+        "activeBattleLimit",
+        "unclaimedLootLimit",
+        "unjamRoute",
+        "maxUnclaimPasses",
+        "detectLimitKeywords",
+        "cardSelectors",
+        "goldBarItemId",
+        "blueChestSelectors"
+      ],
+      "properties": {
+        "activeBattleLimit": { "type": "integer", "minimum": 1 },
+        "unclaimedLootLimit": { "type": "integer", "minimum": 1 },
+        "unjamRoute": { "type": "string" },
+        "maxUnclaimPasses": { "type": "integer", "minimum": 1 },
+        "detectLimitKeywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cardSelectors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "goldBarItemId": { "type": "string" },
+        "blueChestSelectors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "sessionRecovery": {
+      "type": "object",
+      "required": ["reconnectOnSessionLoss", "maxAuthRetries", "authRedirectPatterns", "platformGateway"],
+      "properties": {
+        "reconnectOnSessionLoss": { "type": "boolean" },
+        "maxAuthRetries": { "type": "integer", "minimum": 1 },
+        "authRedirectPatterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "platformGateway": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,487 @@
+{
+  "$schema": "../schemas/element-catalog.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T08:00:00.000Z",
+  "description": "Exhaustive pairwise interaction matrix between Attacker and Defender elements in Granblue Fantasy.",
+  "matrix": [
+    {
+      "attacker": "fire",
+      "defender": "wind",
+      "relation": "superior",
+      "damageMultiplier": 1.5,
+      "damageTakenMultiplier": 0.75,
+      "criticalHitEligible": true,
+      "seraphicMultiplierEligible": true,
+      "debuffAccuracyModifier": 0.3,
+      "notes": "Fire has superior advantage over Wind. Gains +50% base elemental ATK, 25% damage reduction, enables critical hits, and activates Seraphic amplification."
+    },
+    {
+      "attacker": "fire",
+      "defender": "water",
+      "relation": "inferior",
+      "damageMultiplier": 0.75,
+      "damageTakenMultiplier": 1.25,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": -0.5,
+      "notes": "Fire is weak against Water. Suffers -25% damage penalty, takes +25% extra damage, crits are disabled, and debuff miss rate is high."
+    },
+    {
+      "attacker": "fire",
+      "defender": "earth",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Fire is neutral to Earth. Standard 1.0x damage. Critical hits and Seraphic modifiers do not activate."
+    },
+    {
+      "attacker": "fire",
+      "defender": "fire",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Same-element interaction. Standard 1.0x damage."
+    },
+    {
+      "attacker": "fire",
+      "defender": "light",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Cross-element interaction outside the 4-element wheel. Standard 1.0x damage."
+    },
+    {
+      "attacker": "fire",
+      "defender": "dark",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Cross-element interaction outside the 4-element wheel. Standard 1.0x damage."
+    },
+    {
+      "attacker": "fire",
+      "defender": "plain",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Attacking non-elemental foe. Crits and Seraphic modifiers do not trigger."
+    },
+
+    {
+      "attacker": "water",
+      "defender": "fire",
+      "relation": "superior",
+      "damageMultiplier": 1.5,
+      "damageTakenMultiplier": 0.75,
+      "criticalHitEligible": true,
+      "seraphicMultiplierEligible": true,
+      "debuffAccuracyModifier": 0.3,
+      "notes": "Water has superior advantage over Fire. +50% elemental ATK, 25% damage cut, crits and Seraphic active."
+    },
+    {
+      "attacker": "water",
+      "defender": "earth",
+      "relation": "inferior",
+      "damageMultiplier": 0.75,
+      "damageTakenMultiplier": 1.25,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": -0.5,
+      "notes": "Water is weak against Earth. -25% damage, takes +25% damage, no crits."
+    },
+    {
+      "attacker": "water",
+      "defender": "wind",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Water is neutral to Wind."
+    },
+    {
+      "attacker": "water",
+      "defender": "water",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Same-element interaction."
+    },
+    {
+      "attacker": "water",
+      "defender": "light",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Neutral cross-wheel interaction."
+    },
+    {
+      "attacker": "water",
+      "defender": "dark",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Neutral cross-wheel interaction."
+    },
+    {
+      "attacker": "water",
+      "defender": "plain",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Attacking non-elemental foe."
+    },
+
+    {
+      "attacker": "earth",
+      "defender": "water",
+      "relation": "superior",
+      "damageMultiplier": 1.5,
+      "damageTakenMultiplier": 0.75,
+      "criticalHitEligible": true,
+      "seraphicMultiplierEligible": true,
+      "debuffAccuracyModifier": 0.3,
+      "notes": "Earth has superior advantage over Water. +50% elemental ATK, 25% damage cut, crits and Seraphic active."
+    },
+    {
+      "attacker": "earth",
+      "defender": "wind",
+      "relation": "inferior",
+      "damageMultiplier": 0.75,
+      "damageTakenMultiplier": 1.25,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": -0.5,
+      "notes": "Earth is weak against Wind. -25% damage, takes +25% damage, no crits."
+    },
+    {
+      "attacker": "earth",
+      "defender": "fire",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Earth is neutral to Fire."
+    },
+    {
+      "attacker": "earth",
+      "defender": "earth",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Same-element interaction."
+    },
+    {
+      "attacker": "earth",
+      "defender": "light",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Neutral cross-wheel interaction."
+    },
+    {
+      "attacker": "earth",
+      "defender": "dark",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Neutral cross-wheel interaction."
+    },
+    {
+      "attacker": "earth",
+      "defender": "plain",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Attacking non-elemental foe."
+    },
+
+    {
+      "attacker": "wind",
+      "defender": "earth",
+      "relation": "superior",
+      "damageMultiplier": 1.5,
+      "damageTakenMultiplier": 0.75,
+      "criticalHitEligible": true,
+      "seraphicMultiplierEligible": true,
+      "debuffAccuracyModifier": 0.3,
+      "notes": "Wind has superior advantage over Earth. +50% elemental ATK, 25% damage cut, crits and Seraphic active."
+    },
+    {
+      "attacker": "wind",
+      "defender": "fire",
+      "relation": "inferior",
+      "damageMultiplier": 0.75,
+      "damageTakenMultiplier": 1.25,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": -0.5,
+      "notes": "Wind is weak against Fire. -25% damage, takes +25% damage, no crits."
+    },
+    {
+      "attacker": "wind",
+      "defender": "water",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Wind is neutral to Water."
+    },
+    {
+      "attacker": "wind",
+      "defender": "wind",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Same-element interaction."
+    },
+    {
+      "attacker": "wind",
+      "defender": "light",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Neutral cross-wheel interaction."
+    },
+    {
+      "attacker": "wind",
+      "defender": "dark",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Neutral cross-wheel interaction."
+    },
+    {
+      "attacker": "wind",
+      "defender": "plain",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Attacking non-elemental foe."
+    },
+
+    {
+      "attacker": "light",
+      "defender": "dark",
+      "relation": "mutual_advantage",
+      "damageMultiplier": 1.5,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": true,
+      "seraphicMultiplierEligible": true,
+      "debuffAccuracyModifier": 0.3,
+      "notes": "Light deals +50% superior elemental damage against Dark. Receives standard 1.0x damage in return unless special raid modifiers apply. Crits and Seraphic active."
+    },
+    {
+      "attacker": "light",
+      "defender": "light",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Same-element interaction."
+    },
+    {
+      "attacker": "light",
+      "defender": "fire",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Light is neutral to Fire."
+    },
+    {
+      "attacker": "light",
+      "defender": "water",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Light is neutral to Water."
+    },
+    {
+      "attacker": "light",
+      "defender": "earth",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Light is neutral to Earth."
+    },
+    {
+      "attacker": "light",
+      "defender": "wind",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Light is neutral to Wind."
+    },
+    {
+      "attacker": "light",
+      "defender": "plain",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Attacking non-elemental foe."
+    },
+
+    {
+      "attacker": "dark",
+      "defender": "light",
+      "relation": "mutual_advantage",
+      "damageMultiplier": 1.5,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": true,
+      "seraphicMultiplierEligible": true,
+      "debuffAccuracyModifier": 0.3,
+      "notes": "Dark deals +50% superior elemental damage against Light. Receives standard 1.0x damage in return unless special raid modifiers apply. Crits and Seraphic active."
+    },
+    {
+      "attacker": "dark",
+      "defender": "dark",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Same-element interaction."
+    },
+    {
+      "attacker": "dark",
+      "defender": "fire",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Dark is neutral to Fire."
+    },
+    {
+      "attacker": "dark",
+      "defender": "water",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Dark is neutral to Water."
+    },
+    {
+      "attacker": "dark",
+      "defender": "earth",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Dark is neutral to Earth."
+    },
+    {
+      "attacker": "dark",
+      "defender": "wind",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Dark is neutral to Wind."
+    },
+    {
+      "attacker": "dark",
+      "defender": "plain",
+      "relation": "neutral",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Attacking non-elemental foe."
+    },
+
+    {
+      "attacker": "plain",
+      "defender": "all",
+      "relation": "plain",
+      "damageMultiplier": 1.0,
+      "damageTakenMultiplier": 1.0,
+      "criticalHitEligible": false,
+      "seraphicMultiplierEligible": false,
+      "debuffAccuracyModifier": 0.0,
+      "notes": "Plain damage ignores defense, damage cuts, and elemental resistance. Cannot crit and does not scale with Seraphic modifiers."
+    }
+  ]
+}

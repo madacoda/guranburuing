@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/tactical-action-priority.schema.json",
+  "title": "GBFTacticalActionPrioritySchema",
+  "description": "Authoritative schema for combat action execution tiers, lockout optimization, skill classification map, and safety interlocks.",
+  "type": "object",
+  "required": ["version", "description", "executionTiers", "skillClassificationMap"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "executionTiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tier", "category", "name", "description", "safetyInterlocks"],
+        "properties": {
+          "tier": { "type": "number" },
+          "category": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "safetyInterlocks": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "skillClassificationMap": {
+      "type": "object",
+      "required": ["field", "debuff", "buff", "nuke", "heal"],
+      "properties": {
+        "field": { "type": "array", "items": { "type": "string" } },
+        "debuff": { "type": "array", "items": { "type": "string" } },
+        "buff": { "type": "array", "items": { "type": "string" } },
+        "nuke": { "type": "array", "items": { "type": "string" } },
+        "heal": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

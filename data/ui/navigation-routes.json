@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/selectors.schema.json",
+  "$schema": "../schemas/navigation-routes.schema.json",
   "version": "2.0.0",
   "description": "Granblue Fantasy client-side Backbone.js router navigation paths, hash patterns, and state transitions.",
   "routes": [

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/categories.schema.json",
+  "title": "GBFRaidCategoriesSchema",
+  "description": "Authoritative schema for Granblue Fantasy raid category hierarchy, stage IDs, and rank requirements.",
+  "type": "object",
+  "required": ["version", "description", "categories"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "stageId", "stageType", "minRank", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "stageId": { "type": "string" },
+          "stageType": { "type": "string", "enum": ["normal", "high", "event"] },
+          "minRank": { "type": "number" },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

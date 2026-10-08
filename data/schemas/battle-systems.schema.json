@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gbf.wiki/schemas/battle-systems.schema.json",
+  "title": "GBFBattleSystemsSchema",
+  "description": "Authoritative schema for Granblue Fantasy Battle System 1.0 (Classic) vs Battle System 2.0 (V2), Omens, Guard, and Fatal Chain mechanics.",
+  "type": "object",
+  "required": ["version", "description", "systems"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "systems": {
+      "type": "object",
+      "required": ["v1", "v2"],
+      "properties": {
+        "v1": {
+          "type": "object",
+          "required": ["name", "raids", "mechanics"],
+          "properties": {
+            "name": { "type": "string" },
+            "raids": { "type": "array", "items": { "type": "string" } },
+            "mechanics": {
+              "type": "object",
+              "required": ["chargeDiamonds", "modeBar", "breakAssassin"],
+              "properties": {
+                "chargeDiamonds": { "type": "string" },
+                "modeBar": {
+                  "type": "object",
+                  "required": ["normal", "overdrive", "break"],
+                  "properties": {
+                    "normal": { "type": "string" },
+                    "overdrive": { "type": "string" },
+                    "break": { "type": "string" }
+                  }
+                },
+                "breakAssassin": { "type": "string" }
+              }
+            }
+          }
+        },
+        "v2": {
+          "type": "object",
+          "required": ["name", "raids", "mechanics"],
+          "properties": {
+            "name": { "type": "string" },
+            "raids": { "type": "array", "items": { "type": "string" } },
+            "mechanics": {
+              "type": "object",
+              "required": ["omens", "guard", "fatalChain", "catalogs"],
+              "properties": {
+                "omens": {
+                  "type": "object",
+                  "required": ["description", "cancelConditions"],
+                  "properties": {
+                    "description": { "type": "string" },
+                    "cancelConditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["type", "sampleRequirement", "counterStrategy"],
+                        "properties": {
+                          "type": { "type": "string" },
+                          "sampleRequirement": { "type": "string" },
+                          "counterStrategy": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "guard": {
+                  "type": "object",
+                  "required": ["description", "domSelector", "allGuardSelector"],
+                  "properties": {
+                    "description": { "type": "string" },
+                    "domSelector": { "type": "string" },
+                    "allGuardSelector": { "type": "string" }
+                  }
+                },
+                "fatalChain": {
+                  "type": "object",
+                  "required": ["description"],
+                  "properties": {
+                    "description": { "type": "string" }
+                  }
+                },
+                "catalogs": {
+                  "type": "object",
+                  "required": ["omensCatalog", "counterTaxonomy"],
+                  "properties": {
+                    "omensCatalog": { "type": "string" },
+                    "counterTaxonomy": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

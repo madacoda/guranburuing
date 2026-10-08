@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/raid-catalog.schema.json",
+  "$schema": "../schemas/drop-tables.schema.json",
   "version": "2.0.0",
   "description": "Drop mechanics, blue chest thresholds, Gold Brick (ヒヒイロカネ) rates, and Eternity Sand (刻の流砂) formulas.",
   "mechanics": {

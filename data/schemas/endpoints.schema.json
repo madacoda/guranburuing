@@ -1,12 +1,40 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "EndpointsSchema",
+  "$id": "https://gbf.wiki/schemas/endpoints.schema.json",
+  "title": "GBFEndpointsCatalogSchema",
+  "description": "Authoritative schema for Granblue Fantasy HTTP REST API endpoints, HTTP headers, request payloads, and response structures.",
   "type": "object",
-  "required": ["version"],
+  "required": ["version", "globalHeaders", "endpoints"],
   "properties": {
+    "$schema": { "type": "string" },
     "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
     "description": { "type": "string" },
-    "globalHeaders": { "type": "object" },
-    "endpoints": { "type": "object" }
+    "globalHeaders": {
+      "type": "object",
+      "required": ["Accept", "Content-Type", "X-Requested-With", "Origin", "Referer"],
+      "properties": {
+        "Accept": { "type": "string" },
+        "Accept-Language": { "type": "string" },
+        "Content-Type": { "type": "string" },
+        "X-Requested-With": { "type": "string" },
+        "Origin": { "type": "string" },
+        "Referer": { "type": "string" }
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["path", "method", "description"],
+        "properties": {
+          "path": { "type": "string" },
+          "method": { "type": "string", "enum": ["GET", "POST", "PUT", "DELETE"] },
+          "description": { "type": "string" },
+          "requestPayload": { "type": ["object", "null"] },
+          "responseSchema": { "type": "object" }
+        }
+      }
+    }
   }
 }

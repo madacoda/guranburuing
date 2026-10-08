@@ -33,6 +33,8 @@ export type WorkflowActionType =
   | 'do_until_finish'
   | 'run_daily_target'
   | 'skip_story_scene'
+  | 'auto_fate_episode'
+  | 'skip_fate_episode'
   | 'pro_skip_favorites'
   | 'dismiss_popups'
   | 'smart_full_auto'

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Granblue Fantasy Engine State Machine & Self-Healing Recovery Schema",
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "states",
+    "errorTaxonomy",
+    "fatalPolicy"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["state", "description", "isTerminal"],
+        "properties": {
+          "state": { "type": "string" },
+          "description": { "type": "string" },
+          "isTerminal": { "type": "boolean" }
+        }
+      }
+    },
+    "errorTaxonomy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "errorCode",
+          "description",
+          "severity",
+          "maxRetryAttempts",
+          "backoffDelayMs",
+          "recoveryActions"
+        ],
+        "properties": {
+          "errorCode": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+          },
+          "maxRetryAttempts": { "type": "integer", "minimum": 0 },
+          "backoffDelayMs": { "type": "integer", "minimum": 0 },
+          "recoveryActions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "fatalPolicy": {
+      "type": "object",
+      "required": ["maxConsecutiveErrors", "haltAction", "notifyWebhook", "cleanupOnHalt"],
+      "properties": {
+        "maxConsecutiveErrors": { "type": "integer", "minimum": 1 },
+        "haltAction": { "type": "string" },
+        "notifyWebhook": { "type": "boolean" },
+        "cleanupOnHalt": { "type": "boolean" }
+      }
+    }
+  },
+  "additionalProperties": false
+}
