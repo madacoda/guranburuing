@@ -530,7 +530,7 @@ export class DropLogger {
       hour12: true
     }) + ' (JST)';
 
-    const playerName = details.accountId === 'acc1' || !details.accountId ? '『Danchou』' : details.accountId;
+    const playerName = details.accountId || 'acc1';
 
     const content = [
       '🌟 **Gold Brick Drop Confirmed** 🌟',

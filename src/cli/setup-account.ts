@@ -34,7 +34,7 @@ async function getPublicIp(): Promise<string> {
       }
     } catch {}
   }
-  return process.env.PUBLIC_IP || process.env.VPS_HOST || '127.0.0.1';
+  return process.env.PUBLIC_IP || process.env.VPS_HOST || 'localhost';
 }
 
 console.log('========================================================================');

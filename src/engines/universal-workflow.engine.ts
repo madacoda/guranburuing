@@ -874,7 +874,7 @@ export class UniversalWorkflowEngine {
           accountId: this.accountId,
         });
       } else {
-        const playerName = this.accountId === 'acc1' || !this.accountId ? '『Danchou』' : this.accountId;
+        const playerName = this.accountId || 'acc1';
         await this.alertRelay.sendEmergencyAlert(
           `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
           shotBuffer
@@ -5009,7 +5009,7 @@ export class UniversalWorkflowEngine {
               accountId: this.accountId
             });
           } else {
-            const playerName = this.accountId === 'acc1' || !this.accountId ? '『Danchou』' : this.accountId;
+            const playerName = this.accountId || 'acc1';
             const battleUrl = finalRaidId && /^\d+$/.test(finalRaidId)
               ? `https://game.granbluefantasy.jp/#result_multi/detail/${finalRaidId}/1/0/0`
               : 'https://game.granbluefantasy.jp/#quest/assist';

@@ -23,7 +23,7 @@ const account = AccountRegistry.getAccountById(accountId);
 const accountName = account?.name || accountId;
 
 // Resolve default target remote URL
-let defaultRemote = process.env.REMOTE_VPS_URL || process.env.VPS_HOST || 'http://127.0.0.1:3000';
+let defaultRemote = process.env.REMOTE_VPS_URL || process.env.VPS_HOST || 'http://localhost:3000';
 if (!defaultRemote.startsWith('http://') && !defaultRemote.startsWith('https://')) {
   defaultRemote = `http://${defaultRemote}:3000`;
 }

@@ -114,7 +114,7 @@ async function main() {
 
   // Verify authentication
   const currentUrl = page.url();
-  const playerName = accountId === 'acc1' ? '『Danchou』' : accountConfig.name;
+  const playerName = accountConfig?.name || accountId;
   if (!currentUrl.includes('granbluefantasy.jp') || currentUrl.includes('#top') || currentUrl.includes('#login')) {
     const profile = await AccountAuthManager.ensureAuthenticated(page, accountConfig);
     console.log(`[EventRaid] ✅ Authenticated as player: ${profile?.name || playerName}`);

@@ -261,7 +261,7 @@ export class GoldBarTrackerService {
    */
   public async dispatchDropAlert(record: GoldBarDropRecord, screenshotBuffer?: Buffer): Promise<void> {
     const dailySummary = this.getDailySummary(record.gbfDay);
-    const playerName = record.accountId === 'acc1' || !record.accountId ? '『Danchou』' : record.accountId;
+    const playerName = record.accountId || 'acc1';
 
     const content = [
       '🌟 **Gold Brick Drop Confirmed** 🌟',
