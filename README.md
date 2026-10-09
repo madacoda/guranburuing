@@ -30,7 +30,11 @@ An enterprise-grade, high-performance, and state-aware automation system and rem
   - [9. Discord Rich Presence Integration](#9-discord-rich-presence-integration)
   - [10. Replicard Sandbox (Zone Mundus) Militis Engine](#10-replicard-sandbox-zone-mundus-militis-engine)
 - [Prerequisites](#prerequisites)
-- [Quick Start Guide (< 3 Minutes)](#quick-start-guide--3-minutes)
+- [Quick Start & Workflow Guide](#quick-start--workflow-guide)
+  - [Step 1: Account Setup & First-Time Authentication](#step-1-account-setup--first-time-authentication)
+  - [Step 2: Running Example Universal Workflows](#step-2-running-example-universal-workflows)
+  - [Step 3: Modifying & Creating Custom Workflows](#step-3-modifying--creating-custom-workflows)
+  - [Step 4: Specialized Automation Engines & Roster](#step-4-specialized-automation-engines--roster)
 - [Configuration Reference](#configuration-reference)
   - [Environment Variables (`.env`)](#environment-variables-env)
   - [Account Registry (`accounts.config.json`)](#account-registry-accountsconfigjson)
@@ -191,48 +195,159 @@ Comprehensive high-difficulty raid farming suite with honor tracking:
 
 ---
 
-## Quick Start Guide (< 3 Minutes)
+## Quick Start & Workflow Guide
 
-### 1. Clone & Install Dependencies
+### Step 1: Account Setup & First-Time Authentication
+
+1. **Clone & Install Dependencies**:
+   ```bash
+   git clone https://github.com/madacoda/guranburuing.git
+   cd guranburuing
+   bun install
+   ```
+
+2. **Initialize Configuration**:
+   ```bash
+   cp .env.example .env
+   cp accounts.config.example.json accounts.config.json
+   ```
+
+3. **1-Time Assisted Browser Setup**:
+   Launch the browser in visible GUI window mode to establish your authenticated session:
+   ```bash
+   bun run account:setup acc1
+   ```
+   - Log into your Granblue Fantasy account once (Mobage / DMM / Google) and reach `#mypage`.
+   - Your session cookies and IndexedDB storage are permanently stored in an isolated profile directory (`~/.gbf-profiles/acc1`).
+   - All subsequent runs can execute 100% headlessly in the background (`Zero Cold Logins`).
+
+---
+
+### Step 2: Running Example Universal Workflows
+
+All combat and farming routines run on the **Universal Workflow Engine** using pre-configured JSON templates in `templates/`:
+
 ```bash
-git clone https://github.com/madacoda/guranburuing.git
-cd guranburuing
-bun install
+# 1. Run Proto Bahamut HL in a visible browser window (inspect rotation):
+bun run gb-pbhl:windowed
+
+# 2. Run Proto Bahamut HL in silent background headless mode:
+bun run gb-pbhl
+
+# 3. Specify custom run count and account:
+bun src/cli/run-workflow.ts acc1 gb-pbhl 20
+
+# 4. Interactive Terminal Selector (UI Menu):
+bun run workflow
+```
+*(The interactive picker auto-discovers all templates, allows arrow-key selection, and prompts for account and run count).*
+
+---
+
+### Step 3: Modifying & Creating Custom Workflows
+
+You can freely modify any existing template (like [`templates/gb-pbhl.json`](file:///c:/laragon/www/gbf/templates/gb-pbhl.json)) or create brand-new farming routines.
+
+#### Anatomy of a Template (`templates/gb-pbhl.json`)
+```json
+{
+  "name": "GB Farm - Proto Bahamut HL",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 4,
+  "targetScore": 1500000,
+  "supporterPriority": ["Agni", "Bahamut", "Shiva"],
+  "autoBerry": true,
+  "speedProfile": "fast",
+  "steps": [
+    { "code": "skill", "character": 4, "skill": 3, "optional": true, "waitForNetwork": "ability_result.json" },
+    { "code": "reload" },
+    { "code": "quick_call" },
+    { "code": "reload" },
+    { "code": "attack" },
+    { "code": "reload" },
+    { "code": "summon", "slot": 2, "waitForNetwork": "summon_result.json" },
+    { "code": "reload" },
+    {
+      "code": "repeat",
+      "repeatCount": 10,
+      "subSteps": [
+        { "code": "exit_if_score", "targetScore": 1500000 },
+        { "code": "attack" },
+        { "code": "reload" }
+      ]
+    },
+    { "code": "confirm_result" }
+  ]
+}
 ```
 
-### 2. Configure Environment & Accounts
+#### Step Action Catalog
+| Action Code | Key Parameters | Description |
+| :--- | :--- | :--- |
+| `skill` | `character` (1-4), `skill` (1-4), `targetCharacter` (opt) | Casts character ability |
+| `quick_call` | — | Triggers designated Quick Summon |
+| `summon` | `slot` (1-6) | Summons sub-aura summon from slot 1-6 |
+| `attack` | — | Executes normal attack |
+| `reload` | — | Fast F5 page reload (skips combat animation) |
+| `tap_ready` | — | Taps Ready banner or toggles in-game Full Auto |
+| `smart_full_auto` | `maxTurns`, `postAttackWaitMs` | Methodological tactical skills (Debuff $\rightarrow$ Buff $\rightarrow$ Nuke) |
+| `repeat` | `repeatCount`, `subSteps` | Repeats enclosed list of actions in a loop |
+| `exit_if_score` | `targetScore` (e.g. `1500000`) | Exits combat early once target honors are achieved |
+| `target_enemy` | `enemyIndex` (1-3) | Switches focus to specified enemy target |
+| `heal` | `item` (`green_potion` \| `blue_potion`) | Consumes healing item |
+| `backup_request` | — | Broadcasts backup request to Everyone/Friends/Crew |
+| `confirm_result` | — | Dismisses victory screen, collects loot, loops |
+
+#### Validating Your Changes
+Before running modified or new templates, validate them against the Zod schema:
 ```bash
-cp .env.example .env
-cp accounts.config.example.json accounts.config.json
+bun run workflow:validate
 ```
-Edit `.env` to set your gateway port and optional Discord tokens.
+*Catches missing fields, invalid slot numbers, out-of-range character indices, or malformed URLs.*
 
-### 3. Launch Browser in Debugging Mode
-Use the helper PowerShell script to launch an isolated Chromium session on port `9222`:
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\launch-gbf-chrome.ps1
-```
+#### 4 Ways to Run Your Modified or New Workflow
+1. **Direct CLI Runner**:
+   ```bash
+   bun src/cli/run-workflow.ts acc1 gb-pbhl 20 --windowed
+   ```
+2. **Account Shortcut Syntax**:
+   ```bash
+   bun run acc1 gb-pbhl 20
+   bun run acc1 my-custom-raid 10 --windowed
+   ```
+3. **Auto-Generate NPM Scripts (`templates:sync`)**:
+   ```bash
+   bun run templates:sync
+   ```
+   *Automatically registers `bun run my-custom-raid` and `bun run my-custom-raid:windowed` in `package.json`!*
+4. **Interactive Terminal Menu**:
+   ```bash
+   bun run workflow
+   ```
 
-### 4. Log in to Granblue Fantasy
-Open `https://game.granbluefantasy.jp` in the launched browser and log in once. Your cookies and IndexedDB session are permanently stored in your local profile directory (`Zero Cold Logins`).
+*For complete details, see the [Modifying & Creating Workflows Developer Guide](./docs/workflows/creating-and-modifying-workflows.md).*
 
-### 5. Run Your First Routine
-```bash
-# Execute daily maintenance (Magna Pro, Hard Pro, Rupie Gacha, Arcarum)
-bun run daily
+---
 
-# Or farm Proto Bahamut HL with visible window
-bun run gb:pbhl-skill:windowed
-```
+### Step 4: Specialized Automation Engines & Roster
 
-### 6. (Optional) Start Remote PWA Gateway or Discord Bot
-```bash
-# Launch mobile web gateway on port 3000
-bun run gateway
+The suite includes dedicated, battle-tested automation engines for every sector of Granblue Fantasy:
 
-# Launch Discord Remote Controller & 2-Way CAPTCHA Relay
-bun run discord:bot
-```
+| Sector | Primary Commands | Capabilities |
+| :--- | :--- | :--- |
+| **Daily Maintenance** | `bun run daily`<br/>`bun run daily:all` | 12 Pro Skips, 100-Draw Rupie Gacha, Skyscope missions, Casino pots |
+| **Daily Raid Hosting** | `bun run daily:host`<br/>`bun run daily:host:hl` | Hosts all daily 16-raid rotation (HL, Magna 3, Six Dragons) with retry pass |
+| **05:00 JST Scheduler** | `bun run daily:scheduler`<br/>`bun run daily:routine` | 24/7 background daemon executing daily reset chores at 05:00:15 JST |
+| **Arcarum: Zone Mundus** | `bun run prometheus:smart`<br/>`bun run morrigna:smart`<br/>`bun run ca-ong:smart`<br/>`bun run gilgamesh:smart`<br/>`bun run stage10` | 0ms supporter select, Defender & Militis Smart Full Auto, AAP recovery |
+| **Arcarum: The World** | `bun run arcarum-theworld` | Zone Mundus boss with Plain Damage Omen counter (Beelzebub) |
+| **Gold Bar (GB) Hunting** | `bun run gb-pbhl`<br/>`bun run gb-pbhl:skill`<br/>`bun run gb-akasha`<br/>`bun run gb-go`<br/>`bun run gb-farm` | Blue Chest honor burst loops (PBHL, Akasha, GOHL), permanent URL archives |
+| **Magna 3 Fast Leech** | `bun run leech:colossus`<br/>`bun run leech:tiamat`<br/>`bun run leech:leviathan` | HP $\le 20\%$ entry filter, primal supporter match, 1-turn burst, immediate exit |
+| **Guild Wars (U&F)** | `bun run gw-meat`<br/>`bun run gw-nm95-light`<br/>`bun run gacha:unf` | Sub-7.5s EX+ meat farm, NM95 1-turn burst (14s), token drawbox clearer |
+| **Fate Episodes** | `bun run fate`<br/>`bun run fate:10`<br/>`bun run fate:all` | Fast dialog skip, battle auto-resolution, uncap material & crystal farming |
+| **Scenario Events** | `bun run event`<br/>`bun run event:all`<br/>`bun run event:gacha` | Collab & scenario event story skip, daily maniacs, HELL batch skip, gacha |
+| **Rise of the Beasts** | `bun run rotb:baihu`<br/>`bun run rotb:earth:loop` | Continuous 9x Extreme Baihu $\rightarrow$ 1x Titan Agon farming cycle |
+| **Mobile Web Cockpit** | `bun run gateway` | Phone/tablet remote PWA, live screencast, tap forwarding, emergency abort |
+| **Discord Bot & Relay** | `bun run discord:bot`<br/>`bun run discord:controller` | 2-Way CAPTCHA DM Relay, remote `/run`, `/status`, and `/stop` slash commands |
 
 ---
 

@@ -269,14 +269,43 @@ Automates character Fate Episodes (`#quest/fate`) to unlock skill slots and harv
 
 ## 14. Interactive Selector & Generic Workflow Runner
 
-Execute any template dynamically or launch the interactive terminal selector.
+Execute any pre-packaged, modified, or custom workflow template dynamically.
 
-| Command | Description |
-| :--- | :--- |
-| `bun run workflow` | Interactive terminal UI (prompts for Account, Template, Runs) |
-| `bun run acc1 <template> [runs]` | Runs specified template on Account 1 |
-| `bun run acc2 <template> [runs]` | Runs specified template on Account 2 |
-| `bun src/cli/run-workflow.ts <acc> <template> [runs] --windowed` | Direct CLI execution with custom parameters |
+### Quick Workflow Commands
+
+| Command | Arguments / Flags | Description |
+| :--- | :--- | :--- |
+| `bun run workflow` | — | Interactive terminal menu (arrow-key template picker) |
+| `bun run workflow:validate` | — | Validates all templates against strict Zod schema |
+| `bun run templates:sync` | — | Scans `templates/` and auto-registers CLI scripts in `package.json` |
+| `bun run acc1 <template> [runs]` | `[runs]` `[--windowed]` | Runs specified template on Account 1 |
+| `bun run acc2 <template> [runs]` | `[runs]` `[--windowed]` | Runs specified template on Account 2 |
+| `bun src/cli/run-workflow.ts <acc> <template> [runs]` | `[--windowed]` `[--headless]` | Direct CLI invocation with complete parameter control |
+
+### How to Modify a Template (e.g. `templates/gb-pbhl.json`)
+1. **Edit `templates/gb-pbhl.json`**:
+   - Change turn order, add skills (`{ "code": "skill", "character": 4, "skill": 3 }`), call summons (`{ "code": "summon", "slot": 2 }`), or adjust target honors (`"targetScore": 1500000`).
+2. **Validate Your Changes**:
+   ```bash
+   bun run workflow:validate
+   ```
+3. **Execute the Modified Template**:
+   ```bash
+   # Test in visible window:
+   bun run gb-pbhl:windowed
+
+   # Or specify custom run count on acc1:
+   bun src/cli/run-workflow.ts acc1 gb-pbhl 20 --windowed
+
+   # Or run in silent background mode:
+   bun run gb-pbhl
+   ```
+
+### How to Create a New Template
+1. Create `templates/my-custom-raid.json` (see [Full Guide](./docs/workflows/creating-and-modifying-workflows.md)).
+2. Validate with `bun run workflow:validate`.
+3. Run immediately via `bun src/cli/run-workflow.ts acc1 my-custom-raid 10 --windowed`.
+4. (Optional) Run `bun run templates:sync` to automatically generate `bun run my-custom-raid` and `bun run my-custom-raid:windowed` in `package.json`!
 
 ---
 
