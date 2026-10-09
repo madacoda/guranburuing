@@ -155,7 +155,7 @@
       "name": "Daily 100-Draw Rupie Gacha",
       "category": "gacha",
       "pageUrl": "https://game.granbluefantasy.jp/#gacha/normal",
-      "selector": ".btn-lupi.multi, .btn-lupi[data-count='100'], .btn-lupi[data-id='6002'], .btn-lupi, .btn-draw-100",
+      "selector": "div.btn-lupi.multi.free[data-id='6002'][data-count='100'], .btn-lupi[data-id='6002'][data-count='100'], .btn-lupi.multi[data-count='100'], .btn-lupi[data-id='6002'], .btn-lupi.multi.free, .btn-lupi.multi, .btn-lupi[data-count='100'], .btn-lupi, .btn-draw-100",
       "dailyLimit": 1
     },
     {

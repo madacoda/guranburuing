@@ -158,6 +158,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'PBHL 0-Honors Bug Critical Verification & Regression Tests',
     file: 'tests/test-pbhl-zero-honor-fix.ts',
     description: 'Verify syncCurrentHonors result isolation, waitForCombatTurnResolution attack gating, and handleTapReady honors generation'
+  },
+  {
+    name: 'Two-Way Discord CAPTCHA Relay & Anti-Deadlock Resolution Tests',
+    file: 'tests/test-captcha-relay.ts',
+    description: 'Verify single high-clarity viewport attachment, dual-layer Send button typing & click, and circular lock resolution'
+  },
+  {
+    name: 'Proto Bahamut HL Precise Manual Skill Flow Tests',
+    file: 'tests/test-pbhl-skill.ts',
+    description: 'Verify tap_ready elimination, optional fallback flags, zero-honorGuard mode, and exact tactical skill/summon sequence'
+  },
+  {
+    name: 'Arcarum Zone Mundus (Stage 10) Militis Bosses & Map Tests',
+    file: 'tests/test-arcarum-mundus-militis.ts',
+    description: 'Verify Prometheus, Morrigna, Ca Ong, and Gilgamesh Militis templates, URLs, DSL round-trip, and Stage 10 quest selection'
   }
 ];
 

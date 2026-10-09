@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Gilgamesh Militis (Smart Full Auto)",
+  "description": "Optimal Smart Full Auto battle loop for Gilgamesh Militis (Earth Defender, Zone Mundus / Western Great Wastes): Turn 1 Quick Call + Adaptive Tactical Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Multi-turn fast loop until victory -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/8/819161/25",
+  "questId": "819161",
+  "divisionId": 8,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

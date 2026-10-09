@@ -1,9 +1,10 @@
 {
   "name": "GB Farm - PBHL (Skill & Burst Rotation)",
-  "description": "PBHL Skill Burst: C4S3 -> Quick Call -> Reload -> C4S4 -> C1S3 -> Reload -> C2S3 -> Reload -> Attack -> Reload -> Summon 2 -> Attack -> Reload -> Confirm Result",
+  "description": "PBHL Skill Burst: C4S3 -> Reload -> Quick Call -> Reload -> C4S4 -> Reload -> C1S3 -> Reload -> C2S3 -> Reload -> Attack -> Reload -> Summon 2 -> Attack -> Reload -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "raidSlot": 4,
   "targetScore": 1500000,
+  "honorGuard": false,
   "logPath": "logs/gb-pbhl.md",
   "supporterPriority": [
     "Agni",
@@ -22,10 +23,15 @@
       "code": "skill",
       "character": 4,
       "skill": 3,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
+      "code": "reload"
+    },
+    {
       "code": "quick_call",
+      "optional": true,
       "waitForNetwork": "summon_result.json"
     },
     {
@@ -35,12 +41,17 @@
       "code": "skill",
       "character": 4,
       "skill": 4,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "reload"
     },
     {
       "code": "skill",
       "character": 1,
       "skill": 3,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
@@ -50,6 +61,7 @@
       "code": "skill",
       "character": 2,
       "skill": 3,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
@@ -65,6 +77,7 @@
     {
       "code": "summon",
       "slot": 2,
+      "optional": true,
       "waitForNetwork": "summon_result.json"
     },
     {

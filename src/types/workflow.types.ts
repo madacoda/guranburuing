@@ -92,6 +92,8 @@ export interface WorkflowTemplate {
   description?: string;
   questUrl: string;
   mode?: 'combat' | 'routine' | 'assist'; // Execution mode: 'combat' (default quest run), 'routine' (page/dialog/loop automation), 'assist' (raid finder)
+  questId?: string | number; // Specific quest ID for stage maps (e.g. 819141 for Prometheus Militis)
+  divisionId?: number;      // Replicard division ID (e.g. 3 for Serenity Ridge: Slopes)
   supporterPriority?: string[];
   steps: WorkflowStep[];
   humanMotor?: boolean;     // Enable human motor variance (default: true)
@@ -105,6 +107,7 @@ export interface WorkflowTemplate {
   defaultRuns?: number;
   speedProfile?: 'stealth' | 'fast' | 'turbo';
   targetScore?: number;     // Default score to exit raid (e.g. 1480000 for Blue Chest)
+  honorGuard?: boolean;     // Enable/disable extra attack turns after combat pipeline if targetScore not reached (default: true)
   minBatchClaim?: number;   // Min raids before checking pending battles (default: 3)
   maxBatchClaim?: number;   // Max raids before checking pending battles (default: 5)
   batchClaimSize?: number;  // Fixed override for pending batch claim

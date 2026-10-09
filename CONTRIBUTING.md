@@ -74,7 +74,7 @@ bun run verify
 This command executes all mandatory gates:
 1. **Security & Hygiene Audit**: `bun scripts/verify-hygiene.ts` (ensures 0 leaked secrets or personal directories).
 2. **Template Schema & DSL Validation**: `bun run workflow:validate` (ensures 100% Zod compliance).
-3. **Unified Test Suite**: `bun tests/run-all.ts` (10/10 test suites passing).
+3. **Unified Test Suite**: `bun tests/run-all.ts` (33/33 test suites passing).
 4. **TypeScript Build**: `bun run build` (zero type errors).
 
 ---

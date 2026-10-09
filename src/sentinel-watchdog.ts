@@ -52,8 +52,8 @@ export class SentinelWatchdog {
     'li.c-a-i-image',
     'img.img-verification',
     'img[src*="c/i?"]',
-    'img[src*="/c/i"]',
-    'img.image[src*="c/i"]',
+    'img[src*="/c/i?"]',
+    'img.image[src*="c/i?"]',
     '.prt-popup-body .img-verification',
 
     // 3. Scoped inputs & submit buttons
@@ -64,6 +64,8 @@ export class SentinelWatchdog {
     '.cnt-verification .btn-usual-ok',
     '.pop-usual.verification .btn-usual-ok',
     '.btn-verify',
+    '.btn-talk-message',
+    '.btn-send',
 
     // 4. External CAPTCHA & Security iframes / providers
     'iframe[src*="recaptcha"]',
@@ -156,8 +158,9 @@ export class SentinelWatchdog {
   /**
    * Scans the active page for any visual verification modal with context destruction protection.
    * Uses multi-layered detection: URL hash check, iframe checks, and atomic single-pass DOM evaluation.
+   * When liveOnly is true, bypasses unconsumed network flags to check actual present page DOM/URL.
    */
-  public async inspectForVerification(): Promise<boolean> {
+  public async inspectForVerification(liveOnly = false): Promise<boolean> {
     try {
       const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
 
@@ -168,7 +171,6 @@ export class SentinelWatchdog {
         currentUrl.includes('/verification') ||
         currentUrl.includes('sec_challenge')
       ) {
-        this.isLocked = true;
         return true;
       }
 
@@ -181,8 +183,8 @@ export class SentinelWatchdog {
         return false;
       }
 
-      // Pre-check: Internal network detection flag or locked state
-      if (this.isLocked || this.networkVerificationDetected) {
+      // Pre-check: Internal network detection flag (unless doing a live-only DOM inspection)
+      if (!liveOnly && this.networkVerificationDetected) {
         return true;
       }
 
@@ -256,53 +258,170 @@ export class SentinelWatchdog {
 
         if (hasVerificationDom) return true;
       }
+
+      // If live inspection confirms DOM/URL has no verification, clear any lingering network flag
+      if (this.networkVerificationDetected) {
+        this.networkVerificationDetected = false;
+      }
+
+      return false;
     } catch {
       // Catch transient "Execution context was destroyed" during page transitions
+      return false;
+    }
+  }
+
+  /**
+   * Ensures the CAPTCHA modal and challenge image are actively rendered on screen
+   * before taking a diagnostic or resolution screenshot.
+   */
+  public async waitForActiveCaptchaRender(timeoutMs = 3500): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        if (typeof this.page.evaluate === 'function') {
+          const isReady = await this.page.evaluate(() => {
+            const isVisible = (el: HTMLElement | null): boolean => {
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              return (
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                parseFloat(style.opacity || '1') > 0.1 &&
+                el.offsetHeight > 0
+              );
+            };
+
+            // Check security iframes
+            const iframe = document.querySelector('iframe[src*="turnstile"], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="sec_challenge"]');
+            if (iframe && isVisible(iframe as HTMLElement)) return true;
+
+            // Check modal visibility
+            const modal = document.querySelector(
+              '.pop-usual, #pop, .cnt-verification, #cnt-verification, .cnt-captcha, .prt-popup-body'
+            ) as HTMLElement;
+
+            if (modal && isVisible(modal)) {
+              // Challenge image must be complete with positive dimensions
+              const img = modal.querySelector('img.img-verification, img[src*="c/i"], .prt-c-a-i-image img, .prt-popup-body img') as HTMLImageElement;
+              if (img) {
+                return img.complete && img.naturalWidth > 0;
+              }
+
+              // Tile selection challenge
+              const tiles = modal.querySelectorAll('li.c-a-i-image, .lis-c-a-i-image li');
+              if (tiles.length > 0) return true;
+
+              // Text input challenge
+              const input = modal.querySelector('textarea, input[type="text"]');
+              if (input && isVisible(input as HTMLElement)) return true;
+            }
+
+            return false;
+          }).catch(() => false);
+
+          if (isReady) {
+            // Settle CSS transitions / animations
+            await new Promise(r => setTimeout(r, 400));
+            return true;
+          }
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return false;
+  }
+
+  /**
+   * Clears any leftover text from the verification input field to ensure
+   * screenshots are clean and subsequent attempts are unpolluted.
+   */
+  public async clearCaptchaInput(): Promise<void> {
+    try {
+      if (typeof this.page.evaluate === 'function') {
+        await this.page.evaluate(() => {
+          const input = document.querySelector(
+            'textarea.frm-message, input.frm-message, .pop-usual textarea, #pop textarea, .prt-c-a-i-input textarea, .prt-c-a-i-input input, #c-a-i-frm-group textarea, #c-a-i-frm-group input, input[name*="verification"], textarea[name*="verification"]'
+          ) as HTMLTextAreaElement | HTMLInputElement;
+          if (input) {
+            input.value = '';
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) {
+              $(input).val('').trigger('input').trigger('change');
+            }
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }).catch(() => null);
+      }
+    } catch {}
+  }
+
+  /**
+   * Dismisses any error or authentication failure popups that GBF might show
+   * after an incorrect CAPTCHA code is submitted.
+   */
+  public async dismissErrorAlertIfPresent(): Promise<boolean> {
+    try {
+      if (typeof this.page.evaluate === 'function') {
+        return await this.page.evaluate(() => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          const popups = document.querySelectorAll('.pop-usual, #pop, .prt-popup-frame');
+          for (let i = 0; i < popups.length; i++) {
+            const popup = popups[i] as HTMLElement;
+            const style = window.getComputedStyle(popup);
+            if (style.display === 'none' || style.visibility === 'hidden') continue;
+
+            const text = (popup.innerText || '').toLowerCase();
+            const isError = text.includes('failed') ||
+                            text.includes('error') ||
+                            text.includes('失敗') ||
+                            text.includes('エラー') ||
+                            text.includes('不正');
+
+            // Do not dismiss the main Access Verification prompt itself
+            const isAccessVerificationPrompt = text.includes('access verification') && text.includes('enter the verification');
+            if (isError && !isAccessVerificationPrompt) {
+              const okBtn = popup.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close') as HTMLElement;
+              if (okBtn) {
+                if ($) $(okBtn).trigger('tap');
+                okBtn.click();
+                return true;
+              }
+            }
+          }
+          return false;
+        }).catch(() => false);
+      }
+    } catch {
       return false;
     }
     return false;
   }
 
   /**
-   * Captures both the isolated picture puzzle crop and the full game viewport screenshot.
+   * Captures the full game viewport screenshot of the active CAPTCHA challenge.
+   * Ensures the challenge is fully rendered before capture.
    */
   public async captureCaptchaArtifacts(): Promise<{ fullScreenshot: Buffer; puzzleCrop?: Buffer }> {
     const capturePath = ArtifactManager.getCapturePath({ namespace: 'captcha', label: 'viewport' });
     let fullScreenshot: Buffer = Buffer.alloc(0);
 
+    // 1. Ensure the active CAPTCHA is fully rendered and stabilized
+    await this.waitForActiveCaptchaRender(3500);
+
+    // 2. Capture clean full viewport
     if (typeof this.page.screenshot === 'function') {
       try {
         fullScreenshot = (await this.page.screenshot({ path: capturePath, type: 'png' })) as Buffer;
         ArtifactManager.pruneOldCaptures(path.dirname(capturePath), 20);
+        console.error(`[Sentinel] 📸 CAPTCHA Viewport: ${capturePath}`);
       } catch (err: any) {
         console.warn('[Sentinel] Failed to capture full viewport screenshot:', err.message);
       }
     }
 
-    let puzzleCrop: Buffer | undefined;
-    if (typeof this.page.$ === 'function') {
-      try {
-        // Prioritize isolated puzzle grid / image first, then fallback to container
-        const puzzleEl = await this.page.$(
-          '.prt-c-a-i-image, .lis-c-a-i-image, #c-a-i-frm-group, img[src*="c/i"], img.img-verification, #cnt-verification, .cnt-verification, .pop-usual.verification, .pop-usual'
-        );
-        if (puzzleEl && typeof puzzleEl.boundingBox === 'function') {
-          const box = await puzzleEl.boundingBox();
-          if (box && box.width > 20 && box.height > 20) {
-            const cropPath = path.resolve(path.dirname(capturePath), `captcha-puzzle-${Date.now()}.png`);
-            if (typeof puzzleEl.screenshot === 'function') {
-              puzzleCrop = (await puzzleEl.screenshot({ path: cropPath, type: 'png' })) as Buffer;
-              console.error(`[Sentinel] 🔍 CAPTCHA Puzzle Crop: ${cropPath}`);
-            }
-          }
-        }
-      } catch (err: any) {
-        console.warn('[Sentinel] Transient error capturing puzzle crop:', err.message);
-      }
-    }
-
-    console.error(`[Sentinel] 📸 CAPTCHA Viewport: ${capturePath}`);
-    return { fullScreenshot, puzzleCrop };
+    return { fullScreenshot };
   }
 
   /**
@@ -330,7 +449,7 @@ export class SentinelWatchdog {
   /**
    * Comprehensive interactive CAPTCHA resolution cycle.
    * Enters "CAPTCHA clear mode":
-   * 1. Captures fresh artifacts (crop + viewport).
+   * 1. Captures fresh artifacts (clean viewport).
    * 2. Prompts user on Discord DM (concise, displaying in-game player name).
    * 3. Listens for user reply while checking for in-browser external resolution.
    * 4. If user replies 'halt' / 'manual': pauses and waits for user to solve in browser.
@@ -364,8 +483,8 @@ export class SentinelWatchdog {
 
     if (enableDiscord) {
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        // Fast check if challenge was already cleared
-        const isStillThere = await this.inspectForVerification();
+        // Fast check if challenge was already cleared (live DOM check)
+        const isStillThere = await this.inspectForVerification(true);
         if (!isStillThere) {
           console.log('[Sentinel] ✅ CAPTCHA is no longer present. Resuming...');
           await discordDmRelay.sendConfirmation(
@@ -383,7 +502,7 @@ export class SentinelWatchdog {
           console.error('[Sentinel] Failed capturing artifacts:', err.message);
         }
 
-        if (!artifacts) {
+        if (!artifacts || !artifacts.fullScreenshot || artifacts.fullScreenshot.length === 0) {
           console.warn('[Sentinel] Could not capture screenshot artifacts. Falling back to browser wait.');
           break;
         }
@@ -399,7 +518,7 @@ export class SentinelWatchdog {
           artifacts,
           300000,
           async () => {
-            const gone = !(await this.inspectForVerification());
+            const gone = !(await this.inspectForVerification(true));
             return gone;
           },
           contextWithAttempt
@@ -433,8 +552,11 @@ export class SentinelWatchdog {
             this.unlock();
             return true;
           } else {
-            console.warn(`[Sentinel] ⚠️ Code "${reply}" did not dismiss the CAPTCHA. Re-capturing new puzzle...`);
-            await new Promise(r => setTimeout(r, 1500));
+            console.warn(`[Sentinel] ⚠️ Code "${reply}" did not dismiss the CAPTCHA. Waiting for new puzzle to load...`);
+            // Ensure error dialog is dismissed and clear text box so next attempt is fresh
+            await this.dismissErrorAlertIfPresent();
+            await this.clearCaptchaInput();
+            await new Promise(r => setTimeout(r, 2000));
             // Continues loop to attempt + 1
           }
         } else {
@@ -456,38 +578,61 @@ export class SentinelWatchdog {
   }
 
   /**
+   * Polls to determine if the verification modal is dismissed following submission.
+   */
+  public async pollForVerificationDismissal(timeoutMs = 8000): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await new Promise(r => setTimeout(r, 500));
+
+      const isStillPresent = await this.inspectForVerification(true);
+      if (!isStillPresent) {
+        this.unlock();
+        console.log('[Sentinel] ✅ CAPTCHA solved and verified successfully!');
+        return true;
+      }
+
+      // Check if GBF displayed an error modal indicating the code failed
+      const errorDismissed = await this.dismissErrorAlertIfPresent();
+      if (errorDismissed) {
+        console.warn('[Sentinel] ⚠️ Verification error alert was shown and dismissed. Code was incorrect.');
+        return false;
+      }
+    }
+
+    console.warn('[Sentinel] ⚠️ Verification challenge still present after submission timeout.');
+    return false;
+  }
+
+  /**
    * Submits a CAPTCHA response into the active in-game verification modal.
    * Handles both text input codes and picture-selection tile indices.
    */
   public async submitCaptchaCode(code: string): Promise<boolean> {
     try {
-      console.log(`[Sentinel] Attempting to submit CAPTCHA response via DOM: "${code}"...`);
+      console.log(`[Sentinel] Attempting to submit CAPTCHA response: "${code}"...`);
       const cleanCode = code.trim();
 
       if (typeof this.page.evaluate !== 'function') return false;
 
-      // Determine challenge mode inside the browser and execute interaction
-      const result = await this.page.evaluate((val: string) => {
+      // 1. Check for tile / image grid challenge first
+      const tileResult = await this.page.evaluate((val: string) => {
         const $ = (window as any).$ || (window as any).Zepto;
 
-        // 1. Check for tile / image grid challenge first
         const tileElements = Array.from(document.querySelectorAll(
           'li.c-a-i-image, .lis-c-a-i-image > li, .prt-c-a-i-image li, .cnt-verification ul li, .pop-usual.verification li'
         )) as HTMLElement[];
 
-        // Check if there are visible tiles
         const visibleTiles = tileElements.filter(el => {
           const style = window.getComputedStyle(el);
           return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0;
         });
 
-        // Parse possible tile indices (e.g. "1 3", "2, 4", "1-2", "2")
         const tileIndices = val.split(/[\s,–#-]+/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
 
         if (visibleTiles.length > 0 && tileIndices.length > 0) {
-          // It's a tile selection challenge!
           for (const idx of tileIndices) {
-            const tile = visibleTiles[idx - 1]; // 1-indexed for user convenience
+            const tile = visibleTiles[idx - 1];
             if (tile) {
               if ($) $(tile).trigger('tap');
               tile.click();
@@ -499,7 +644,6 @@ export class SentinelWatchdog {
             }
           }
 
-          // Click verification confirm button
           const btn = document.querySelector(
             '.btn-usual-ok.se-quest-start, .btn-usual-ok, .btn-verify, .btn-talk-message'
           ) as HTMLElement;
@@ -509,71 +653,150 @@ export class SentinelWatchdog {
             btn.click();
           }
 
-          return { mode: 'tiles', submitted: true };
+          return true;
         }
 
-        // 2. Check for text input challenge
-        const input = document.querySelector(
-          '.prt-c-a-i-input textarea, #c-a-i-frm-group textarea, textarea.frm-message, input[name*="verification"]'
-        ) as HTMLTextAreaElement | HTMLInputElement;
-
-        if (input) {
-          input.value = val;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-
-          const btn = document.querySelector(
-            '#c-a-i-frm-group .btn-talk-message, .prt-c-a-i-input .btn-talk-message, .btn-talk-message, .btn-usual-ok.se-quest-start, .btn-verify'
-          ) as HTMLElement;
-
-          if (btn) {
-            if ($) $(btn).trigger('tap');
-            btn.click();
-          }
-
-          return { mode: 'text', submitted: true };
-        }
-
-        return { mode: 'unknown', submitted: false };
+        return false;
       }, cleanCode);
 
-      if (result && result.submitted) {
-        // Also perform native mouse / touch click on the submit button for Puppeteer event fidelity
-        try {
-          if (typeof this.page.$ === 'function') {
-            const btnEl = await this.page.$(
-              '.btn-usual-ok.se-quest-start, .btn-usual-ok, .btn-verify, #c-a-i-frm-group .btn-talk-message'
-            );
-            if (btnEl && typeof btnEl.boundingBox === 'function') {
-              const box = await btnEl.boundingBox();
-              if (box && box.width > 0 && box.height > 0) {
-                if (this.page.mouse) {
-                  await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
-                }
-                if (this.page.touchscreen) {
-                  await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
-                }
+      if (tileResult) {
+        return await this.pollForVerificationDismissal();
+      }
+
+      // 2. Text Input Challenge (e.g. "g4h65f")
+      const domResult = await this.page.evaluate((val: string) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+
+        const input = document.querySelector(
+          'textarea.frm-message, input.frm-message, .pop-usual textarea, #pop textarea, .prt-c-a-i-input textarea, .prt-c-a-i-input input, #c-a-i-frm-group textarea, #c-a-i-frm-group input, input[name*="verification"], textarea[name*="verification"], input[placeholder*="verification"], textarea[placeholder*="verification"], .pop-usual input[type="text"]'
+        ) as HTMLTextAreaElement | HTMLInputElement;
+
+        if (!input) return { foundInput: false };
+
+        input.value = val;
+        if ($) {
+          $(input).val(val);
+          $(input).trigger('input');
+          $(input).trigger('change');
+          $(input).trigger('keyup');
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }));
+
+        // Search for the "Send" button in modal container
+        const container = input.closest('.pop-usual, #pop, .prt-popup-body, .cnt-verification, form, .prt-c-a-i-input, #c-a-i-frm-group') || document.body;
+
+        const candidates = Array.from(container.querySelectorAll(
+          'div, button, a, span, input[type="button"], input[type="submit"]'
+        )) as HTMLElement[];
+
+        // Priority 1: Exact text match ("Send", "送信")
+        let btn = candidates.find(el => {
+          const txt = (el.innerText || el.textContent || (el as HTMLInputElement).value || '').trim();
+          if (/^(send|送信)$/i.test(txt)) {
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0;
+          }
+          return false;
+        });
+
+        // Priority 2: Standard class selectors
+        if (!btn) {
+          const selectors = [
+            '.btn-talk-message',
+            '.btn-post',
+            '.btn-send',
+            '.btn-usual-text',
+            '.btn-usual-ok',
+            '.btn-verify',
+            '.btn-submit',
+            '[class*="btn-talk"]',
+            '[class*="btn-send"]',
+            '[class*="btn-post"]'
+          ];
+          for (const sel of selectors) {
+            const el = container.querySelector(sel) as HTMLElement;
+            if (el) {
+              const style = window.getComputedStyle(el);
+              if (style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0) {
+                btn = el;
+                break;
               }
             }
           }
-        } catch {}
-
-        // Poll for challenge dismissal (up to 6 seconds)
-        for (let i = 0; i < 12; i++) {
-          await new Promise(r => setTimeout(r, 500));
-          const stillHas = await this.inspectForVerification();
-          if (!stillHas) {
-            this.unlock();
-            console.log('[Sentinel] ✅ CAPTCHA solved and verified successfully!');
-            return true;
-          }
         }
 
-        console.warn('[Sentinel] ⚠️ Verification modal still present after submission. Code may have been incorrect.');
+        // Priority 3: Fallback button text
+        if (!btn) {
+          btn = candidates.find(el => {
+            const txt = (el.innerText || el.textContent || (el as HTMLInputElement).value || '').trim();
+            if (/^(ok|verify|決定|認証)$/i.test(txt)) {
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0;
+            }
+            return false;
+          });
+        }
+
+        let buttonClicked = false;
+        let btnBox: { x: number; y: number; width: number; height: number } | null = null;
+
+        if (btn) {
+          if ($) {
+            $(btn).trigger('touchstart');
+            $(btn).trigger('touchend');
+            $(btn).trigger('tap');
+          }
+          btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+          btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+          btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          btn.click();
+          buttonClicked = true;
+
+          const rect = btn.getBoundingClientRect();
+          btnBox = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+        }
+
+        return { foundInput: true, buttonClicked, btnBox };
+      }, cleanCode);
+
+      if (!domResult || !domResult.foundInput) {
+        console.warn('[Sentinel] ⚠️ Could not locate verification input field in DOM.');
         return false;
       }
 
-      return false;
+      // Step 2b: Native Puppeteer / CDP typing & physical click
+      try {
+        const inputEl = await this.page.$(
+          'textarea.frm-message, input.frm-message, .pop-usual textarea, #pop textarea, .prt-c-a-i-input textarea, .prt-c-a-i-input input, input[name*="verification"]'
+        );
+        if (inputEl) {
+          await inputEl.click().catch(() => null);
+          await inputEl.focus().catch(() => null);
+          await this.page.keyboard.down('Control').catch(() => null);
+          await this.page.keyboard.press('KeyA').catch(() => null);
+          await this.page.keyboard.up('Control').catch(() => null);
+          await this.page.keyboard.press('Backspace').catch(() => null);
+          await this.page.keyboard.type(cleanCode, { delay: 40 }).catch(() => null);
+        }
+
+        if (domResult.btnBox && domResult.btnBox.width > 0) {
+          const cx = domResult.btnBox.x + domResult.btnBox.width / 2;
+          const cy = domResult.btnBox.y + domResult.btnBox.height / 2;
+          if (this.page.mouse) {
+            await this.page.mouse.click(cx, cy).catch(() => null);
+          }
+          if (this.page.touchscreen) {
+            await this.page.touchscreen.tap(cx, cy).catch(() => null);
+          }
+        }
+      } catch (cdpErr: any) {
+        console.warn('[Sentinel] CDP typing/click warning:', cdpErr.message);
+      }
+
+      console.log(`[Sentinel] 🚀 Submitted code "${cleanCode}". Awaiting verification response...`);
+      return await this.pollForVerificationDismissal();
     } catch (err: any) {
       console.error('[Sentinel] Error submitting CAPTCHA code:', err.message);
       return false;
@@ -591,7 +814,7 @@ export class SentinelWatchdog {
     while (Date.now() - start < timeoutMs) {
       await new Promise(r => setTimeout(r, 2500));
 
-      const stillHasCaptcha = await this.inspectForVerification();
+      const stillHasCaptcha = await this.inspectForVerification(true);
       if (!stillHasCaptcha) {
         this.unlock();
         console.log('\n✅ [Sentinel] CAPTCHA resolved in browser! Resuming automation safely.\n');

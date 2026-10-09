@@ -91,7 +91,7 @@ export class DiscordDmRelay {
     // Auto-detect raid ID in Gold Bar / Drop alerts
     const isGoldBar = content.includes('Gold Brick') || content.includes('GOLD BAR') || content.includes('ヒヒイロカネ');
     if (isGoldBar) {
-      const raidMatch = content.match(/(?:Raid ID|Battle ID|detail|#)\/?:?\s*`?(\d{8,})`?/i);
+      const raidMatch = content.match(/(?:\*{0,2}(?:Raid ID|Battle ID)\*{0,2}:?\s*`?|result(?:_multi)?\/|#)(\d{8,})/i);
       if (raidMatch && raidMatch[1]) {
         const key = `gold-bar-${raidMatch[1]}`;
         if (this.notifiedKeys.has(key)) return true;
@@ -116,7 +116,7 @@ export class DiscordDmRelay {
 
     const isGoldBar = content.includes('Gold Brick') || content.includes('GOLD BAR') || content.includes('ヒヒイロカネ');
     if (isGoldBar) {
-      const raidMatch = content.match(/(?:Raid ID|Battle ID|detail|#)\/?:?\s*`?(\d{8,})`?/i);
+      const raidMatch = content.match(/(?:\*{0,2}(?:Raid ID|Battle ID)\*{0,2}:?\s*`?|result(?:_multi)?\/|#)(\d{8,})/i);
       if (raidMatch && raidMatch[1]) {
         this.notifiedKeys.set(`gold-bar-${raidMatch[1]}`, now);
       }
@@ -333,7 +333,7 @@ export class DiscordDmRelay {
         attachments.push({ buffer: images.puzzleCrop, filename: 'captcha-puzzle.png' });
       }
       if (images.fullScreenshot && images.fullScreenshot.length > 0) {
-        attachments.push({ buffer: images.fullScreenshot, filename: 'viewport-context.png' });
+        attachments.push({ buffer: images.fullScreenshot, filename: 'captcha-challenge.png' });
       }
     }
 

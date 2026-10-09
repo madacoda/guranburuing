@@ -1,0 +1,75 @@
+{
+  "name": "Arcarum Sandbox - Gilgamesh Militis (Optimal Burst)",
+  "description": "High-speed optimal burst Gilgamesh Militis battle loop (Zone Mundus / Earth Defender): Quick Call (Wind / Beelzebub) -> Frontline Buffs & Nukes -> Attack -> Wait 350ms & Reload -> Repeat Fast Attack/Reload Loop -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/8/819161/25",
+  "questId": "819161",
+  "divisionId": 8,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json",
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 2,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "repeat",
+      "repeatCount": 15,
+      "subSteps": [
+        {
+          "code": "attack",
+          "optional": true,
+          "waitForNetwork": "normal_attack_result.json",
+          "delayAfterMs": 350
+        },
+        {
+          "code": "reload"
+        }
+      ]
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

@@ -59,47 +59,56 @@ assert('Ennead proChapterId is 30583', enneadTask?.proChapterId === '30583');
 console.log('\n[Test 2] .btn-lupi Detection & Evaluation on #gacha/normal...');
 
 function evaluateBtnLupi(element: {
-  className: string;
+  className?: string;
   dataId?: string;
   dataCount?: string;
   hasCount0?: boolean;
   hasCount1?: boolean;
   text?: string;
-  bodyText?: string;
+  gachaText?: string;
+  pageText?: string;
 }) {
-  const bodyText = element.bodyText || '';
-  if (bodyText.includes('本日分終了') || bodyText.includes('0/100') || bodyText.includes('100/100')) {
-    return { status: 'already_drawn', reason: 'completion_text' };
+  // If button is found:
+  if (element.className) {
+    const isCompleted =
+      element.className.includes('disable') ||
+      element.className.includes('is-completed') ||
+      element.className.includes('btn-disable') ||
+      element.dataCount === '0' ||
+      (element.hasCount0 && !element.hasCount1 && element.dataCount !== '100') ||
+      (element.text || '').includes('本日分終了');
+
+    if (isCompleted) {
+      return { status: 'already_drawn', reason: 'button_disabled_or_zero_count' };
+    }
+
+    return { status: 'clicked', label: '100-Draw Rupie (.btn-lupi)' };
   }
 
-  if (!element.className) {
-    return { status: 'not_found', reason: 'btn_lupi_missing' };
+  // If button not found, check container text
+  const gText = element.gachaText || '';
+  if (
+    gText.includes('本日分終了') ||
+    gText.includes('0/100回') ||
+    gText.includes('上限に達しました')
+  ) {
+    return { status: 'already_drawn', reason: 'gacha_container_completion_text' };
   }
 
-  const isCompleted =
-    element.className.includes('disable') ||
-    element.className.includes('is-completed') ||
-    element.dataCount === '0' ||
-    (element.hasCount0 && !element.hasCount1 && !element.dataCount) ||
-    (element.text || '').includes('0/100') ||
-    (element.text || '').includes('本日分終了');
-
-  if (isCompleted) {
-    return { status: 'already_drawn', reason: 'button_disabled_or_zero_count' };
-  }
-
-  return { status: 'clicked', label: '100-Draw Rupie (.btn-lupi)' };
+  return { status: 'not_found', reason: 'btn_lupi_missing' };
 }
 
 // Case A: Active 100-draw button: <div class="btn-lupi multi free" data-id="6002" data-count="100">
+// Note: Even if page has "100/100" (e.g. AP 100/100 or 100 draws available), active button MUST trigger clicked!
 const activeLupi = evaluateBtnLupi({
   className: 'btn-lupi multi free',
   dataId: '6002',
   dataCount: '100',
   hasCount1: true,
-  hasCount0: true
+  hasCount0: true,
+  pageText: 'AP 100/100 Available: 100/100'
 });
-assert('Active .btn-lupi[data-count="100"] triggers clicked', activeLupi.status === 'clicked');
+assert('Active .btn-lupi[data-count="100"] triggers clicked even with 100/100 page text', activeLupi.status === 'clicked');
 
 // Case B: Drawn 100-draw button (disabled or count 0)
 const completedLupi = evaluateBtnLupi({
@@ -111,12 +120,19 @@ const completedLupi = evaluateBtnLupi({
 });
 assert('Completed .btn-lupi evaluates to already_drawn', completedLupi.status === 'already_drawn');
 
-// Case C: Missing button (not on page)
+// Case C: Missing button with gacha container completion text
+const completedContainerLupi = evaluateBtnLupi({
+  className: '',
+  gachaText: '本日分終了 (Daily limit reached)'
+});
+assert('Missing button with 本日分終了 evaluates to already_drawn', completedContainerLupi.status === 'already_drawn');
+
+// Case D: Missing button (not on page yet / loading)
 const missingLupi = evaluateBtnLupi({
   className: '',
-  bodyText: 'Some other page content'
+  gachaText: 'Loading gacha container...'
 });
-assert('Missing .btn-lupi evaluates to not_found (avoids false-positive)', missingLupi.status === 'not_found');
+assert('Missing .btn-lupi during load evaluates to not_found (avoids false-positive)', missingLupi.status === 'not_found');
 
 // -----------------------------------------------------------------------------
 // Test 3: Template Steps Verification (daily-universal)

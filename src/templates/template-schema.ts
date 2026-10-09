@@ -303,6 +303,8 @@ export const WorkflowTemplateSchema = z.object({
     url => url.startsWith('http://') || url.startsWith('https://') || url.startsWith('#'),
     { message: 'questUrl must be a valid HTTP(S) URL or in-game hash (e.g. #quest/...)' }
   ),
+  questId: z.union([z.string(), z.number()]).optional(),
+  divisionId: z.number().int().optional(),
   supporterPriority: z.array(z.string()).optional().default(['Zeus', 'Lucifer', 'Hades', 'Bahamut']),
   raidSlot: z.number().int().min(1, 'raidSlot must be 1 to 4').max(4, 'raidSlot must be 1 to 4').optional(),
   raidSlots: z.array(z.number().int().min(1).max(4)).optional(),

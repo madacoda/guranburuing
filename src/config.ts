@@ -7,7 +7,7 @@ dotenv.config();
 const ConfigSchema = z.object({
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default('0.0.0.0'),
-  AUTH_TOKEN: z.string().min(16, 'AUTH_TOKEN must be at least 16 characters for security.'),
+  AUTH_TOKEN: z.string().min(16, 'AUTH_TOKEN must be at least 16 characters for security.').default('change_me_to_at_least_16_chars_super_secret'),
   CDP_PORT: z.coerce.number().default(9222),
   TELEGRAM_BOT_TOKEN: z.preprocess((val) => (val === '' ? undefined : val), z.string().optional()),
   TELEGRAM_CHAT_ID: z.preprocess((val) => (val === '' ? undefined : val), z.string().optional()),

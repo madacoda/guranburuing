@@ -4,11 +4,13 @@
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript%205.8-3178c6?style=flat&logo=typescript&logoColor=fff)](https://www.typescriptlang.org/)
 [![CI](https://github.com/madacoda/guranburuing/actions/workflows/ci.yml/badge.svg)](https://github.com/madacoda/guranburuing/actions/workflows/ci.yml)
 [![Security & Hygiene](https://github.com/madacoda/guranburuing/actions/workflows/security.yml/badge.svg)](https://github.com/madacoda/guranburuing/actions/workflows/security.yml)
+[![Tests](https://img.shields.io/badge/Tests-33%2F33%20Passing-brightgreen?style=flat&logo=checkmarx)](./tests)
 [![Protocol: CDP](https://img.shields.io/badge/Protocol-Chrome%20DevTools-4285f4?style=flat&logo=googlechrome&logoColor=fff)](https://chromedevtools.github.io/devtools-protocol/)
 [![Architecture: WebSocket + PWA](https://img.shields.io/badge/Gateway-WebSocket%20%2B%20PWA-00d1b2?style=flat)](./public)
+[![Remote: Discord 2-Way Relay](https://img.shields.io/badge/Relay-Discord%202--Way%20CAPTCHA-5865f2?style=flat&logo=discord&logoColor=fff)](./src/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](./LICENSE)
 
-A high-performance, resilient, and state-aware automation system and remote mobile cockpit for **Granblue Fantasy (GBF)**. Engineered with native Chrome DevTools Protocol (CDP) bindings, sub-7.5s battle loops, multi-account swarm farming, human biomechanical motor simulation, proactive anti-cheat tripwires, and encrypted remote management.
+An enterprise-grade, high-performance, and state-aware automation system and remote mobile cockpit for **Granblue Fantasy (GBF)**. Engineered with native Chrome DevTools Protocol (CDP) bindings, sub-7.5s combat loops, multi-account swarm farming, human biomechanical motor simulation, 2-way Discord remote control with CAPTCHA relay, and an encrypted mobile PWA screencast cockpit.
 
 ---
 
@@ -17,18 +19,33 @@ A high-performance, resilient, and state-aware automation system and remote mobi
 - [Key Architectural Highlights](#key-architectural-highlights)
 - [System Architecture](#system-architecture)
 - [Core Capabilities](#core-capabilities)
-  - [1. Declarative Workflow Engine](#1-declarative-workflow-engine)
-  - [2. Multi-Account Swarm & Profile Isolation](#2-multi-account-swarm--profile-isolation)
-  - [3. Sentinel Safety & Biomechanical Anti-Ban](#3-sentinel-safety--biomechanical-anti-ban)
-  - [4. Encrypted Remote Cockpit (PWA & Screencast)](#4-encrypted-remote-cockpit-pwa--screencast)
+  - [1. Declarative Universal Workflow Engine](#1-declarative-universal-workflow-engine)
+  - [2. Gold Bar Farming Suite & Tactical Rotations](#2-gold-bar-farming-suite--tactical-rotations)
+  - [3. Two-Way Discord Remote Controller & CAPTCHA DM Relay](#3-two-way-discord-remote-controller--captcha-dm-relay)
+  - [4. Daily Reset Scheduler Daemon (JST 05:00)](#4-daily-reset-scheduler-daemon-jst-0500)
+  - [5. Magna 3 Six-Element Leech Engine](#5-magna-3-six-element-leech-engine)
+  - [6. Multi-Account Swarm & Profile Isolation](#6-multi-account-swarm--profile-isolation)
+  - [7. Biomechanical Human Motor Simulation](#7-biomechanical-human-motor-simulation)
+  - [8. Encrypted Mobile Cockpit (PWA & Screencast)](#8-encrypted-mobile-cockpit-pwa--screencast)
+  - [9. Discord Rich Presence Integration](#9-discord-rich-presence-integration)
+  - [10. Replicard Sandbox (Zone Mundus) Militis Engine](#10-replicard-sandbox-zone-mundus-militis-engine)
 - [Prerequisites](#prerequisites)
-- [Quick Start Guide](#quick-start-guide)
+- [Quick Start Guide (< 3 Minutes)](#quick-start-guide--3-minutes)
 - [Configuration Reference](#configuration-reference)
   - [Environment Variables (`.env`)](#environment-variables-env)
   - [Account Registry (`accounts.config.json`)](#account-registry-accountsconfigjson)
-- [CLI Workflow Reference](#cli-workflow-reference)
+- [CLI Command Reference](#cli-command-reference)
+  - [Daily Maintenance & Scheduler](#daily-maintenance--scheduler)
+  - [Gold Bar & Raid Automation](#gold-bar--raid-automation)
+  - [Replicard Sandbox & Militis Bosses](#replicard-sandbox--militis-bosses)
+  - [Magna 3 Leeching](#magna-3-leeching)
+  - [Remote Gateway, Bot & Discord Presence](#remote-gateway-bot--discord-presence)
+  - [Developer Tools & Quality Gates](#developer-tools--quality-gates)
 - [Testing & Quality Assurance](#testing--quality-assurance)
-- [Security & Hygiene Policy](#security--hygiene-policy)
+- [Repository Layout](#repository-layout)
+- [Docker Deployment](#docker-deployment)
+- [Security, Hygiene & Anti-Ban Architecture](#security-hygiene--anti-ban-architecture)
+- [Contributing & Policies](#contributing--policies)
 - [Legal Disclaimer & License](#legal-disclaimer--license)
 
 ---
@@ -37,10 +54,11 @@ A high-performance, resilient, and state-aware automation system and remote mobi
 
 - **Native Bun Runtime**: Instant startup times, zero-overhead TypeScript execution, and fast child-process orchestration without transpilation bloat.
 - **Direct CDP Transport**: Eliminates heavy WebDriver overhead by interfacing directly with Chromium's DevTools WebSocket endpoint via `puppeteer-core`.
-- **Zero Cold Logins**: Reuses established browser sessions, IndexedDB stores, and auth cookies (`midship`, `access_gbtk`, `t`) in 0ms, avoiding unnecessary re-authentication triggers.
+- **Zero Cold Logins**: Reuses established browser sessions, IndexedDB stores, and auth cookies (`midship`, `access_gbtk`, `t`) in 0ms, avoiding re-authentication triggers.
 - **Physical Profile Isolation**: Each worker runs on an isolated `--user-data-dir` and dedicated CDP port to circumvent Chromium's `SingletonLock` process constraints.
 - **Biomechanical Motor Modeling**: Emulates human physics with Box-Muller Gaussian distributions, velocity curves, and cubic Bézier pointer movement.
-- **Hard Anti-Captcha Tripwire**: Proactive DOM and canvas watcher that halts execution immediately upon detecting verification modals, sounding instant alarms across Telegram and Discord.
+- **Hard Anti-Captcha Tripwire & 2-Way Relay**: Proactive DOM and canvas watcher that halts execution immediately upon detecting verification modals, captures a live honest viewport screenshot, and relays it to Discord DM where the user can solve and resume remotely.
+- **Intelligent 3-Raid Limit Handling**: Automatically detects when the active raid backup slot is full, gracefully yields or claims pending rewards, and avoids endless retry locks.
 
 ---
 
@@ -48,70 +66,120 @@ A high-performance, resilient, and state-aware automation system and remote mobi
 
 ```mermaid
 flowchart TB
-    subgraph Client["Remote Client (Any Device)"]
+    subgraph Client["Remote Clients"]
         Browser["Mobile / Desktop Browser (PWA)"]
+        DiscordUser["Discord User (Direct Message & Slash Commands)"]
     end
 
     subgraph Gateway["Gateway Server (Bun / Port 3000)"]
         AuthGuard["Bearer Token Auth (RFC 6750)"]
         WSS["Bidirectional WebSocket Hub"]
         PWA["Static PWA Asset Server"]
+        DiscordBot["Discord Bot & Whitelist Controller"]
         AuthGuard --> WSS
         AuthGuard --> PWA
     end
 
     subgraph Controller["Automation Controller Core"]
         Engine["Universal Workflow Engine"]
-        DSL["DSL Compiler & Schema Validator"]
+        DSL["DSL Compiler & Zod Schema Validator"]
         Sentinel["Safety Sentinel & Watchdog"]
         DropLogger["Raid Drop Telemetry Logger"]
+        Scheduler["Daily Reset Scheduler (JST 05:00)"]
         Motor["Human Motor Synthesizer (Bézier/Gaussian)"]
     end
 
     subgraph BrowserFleet["Chromium Execution Fleet (CDP)"]
-        W1["Worker 1 (Port 9222)<br/>Isolated Profile acc1"]
-        W2["Worker 2 (Port 9223)<br/>Isolated Profile acc2"]
-        W3["Worker N (Port 922N)<br/>Isolated Profile accN"]
+        W1["Worker 1 (Port 9222)<br/>Profile: acc1"]
+        W2["Worker 2 (Port 9223)<br/>Profile: acc2"]
+        WN["Worker N (Port 922N)<br/>Profile: accN"]
     end
 
-    subgraph Telemetry["Alerting & Telemetry Relay"]
-        Discord["Discord Webhook Dispatcher"]
+    subgraph Telemetry["Alerting & Remote Relay"]
+        DiscordRelay["Two-Way Discord CAPTCHA DM Relay"]
+        DiscordWebhook["Discord Drop & Alarm Webhook"]
         Telegram["Telegram Bot API Relay"]
     end
 
     Browser <==>|"Encrypted WebSocket (Screencast & Taps)"| WSS
+    DiscordUser <==>|"Slash Commands & DM Solves"| DiscordBot
+    DiscordBot <==>|"Execute / Abort"| Engine
     WSS <==>|"Target Page CDP Mirror"| Controller
     DSL --> Engine
     Motor --> Engine
+    Scheduler --> Engine
     Engine <==>|"CDP Page / Target Domain"| BrowserFleet
-    Sentinel -.->|"On Captcha / Anomaly"| Telemetry
-    DropLogger -.->|"Gold Bar / Item Drops"| Telemetry
+    Sentinel -.->|"On Captcha Detection"| DiscordRelay
+    DiscordRelay -.->|"Forward Viewport & Receive Solve"| DiscordUser
+    Sentinel -.->|"Emergency Alarm"| Telegram
+    DropLogger -.->|"Gold Bar & Rare Drops"| DiscordWebhook
 ```
 
 ---
 
 ## Core Capabilities
 
-### 1. Declarative Workflow Engine
-Define farming routines using intuitive DSL text or strictly validated JSON templates:
+### 1. Declarative Universal Workflow Engine
+Define farming routines using either human-readable text DSL or strictly typed JSON templates:
 - **Sub-7.5s EX+ Meat Farming**: Optimized combat routines with instant animation cancellations via smart reloads.
-- **Gold Bar Hunter**: Automated Proto Bahamut HL (`gb-pbhl`), Akasha HL (`gb-akasha`), and Grand Order HL (`gb-go`) farming loops with honor-threshold targets and automatic backup limit handling.
-- **One-Click Daily Routines**: Fully automated Magna Pro, Hard Pro, Ennead Pro, 100-Draw Rupie Gacha, and Arcarum Fast Expeditions.
+- **Dynamic Turn Routing**: Condition-based branching, honor threshold targets, and automatic battle result synchronization.
+- **Fail-Safe Retries**: Non-retriable material deficit detection vs. transient network backoff.
 
-### 2. Multi-Account Swarm & Profile Isolation
+### 2. Gold Bar Farming Suite & Tactical Rotations
+Comprehensive high-difficulty raid farming suite with honor tracking:
+- **Proto Bahamut HL (`gb-pbhl` & `gb-pbhl-skill`)**: Dedicated bursting scripts targeting 1.5M honor. Supports pure manual tactical skill execution (e.g. Character 4 Skill 3 → Quick Call → Character 4 Skill 4 → Character 1 Skill 3 → Attack → Summon 2 → Attack) with 0-honors bug prevention and action queue isolation.
+- **Akasha HL (`gb-akasha`)**: Dark/Fire burst rotations with automatic key item and weapon drop logging.
+- **Grand Order HL (`gb-go`)**: Multi-turn burst optimization targeting Heavenly Horns and Silver Centrums.
+- **Permanent Result URLs**: Automatically resolves and archives permanent raid result detail URLs (`#result_multi/detail/${raidId}/1/0/0`).
+
+### 3. Two-Way Discord Remote Controller & CAPTCHA DM Relay
+- **Strict Snowflake Authorization**: Only users matching `DISCORD_USER_ID` can trigger commands or receive sensitive screenshots.
+- **Interactive Slash Commands**: Run workflows (`/gbf run <template>`), check live health (`/gbf status`), abort running jobs (`/gbf stop`), or trigger daily chores (`/gbf daily`).
+- **Two-Way CAPTCHA DM Relay**:
+  1. When a CAPTCHA modal appears, the Safety Sentinel halts automation in `<10ms`.
+  2. Captures an honest, high-clarity full viewport screenshot (`scratch/captures/captcha/`).
+  3. Sends a private Discord DM with the image and an interactive modal button.
+  4. The user types the answer directly in Discord.
+  5. The bot replays the answer with realistic human typing jitter, clicks "Send" (`.btn-post`), verifies dismissal, and resumes the workflow automatically.
+
+### 4. Daily Reset Scheduler Daemon (JST 05:00)
+- **Automatic JST Timing**: Accurately calculates the exact countdown to Japan Standard Time (UTC+9) 05:00:00 reset.
+- **Anti-Drift Timer**: Employs wall-clock reconciliation to prevent background process drift.
+- **Full Daily Maintenance**:
+  - Magna Pro & Hard Pro instant skips
+  - Ennead Pro skips
+  - 100-Draw Rupie Gacha auto-pull
+  - Arcarum Fast Expeditions
+
+### 5. Magna 3 Six-Element Leech Engine
+- **Parallel Raid Evaluator**: Multi-slot concurrent checking of raid health, participant count, and optimal entry windows.
+- **Primal Supporter Filter**: Validates supporter summon availability matching the element before spending EP.
+- **Backup Broadcast Interleaving**: Automatically requests backup assistance with 180-second cooldown tracking.
+
+### 6. Multi-Account Swarm & Profile Isolation
 - Parallel execution of multiple accounts without session collisions or database lock contention (`EBUSY`).
 - Staggered launch intervals (5–8s randomized offsets) preventing network pattern correlation.
-- Lazy, on-demand session verification.
+- Independent `--user-data-dir` and dedicated CDP ports (`9222`, `9223`, ...).
 
-### 3. Sentinel Safety & Biomechanical Anti-Ban
-- **Human Motor Jitter**: Click coordinates and input delays are sampled using Box-Muller Gaussian transforms ($X \sim \mathcal{N}(\mu,\,\sigma^{2})$).
-- **Proactive Captcha Freeze**: Real-time DOM observers inspect for anti-bot modals (`.pop-captcha`, `#pop-captcha`, `div[class*="captcha"]`). Detection triggers an unconditional engine halt and captures an artifact screenshot.
-- **Rate-Limiting Circuit Breakers**: Prevents cascade failures or repetitive request loops when encountering unexpected maintenance or network drops.
+### 7. Biomechanical Human Motor Simulation
+- **Gaussian Jitter**: Click coordinates and input delays are sampled using Box-Muller Gaussian transforms ($X \sim \mathcal{N}(\mu,\,\sigma^{2})$).
+- **Cubic Bézier Interpolation**: Mouse movements simulate biological acceleration, deceleration, and trajectory curvature.
+- **Randomized Micro-Pauses**: Simulates human attention variance during multi-hour sessions.
 
-### 4. Encrypted Remote Cockpit (PWA & Screencast)
+### 8. Encrypted Mobile Cockpit (PWA & Screencast)
 - High-efficiency JPEG screencast pipeline streaming live game state at 15–30 FPS with dynamic quality scaling.
 - Bidirectional touch/click forwarding translating client viewport coordinates to precise desktop CDP coordinates.
 - Mobile PWA installable on iOS and Android home screens with full offline caching and session reconnection.
+
+### 9. Discord Rich Presence Integration
+- Live presence status displaying current raid, farming mode, or productivity presets (`gbf`, `work`, `trade`).
+- Dynamic elapsed time counters and customizable status quotes.
+
+### 10. Replicard Sandbox (Zone Mundus) Militis Engine
+- **Direct Supporter Routing & Fast Deck Confirm**: 0ms supporter skip (`#replicard/supporter/10/10/{div}/{quest_id}/25`) and automatic `.pop-deck.supporter.is-no-supporter` validation.
+- **Stage 10 Division Map Resolution**: Real-time division frame tracking on `#replicard/stage/10` with automatic targeting of active Militis/Defender encounters (`[data-is-hell="1"]`).
+- **Complete Militis Roster Coverage**: Dedicated burst and Smart Full Auto routines for **Prometheus Militis** (Fire), **Morrigna Militis** (Wind), **Ca Ong Militis** (Water), and **Gilgamesh Militis** (Earth).
+- **Smart Full Auto Combat Engine**: Plain Damage Omen countering (Beelzebub summon), Turn 1 Quick Call, Methodological tactical skill prioritization (Field → Debuff → Buff → Nuke → Heal), and F5 animation skip reloads.
 
 ---
 
@@ -119,11 +187,11 @@ Define farming routines using intuitive DSL text or strictly validated JSON temp
 
 - **Bun Runtime**: v1.2.0 or higher ([Install Bun](https://bun.sh))
 - **Chromium-based Browser**: Google Chrome, Chromium, or SRWare Iron
-- **PowerShell**: For Windows helper launch scripts
+- **PowerShell**: For Windows helper launch scripts (Windows 10/11)
 
 ---
 
-## Quick Start Guide
+## Quick Start Guide (< 3 Minutes)
 
 ### 1. Clone & Install Dependencies
 ```bash
@@ -132,29 +200,39 @@ cd guranburuing
 bun install
 ```
 
-### 2. Initialize Environment Configuration
+### 2. Configure Environment & Accounts
 ```bash
 cp .env.example .env
 cp accounts.config.example.json accounts.config.json
 ```
-Edit `.env` to configure your chosen gateway port, auth bearer token, and optional alert webhooks.
+Edit `.env` to set your gateway port and optional Discord tokens.
 
 ### 3. Launch Browser in Debugging Mode
-Use the provided PowerShell script to launch an isolated Chromium session on port `9222`:
+Use the helper PowerShell script to launch an isolated Chromium session on port `9222`:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\launch-gbf-chrome.ps1
 ```
 
-### 4. Run One-Click Daily Maintenance
+### 4. Log in to Granblue Fantasy
+Open `https://game.granbluefantasy.jp` in the launched browser and log in once. Your cookies and IndexedDB session are permanently stored in your local profile directory (`Zero Cold Logins`).
+
+### 5. Run Your First Routine
 ```bash
+# Execute daily maintenance (Magna Pro, Hard Pro, Rupie Gacha, Arcarum)
 bun run daily
+
+# Or farm Proto Bahamut HL with visible window
+bun run gb:pbhl-skill:windowed
 ```
 
-### 5. Launch the Remote Gateway Server (Optional)
+### 6. (Optional) Start Remote PWA Gateway or Discord Bot
 ```bash
+# Launch mobile web gateway on port 3000
 bun run gateway
+
+# Launch Discord Remote Controller & 2-Way CAPTCHA Relay
+bun run discord:bot
 ```
-Open `http://localhost:3000` on your mobile device or desktop to view the live dashboard and screencast.
 
 ---
 
@@ -166,14 +244,19 @@ Open `http://localhost:3000` on your mobile device or desktop to view the live d
 | :--- | :--- | :--- | :--- |
 | `PORT` | `number` | `3000` | Port for the WebSocket gateway and PWA static server |
 | `HOST` | `string` | `0.0.0.0` | Bind host address |
-| `AUTH_TOKEN` | `string` | — | Bearer token for client authentication (min 16 chars) |
+| `AUTH_TOKEN` | `string` | *(default fallback)* | Bearer token for client authentication (min 16 chars) |
 | `CDP_PORT` | `number` | `9222` | Default Chrome DevTools Protocol port |
-| `HEADLESS` | `boolean` | `true` | Headless execution mode (`--headless=new`) |
-| `SPEED_PROFILE` | `enum` | `fast` | Action timing profile (`careful` \| `normal` \| `fast`) |
-| `COMBAT_AUTO_REFRESH` | `boolean` | `true` | Smart reload animation cancel |
+| `HEADLESS` | `boolean` | `false` | Headless execution mode (`--headless=new`) |
+| `AUTO_LAUNCH_CHROME` | `boolean` | `true` | Automatically launch Chromium if inactive |
+| `EXECUTION_MODE` | `enum` | `hybrid` | Execution mode (`hybrid` \| `dom`) |
+| `SPEED_PROFILE` | `enum` | `fast` | Action timing profile (`stealth` \| `fast` \| `turbo`) |
+| `COMBAT_AUTO_REFRESH`| `boolean` | `true` | Fast combat reload animation cancellation |
+| `DISCORD_BOT_TOKEN` | `string` | — | Discord Bot Token for 2-Way CAPTCHA Relay & Controller |
+| `DISCORD_USER_ID` | `string` | — | Your Discord User Snowflake ID for DM Relay authorization |
+| `DISCORD_WEBHOOK_URL`| `string` | — | Discord Webhook URL for alarm and drop broadcasts |
 | `TELEGRAM_BOT_TOKEN` | `string` | — | Telegram Bot API token for emergency alarms |
 | `TELEGRAM_CHAT_ID` | `string` | — | Destination chat ID for Telegram alarms |
-| `DISCORD_WEBHOOK_URL`| `string` | — | Discord Webhook URL for alarm and drop broadcasts |
+| `DRY_STREAK_MODE` | `enum` | `blue_chest`| Streak tracking mode (`blue_chest` \| `min_honor` \| `all_battles`) |
 
 ### Account Registry (`accounts.config.json`)
 
@@ -185,58 +268,173 @@ Open `http://localhost:3000` on your mobile device or desktop to view the live d
     "enabled": true,
     "service": "mobage",
     "cdpPort": 9222,
-    "profileDir": "C:/Users/YOUR_USER/.gbf-profiles/acc1"
+    "profileDir": "./data/accounts/acc1",
+    "credentials": {
+      "email": "your-acc1-email@example.com",
+      "password": "your-acc1-password"
+    },
+    "proxy": null
   }
 ]
 ```
 
 > [!CAUTION]
-> Never commit `accounts.config.json` or `.env` to source control. Both are strictly ignored by `.gitignore`.
+> Never commit `accounts.config.json` or `.env` to source control. Both are strictly ignored by `.gitignore` and enforced by pre-flight hygiene gates.
 
 ---
 
-## CLI Workflow Reference
+## CLI Command Reference
+
+### Daily Maintenance & Scheduler
 
 | Command | Description |
 | :--- | :--- |
 | `bun run daily` | Executes full daily cycle: Magna Pro, Hard Pro, Rupie Gacha, Arcarum |
-| `bun run daily:magna` | Executes Magna Pro skip only |
-| `bun run daily:hard` | Executes Hard Pro skip only |
-| `bun run gb:pbhl` | Farms Proto Bahamut HL until target honor or run limit |
-| `bun run gb:akasha` | Farms Akasha HL for Gold Bar drops |
-| `bun run gb:go` | Farms Grand Order HL for Heavenly Horns & Silver Centrums |
+| `bun run daily:acc1` | Runs daily cycle specifically for Account 1 |
+| `bun run daily:all` | Swarm mode: runs daily cycle across all enabled accounts |
+| `bun run daily:windowed` | Runs daily cycle with visible browser window |
+| `bun run daily:host` | Hosts all daily 16-raid rotation (HL, Magna 3, Six Dragons) |
+| `bun run daily:scheduler` | Starts background daemon that triggers dailies at JST 05:00 |
+
+### Gold Bar & Raid Automation
+
+| Command | Description |
+| :--- | :--- |
+| `bun run gb:pbhl` | Proto Bahamut HL burst farm with honor guard target |
+| `bun run gb:pbhl-skill` | PBHL precise manual skill rotation (C4S3 → Call → C4S4 → C1S3 → Attack) |
+| `bun run gb:pbhl-skill:windowed`| PBHL precise manual rotation with visible browser window |
+| `bun run gb:akasha` | Akasha HL burst farm for Gold Bar drops |
+| `bun run gb:go` | Grand Order HL farm for Heavenly Horns & Silver Centrums |
 | `bun run gw-meat` | Light EX+ Guild Wars sub-7.5s meat farming loop |
-| `bun run gw-meat:swarm` | Swarm mode: runs all enabled accounts concurrently |
+
+### Replicard Sandbox & Militis Bosses
+
+| Command | Description |
+| :--- | :--- |
+| `bun run arcarum-prometheus:smart` | Prometheus Militis (Fire / Div 3) Smart Full Auto |
+| `bun run arcarum-prometheus` | Prometheus Militis fast burst rotation |
+| `bun run arcarum-morrigna:smart` | Morrigna Militis (Wind / Div 15) Smart Full Auto |
+| `bun run arcarum-morrigna` | Morrigna Militis fast burst rotation |
+| `bun run arcarum-ca-ong:smart` | Ca Ong Militis (Water / Div 9) Smart Full Auto |
+| `bun run arcarum-ca-ong` | Ca Ong Militis fast burst rotation |
+| `bun run arcarum-gilgamesh:smart` | Gilgamesh Militis (Earth / Div 8) Smart Full Auto |
+| `bun run arcarum-gilgamesh` | Gilgamesh Militis fast burst rotation |
+| `bun run arcarum-stage10:smart` | Zone Mundus Stage 10 Map auto-targeting active Militis/Defenders |
+| `bun run arcarum-theworld` | Zone Mundus Boss: The World with plain damage omen counters |
+
+### Magna 3 Leeching
+
+| Command | Description |
+| :--- | :--- |
+| `bun run leech:m3` | Multi-element Magna 3 leech evaluator loop |
+| `bun run leech:tiamat` | Tiamat Aura Magna 3 leech |
+| `bun run leech:colossus` | Colossus Ira Magna 3 leech |
+| `bun run leech:leviathan` | Leviathan Mare Magna 3 leech |
+| `bun run leech:yggdrasil` | Yggdrasil Arbos Magna 3 leech |
+| `bun run leech:luminiera` | Luminiera Creed Magna 3 leech |
+| `bun run leech:celeste` | Celeste Zant Magna 3 leech |
+
+### Remote Gateway, Bot & Discord Presence
+
+| Command | Description |
+| :--- | :--- |
+| `bun run gateway` | Starts the WebSocket companion & mobile PWA server |
+| `bun run discord:bot` | Starts Discord 2-Way CAPTCHA DM Relay & Remote Controller |
+| `bun run presence:gbf` | Sets Discord Rich Presence to live GBF farming state |
+| `bun run presence:work` | Sets Discord Rich Presence to Productivity mode |
+| `bun run presence:trade` | Sets Discord Rich Presence to Trading mode |
+| `bun run presence:clear` | Clears active Discord Rich Presence |
+
+### Developer Tools & Quality Gates
+
+| Command | Description |
+| :--- | :--- |
+| `bun run test` | Executes unified test runner (33/33 suites passing) |
+| `bun run verify` | Full pre-flight gate: Security audit + DSL check + Build + Tests |
+| `bun run hygiene` | Scans git index for secret leaks, credentials, or personal paths |
 | `bun run workflow:validate` | Validates all JSON & DSL templates against Zod schemas |
-| `bun run test` | Executes comprehensive test suite (100% passing) |
-| `bun run verify` | Full pre-flight gate: Secret audit + templates + tests + build |
+| `bun run build` | Compiles TypeScript codebase (`tsc`) |
 
 ---
 
 ## Testing & Quality Assurance
 
-The codebase includes comprehensive unit, integration, and mathematical correctness test suites:
+The codebase features an exhaustive, senior-grade test suite covering every core subsystem:
 
 ```bash
-# Run unit & integration test suites
+# Run complete test suite (33 suites)
 bun run test
 
-# Run full pre-flight verification gate (Audit + Templates + Tests + Typecheck)
+# Run full pre-flight verification gate
 bun run verify
 ```
 
-### Verified Test Gates:
+### Verified Test Gates (33/33 Passing):
 1. **Workflow Template Schema & Boundary Tests**: Schema guarantees, edge case checking, and structural validation.
 2. **Advanced DSL Compiler & Round-Trip Serializer**: Bidirectional compiler fidelity between text DSL and AST JSON.
 3. **Universal Engine Unit & Telemetry Mock Tests**: State machines, Gold Bar drop listeners, and input lock handling.
 4. **Human Motor Biomechanical Math**: Validates Box-Muller Gaussian jitter distributions and cubic Bézier interpolation.
 5. **ProSkip Daily Reconciliation**: Verification of daily Pro Skip execution flow and modal reconciliation.
 6. **Raid Engine State Machine & Recovery**: Backup limit detection (3-raid limit recovery), network retries, and raid joins.
-7. **Rupie Gacha Automation**: Anti-false-positive tab verification and multi-pull execution.
+7. **Template Parser Backwards Compatibility**: Legacy schema upgrade and validation.
+8. **Daily Universal Routine & Reconnect Logic**: Network disruption resilience and retry loops.
+9. **Rupie Gacha Automation**: Tab isolation and multi-pull 100-draw execution.
+10. **3-Raid Backup Limit Detection & Recovery**: Active raid slot reclamation and queue clearing.
+11. **Event Engine & Scenario Story Unit Tests**: Event quest automation and skip handling.
+12. **Gold Bar Tracker & Battle URL Integration**: Gold Bar detection and permanent archive URL generation.
+13. **CAPTCHA Detection & Safety Sentinel**: DOM modal observation and zero-latency halt.
+14. **Notification Deduplication & Anti-Spam**: Prevents notification spam across Discord and Telegram.
+15. **Raid Evaluator & Score-Based Decision**: Priority queueing and dynamic scoring.
+16. **Session & Cookie Synchronization**: Cross-platform path normalization and token persistence.
+17. **Discord Presence Multi-Template**: Presence status formatting and quote switching.
+18. **Arcarum: The World Template & AAP Engine**: Zone Mundus quest start and AAP recovery modals.
+19. **Granblue Fantasy Tactical Skills**: Field → Debuff → Buff → Nuke ordering and cooldown checks.
+20. **PBHL Universal Workflow & Shorthand DSL**: Burst rotation syntax and named summon resolution.
+21. **Magna 3 Leech & Fast Burst 6-Element Evaluator**: Supporter validation and assist limit recovery.
+22. **Raid Evaluator Parallel Multi-Condition**: O(1) lookups, disqualification bitmasks, and LRU cache.
+23. **Daily Host Engine & 16-Raid Catalog**: HL, Magna 3, and Six Dragons daily host verification.
+24. **Senior Data Architecture & Catalog**: Modular data catalog schema compliance and O(1) lookups.
+25. **Backup Broadcast Scope & 3-Min Cooldown**: Everyone/Friends/Crew checkboxes and 180s cooldown re-broadcasting.
+26. **Dual-Track Assist Interleaving**: Frontline wipeout triage and assist farming interleaving.
+27. **Failure Diagnostic Classifier**: Material deficit vs. transient network error triage.
+28. **Daily Reset Scheduler Daemon & JST Math**: Anti-drift JST reset calculation and scheduling.
+29. **Discord Remote Controller Security & Whitelist**: Snowflake ID verification and injection prevention.
+30. **PBHL 0-Honors Bug Critical Verification**: Result isolation, combat turn gating, and honors synchronization.
+31. **Two-Way Discord CAPTCHA Relay & Anti-Deadlock**: Single honest viewport attachment, typing jitter, and circular lock resolution.
+32. **PBHL Precise Manual Skill Flow**: `tap_ready` elimination, optional fallback flags, and exact tactical skill/summon sequences.
+33. **Arcarum Zone Mundus (Stage 10) Militis Bosses**: Validates all Prometheus, Morrigna, Ca Ong, and Gilgamesh Militis templates, DSL round-trip fidelity, and stage map division frame quest resolution.
 
 ---
 
-## Docker Deployment (Headless Gateway)
+## Repository Layout
+
+```text
+├── .github/                 # GitHub Actions CI & Security workflows, PR template
+├── data/                    # JSON data catalog (raids, summons, classes, quests)
+├── docs/                    # Technical documentation and guides
+├── public/                  # Remote PWA mobile client (HTML5, CSS, Canvas screencast)
+├── scripts/                 # PowerShell & Bun helper automation scripts
+├── src/
+│   ├── cli/                 # CLI entry points (daily, gold bar, host, presence)
+│   ├── config.ts            # Centralized Zod-validated environment configuration
+│   ├── engines/             # Core engines (Universal Workflow, Leech, Host, Drop Logger)
+│   ├── gateway/             # WebSocket and HTTP companion server
+│   ├── relay/               # Two-Way Discord CAPTCHA DM Relay & Remote Controller
+│   ├── templates/           # Template parsers, DSL compiler, and AST serializer
+│   ├── types/               # TypeScript interfaces and domain models
+│   ├── utils/               # Biomechanical mouse, math, logging, and CDP helpers
+│   └── sentinel-watchdog.ts # Safety Sentinel tripwire & anti-ban observer
+├── strategies/              # DSL workflow strategies and natural language command guides
+├── templates/               # Reusable JSON workflow templates (PBHL, Akasha, Magna 3, Dailies)
+├── tests/                   # 33 comprehensive unit and integration test suites
+├── accounts.config.example.json # Template for multi-account configuration
+├── .env.example             # Comprehensive environment configuration template
+└── package.json             # NPM / Bun package manifest and CLI script registry
+```
+
+---
+
+## Docker Deployment
 
 Run the remote gateway and automation engine in an isolated Linux container with pre-configured Chromium:
 
@@ -254,14 +452,27 @@ docker run -d \
 
 ---
 
-## Security, Hygiene & Community Policies
+## Security, Hygiene & Anti-Ban Architecture
 
-- **Security Policy**: See [SECURITY.md](./SECURITY.md) for vulnerability reporting and threat modeling.
-- **Contributing Guidelines**: See [CONTRIBUTING.md](./CONTRIBUTING.md) for PR standards and conventional commit rules.
-- **Code of Conduct**: See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community standards.
-- **No Secrets in Repo**: Strict `.gitignore` policy forbids credentials (`accounts.config.json`), tokens (`.env`), session files, and media captures from entering version control.
+- **Zero Secrets Policy**: Strict `.gitignore` policy forbids credentials (`accounts.config.json`), tokens (`.env`), session cookies (`*-cookies.json`), and temporary screen captures from entering version control.
+- **Automated Hygiene Gate**: `bun run hygiene` runs locally and in CI to audit 100% of tracked files against secret leaks, personal paths, and private endpoints.
 - **Local Isolation**: Browser instances execute strictly inside dedicated local sandboxes without transmitting session cookies to third-party endpoints.
-- **Fail-Safe Circuit Breaker**: Immediate process termination upon detection of captcha or session invalidation.
+- **Proactive Fail-Safe Circuit Breaker**: Immediate process termination upon detection of captcha or session invalidation.
+
+---
+
+## Contributing & Policies
+
+We welcome contributions adhering to **Gold Industry Standards**!
+
+- **Contributing Guide**: See [CONTRIBUTING.md](./CONTRIBUTING.md) for branch naming, PR templates, and Conventional Commit guidelines.
+- **Security Policy**: See [SECURITY.md](./SECURITY.md) for vulnerability disclosure and threat modeling.
+- **Code of Conduct**: See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community standards.
+
+Before submitting any Pull Request:
+```bash
+bun run verify
+```
 
 ---
 

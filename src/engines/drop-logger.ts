@@ -614,7 +614,7 @@ export class DropLogger {
       md += `> | :---: | :--- | :--- | :---: | :---: | :--- |\n`;
       goldDrops.forEach((gd, idx) => {
         const battleLink = gd.raidId && /^\d+$/.test(gd.raidId)
-          ? `[Battle #${gd.raidId}](https://game.granbluefantasy.jp/#result_multi/${gd.raidId})`
+          ? `[Battle #${gd.raidId}](https://game.granbluefantasy.jp/#result_multi/detail/${gd.raidId}/1/0/0)`
           : (gd.battleUrl ? `[Battle Log](${gd.battleUrl})` : gd.raidId);
         const proof = gd.screenshotPath
           ? (gd.screenshotPath.startsWith('http') || gd.screenshotPath.includes('/') || gd.screenshotPath.includes('\\')

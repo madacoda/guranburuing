@@ -101,7 +101,7 @@ async function main() {
 
   const battleUrl = targetRaidId && /^\d+$/.test(targetRaidId)
     ? `https://game.granbluefantasy.jp/#result_multi/detail/${targetRaidId}/1/0/0`
-    : `https://game.granbluefantasy.jp/#result_multi/${targetRaidId}`;
+    : 'https://game.granbluefantasy.jp/#quest/assist';
 
   const timestamp = new Date().toLocaleString('en-US', {
     timeZone: 'Asia/Tokyo',

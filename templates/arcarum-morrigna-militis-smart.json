@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Morrigna Militis (Smart Full Auto)",
+  "description": "Optimal Smart Full Auto battle loop for Morrigna Militis (Wind Defender, Zone Mundus / Desolate Ravine: The Crown): Turn 1 Quick Call + Adaptive Tactical Skills (Field -> Debuff -> Buff -> Nuke -> Heal) -> Attack -> 350ms Wait & Reload (Animation Skip) -> Multi-turn fast loop until victory -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/15/819171/25",
+  "questId": "819171",
+  "divisionId": 15,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

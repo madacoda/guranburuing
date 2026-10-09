@@ -1,0 +1,75 @@
+{
+  "name": "Arcarum Sandbox - Morrigna Militis (Optimal Burst)",
+  "description": "High-speed optimal burst Morrigna Militis battle loop (Zone Mundus / Wind Defender): Quick Call (Fire / Beelzebub) -> Frontline Buffs & Nukes -> Attack -> Wait 350ms & Reload -> Repeat Fast Attack/Reload Loop -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/15/819171/25",
+  "questId": "819171",
+  "divisionId": 15,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json",
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 2,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "repeat",
+      "repeatCount": 15,
+      "subSteps": [
+        {
+          "code": "attack",
+          "optional": true,
+          "waitForNetwork": "normal_attack_result.json",
+          "delayAfterMs": 350
+        },
+        {
+          "code": "reload"
+        }
+      ]
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

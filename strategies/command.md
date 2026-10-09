@@ -23,7 +23,7 @@ Create or update your `.env` file in the project root:
 # Gateway Server Settings
 PORT=3001
 HOST=0.0.0.0
-AUTH_TOKEN=gbf_secure_remote_token_2026_x89a1
+AUTH_TOKEN=your_secure_bearer_token_here
 
 # Chrome DevTools Protocol (CDP)
 CDP_PORT=9222
@@ -582,6 +582,39 @@ Automates Arcarum Zone Mundus / Quest 819131: The World encounter with Plain Dam
 bun run arcarum-theworld
 ```
 - Documentation: [`strategies/workflows/theworld.md`](file:///c:/laragon/www/gbf/strategies/workflows/theworld.md)
+
+### Arcarum Zone Mundus: Militis Bosses & Stage 10 Map (`arcarum-*-militis`)
+Automates Replicard Sandbox Zone Mundus (Stage 10) major Militis encounters with Smart Full Auto and optimal burst workflows:
+
+- **Prometheus Militis (Fire)**: Division 3 ("Serenity Ridge: Slopes"), Quest ID `819141`
+  - Direct Supporter URL: `https://game.granbluefantasy.jp/#replicard/supporter/10/10/3/819141/25`
+  - `bun run arcarum-prometheus:smart` *(Smart Full Auto: Quick Call -> Methodological Skills -> Attack -> F5)*
+  - `bun run arcarum-prometheus` *(Burst workflow)*
+  - `bun run arcarum-prometheus:smart:windowed` *(Windowed GUI execution)*
+
+- **Morrigna Militis (Wind)**: Division 15 ("Desolate Ravine: The Crown"), Quest ID `819171`
+  - Direct Supporter URL: `https://game.granbluefantasy.jp/#replicard/supporter/10/10/15/819171/25`
+  - `bun run arcarum-morrigna:smart`
+  - `bun run arcarum-morrigna`
+  - `bun run arcarum-morrigna:smart:windowed`
+
+- **Ca Ong Militis (Water)**: Division 9 ("Grotto of Solace: Entrance"), Quest ID `819151`
+  - Direct Supporter URL: `https://game.granbluefantasy.jp/#replicard/supporter/10/10/9/819151/25`
+  - `bun run arcarum-ca-ong:smart`
+  - `bun run arcarum-ca-ong`
+  - `bun run arcarum-ca-ong:smart:windowed`
+
+- **Gilgamesh Militis (Earth)**: Division 8 ("Western Great Wastes"), Quest ID `819161`
+  - Direct Supporter URL: `https://game.granbluefantasy.jp/#replicard/supporter/10/10/8/819161/25`
+  - `bun run arcarum-gilgamesh:smart`
+  - `bun run arcarum-gilgamesh`
+  - `bun run arcarum-gilgamesh:smart:windowed`
+
+- **Zone Mundus Stage 10 Universal Map Runner**:
+  - Map URL: `https://game.granbluefantasy.jp/#replicard/stage/10`
+  - Automatically identifies `.prt-division-frame` and targets active Defender / Militis encounters (`[data-is-hell="1"]`) or specified quest IDs:
+  - `bun run arcarum-stage10:smart`
+  - `bun run arcarum-stage10:smart:windowed`
 
 ---
 
