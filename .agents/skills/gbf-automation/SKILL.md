@@ -197,9 +197,14 @@ bun run event:all
 
 # Individual event tasks:
 bun run event:challenge
-bun run event:maniac
+bun run event:maniac             # Clears daily 2/2 Maniacs (supports scenario and collab events)
 bun run event:nightmare          # Autonomous 10x Nightmare (HELL) Skip Looper
 bun run event:nightmare 177 50   # Skip up to 50 batches (500 battles)
+bun run event:sweep              # First-clear sweep of all collaboration event Solo & Raid quests
+bun run event:quests             # Alias for event:sweep
+bun run event:collab:solo ex 10  # Farm collaboration Solo Extreme quest 10 times
+bun run event:collab:raid vh 5   # Host collaboration Raid Very Hard 5 times
+bun run event:missions           # Claims daily event crystal missions
 bun run event:gacha              # Autonomous Token Drawbox Clearer (all remaining boxes)
 bun run event:token              # Alias for event:gacha
 bun run event:gacha 177 50       # Clear up to 50 drawboxes for event 177

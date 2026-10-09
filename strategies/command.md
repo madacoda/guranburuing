@@ -411,58 +411,41 @@ bun run src/cli/run-workflow.ts fate-stories 25
 
 ---
 
-## 8. Autonomous Scenario Event Engine (`event`, `clear-event`)
+## 8. Event Automation Engine (`event`)
 
-Automates Granblue Fantasy monthly story events (`#event/treasureraid<ID>`, e.g., "Farewell, Cold Heart" `#event/treasureraid177`):
+Automates Scenario Events (`#event/treasureraid<ID>`) and Collaboration Events (`#event/biography<ID>` / `#quest/extra/event/<ID>`).
 
-### Capabilities:
-- **Main Story Auto-Clear (`event:story`)**: Navigates to event home, tracks the active `.ico-current` episode card, fast-skips cutscenes (`.btn-skip` -> `.btn-scene-skip`), engages story battles with Full Auto, dismisses reward modals, and loops through all 6 chapters & ending.
-- **1-Time Challenge Quest (`event:challenge`)**: Clears the event Challenge Quest with the fixed story party for Blue Sky Crystals & event trophy.
-- **Daily Maniac Solo (`event:maniac`)**: Clears the daily 2/2 Maniac solo quests with Full Auto for maximum daily tokens and guaranteed Nightmare procs.
-- **Nightmare (HELL) Skip (`event:nightmare`)**: Detects Nightmare procs and executes 1-click instant Nightmare Skips (or battles with Full Auto).
-- **Token Gacha Drawbox (`event:gacha`)**: Pulls event tokens and automatically resets Boxes 1-4 when the target SSR item is drawn.
-- **Full Event Pipeline (`event:all`)**: Executes the entire sequence: Story -> Challenge Quest -> Daily Maniac -> Nightmare -> Daily Missions -> Token Gacha!
+### Quick Reference Commands
 
+| Task | Command | Description |
+| :--- | :--- | :--- |
+| **All-in-One Pipeline** | `bun run event:all` | Complete pipeline: Story -> Challenge -> Maniac -> HELL -> Missions -> Gacha |
+| **Story Auto-Clear** | `bun run event` | Fast-skips cutscenes and Full Auto clears all story chapters & ending |
+| **First-Clear Sweep** | `bun run event:sweep` | Sweeps all Solo and Raid first-clear crystals for collab/extra quests |
+| **Daily Maniacs** | `bun run event:maniac` | Clears daily 2/2 Maniac solo battles (scenario & collab) |
+| **Nightmare (HELL)** | `bun run event:nightmare` | Instant 1-click batch skip for accumulated Nightmare battles |
+| **Daily Missions** | `bun run event:missions` | Claims daily 50 crystal mission rewards |
+| **Challenge Quest** | `bun run event:challenge` | 1-time clear for Blue Sky Crystals & event trophy |
+| **Token Drawbox** | `bun run event:gacha` | Autonomous Draw 1 Drawbox clearer & auto-reset |
+| **Solo Quest Farm** | `bun run event:solo ex 10` | Farms collaboration Solo quest (e.g. EX 10 runs) |
+| **Raid Host Farm** | `bun run event:collab:raid vh 5` | Hosts collaboration raids (e.g. VH 5 runs) |
+| **Raid Leech/Burst** | `bun run event:raid` / `:ex` / `:vh` | 0-Button sub-4s raid farming for scenario events |
+| **Windowed Mode** | `bun run event:windowed` | Opens in visible Chrome window for inspection |
+
+### Specific Event Targeting
 ```bash
-# Clear all unread story episodes (Farewell, Cold Heart default)
-bun run event
-# or
-bun run event:story
-
-# Run for a specific event ID (e.g. treasureraid177)
-bun src/cli/run-clear-event.ts story 177
-
-# Run in visible windowed mode for visual inspection
-bun run event:windowed
-
-# Run full end-to-end event pipeline (Story + Challenge + Maniac + HELL + Gacha)
-bun run event:all
-
-# Run specific event tasks
-bun run event:challenge
-bun run event:maniac
-bun run event:nightmare
-bun run event:gacha
-
-# 0-Button Event Raid Auto-Farmer (Extreme by default, sub-4s cycle)
-bun run event:raid
-
-# Run specific difficulties and counts:
-bun run event:raid:ex 50    # Extreme (947431)
-bun run event:raid:vh 30    # Very Hard (947421) - meat/core farming
-bun run event:raid:hl 20    # Impossible / HL (947441)
-bun run event:raid:windowed # Windowed browser mode
-
-# Declarative workflow engine alternative:
-bun run event:workflow
+# Auto-detects active event by default, or specify target:
+bun src/cli/run-clear-event.ts story biography045       # Clear Gintama collab story
+bun src/cli/run-clear-event.ts sweep biography045       # First-clear sweep Gintama quests
+bun src/cli/run-clear-event.ts solo biography045 ex 20  # Farm Gintama EX 20 times
+bun src/cli/run-clear-event.ts story 177                # Clear scenario event 177
 ```
+
 - Architectural Guide: [`docs/events/scenario-event-architecture.md`](file:///c:/laragon/www/gbf/docs/events/scenario-event-architecture.md)
 - Event Constants & Registry: [`src/events/event.constants.ts`](file:///c:/laragon/www/gbf/src/events/event.constants.ts)
-- Raid Runner: [`src/cli/run-event-raid.ts`](file:///c:/laragon/www/gbf/src/cli/run-event-raid.ts)
 - Engine: [`src/engines/event.engine.ts`](file:///c:/laragon/www/gbf/src/engines/event.engine.ts)
-- Story Runner: [`src/cli/run-clear-event.ts`](file:///c:/laragon/www/gbf/src/cli/run-clear-event.ts)
-- Raid Template: [`templates/event-raid.json`](file:///c:/laragon/www/guranburuing/templates/event-raid.json)
-- Story Template: [`templates/event-story.json`](file:///c:/laragon/www/guranburuing/templates/event-story.json)
+- CLI Runner: [`src/cli/run-clear-event.ts`](file:///c:/laragon/www/gbf/src/cli/run-clear-event.ts)
+- Raid Runner: [`src/cli/run-event-raid.ts`](file:///c:/laragon/www/gbf/src/cli/run-event-raid.ts)
 
 ---
 
@@ -516,41 +499,65 @@ bun run gb-farm
 
 ---
 
-## 10. OTK Raid Bursting & Leeching (`otkraid`)
+## 10. Leech Raid Fast Burst Automation (`leech`)
 
-Engineered for ultra-fast raid participation and leeching where loot is awarded based on joining rather than blue-chest/honor score thresholds (e.g. Colossus Ira anima & materials).
+Engineered for ultra-fast raid participation and leeching across all 6 Magna 3 (Omega Rebirth) elements where loot is awarded based on joining rather than blue-chest/honor score thresholds (e.g. animas, omega rebirth weapons, and materials).
 
 ### Core Optimization Mechanics:
 - **Burst Filter Criteria**:
   - **Boss HP**: `HP <= 20%` (strictly ignores high-health or fresh raids to avoid stall).
   - **Player Count**: `Joined Players >= 3` (ensures sufficient player swarm to finish the raid within seconds).
   - **Tie-Breaking**: Prioritizes lowest HP first and highest player count first.
+- **Primal Summon Auto-Selection**:
+  - Automatically selects matching **Primal Supporter Summons** for each elemental wheel encounter:
+    - **Fire Boss (Colossus Ira)**: Water team $\rightarrow$ **Varuna**
+    - **Wind Boss (Tiamat Aura)**: Fire team $\rightarrow$ **Agni**
+    - **Water Boss (Leviathan Mare)**: Earth team $\rightarrow$ **Titan**
+    - **Earth Boss (Yggdrasil Arbos)**: Wind team $\rightarrow$ **Zephyrus**
+    - **Light Boss (Luminiera Credo)**: Dark team $\rightarrow$ **Hades**
+    - **Dark Boss (Celeste Ater)**: Light team $\rightarrow$ **Zeus**
 - **Combat Rotation**:
-  - Sub-second pipeline: Quick Summon (Varuna / Yatima) $\rightarrow$ Skill 1 $\rightarrow$ Attack $\rightarrow$ Immediate reload.
+  - Sub-second pipeline: Quick Summon $\rightarrow$ Skill 1 $\rightarrow$ Attack $\rightarrow$ Immediate reload.
   - Leaves the room instantly after applying burst to re-enter `#quest/assist` without lingering.
 - **3-Battle Pending Limit Self-Healing**:
   - When reaching the 3/3 active battle limit, switches to active assist mode.
   - Automatically navigates to `#quest/assist` pending list, re-enters unresolved battles, broadcasts in-game backup requests, and taps attack to help resolve lingering battles and unblock room slots.
 
 ```bash
-# Continuous Colossus Ira fast burst loop on default account (acc1):
-bun run otkraid
-# or
-bun run otkraid:colossus
+# === Fire (Colossus Ira) ===
+bun run leech:colossus
+bun run leech:colossus:windowed
 
-# Run in visible GUI browser window:
-bun run otkraid:colossus:windowed
+# === Wind (Tiamat Aura) ===
+bun run leech:tiamat
+bun run leech:tiamat:windowed
 
-# Run specific number of raids (e.g., 50 raids on acc2):
-bun run otkraid acc2 otkraid-colossus-ira 50
+# === Water (Leviathan Mare) ===
+bun run leech:leviathan
+bun run leech:leviathan:windowed
 
-# Run with custom account flag:
-bun run otkraid --account acc1 --runs 30
+# === Earth (Yggdrasil Arbos) ===
+bun run leech:yggdrasil
+bun run leech:yggdrasil:windowed
+
+# === Light (Luminiera Credo) ===
+bun run leech:luminiera
+bun run leech:luminiera:windowed
+
+# === Dark (Celeste Ater) ===
+bun run leech:celeste
+bun run leech:celeste:windowed
+
+# CLI Flexible Invocations:
+bun run leech <element_or_template> [account] [runs]
+bun run leech colossus acc1 100
+bun run leech leviathan acc2 50 --windowed
+bun run leech yggdrasil --runs 200
 ```
 
-- Template: [`templates/otkraid-colossus-ira.json`](file:///c:/laragon/www/guranburuing/templates/otkraid-colossus-ira.json)
-- Evaluator Engine: [`src/engines/raid-evaluator.ts`](file:///c:/laragon/www/guranburuing/src/engines/raid-evaluator.ts)
-- Runner CLI: [`src/cli/run-otkraid.ts`](file:///c:/laragon/www/guranburuing/src/cli/run-otkraid.ts)
+- Templates: [`templates/leech-colossus-ira.json`](file:///c:/laragon/www/gbf/templates/leech-colossus-ira.json), [`templates/leech-tiamat-aura.json`](file:///c:/laragon/www/gbf/templates/leech-tiamat-aura.json), [`templates/leech-leviathan-mare.json`](file:///c:/laragon/www/gbf/templates/leech-leviathan-mare.json), [`templates/leech-yggdrasil-arbos.json`](file:///c:/laragon/www/gbf/templates/leech-yggdrasil-arbos.json), [`templates/leech-luminiera-credo.json`](file:///c:/laragon/www/gbf/templates/leech-luminiera-credo.json), [`templates/leech-celeste-ater.json`](file:///c:/laragon/www/gbf/templates/leech-celeste-ater.json)
+- Evaluator Engine: [`src/engines/raid-evaluator.ts`](file:///c:/laragon/www/gbf/src/engines/raid-evaluator.ts)
+- Runner CLI: [`src/cli/run-leech.ts`](file:///c:/laragon/www/gbf/src/cli/run-leech.ts)
 
 ---
 
@@ -706,3 +713,85 @@ Run the unified test runner or target specific modules:
   ```bash
   bun run solve-captcha [optional_code]
   ```
+
+---
+
+## 17. Autonomous Daily Reset Scheduler & Self-Healing Hosting
+
+The Daily Reset Scheduler runs continuously in the background, aligning strictly with the Granblue Fantasy server daily reset (**05:00:15 JST** / 20:00:15 UTC / 03:00:15 WIB).
+
+### Complete Daily Pipeline
+1. **Phase 1: Universal Pro Skips (`bun run daily`)**
+   - Automatically claims and skips all available daily skips: Favorites, Hard+ Pro, Magna Omega Pro, and Angel Halo Pro.
+2. **Phase 2: Daily Raid Hosting Suite & Diagnostic Retry Pass (`bun run daily:host`)**
+   - Hosts High Level (HL), Magna 3, and Six Dragons raids across elements.
+   - **Critical Failure Analysis**: Distinguishes between:
+     - **Genuine Material Deficit** (e.g. 0/1 Silver Centrum): **Never retries**, saving AP and preventing loops.
+     - **Transient Obstructions** (stage modal blocked, dialog overlays, supporter timeout, network lag): **Autonomously sanitizes DOM and retries hosting** (up to 2 passes).
+3. **Phase 3: Executive Digest & Discord Broadcast**
+   - Persists a Markdown audit report to `logs/daily-routine/`.
+   - Dispatches a formatted summary to your private Discord DM with clearance rates, self-healing recoveries, and execution time.
+
+### Commands
+```bash
+# Start 24/7 background scheduler daemon (aligns to 05:00:15 JST):
+bun run daily:scheduler
+
+# Execute the chained daily routine on-demand right now:
+bun run daily:routine
+
+# Execute on-demand in visible GUI window:
+bun run daily:routine --windowed
+
+# Execute only pro skips or only raid hosting:
+bun run daily:routine --no-hosts   # Pro skips only
+bun run daily:routine --no-skips   # Raid hosting only
+```
+
+---
+
+## 18. Discord Remote Command Controller & VPS Cockpit
+
+Control your local PC or VPS Granblue Fantasy automation directly from your phone or desktop via private Discord DMs.
+
+### Security Architecture
+- **Sender Snowflake Verification**: Strictly restricted to `DISCORD_USER_ID`. Commands from any other account or bot are dropped immediately.
+- **Private DM Only**: Only responds in the 1-on-1 DM channel established with the bot.
+- **Zero Shell Injection**: Commands are mapped strictly to an internal whitelist of validated scripts. No arbitrary shell commands can be executed.
+- **CDP Port 9222 Concurrency Guard**: Enforces single-process exclusivity to prevent browser session corruption.
+
+### Starting the Controller
+```bash
+# Launch Discord Remote Command Gateway daemon:
+bun run discord:controller
+```
+
+### Discord DM Chat Commands
+Send these commands directly in your private DM with the bot:
+
+| Command | Action |
+| :--- | :--- |
+| `/run daily` *(or `/run daily:routine`)* | Triggers the complete daily reset routine (Pro Skips -> Hosted Raids) |
+| `/run daily:host` | Runs the Daily Raid Hosting Suite (HL, M3, Dragons) |
+| `/run daily:skips` | Runs Universal Pro Skips only |
+| `/run gb-pbhl` | Starts Proto Bahamut HL Blue Chest Gold Bar Farm (1.5M min honor rotation) |
+| `/run gb-akasha` | Starts Akasha HL Blue Chest Gold Bar Farm (1.43M min honor rotation) |
+| `/run gb-go` | Starts Grand Order HL Blue Chest Gold Bar Farm (1.58M min honor rotation) |
+| `/run gb-farm` | Starts Tri-Raid Blue Chest Gold Bar Rotation (PBHL -> Akasha -> GOHL) |
+| `/run leech:colossus` | Starts Colossus Ira Fast Leech (1-turn fast damage, immediate exit to next raid) |
+| `/run leech:tiamat` | Starts Tiamat Aura Fast Leech (1-turn fast damage, immediate exit to next raid) |
+| `/run leech:leviathan` | Starts Leviathan Mare Fast Leech (1-turn fast damage, immediate exit to next raid) |
+| `/run leech:yggdrasil` | Starts Yggdrasil Arbos Fast Leech (1-turn fast damage, immediate exit to next raid) |
+| `/run leech:luminiera` | Starts Luminiera Credo Fast Leech (1-turn fast damage, immediate exit to next raid) |
+| `/run leech:celeste` | Starts Celeste Ater Fast Leech (1-turn fast damage, immediate exit to next raid) |
+| `/status` | View currently running job, PID, uptime, and terminal output |
+| `/stop` *(or `/halt`)* | Gracefully terminates the running job and releases port 9222 |
+| `/reset` *(or `/next`)* | Shows exact countdown and schedule until next 05:00 JST reset |
+| `/help` | Displays the command manual in Discord |
+
+> [!IMPORTANT]
+> **Operational Distinction: Gold Bar (GB) Farming vs. Leeching**
+> - **Gold Bar (GB) Farming (`gb-*`)**: These are **NOT** leeches. Raids like PBHL, Akasha, and Grand Order HL require hitting strict minimum honor thresholds (1.4M–1.58M) to guarantee Blue Chests (which contain Gold Bar drops). The engine executes a dedicated tactical rotation (skills, attacks, summons, and reload cadence), continuously tracking synced honors via `exit_if_score`, and only exits when the Blue Chest target is confirmed.
+> - **Leech (`leech:*`)**: Defined strictly as joining late-stage raids (boss HP ≤ 20%, active room players ≥ 3), dealing fast 1-turn damage (OTK burst / quick summon / attack), and immediately exiting without lingering to scan and jump into the next target raid.
+
+

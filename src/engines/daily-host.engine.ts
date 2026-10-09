@@ -38,6 +38,7 @@ import { BackupBroadcastService } from '../services/daily-host/backup-broadcast.
 import { HostedCombatRunner } from '../services/daily-host/hosted-combat.runner.js';
 import { AssistInterleaverService } from '../services/daily-host/assist-interleaver.service.js';
 import { DailyHostReporter } from '../services/daily-host/daily-host.reporter.js';
+import { FailureAnalyzerService } from '../services/daily-host/failure-analyzer.service.js';
 
 /**
  * DailyHostEngine (Orchestrator)
@@ -226,6 +227,55 @@ export class DailyHostEngine {
       await logNormalDelay(1000, 0.15);
     }
 
+    // Autonomous Self-Healing Retry Pass for Transient / Modal / Network Failures
+    const shouldRetry = options.autoRetryFailures !== false;
+    let retriedCount = 0;
+    let retriedClearedCount = 0;
+    const failureDiagnoses: any[] = [];
+
+    if (shouldRetry && !this.stopRequested) {
+      const maxRetries = options.maxFailureRetries ?? 2;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        // Identify failed records that are diagnosed as retriable (excludes genuine material deficits or limits)
+        const failedIndices = executionRecords
+          .map((rec, idx) => ({ rec, idx }))
+          .filter(({ rec }) => rec.status === 'FAILED' && FailureAnalyzerService.isRetriable(rec));
+
+        if (failedIndices.length === 0) break;
+
+        console.log(`\n========================================================================`);
+        console.log(`  🛡️ [DailyHost:Self-Healing] Retry Pass ${attempt}/${maxRetries} for ${failedIndices.length} Failed Raid(s)`);
+        console.log(`========================================================================`);
+
+        for (const { rec, idx } of failedIndices) {
+          if (this.stopRequested) break;
+          const diag = FailureAnalyzerService.diagnose(rec);
+          failureDiagnoses.push({ raidId: rec.raid.id, attempt, diagnosis: diag });
+
+          console.log(`\n[DailyHost:Retry] 🔄 Re-attempting "${rec.raid.name}"`);
+          console.log(`   • Diagnosis:   ${diag.category} (${diag.reason})`);
+          console.log(`   • Original:    ${rec.message}`);
+          console.log(`   • Mitigation:  ${diag.recommendedAction}`);
+
+          // Self-healing browser sanitation before re-attempting
+          await this.sanitizeBrowserState();
+
+          retriedCount++;
+          const retryRecord = await this.hostSingleRaid(rec.raid, options);
+
+          if (retryRecord.status === 'CLEARED') {
+            console.log(`🎉 [DailyHost:Retry] SUCCESS! "${rec.raid.name}" cleared on retry attempt #${attempt}!`);
+            executionRecords[idx] = retryRecord;
+            retriedClearedCount++;
+          } else {
+            console.log(`⚠️ [DailyHost:Retry] Attempt #${attempt} for "${rec.raid.name}" ended with status: ${retryRecord.status}`);
+            executionRecords[idx] = retryRecord;
+          }
+        }
+      }
+    }
+
     const completedAt = new Date().toISOString();
     const summary: DailyHostExecutionSummary = {
       accountId: this.accountId,
@@ -237,6 +287,9 @@ export class DailyHostEngine {
       skippedLimitCount: executionRecords.filter(r => r.status === 'SKIPPED_LIMIT').length,
       failedCount: executionRecords.filter(r => r.status === 'FAILED').length,
       executionRecords,
+      retriedCount,
+      retriedClearedCount,
+      failureDiagnoses,
 
       // Backward compatibility fields
       account: this.accountId,
@@ -502,6 +555,31 @@ export class DailyHostEngine {
    */
   private async clearPendingBattlesIfNeeded(): Promise<void> {
     await (this.workflow as any).checkAndClearPendingBattles();
+  }
+
+  /**
+   * Dismisses any active modal overlays, clears pending battles, and resets stage navigation.
+   */
+  private async sanitizeBrowserState(): Promise<void> {
+    try {
+      // 1. Dismiss any blocking dialogs or modal backdrops
+      await this.page.evaluate(() => {
+        const pop = document.querySelector('.pop-usual .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-ok, .btn-usual-cancel, #pop.popup-view-root, .btn-close') as HTMLElement;
+        if (pop && pop.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(pop).trigger('tap');
+          pop.click();
+        }
+      }).catch(() => null);
+
+      await logNormalDelay(600, 0.1);
+
+      // 2. Clear any lingering unclaimed battles if present
+      await this.clearPendingBattlesIfNeeded();
+
+      // 3. Reset stage modal navigator internal cache
+      this.navigator.resetActiveStage();
+    } catch {}
   }
 }
 

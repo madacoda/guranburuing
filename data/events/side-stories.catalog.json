@@ -1,0 +1,1501 @@
+{
+  "$schema": "../schemas/side-stories.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Authoritative Granblue Fantasy Side Stories Permanent Vault Catalog, indexing unlock prerequisites, free SSR/SR characters, Bahamut/Atma weapons, summons, draw ticket yields, and crystal totals.",
+  "categories": [
+    {
+      "id": "anniversary",
+      "name": "Anniversary & Core Lore",
+      "japaneseName": "周年・主要",
+      "description": "Epic anniversary story arcs introducing Lucilius, the Primarchs, the Eternals, and cosmic skyfarer lore. Rewards include Bahamut Nova weapon, Atma weapon, and core SSR characters.",
+      "sideStoryCount": 6
+    },
+    {
+      "id": "collaboration",
+      "name": "Collaborations",
+      "japaneseName": "コラボレーション",
+      "description": "Permanent crossover collaborations featuring fully-voiced anime and gaming franchises with multiple free SSR frontline units and unique summons.",
+      "sideStoryCount": 8
+    },
+    {
+      "id": "dragon_knights",
+      "name": "The Dragon Knights",
+      "japaneseName": "四騎士・竜血族",
+      "description": "The Feendrache saga tracking Lancelot, Vane, Percival, and Siegfried across court intrigue, civil unrest, and legendary knighthoods.",
+      "sideStoryCount": 6
+    },
+    {
+      "id": "society",
+      "name": "The Society & The Foes",
+      "japaneseName": "組織・星の敵",
+      "description": "Sci-fi tactical operative thriller following Zeta, Vaseraga, Beatrix, Eustace, and Cassius combating the Moon Automata and the Foe.",
+      "sideStoryCount": 7
+    },
+    {
+      "id": "summer",
+      "name": "Summer Festivities",
+      "japaneseName": "サマー・バカンス",
+      "description": "Auguste Island holiday adventures featuring beach crises, shark swarms, comedic situations, and summer character variants.",
+      "sideStoryCount": 5
+    },
+    {
+      "id": "sky_adventures",
+      "name": "Sky Adventures & World Lore",
+      "japaneseName": "空の冒険",
+      "description": "Standalone character journeys, guild escapades, festival memories, and classic early-era Granblue Fantasy chronicles.",
+      "sideStoryCount": 13
+    },
+    {
+      "id": "robomi",
+      "name": "Robomi Saga",
+      "japaneseName": "ロボミ",
+      "description": "Super robot tokusatsu sentai series pitting humanoid steel heroine Robomi and Professor Daimon against the Abominations.",
+      "sideStoryCount": 3
+    },
+    {
+      "id": "idols",
+      "name": "Cinderella Fantasy",
+      "japaneseName": "アイドルマスター シンデレラガールズ",
+      "description": "Long-running Idolm@ster crossover chapters bringing 346 Production idols to the skies with custom element typings and voice tracks.",
+      "sideStoryCount": 8
+    }
+  ],
+  "globalTotals": {
+    "totalSideStories": 56,
+    "totalPremiumDrawTickets": 168,
+    "totalStoryCrystals": 15650,
+    "totalHalfElixirs": 5600,
+    "totalSoulBerries": 28000,
+    "totalFreeCharacters": 64,
+    "totalSsrCharacters": 22
+  },
+  "sideStories": [
+    {
+      "id": "wmtsb_1",
+      "sidestoryId": 1001,
+      "title": "What Makes the Sky Blue",
+      "japaneseTitle": "どうして空は蒼いのか",
+      "category": "anniversary",
+      "hashRoute": "#sidestory/top/1001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 54,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Lyria", "japaneseName": "ルリア", "rarity": "SR", "element": "all", "joinCondition": "Story Chapter 1 Episode 4 Clear" }
+        ],
+        "weapons": [
+          {
+            "name": "Bahamut Weapon Nova (Choice of Dagger/Sword/Spear/Axe/Gun/Berdysh)",
+            "rarity": "SSR",
+            "type": "special",
+            "element": "dark",
+            "isBahamutOrAtma": true,
+            "notes": "Arrives at Lv100 Skill 10 instantly. Single most pivotal power spike for early-to-midgame grids."
+          },
+          { "name": "Dominion Harp", "rarity": "SSR", "type": "harp", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Sandalphon (Summon)", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Sky Blue Medallion",
+        "secondaryTreasureName": "Angel Feather"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "wmtsb_2",
+      "sidestoryId": 1002,
+      "title": "What Makes the Sky Blue II: Paradise Lost",
+      "japaneseTitle": "失楽園 どうして空は蒼いのか Part.II",
+      "category": "anniversary",
+      "hashRoute": "#sidestory/top/1002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 54,
+        "prerequisiteSideStories": ["wmtsb_1"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Sandalphon", "japaneseName": "サンダルフォン", "rarity": "SSR", "element": "light", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          {
+            "name": "Atma Weapon (Choice of Sword/Staff/Dagger/Spear/Axe/Bow/Gun/Melee/Katana/Harp)",
+            "rarity": "SSR",
+            "type": "special",
+            "element": "omni",
+            "isBahamutOrAtma": true,
+            "notes": "Arrives at Lv100 Skill 10. Foundational weapon for weapon proficiency party synergies."
+          }
+        ],
+        "summons": [
+          { "name": "Cradle of the Primarchs", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Paradise Medallion",
+        "secondaryTreasureName": "Silver Feather"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "wmtsb_3",
+      "sidestoryId": 1003,
+      "title": "What Makes the Sky Blue III: 000 (Triple Zero)",
+      "japaneseTitle": "000 どうして空は蒼いのか Part.III",
+      "category": "anniversary",
+      "hashRoute": "#sidestory/top/1003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 54,
+        "prerequisiteSideStories": ["wmtsb_2"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [],
+        "weapons": [
+          { "name": "Innocent Love", "rarity": "SSR", "type": "harp", "element": "wind" }
+        ],
+        "summons": [
+          { "name": "000 (Triple Zero)", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Zero Medallion",
+        "secondaryTreasureName": "Dark Feather"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "seeds_of_redemption",
+      "sidestoryId": 1004,
+      "title": "Seeds of Redemption",
+      "japaneseTitle": "こくう、しんしん",
+      "category": "anniversary",
+      "hashRoute": "#sidestory/top/1004",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 110,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Seox (or Eternal Recruitment Trade Token)", "japaneseName": "シス", "rarity": "SSR", "element": "dark", "joinCondition": "Ending Clear Trade" }
+        ],
+        "weapons": [
+          { "name": "Claw of the Cosmos", "rarity": "SSR", "type": "melee", "element": "dark" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Redemption Medallion",
+        "secondaryTreasureName": "Sinister Mask"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "stay_moon",
+      "sidestoryId": 1005,
+      "title": "Stay Moon",
+      "japaneseTitle": "STAY MOON",
+      "category": "anniversary",
+      "hashRoute": "#sidestory/top/1005",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 130,
+        "prerequisiteSideStories": ["spaghetti_syndrome", "home_sweet_home"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Cassius (Event SSR)", "japaneseName": "カシウス", "rarity": "SSR", "element": "dark", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Machine Cell Relic Buster CCW", "rarity": "SSR", "type": "gun", "element": "omni" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Lunar Medallion",
+        "secondaryTreasureName": "Moondust Fragment"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "and_you",
+      "sidestoryId": 1006,
+      "title": "...and you.",
+      "japaneseTitle": "……アンド・ユー。",
+      "category": "anniversary",
+      "hashRoute": "#sidestory/top/1006",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 132,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [],
+        "weapons": [
+          { "name": "Paradox Hourglass", "rarity": "SSR", "type": "dagger", "element": "water" }
+        ],
+        "summons": [
+          { "name": "Orologia", "rarity": "SSR", "element": "dark" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Timeline Medallion",
+        "secondaryTreasureName": "Causality Shard"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "code_geass",
+      "sidestoryId": 2001,
+      "title": "Code Geass: Lelouch of the Rebellion The Blue Reckoning",
+      "japaneseTitle": "コードギアス 反逆のルルーシュ 蒼穹に散るゼロ",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Lelouch Lamperouge", "japaneseName": "ルルーシュ・ランペルージ", "rarity": "SSR", "element": "dark", "joinCondition": "Story Chapter 1 Episode 4 Clear" },
+          { "name": "Suzaku Kururugi", "japaneseName": "枢木スザク", "rarity": "SSR", "element": "wind", "joinCondition": "Story Chapter 3 Episode 4 Clear" },
+          { "name": "Kallen Kouzuki", "japaneseName": "紅月カレン", "rarity": "SSR", "element": "fire", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "V.A.R.I.S.", "rarity": "SSR", "type": "gun", "element": "wind" }
+        ],
+        "summons": [
+          { "name": "C.C.", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Knightmare Medallion",
+        "secondaryTreasureName": "Sakuradite Fragment"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "princess_connect",
+      "sidestoryId": 2002,
+      "title": "Princess Connect! Re:Dive Dinner at the Turned Table",
+      "japaneseTitle": "プリンセスコネクト！Re:Dive 蒼空の食卓をともに",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Pecorine", "japaneseName": "ペコリーヌ", "rarity": "SSR", "element": "light", "joinCondition": "Story Chapter 1 Episode 4 Clear" },
+          { "name": "Kokkoro", "japaneseName": "コッコロ", "rarity": "SSR", "element": "wind", "joinCondition": "Story Chapter 3 Episode 4 Clear" },
+          { "name": "Karyl", "japaneseName": "キャル", "rarity": "SSR", "element": "dark", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Ice Claymore", "rarity": "SSR", "type": "sabre", "element": "water" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Gourmet Guild Medallion",
+        "secondaryTreasureName": "Pudding Plate"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "love_live_sunshine",
+      "sidestoryId": 2003,
+      "title": "Love Live! Sunshine!! Aqours Sky-High!",
+      "japaneseTitle": "ラブライブ！サンシャイン!! Aqours スカイハイ！",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Aqours First-Years", "japaneseName": "Aqours1年生", "rarity": "SSR", "element": "water", "joinCondition": "Story Chapter 1 Episode 4 Clear" },
+          { "name": "Aqours Second-Years", "japaneseName": "Aqours2年生", "rarity": "SSR", "element": "wind", "joinCondition": "Story Chapter 3 Episode 4 Clear" },
+          { "name": "Aqours Third-Years", "japaneseName": "Aqours3年生", "rarity": "SSR", "element": "fire", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Sunshine Baton", "rarity": "SSR", "type": "staff", "element": "water" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Aqours Medallion",
+        "secondaryTreasureName": "School Idol Ribbon"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "love_live_door",
+      "sidestoryId": 2004,
+      "title": "Love Live! Door to the Skies",
+      "japaneseTitle": "ラブライブ！ ソラノトビラ",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2004",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "wind",
+        "advantageousElement": "fire"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "μ's First-Years", "japaneseName": "μ's1年生", "rarity": "SSR", "element": "light", "joinCondition": "Story Chapter 1 Episode 4 Clear" },
+          { "name": "μ's Second-Years", "japaneseName": "μ's2年生", "rarity": "SSR", "element": "fire", "joinCondition": "Story Chapter 3 Episode 4 Clear" },
+          { "name": "μ's Third-Years", "japaneseName": "μ's3年生", "rarity": "SSR", "element": "wind", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Otonokizaka Baton", "rarity": "SSR", "type": "staff", "element": "light" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "μ's Medallion",
+        "secondaryTreasureName": "Otonokizaka Ribbon"
+      },
+      "priorityTier": 0
+    },
+    {
+      "id": "shadowverse_verse",
+      "sidestoryId": 2005,
+      "title": "Shadowverse: Duelist's Verse",
+      "japaneseTitle": "シャドウバース 決闘者の詩",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2005",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Arisa", "japaneseName": "アリサ", "rarity": "SSR", "element": "wind", "joinCondition": "Story Episode Clear" },
+          { "name": "Luna", "japaneseName": "ルナ", "rarity": "SSR", "element": "dark", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Silver Bolt", "rarity": "SSR", "type": "bow", "element": "wind" }
+        ],
+        "summons": [
+          { "name": "Bellringer Angel", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Duelist Medallion",
+        "secondaryTreasureName": "Shadowverse Card"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "cardcaptor_sakura",
+      "sidestoryId": 2006,
+      "title": "Cardcaptor Sakura: Sakura and the Mysterious Sky Journey",
+      "japaneseTitle": "カードキャプターさくら さくらと不思議な空の冒険",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2006",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Sakura Kinomoto", "japaneseName": "木之本桜", "rarity": "SSR", "element": "light", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Sealing Wand", "rarity": "SSR", "type": "staff", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Kero-chan", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Clow Card Medallion",
+        "secondaryTreasureName": "Star Wing"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "touken_ranbu",
+      "sidestoryId": 2007,
+      "title": "Touken Ranbu: Sword Dance in the Sky",
+      "japaneseTitle": "刀剣乱舞-ONLINE- 蒼天のえにし",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2007",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Mikazuki Munechika", "japaneseName": "三日月宗近", "rarity": "SSR", "element": "light", "joinCondition": "Story Chapter 1 Episode 4 Clear" },
+          { "name": "Izuminokami Kanesada", "japaneseName": "和泉守兼定", "rarity": "SSR", "element": "fire", "joinCondition": "Story Ending Clear" },
+          { "name": "Yamanbagiri Kunihiro", "japaneseName": "山姥切国広", "rarity": "SSR", "element": "earth", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Mutsunokami Yoshiyuki (Katana)", "rarity": "SSR", "type": "katana", "element": "fire" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Touken Medallion",
+        "secondaryTreasureName": "Cherry Crest"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "tales_of_asteria",
+      "sidestoryId": 2008,
+      "title": "Tales of Asteria: Festival of Falling Dark",
+      "japaneseTitle": "テイルズ オブ アスタリア 交差する運命の物語",
+      "category": "collaboration",
+      "hashRoute": "#sidestory/top/2008",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Milla Maxwell", "japaneseName": "ミラ＝マクスウェル", "rarity": "SR", "element": "light", "joinCondition": "Story Episode Clear" },
+          { "name": "Yuri Lowell", "japaneseName": "ユーリ・ローウェル", "rarity": "SR", "element": "dark", "joinCondition": "Story Episode Clear" },
+          { "name": "Sophie", "japaneseName": "ソフィ", "rarity": "SR", "element": "light", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Blazing Core", "rarity": "SSR", "type": "sword", "element": "fire" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Asteria Medallion",
+        "secondaryTreasureName": "Mana Fragment"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "defenders_oath",
+      "sidestoryId": 3001,
+      "title": "Defender's Oath",
+      "japaneseTitle": "救国の忠騎士",
+      "category": "dragon_knights",
+      "hashRoute": "#sidestory/top/3001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "fire",
+        "advantageousElement": "water"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Vane (Event SR)", "japaneseName": "ヴェイン", "rarity": "SR", "element": "water", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Albion Sabre", "rarity": "SSR", "type": "sabre", "element": "water" }
+        ],
+        "summons": [
+          { "name": "Sylph", "rarity": "SSR", "element": "fire" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Feendrache Medallion",
+        "secondaryTreasureName": "Dragon Crest"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "four_knights",
+      "sidestoryId": 3002,
+      "title": "Four Knights of a Fallen Land",
+      "japaneseTitle": "亡国の四騎士",
+      "category": "dragon_knights",
+      "hashRoute": "#sidestory/top/3002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": ["defenders_oath"]
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Lancelot (Event SR)", "japaneseName": "ランスロット", "rarity": "SR", "element": "wind", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Royal Treason", "rarity": "SSR", "type": "dagger", "element": "wind" }
+        ],
+        "summons": [
+          { "name": "Fafnir", "rarity": "SSR", "element": "earth" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Fallen Knight Medallion",
+        "secondaryTreasureName": "Royal Crest"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "between_frost_and_flame",
+      "sidestoryId": 3003,
+      "title": "Between Frost and Flame",
+      "japaneseTitle": "氷炎墻に立つ",
+      "category": "dragon_knights",
+      "hashRoute": "#sidestory/top/3003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 16,
+        "prerequisiteSideStories": ["four_knights"]
+      },
+      "elements": {
+        "bossElement": "wind",
+        "advantageousElement": "fire"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Percival (Event SR)", "japaneseName": "パーシヴァル", "rarity": "SR", "element": "fire", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Gilded Flame Sword", "rarity": "SSR", "type": "sabre", "element": "fire" }
+        ],
+        "summons": [
+          { "name": "Grand Duke", "rarity": "SSR", "element": "wind" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Frostflame Medallion",
+        "secondaryTreasureName": "Flame Embers"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "divergent_knighthoods",
+      "sidestoryId": 3004,
+      "title": "Divergent Knighthoods",
+      "japaneseTitle": "ふたりの騎士道",
+      "category": "dragon_knights",
+      "hashRoute": "#sidestory/top/3004",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 28,
+        "prerequisiteSideStories": ["between_frost_and_flame"]
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Arthur", "japaneseName": "アーサー", "rarity": "SR", "element": "wind", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Novice Knight Blade", "rarity": "SSR", "type": "sabre", "element": "wind" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Squire Medallion",
+        "secondaryTreasureName": "White Clover"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "bistro_feendrache",
+      "sidestoryId": 3005,
+      "title": "Bistro Feendrache",
+      "japaneseTitle": "ビストロ・フェードラッヘ",
+      "category": "dragon_knights",
+      "hashRoute": "#sidestory/top/3005",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 28,
+        "prerequisiteSideStories": ["divergent_knighthoods"]
+      },
+      "elements": {
+        "bossElement": "fire",
+        "advantageousElement": "water"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Lancelot (Chef Skin)", "japaneseName": "ランスロット", "rarity": "SR", "element": "water", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Feendrache Cutlery", "rarity": "SSR", "type": "dagger", "element": "water" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Gourmet Medallion",
+        "secondaryTreasureName": "Spicy Pepper"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "white_herons_song",
+      "sidestoryId": 3006,
+      "title": "White Heron's Song",
+      "japaneseTitle": "白詰草想話",
+      "category": "dragon_knights",
+      "hashRoute": "#sidestory/top/3006",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 44,
+        "prerequisiteSideStories": ["bistro_feendrache"]
+      },
+      "elements": {
+        "bossElement": "wind",
+        "advantageousElement": "fire"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [],
+        "weapons": [
+          { "name": "Heron Feather Staff", "rarity": "SSR", "type": "staff", "element": "wind" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Heron Medallion",
+        "secondaryTreasureName": "White Feather"
+      },
+      "priorityTier": 3
+    },
+    {
+      "id": "footprints_on_sacred_ground",
+      "sidestoryId": 4001,
+      "title": "Footprints on Sacred Ground",
+      "japaneseTitle": "昏き島に眠る光の巨人",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 12,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "light",
+        "advantageousElement": "dark"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Johann", "japaneseName": "ヨハン", "rarity": "SR", "element": "light", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Giant's Light Cleaver", "rarity": "SSR", "type": "axe", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Colossus Prototype", "rarity": "SSR", "element": "fire" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Sacred Medallion",
+        "secondaryTreasureName": "Giant Core"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "gripping_freedom",
+      "sidestoryId": 4002,
+      "title": "Gripping Freedom",
+      "japaneseTitle": "自由をその手に",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 16,
+        "prerequisiteSideStories": ["footprints_on_sacred_ground"]
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Sen (Event SR)", "japaneseName": "セン", "rarity": "SR", "element": "wind", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Liberation Knuckles", "rarity": "SSR", "type": "melee", "element": "wind" }
+        ],
+        "summons": [
+          { "name": "Odious Ogre", "rarity": "SSR", "element": "earth" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Freedom Medallion",
+        "secondaryTreasureName": "Broken Chain"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "platinum_sky",
+      "sidestoryId": 4003,
+      "title": "Platinum Sky",
+      "japaneseTitle": "プラチナ・スカイ",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 24,
+        "prerequisiteSideStories": ["gripping_freedom"]
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Meteon (Event SR)", "japaneseName": "ミュオン", "rarity": "SR", "element": "wind", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Super Sonic Bow", "rarity": "SSR", "type": "bow", "element": "wind" }
+        ],
+        "summons": [
+          { "name": "Formula Machine", "rarity": "SSR", "element": "wind" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Racing Medallion",
+        "secondaryTreasureName": "Checkered Flag"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "right_behind_you",
+      "sidestoryId": 4004,
+      "title": "Right Behind You",
+      "japaneseTitle": "Right Behind You",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4004",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 40,
+        "prerequisiteSideStories": ["platinum_sky"]
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Beatrix (Event SR)", "japaneseName": "ベアトリクス", "rarity": "SR", "element": "dark", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Embrasque Replica", "rarity": "SSR", "type": "sabre", "element": "dark" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Automata Medallion",
+        "secondaryTreasureName": "Metallic Scrap"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "second_advent",
+      "sidestoryId": 4005,
+      "title": "Second Advent",
+      "japaneseTitle": "Second Advent",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4005",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 60,
+        "prerequisiteSideStories": ["right_behind_you"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Cassius (Event SR)", "japaneseName": "カシウス", "rarity": "SR", "element": "dark", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Spinal Harpoon", "rarity": "SSR", "type": "spear", "element": "dark" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Lunar Envoy Medallion",
+        "secondaryTreasureName": "Moon Core"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "spaghetti_syndrome",
+      "sidestoryId": 4006,
+      "title": "Spaghetti Syndrome",
+      "japaneseTitle": "Spaghetti Syndrome",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4006",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 80,
+        "prerequisiteSideStories": ["second_advent"]
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [],
+        "weapons": [
+          { "name": "Quantum Saber", "rarity": "SSR", "type": "sabre", "element": "water" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Syndrome Medallion",
+        "secondaryTreasureName": "Synthetic Filament"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "home_sweet_home",
+      "sidestoryId": 4007,
+      "title": "Home Sweet Home",
+      "japaneseTitle": "HOME SWEET HOME",
+      "category": "society",
+      "hashRoute": "#sidestory/top/4007",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 100,
+        "prerequisiteSideStories": ["spaghetti_syndrome"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Beatrix (Casual Skin)", "japaneseName": "ベアトリクス", "rarity": "SR", "element": "dark", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Embrasque Reborn", "rarity": "SSR", "type": "sabre", "element": "dark" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Homeward Medallion",
+        "secondaryTreasureName": "Family Locket"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "poachers_day",
+      "sidestoryId": 5001,
+      "title": "Poacher's Day",
+      "japaneseTitle": "ポーチャーズ・デイ",
+      "category": "summer",
+      "hashRoute": "#sidestory/top/5001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 12,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Lunalu (Summer SR)", "japaneseName": "ルナール", "rarity": "SR", "element": "dark", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Giant Harpoon", "rarity": "SSR", "type": "spear", "element": "water" }
+        ],
+        "summons": [
+          { "name": "Summer Crab", "rarity": "SSR", "element": "water" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Auguste Medallion",
+        "secondaryTreasureName": "Sea Urchin"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "slice_of_summer",
+      "sidestoryId": 5002,
+      "title": "A Slice of Summer",
+      "japaneseTitle": "盛夏の浜辺にて",
+      "category": "summer",
+      "hashRoute": "#sidestory/top/5002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 16,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Jin (Summer SR)", "japaneseName": "ジン", "rarity": "SR", "element": "earth", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Watermelon Blade", "rarity": "SSR", "type": "katana", "element": "earth" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Beachside Medallion",
+        "secondaryTreasureName": "Watermelon Slice"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "the_maydays",
+      "sidestoryId": 5003,
+      "title": "The Maydays",
+      "japaneseTitle": "THE MAYDAYS",
+      "category": "summer",
+      "hashRoute": "#sidestory/top/5003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 28,
+        "prerequisiteSideStories": ["poachers_day"]
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [],
+        "weapons": [
+          { "name": "Shark Saw", "rarity": "SSR", "type": "axe", "element": "water" }
+        ],
+        "summons": [
+          { "name": "Bruce", "rarity": "SSR", "element": "water" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Shark Hunter Medallion",
+        "secondaryTreasureName": "Shark Tooth"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "kappa_summer_chronicle",
+      "sidestoryId": 5004,
+      "title": "Kappa Summer Chronicle",
+      "japaneseTitle": "カッパサマークロニクル",
+      "category": "summer",
+      "hashRoute": "#sidestory/top/5004",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 40,
+        "prerequisiteSideStories": ["the_maydays"]
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Elmott (Summer SR)", "japaneseName": "エルモート", "rarity": "SR", "element": "fire", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Cucumber Spear", "rarity": "SSR", "type": "spear", "element": "water" }
+        ],
+        "summons": []
+      },
+      "treasureTrade": {
+        "medallionName": "Kappa Medallion",
+        "secondaryTreasureName": "Crisp Cucumber"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "my_beloved_auguste",
+      "sidestoryId": 5005,
+      "title": "My Beloved Auguste",
+      "japaneseTitle": "いとしのオギュステ",
+      "category": "summer",
+      "hashRoute": "#sidestory/top/5005",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 54,
+        "prerequisiteSideStories": ["kappa_summer_chronicle"]
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 350,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Meg (Event SR)", "japaneseName": "メグ", "rarity": "SR", "element": "dark", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Auguste Souvenir Knife", "rarity": "SSR", "type": "dagger", "element": "water" }
+        ],
+        "summons": [
+          { "name": "Ursula", "rarity": "SSR", "element": "dark" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Vacationer Medallion",
+        "secondaryTreasureName": "Aug-Chan Doll"
+      },
+      "priorityTier": 1
+    },
+    {
+      "id": "festival_of_falling_flame",
+      "sidestoryId": 6001,
+      "title": "Festival of Falling Flame",
+      "japaneseTitle": "降焔祭",
+      "category": "sky_adventures",
+      "hashRoute": "#sidestory/top/6001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "fire",
+        "advantageousElement": "water"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 200,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Therese (Event SR)", "japaneseName": "テレーズ", "rarity": "SR", "element": "fire", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Phoenix Bow", "rarity": "SSR", "type": "bow", "element": "fire" }
+        ],
+        "summons": [
+          { "name": "Phoenix", "rarity": "SSR", "element": "fire" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Flame Festival Medallion",
+        "secondaryTreasureName": "Phoenix Feather"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "lonesome_dragoness",
+      "sidestoryId": 6002,
+      "title": "Lonesome Dragoness",
+      "japaneseTitle": "孤独の竜姫",
+      "category": "sky_adventures",
+      "hashRoute": "#sidestory/top/6002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 16,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "fire",
+        "advantageousElement": "water"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Grea (Event SR)", "japaneseName": "グレア", "rarity": "SR", "element": "fire", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Dragon Claw Staff", "rarity": "SSR", "type": "staff", "element": "fire" }
+        ],
+        "summons": [
+          { "name": "Draconic Flame", "rarity": "SSR", "element": "fire" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Manaria Medallion",
+        "secondaryTreasureName": "Dragon Scale"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "balmy_breeze",
+      "sidestoryId": 6003,
+      "title": "Balmy Breeze and Foamy Deep",
+      "japaneseTitle": "薫風、白波を蹴立てて",
+      "category": "sky_adventures",
+      "hashRoute": "#sidestory/top/6003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 12,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "water",
+        "advantageousElement": "earth"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Jin (Fundoshi SR)", "japaneseName": "ジン", "rarity": "SR", "element": "water", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Anchored Trident", "rarity": "SSR", "type": "spear", "element": "water" }
+        ],
+        "summons": [
+          { "name": "Ebisu", "rarity": "SSR", "element": "water" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Foamy Medallion",
+        "secondaryTreasureName": "Fresh Bonito"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "robomi_1",
+      "sidestoryId": 7001,
+      "title": "Robomi",
+      "japaneseTitle": "ロボミ",
+      "category": "robomi",
+      "hashRoute": "#sidestory/top/7001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Robomi (Event SR)", "japaneseName": "ロボミ", "rarity": "SR", "element": "light", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Gigantic Hand", "rarity": "SSR", "type": "melee", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Gigantes", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Laboratory Medallion",
+        "secondaryTreasureName": "Super Steel Scrap"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "robomi_2",
+      "sidestoryId": 7002,
+      "title": "Robomi: Generations",
+      "japaneseTitle": "ロボミ外伝",
+      "category": "robomi",
+      "hashRoute": "#sidestory/top/7002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 16,
+        "prerequisiteSideStories": ["robomi_1"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Shiro (Event SR)", "japaneseName": "シロウ", "rarity": "SR", "element": "light", "joinCondition": "Story Ending Clear" }
+        ],
+        "weapons": [
+          { "name": "Sonic Hand Blade", "rarity": "SSR", "type": "katana", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Hyper Gigantes", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Tokusatsu Medallion",
+        "secondaryTreasureName": "Energy Cell"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "robomi_3",
+      "sidestoryId": 7003,
+      "title": "Robomi Z",
+      "japaneseTitle": "ロボミZ",
+      "category": "robomi",
+      "hashRoute": "#sidestory/top/7003",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 28,
+        "prerequisiteSideStories": ["robomi_2"]
+      },
+      "elements": {
+        "bossElement": "dark",
+        "advantageousElement": "light"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 300,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [],
+        "weapons": [
+          { "name": "Neo Gigantes Blaster", "rarity": "SSR", "type": "gun", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Super Gigantes", "rarity": "SSR", "element": "light" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Final Armor Medallion",
+        "secondaryTreasureName": "Abomination Core"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "cinderella_fantasy_1",
+      "sidestoryId": 8001,
+      "title": "Cinderella Fantasy: Girls on a Quest",
+      "japaneseTitle": "シンデレラファンタジー ～少女達の夢の続き～",
+      "category": "idols",
+      "hashRoute": "#sidestory/top/8001",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": []
+      },
+      "elements": {
+        "bossElement": "wind",
+        "advantageousElement": "fire"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Uzuki Shimamura", "japaneseName": "島村卯月", "rarity": "SR", "element": "light", "joinCondition": "Story Ending Clear" },
+          { "name": "Rin Shibuya", "japaneseName": "渋谷凛", "rarity": "SR", "element": "water", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Smiling Staff", "rarity": "SSR", "type": "staff", "element": "light" }
+        ],
+        "summons": [
+          { "name": "Black Rabbit Ranko", "rarity": "SSR", "element": "dark" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Cinderella Medallion",
+        "secondaryTreasureName": "Magic Wand"
+      },
+      "priorityTier": 2
+    },
+    {
+      "id": "cinderella_fantasy_2",
+      "sidestoryId": 8002,
+      "title": "Cinderella Fantasy: To the Skies with New Friends",
+      "japaneseTitle": "シンデレラファンタジー ～新たなる来訪者～",
+      "category": "idols",
+      "hashRoute": "#sidestory/top/8002",
+      "unlockPrerequisite": {
+        "mainQuestChapter": 8,
+        "prerequisiteSideStories": ["cinderella_fantasy_1"]
+      },
+      "elements": {
+        "bossElement": "earth",
+        "advantageousElement": "wind"
+      },
+      "rewards": {
+        "premiumDrawTickets": 3,
+        "storyCrystals": 250,
+        "halfElixirsMax": 100,
+        "soulBerriesMax": 500,
+        "characters": [
+          { "name": "Mio Honda", "japaneseName": "本田未央", "rarity": "SR", "element": "fire", "joinCondition": "Story Ending Clear" },
+          { "name": "Mika Jougasaki", "japaneseName": "城ヶ崎美嘉", "rarity": "SR", "element": "dark", "joinCondition": "Treasure Trade" }
+        ],
+        "weapons": [
+          { "name": "Starlet Microphone", "rarity": "SSR", "type": "harp", "element": "fire" }
+        ],
+        "summons": [
+          { "name": "Kirimimi Piña", "rarity": "SSR", "element": "earth" }
+        ]
+      },
+      "treasureTrade": {
+        "medallionName": "Stage Medallion",
+        "secondaryTreasureName": "Live Glowstick"
+      },
+      "priorityTier": 2
+    }
+  ]
+}

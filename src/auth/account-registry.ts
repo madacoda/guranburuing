@@ -91,6 +91,10 @@ export class AccountRegistry {
     return accounts.find(a => a.id.toLowerCase() === id.toLowerCase());
   }
 
+  public static getAccount(id: string): AccountConfig | undefined {
+    return this.getAccountById(id);
+  }
+
   public static getEnabledAccounts(): AccountConfig[] {
     const accounts = this.loadAccounts();
     return accounts.filter(a => a.enabled);

@@ -42,12 +42,23 @@ data/
 │   ├── cooldown-and-pacing.schema.json # Schema: Server cooldowns & rest cycles
 │   ├── multi-account-orchestration.schema.json # Schema: CDP port allocation & topologies
 │   ├── state-machine-recovery.schema.json # Schema: State machine & error self-healing
-│   └── sentinel-watchdog.schema.json   # Schema: 30+ CAPTCHA selectors & emergency halt
+│   ├── sentinel-watchdog.schema.json   # Schema: 30+ CAPTCHA selectors & emergency halt
+│   ├── events.schema.json              # Schema: Master Events Catalog & Schedules
+│   ├── event-detail.schema.json        # Schema: Detailed Collaboration & Scenario Events
+│   ├── event-farming-optimizer.schema.json # Schema: Event Farming Decision Trees
+│   ├── side-stories.schema.json        # Schema: Permanent Side Story Vault & Spark Calculations
+│   └── side-story-optimizer.schema.json # Schema: Side Story Farming Priorities & Pacing
 ├── raids/                              # Raid Data & Mechanics Subsystem
 │   ├── raids.catalog.json              # Complete catalog (Stage IDs, Quest IDs, HP, Blue Chests)
 │   ├── categories.json                 # Raid category hierarchy (HL, Magna 3, Six Dragons, etc.)
 │   ├── drop-tables.json                # Blue Chest, Gold Brick (1.5%/1.2%), Eternity Sand math
 │   └── raid-join-decision.json         # Dynamic Leech vs Racing decision engine & TTD
+├── events/                             # Events Subsystem (Master & Detailed Event Catalogs)
+│   ├── events.catalog.json             # Master Registry of All Events
+│   ├── biography045-gintama.catalog.json # Authoritative Gintama Collaboration Catalog
+│   ├── event-farming-optimizer.json    # Algorithmic Event Farming Decision Tree
+│   ├── side-stories.catalog.json       # Permanent Side Story Vault (56 Stories, 8 Sagas)
+│   └── side-story-optimizer.json       # Side Story Speed-Clearing & Spark Acceleration Tree
 ├── ui/                                 # UI, DOM & Routing Subsystem
 │   ├── selectors.catalog.json          # Exhaustive DOM query selectors by screen & component
 │   ├── modals.catalog.json             # Modal definitions, dismiss/confirm buttons, overlays
@@ -86,7 +97,7 @@ data/
 
 ## 2. Research & Documentation Volumes
 
-The directory includes thirteen exhaustive technical volumes analyzing the game's internal implementation:
+The directory includes fifteen exhaustive technical volumes analyzing the game's internal implementation:
 
 | Volume | File | Core Engineering Topics |
 | :--- | :--- | :--- |
@@ -104,6 +115,7 @@ The directory includes thirteen exhaustive technical volumes analyzing the game'
 | **Vol. 12** | [`12_supporter_summon_grid_archetypes_and_selection_engine.md`](file:///c:/laragon/www/gbf/data/12_supporter_summon_grid_archetypes_and_selection_engine.md) | Grid archetypes (Magna vs Primal vs Elemental vs Burst vs Farming), 7-tab attribute routing, uncap tier scoring (Lv 250 > 200), and Friend Turn-1 call logic. |
 | **Vol. 13** | [`13_raid_evaluation_leech_racing_and_ep_economy_kms.md`](file:///c:/laragon/www/gbf/data/13_raid_evaluation_leech_racing_and_ep_economy_kms.md) | Raid Finder evaluation, Time-to-Death ($TTD$) velocity math, Blue Chest ROI, and policies (`SKIP_DYING`, `RAPID_LEECH`, `BLUE_CHEST_RACE`, `SKIP_STALLED`). |
 | **Vol. 14** | [`14_automation_engine_architecture_and_operational_resilience_kms.md`](file:///c:/laragon/www/gbf/data/14_automation_engine_architecture_and_operational_resilience_kms.md) | Automation architecture, AP/EP replenishment economics, CreateJS acceleration, Scenario & drawbox farming, 180s pub cooldown, multi-account CDP topologies, state machine self-healing, and security tripwires. |
+| **Vol. 15** | [`15_event_architecture_and_collab_kms.md`](file:///c:/laragon/www/gbf/data/15_event_architecture_and_collab_kms.md) | Event taxonomy, Collaboration (`biography`) vs Scenario (`treasureraid`) architecture, Gintama collab case study, Akamai CDN media paths, zero-waste treasure trade economics, and 0-button burst OTK pipelines. |
 
 ---
 
@@ -230,6 +242,35 @@ Crucial selector conventions verified from the live game:
   - **MC Classes & Weapons**: Yamato (*Take the Head* reduces omen requirement by 20-30%, *Seasplitter* instant cancel), Sword Master with Disparia ($30\times-45\times$ current HP).
 - **Autonomous Counter Pipeline**:
   - `data/combat/plain-damage-counter-engine.json`: 6-step solver pipeline (Yamato reduction -> Beelzebub call -> Character nukes -> Ougi plain -> Guard fallback).
+
+### 3.8 Event Subsystem & Collaboration Architecture (`data/events/`)
+
+- **Event Models**:
+  - `collaboration` (`#event/biography<ID>`): Finite Treasure Trade Shop. Farm Medallions + Character Specials for fixed-stock SSR items (SSR Ticket, Damascus Crystals, Event Weapon/Summon FLBs).
+  - `treasureraid` (`#event/treasureraid<ID>`): Infinite Token Drawboxes. Farm Event Tokens for Damascus Crystals (Boxes 5-20) and infinite replenishment pools.
+- **Akamai CDN Asset Resolution**:
+  - Uniform asset URI structure: `{origin}/assets/img/sp/{category}/{assetId}.{ext}`
+  - Pre-cached BGM tracks, character art (`/npc/b/` for full body, `/npc/m/` for thumbnails), and event banners.
+- **Authoritative Gintama Collab (`biography045`)**:
+  - SSR Fire Shinsengumi (Hijikata & Okita) unlocked via Story Ep 1-3.
+  - SSR Light Yorozuya (Gintoki, Shinpachi, Kagura) unlocked via Story Ep 5-3.
+  - SSR Light Katana *Wooden Sword Lake Toya* (EX ATK, MC Enmity, Counter + Guts) with 4★ FLB uncap.
+  - SSR Wind Summon *Kotaro Katsura & Elizabeth* (All-elemental C.A. boost, Sub Aura Veil + Guaranteed TA for Yorozuya).
+  - Dual-Boss Architecture: Neo Armstrong (Wind, Fire Advantage) + Koro (Dark, Light Advantage).
+  - 1-Click Nightmare Skip unlocked after 3 manual clears of Lv120 HELL.
+
+### 3.9 Side Story Permanent Vault (`#sidestory`) & Spark Acceleration (Volume 16)
+
+- **Permanent Vault Architecture**:
+  - Over 56 side stories documented across 8 thematic sagas (`anniversary`, `collaboration`, `dragon_knights`, `society`, `summer`, `sky_adventures`, `robomi`, `idols`).
+  - Total immediate gacha fuel: **168 Premium Draw Tickets** + **15,650 Story Crystals** = **220+ Free Gacha Draws** (over 73% of a full 300-draw spark).
+  - Crucial early-game gear: **Bahamut Weapon Nova (Lv100/SL10)** from *WMTSB I*, **Atma Weapon (Lv100/SL10)** from *WMTSB II*, and **Machine Cell Relic Buster CCW** from *Stay Moon*.
+  - Roster empowerment: **22 SSR Characters** and **42 SR Characters** covering all 6 elements.
+  - Consumable reserves: **5,600+ Half-Elixirs** (+280,000 AP) and **28,000+ Soul Berries** (+140,000 EP).
+- **Speed-Clearing Optimization**:
+  - 1-Click Story Skip resolves cutscenes in 0 AP, immediately unlocking crystals and character recruitments.
+  - 0-button plain damage burst (Sarasa Ground Zero or Disparia) for 3.8s quest clears.
+  - Magfest synergy: 50% discount on AP and treasure exchange trade costs.
 
 ---
 

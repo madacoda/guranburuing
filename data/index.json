@@ -34,7 +34,12 @@
       "cooldownAndPacing": "data/schemas/cooldown-and-pacing.schema.json",
       "multiAccountOrchestration": "data/schemas/multi-account-orchestration.schema.json",
       "stateMachineRecovery": "data/schemas/state-machine-recovery.schema.json",
-      "sentinelWatchdog": "data/schemas/sentinel-watchdog.schema.json"
+      "sentinelWatchdog": "data/schemas/sentinel-watchdog.schema.json",
+      "events": "data/schemas/events.schema.json",
+      "eventDetail": "data/schemas/event-detail.schema.json",
+      "eventFarmingOptimizer": "data/schemas/event-farming-optimizer.schema.json",
+      "sideStories": "data/schemas/side-stories.schema.json",
+      "sideStoryOptimizer": "data/schemas/side-story-optimizer.schema.json"
     },
     "modules": {
       "raids": {
@@ -42,6 +47,13 @@
         "categories": "data/raids/categories.json",
         "dropTables": "data/raids/drop-tables.json",
         "joinDecision": "data/raids/raid-join-decision.json"
+      },
+      "events": {
+        "catalog": "data/events/events.catalog.json",
+        "gintama": "data/events/biography045-gintama.catalog.json",
+        "farmingOptimizer": "data/events/event-farming-optimizer.json",
+        "sideStories": "data/events/side-stories.catalog.json",
+        "sideStoryOptimizer": "data/events/side-story-optimizer.json"
       },
       "ui": {
         "selectors": "data/ui/selectors.catalog.json",

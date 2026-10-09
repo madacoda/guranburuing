@@ -1,0 +1,90 @@
+{
+  "$schema": "../schemas/side-story-optimizer.schema.json",
+  "version": "2.0.0",
+  "description": "Granblue Fantasy Side Story Farming Decision Engine & Spark Velocity Accelerator.",
+  "decisionTiers": [
+    {
+      "tier": 0,
+      "title": "Tier 0: Pivotal Account Foundation & 1-Click Spark Fuel",
+      "rationale": "High-priority instant unlocks providing core account foundation: Bahamut Nova Skill 10, Atma Skill 10, free top-tier SSRs, and immediate 3x Premium Draw Tickets per story.",
+      "targetItemCategories": ["gacha_tickets", "bahamut_weapon", "atma_weapon", "core_ssr_characters"],
+      "recommendedSideStories": [
+        "wmtsb_1",
+        "wmtsb_2",
+        "wmtsb_3",
+        "seeds_of_redemption",
+        "princess_connect",
+        "code_geass",
+        "stay_moon"
+      ]
+    },
+    {
+      "tier": 1,
+      "title": "Tier 1: Elemental Roster Coverage & Team Synergies",
+      "rationale": "Unlocks full 3-unit trios in all 6 elements without spending gacha crystals, along with powerful sub-auras and offensive utilities.",
+      "targetItemCategories": ["gacha_tickets", "roster_ssr_characters", "utility_summons"],
+      "recommendedSideStories": [
+        "love_live_sunshine",
+        "love_live_door",
+        "touken_ranbu",
+        "cardcaptor_sakura",
+        "shadowverse_verse",
+        "and_you"
+      ]
+    },
+    {
+      "tier": 2,
+      "title": "Tier 2: Consumable Arbitrage & AP/EP Stockpiling",
+      "rationale": "Farming 100x Half-Elixirs (200 AP net positive per story) and 500x Soul Berries to maintain infinite raid leeching and gold bar racing stamina.",
+      "targetItemCategories": ["half_elixirs", "soul_berries", "champion_merits"],
+      "recommendedSideStories": [
+        "poachers_day",
+        "slice_of_summer",
+        "the_maydays",
+        "kappa_summer_chronicle",
+        "my_beloved_auguste",
+        "defenders_oath",
+        "four_knights",
+        "between_frost_and_flame"
+      ]
+    },
+    {
+      "tier": 3,
+      "title": "Tier 3: Lore Completion, Trophies & Weapon Skins",
+      "rationale": "Background clearing of early classic events for trophy crystals, weapon skin unlocks, and legacy lore completion.",
+      "targetItemCategories": ["trophies", "event_skins", "weapon_glamours"],
+      "recommendedSideStories": [
+        "festival_of_falling_flame",
+        "lonesome_dragoness",
+        "balmy_breeze",
+        "robomi_1",
+        "robomi_2",
+        "robomi_3",
+        "cinderella_fantasy_1",
+        "cinderella_fantasy_2"
+      ]
+    }
+  ],
+  "speedClearingPacing": {
+    "storySkipPolicy": "Immediately invoke in-game 'Skip' button on all story episodes to collect crystals and recruit characters without viewing animation, saving ~15 minutes per side story.",
+    "questBattleBurstSetup": {
+      "partyArchetype": "0-Button Plain Damage / Strike Burst",
+      "keySkillsOrSummons": [
+        "Sarasa Ground Zero (Plain Damage 820,000+)",
+        "Disparia Swordmaster / Gladiator Awakening",
+        "Kaguya / White Rabbit helper summon for drop boost"
+      ],
+      "estimatedSecondsPerBattle": 3.8
+    },
+    "humanPacingIntervals": {
+      "minDelayBetweenQuestsMs": 3500,
+      "maxDelayBetweenQuestsMs": 7500,
+      "antiDetectionJitterMs": 1200
+    }
+  },
+  "magfestBonusPolicy": {
+    "apDiscountPercent": 50,
+    "tradeTreasureDiscountPercent": 50,
+    "deferToMagfestTiers": [2, 3]
+  }
+}

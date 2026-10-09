@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SideStoryOptimizerSchema",
+  "type": "object",
+  "required": ["version", "decisionTiers", "speedClearingPacing", "magfestBonusPolicy"],
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "decisionTiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tier", "title", "rationale", "targetItemCategories", "recommendedSideStories"],
+        "properties": {
+          "tier": { "type": "number" },
+          "title": { "type": "string" },
+          "rationale": { "type": "string" },
+          "targetItemCategories": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "recommendedSideStories": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "speedClearingPacing": {
+      "type": "object",
+      "required": ["storySkipPolicy", "questBattleBurstSetup", "humanPacingIntervals"],
+      "properties": {
+        "storySkipPolicy": { "type": "string" },
+        "questBattleBurstSetup": {
+          "type": "object",
+          "properties": {
+            "partyArchetype": { "type": "string" },
+            "keySkillsOrSummons": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "estimatedSecondsPerBattle": { "type": "number" }
+          }
+        },
+        "humanPacingIntervals": {
+          "type": "object",
+          "properties": {
+            "minDelayBetweenQuestsMs": { "type": "number" },
+            "maxDelayBetweenQuestsMs": { "type": "number" },
+            "antiDetectionJitterMs": { "type": "number" }
+          }
+        }
+      }
+    },
+    "magfestBonusPolicy": {
+      "type": "object",
+      "required": ["apDiscountPercent", "tradeTreasureDiscountPercent", "deferToMagfestTiers"],
+      "properties": {
+        "apDiscountPercent": { "type": "number" },
+        "tradeTreasureDiscountPercent": { "type": "number" },
+        "deferToMagfestTiers": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      }
+    }
+  }
+}

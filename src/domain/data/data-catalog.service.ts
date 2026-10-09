@@ -32,7 +32,15 @@ import {
   RaidActionPolicy,
   RaidJoinProfile,
   RaidJoinDecisionStep,
-  TacticalExecutionTier
+  TacticalExecutionTier,
+  EventMasterItem,
+  EventDetailDefinition,
+  EventQuestDefinition,
+  EventExchangeItem,
+  EventCurrencyDefinition,
+  SideStoryMasterItem,
+  SideStoryCategory,
+  SideStoryGlobalTotals
 } from './data-catalog.types.js';
 
 /**
@@ -88,6 +96,19 @@ export class DataCatalogService {
   private raidJoinProfilesById = new Map<string, RaidJoinProfile>();
   private raidJoinDecisionSteps: RaidJoinDecisionStep[] = [];
   private tacticalExecutionTiers: TacticalExecutionTier[] = [];
+
+  // KMS Extensions: Events Subsystem (Vol. 15)
+  private eventsById = new Map<string, EventMasterItem>();
+  private eventsByRawId = new Map<string, EventMasterItem>();
+  private eventDetailsById = new Map<string, EventDetailDefinition>();
+  private eventQuestsByEventId = new Map<string, EventQuestDefinition[]>();
+  private eventExchangeItemsByEventId = new Map<string, EventExchangeItem[]>();
+
+  // KMS Extensions: Side Stories Vault (Vol. 16)
+  private sideStoriesById = new Map<string, SideStoryMasterItem>();
+  private sideStoriesByNumericId = new Map<number, SideStoryMasterItem>();
+  private sideStoriesByCategory = new Map<string, SideStoryMasterItem[]>();
+  private sideStoriesGlobalTotals: SideStoryGlobalTotals | null = null;
 
   private rawSelectors: Record<string, any> = {};
 
@@ -300,6 +321,78 @@ export class DataCatalogService {
       if (fs.existsSync(tacticalPath)) {
         const data = JSON.parse(fs.readFileSync(tacticalPath, 'utf-8'));
         this.tacticalExecutionTiers = data.executionTiers || [];
+      }
+
+      // 19. Load Events Catalog
+      const eventsPath = path.join(this.dataBasePath, 'events', 'events.catalog.json');
+      if (fs.existsSync(eventsPath)) {
+        const data = JSON.parse(fs.readFileSync(eventsPath, 'utf-8'));
+        for (const evt of data.events || []) {
+          this.eventsById.set(evt.id.toLowerCase(), evt);
+          if (evt.rawId) {
+            this.eventsByRawId.set(evt.rawId.toLowerCase(), evt);
+          }
+        }
+      }
+
+      // 20. Load Event Details (*.catalog.json in data/events except events.catalog.json)
+      const eventsDir = path.join(this.dataBasePath, 'events');
+      if (fs.existsSync(eventsDir)) {
+        const files = fs.readdirSync(eventsDir);
+        for (const file of files) {
+          if (file.endsWith('.catalog.json') && file !== 'events.catalog.json') {
+            try {
+              const detailPath = path.join(eventsDir, file);
+              const detailData: EventDetailDefinition = JSON.parse(fs.readFileSync(detailPath, 'utf-8'));
+              if (detailData && detailData.metadata && detailData.metadata.id) {
+                const idKey = detailData.metadata.id.toLowerCase();
+                this.eventDetailsById.set(idKey, detailData);
+                if (detailData.metadata.rawId) {
+                  this.eventDetailsById.set(detailData.metadata.rawId.toLowerCase(), detailData);
+                }
+
+                // Index quests
+                const allQuests: EventQuestDefinition[] = [
+                  ...(detailData.quests?.singleQuests || []),
+                  ...(detailData.quests?.raidQuests || []),
+                  ...(detailData.quests?.challengeQuests || []),
+                  ...(detailData.quests?.hellQuests || [])
+                ];
+                this.eventQuestsByEventId.set(idKey, allQuests);
+                if (detailData.metadata.rawId) {
+                  this.eventQuestsByEventId.set(detailData.metadata.rawId.toLowerCase(), allQuests);
+                }
+
+                // Index exchange items
+                if (detailData.exchangeShop?.items) {
+                  this.eventExchangeItemsByEventId.set(idKey, detailData.exchangeShop.items);
+                  if (detailData.metadata.rawId) {
+                    this.eventExchangeItemsByEventId.set(detailData.metadata.rawId.toLowerCase(), detailData.exchangeShop.items);
+                  }
+                }
+              }
+            } catch (detailErr: any) {
+              console.warn(`[DataCatalogService] Warning: Failed to parse event detail file ${file}:`, detailErr.message);
+            }
+          }
+        }
+      }
+
+      // 21. Load Side Stories Vault Catalog
+      const sideStoriesPath = path.join(this.dataBasePath, 'events', 'side-stories.catalog.json');
+      if (fs.existsSync(sideStoriesPath)) {
+        const data = JSON.parse(fs.readFileSync(sideStoriesPath, 'utf-8'));
+        this.sideStoriesGlobalTotals = data.globalTotals || null;
+        for (const story of data.sideStories || []) {
+          this.sideStoriesById.set(story.id.toLowerCase(), story);
+          if (story.sidestoryId) {
+            this.sideStoriesByNumericId.set(story.sidestoryId, story);
+          }
+          const cat = story.category.toLowerCase();
+          const list = this.sideStoriesByCategory.get(cat) || [];
+          list.push(story);
+          this.sideStoriesByCategory.set(cat, list);
+        }
       }
 
       this.initialized = true;
@@ -532,5 +625,64 @@ export class DataCatalogService {
 
   public getTacticalExecutionTiers(): TacticalExecutionTier[] {
     return this.tacticalExecutionTiers;
+  }
+
+  // KMS Queries: Events Subsystem (Vol. 15)
+  public getEvent(idOrRawId: string): EventMasterItem | undefined {
+    const key = idOrRawId.toLowerCase();
+    return this.eventsById.get(key) || this.eventsByRawId.get(key);
+  }
+
+  public getAllEvents(): EventMasterItem[] {
+    return Array.from(this.eventsById.values());
+  }
+
+  public getActiveEvents(): EventMasterItem[] {
+    return this.getAllEvents().filter(e => e.status === 'active' || e.status === 'rerun');
+  }
+
+  public getEventDetail(idOrRawId: string): EventDetailDefinition | undefined {
+    const key = idOrRawId.toLowerCase();
+    return this.eventDetailsById.get(key);
+  }
+
+  public getEventQuests(idOrRawId: string): EventQuestDefinition[] {
+    const key = idOrRawId.toLowerCase();
+    return this.eventQuestsByEventId.get(key) || [];
+  }
+
+  public getEventExchangeItems(idOrRawId: string): EventExchangeItem[] {
+    const key = idOrRawId.toLowerCase();
+    return this.eventExchangeItemsByEventId.get(key) || [];
+  }
+
+  // KMS Queries: Side Stories Vault (Vol. 16)
+  public getSideStory(idOrNumericId: string | number): SideStoryMasterItem | undefined {
+    if (typeof idOrNumericId === 'number') {
+      return this.sideStoriesByNumericId.get(idOrNumericId);
+    }
+    const num = parseInt(idOrNumericId, 10);
+    if (!isNaN(num) && this.sideStoriesByNumericId.has(num)) {
+      return this.sideStoriesByNumericId.get(num);
+    }
+    return this.sideStoriesById.get(idOrNumericId.toLowerCase());
+  }
+
+  public getAllSideStories(): SideStoryMasterItem[] {
+    return Array.from(this.sideStoriesById.values());
+  }
+
+  public getSideStoriesByCategory(category: string): SideStoryMasterItem[] {
+    return this.sideStoriesByCategory.get(category.toLowerCase()) || [];
+  }
+
+  public getAvailableSideStories(mainQuestChapterCleared: number): SideStoryMasterItem[] {
+    return this.getAllSideStories().filter(
+      s => s.unlockPrerequisite.mainQuestChapter <= mainQuestChapterCleared
+    );
+  }
+
+  public getSideStoriesGlobalTotals(): SideStoryGlobalTotals | null {
+    return this.sideStoriesGlobalTotals;
   }
 }

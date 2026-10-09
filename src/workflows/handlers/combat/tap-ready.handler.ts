@@ -10,7 +10,7 @@ export class TapReadyStepHandler implements IStepHandler {
   public readonly supportedActions: WorkflowActionType[] = ['tap_ready'];
 
   public async execute(step: WorkflowStep, context: WorkflowExecutionContext): Promise<StepExecutionResult> {
-    const { page } = context;
+    const { page, services } = context;
     const dismissed = await page.evaluate(() => {
       const readyEl = document.querySelector('.prt-ready, #ready') as HTMLElement;
       if (readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none') {
@@ -23,6 +23,17 @@ export class TapReadyStepHandler implements IStepHandler {
     }).catch(() => false);
 
     await page.touchscreen.tap(240, 260).catch(() => null);
+
+    if (services.combat?.triggerAttack) {
+      const outcome = await services.combat.triggerAttack({ expectLockout: false }).catch(() => null);
+      return {
+        success: outcome?.success ?? true,
+        actionCode: 'tap_ready',
+        durationMs: outcome?.durationMs ?? 0,
+        message: outcome?.message
+      };
+    }
+
     return { success: true, actionCode: 'tap_ready', durationMs: 0 };
   }
 }

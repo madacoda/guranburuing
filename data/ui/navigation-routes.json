@@ -90,6 +90,20 @@
       "name": "Casino Exchange",
       "description": "Daily casino chip trading for Half-Elixirs and Soul Berries.",
       "view": "view.casino.exchange"
+    },
+    {
+      "hash": "#sidestory",
+      "name": "Side Story Permanent Hub",
+      "description": "Permanent archive of legacy scenario and collaboration events. Offers free SSR/SR characters, Bahamut/Atma weapons, and draw tickets.",
+      "view": "view.sidestory.index",
+      "allowedTransitions": ["#sidestory/top/{id}", "#quest"]
+    },
+    {
+      "hash": "#sidestory/top/{sidestoryId}",
+      "name": "Side Story Overview & Stage Launch",
+      "description": "Specific side story details, episode launcher, free quests, and direct link to treasure exchange shop.",
+      "view": "view.sidestory.top",
+      "allowedTransitions": ["#sidestory", "#quest/supporter/{questId}/1", "#shop/exchange/side_story/{sidestoryId}"]
     }
   ]
 }

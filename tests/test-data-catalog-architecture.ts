@@ -66,7 +66,17 @@ async function run() {
     'combat/status-effects.catalog.json',
     'combat/supporter-summons.catalog.json',
     'combat/tactical-action-priority.json',
-    'raids/raid-join-decision.json'
+    'raids/raid-join-decision.json',
+    'schemas/events.schema.json',
+    'schemas/event-detail.schema.json',
+    'schemas/event-farming-optimizer.schema.json',
+    'events/events.catalog.json',
+    'events/biography045-gintama.catalog.json',
+    'events/event-farming-optimizer.json',
+    'schemas/side-stories.schema.json',
+    'schemas/side-story-optimizer.schema.json',
+    'events/side-stories.catalog.json',
+    'events/side-story-optimizer.json'
   ];
 
   for (const relPath of expectedFiles) {
@@ -407,6 +417,113 @@ async function run() {
   assert(sentinelData.captchaSignatures.domSelectors.length >= 25, 'Sentinel defines 25+ CAPTCHA selectors');
   assert(sentinelData.captchaSignatures.networkPatterns.includes('/c/i?'), 'Sentinel intercepts /c/i? verification pattern');
   assert(sentinelData.escalationMatrix.tier1Freeze.haltInputs === true, 'Tier 1 freeze halts inputs');
+
+  // Test 14: Events Subsystem & Gintama Collaboration Architecture (KMS Vol. 15)
+  console.log('\n[14/14] Testing Events Subsystem & Gintama Collab Architecture (KMS Vol. 15)...');
+  const allEvents = catalog.getAllEvents();
+  assert(allEvents.length >= 4, `All events registered (count: ${allEvents.length} >= 4)`);
+
+  const activeEvents = catalog.getActiveEvents();
+  assert(activeEvents.some(e => e.id === 'biography045'), 'Active events include biography045');
+
+  // ID & Raw ID lookups
+  const gintamaById = catalog.getEvent('biography045');
+  const gintamaByRaw = catalog.getEvent('720');
+  assert(!!gintamaById, 'Resolves Gintama event by id (biography045)');
+  assert(!!gintamaByRaw, 'Resolves Gintama event by rawId (720)');
+  assert(gintamaById?.id === gintamaByRaw?.id, 'ID and RawID resolve to same master event record');
+
+  // Metadata verification
+  assert(gintamaById?.type === 'collaboration', 'Gintama type is collaboration');
+  assert(gintamaById?.status === 'rerun', 'Gintama status is rerun');
+  assert(gintamaById?.features?.recruitableCharactersCount === 2, 'Gintama features 2 recruitable SSRs');
+  assert(gintamaById?.features?.hasFlbWeapon === true, 'Gintama has FLB weapon');
+  assert(gintamaById?.features?.hasFlbSummon === true, 'Gintama has FLB summon');
+  assert(gintamaById?.features?.hasNightmareHellSkip === true, 'Gintama supports HELL skip');
+
+  // Detailed Catalog verification
+  const gintamaDetail = catalog.getEventDetail('biography045');
+  assert(!!gintamaDetail, 'Resolves Gintama detail catalog');
+  assert(gintamaDetail?.metadata.eventNumber === 720, 'Event number is 720');
+  assert(gintamaDetail?.assets.primaryOrigin.includes('akamaized.net'), 'CDN assets primary origin valid (Akamai CDN)');
+
+  // Playable characters
+  const shinsengumi = gintamaDetail?.characters.find(c => c.name.includes('Shinsengumi'));
+  const yorozuya = gintamaDetail?.characters.find(c => c.name.includes('Yorozuya'));
+  assert(!!shinsengumi && shinsengumi.element === 'fire', 'Shinsengumi is Fire SSR');
+  assert(!!yorozuya && yorozuya.element === 'light', 'Yorozuya Gin-chan is Light SSR');
+
+  // Equipment & Summons
+  const sword = gintamaDetail?.weapons.find(w => w.name.includes('Wooden Sword Lake Toya'));
+  const summon = gintamaDetail?.summons.find(s => s.name.includes('Katsura'));
+  assert(!!sword && sword.maxUncap === 4 && sword.element === 'light', 'Lake Toya is 4★ Light Katana');
+  assert(!!summon && summon.maxUncap === 4 && summon.element === 'wind', 'Katsura & Elizabeth is 4★ Wind Summon');
+
+  // Story & Currencies
+  assert(gintamaDetail?.story.totalCrystals === 350, 'Total story crystals is 350');
+  assert(gintamaDetail?.story.chapters.length === 8, 'Story has 8 chapter entries (including Part 1 Ending)');
+  assert(gintamaDetail?.currencies.length === 3, 'Currencies define Medallion, Secondary, and Fruit Parfait');
+
+  // Quests & Exchange Shop
+  const eventQuests = catalog.getEventQuests('biography045');
+  assert(eventQuests.length >= 7, `Event has quests defined (count: ${eventQuests.length} >= 7)`);
+  assert(eventQuests.some(q => q.bossName.includes('Neo Armstrong')), 'Quests include Neo Armstrong Cannon');
+  assert(eventQuests.some(q => q.bossName.includes('Koro')), 'Quests include Koro raid');
+
+  const exchangeItems = catalog.getEventExchangeItems('biography045');
+  assert(exchangeItems.length >= 15, `Exchange shop has items (count: ${exchangeItems.length} >= 15)`);
+  assert(exchangeItems.some(i => i.id === 'damascus_crystal'), 'Exchange shop includes Damascus Crystals');
+
+  // Daily missions & Trophies
+  assert(gintamaDetail?.dailyMissions.length === 1 && gintamaDetail?.dailyMissions[0].reward.amount === 50, 'Daily mission grants 50 crystals');
+  assert(gintamaDetail?.trophies.length === 9, '9 event trophies mapped');
+
+  // Test 15: Side Stories Permanent Vault & Spark Acceleration (KMS Vol. 16)
+  console.log('\n[15/15] Testing Side Stories Permanent Vault & Spark Acceleration (KMS Vol. 16)...');
+  const allSideStories = catalog.getAllSideStories();
+  assert(allSideStories.length >= 20, `Side stories registered (count: ${allSideStories.length} >= 20)`);
+
+  const globalTotals = catalog.getSideStoriesGlobalTotals();
+  assert(!!globalTotals, 'Side stories global totals available');
+  assert(globalTotals!.totalPremiumDrawTickets >= 100, `Total draw tickets calculated (${globalTotals!.totalPremiumDrawTickets} >= 100)`);
+  assert(globalTotals!.totalStoryCrystals >= 5000, `Total story crystals calculated (${globalTotals!.totalStoryCrystals} >= 5000)`);
+  assert(globalTotals!.totalSsrCharacters >= 10, `Total SSR characters calculated (${globalTotals!.totalSsrCharacters} >= 10)`);
+  assert(globalTotals!.totalHalfElixirs >= 1000, `Total half-elixirs calculated (${globalTotals!.totalHalfElixirs} >= 1000)`);
+
+  // Key Side Story Lookups (id & numeric)
+  const wmtsb1 = catalog.getSideStory('wmtsb_1');
+  const wmtsb1Num = catalog.getSideStory(1001);
+  assert(!!wmtsb1, 'Resolves WMTSB I by string ID (wmtsb_1)');
+  assert(!!wmtsb1Num, 'Resolves WMTSB I by numeric ID (1001)');
+  assert(wmtsb1?.id === wmtsb1Num?.id, 'String and numeric lookups resolve to same side story');
+  assert(wmtsb1?.rewards.weapons?.some(w => w.isBahamutOrAtma === true), 'WMTSB I grants Bahamut Nova Weapon');
+  assert(wmtsb1?.unlockPrerequisite.mainQuestChapter === 54, 'WMTSB I requires Main Quest Chapter 54');
+
+  const wmtsb2 = catalog.getSideStory('wmtsb_2');
+  assert(!!wmtsb2, 'Resolves WMTSB II');
+  assert(wmtsb2?.rewards.weapons?.some(w => w.isBahamutOrAtma === true), 'WMTSB II grants Atma Weapon');
+  assert(wmtsb2?.rewards.characters?.some(c => c.name === 'Sandalphon' && c.rarity === 'SSR'), 'WMTSB II grants SSR Sandalphon');
+
+  // Collaborations
+  const geass = catalog.getSideStory('code_geass');
+  assert(!!geass, 'Resolves Code Geass side story');
+  assert((geass?.rewards.characters?.filter(c => c.rarity === 'SSR').length ?? 0) >= 3, 'Code Geass grants 3 SSR units (Lelouch, Suzaku, Kallen)');
+
+  const priconne = catalog.getSideStory('princess_connect');
+  assert(!!priconne, 'Resolves Princess Connect side story');
+  assert((priconne?.rewards.characters?.filter(c => c.rarity === 'SSR').length ?? 0) >= 3, 'Princess Connect grants 3 SSR units (Pecorine, Kokkoro, Karyl)');
+
+  // Category Filtering
+  const collabs = catalog.getSideStoriesByCategory('collaboration');
+  assert(collabs.length >= 5, `Collaboration side stories count >= 5 (found: ${collabs.length})`);
+
+  const dragonKnights = catalog.getSideStoriesByCategory('dragon_knights');
+  assert(dragonKnights.length >= 4, `Dragon Knights side stories count >= 4 (found: ${dragonKnights.length})`);
+
+  // Availability Filtering by Main Quest Chapter
+  const earlyStories = catalog.getAvailableSideStories(8);
+  assert(earlyStories.length >= 5, `Stories unlocked at Chapter 8 >= 5 (found: ${earlyStories.length})`);
+  assert(earlyStories.every(s => s.unlockPrerequisite.mainQuestChapter <= 8), 'All returned stories respect Chapter 8 boundary');
 
   console.log('\n🎉 ALL DATA ARCHITECTURE ASSERTIONS PASSED (100% GOLD INDUSTRY STANDARD)');
 }

@@ -49,14 +49,27 @@ export class TemplateParser {
    */
   public static loadTemplate(templateName: string): WorkflowTemplate {
     const baseName = templateName.replace(/\.(json|txt|dsl|yaml|yml)$/, '');
-    const possibleFiles = [
-      path.join(this.TEMPLATES_DIR, `${baseName}.json`),
-      path.join(this.TEMPLATES_DIR, `${baseName}.dsl`),
-      path.join(this.TEMPLATES_DIR, `${baseName}.txt`),
-      path.join(this.TEMPLATES_DIR, `${baseName}.yaml`),
-      path.join(this.TEMPLATES_DIR, `${baseName}.yml`),
-      path.join(this.TEMPLATES_DIR, baseName)
-    ];
+    const altNames = [baseName];
+    if (baseName.startsWith('otkraid-')) {
+      altNames.push(`leech-${baseName.slice(8)}`);
+    } else if (baseName.startsWith('leech-')) {
+      altNames.push(`otkraid-${baseName.slice(6)}`);
+    } else {
+      altNames.push(`leech-${baseName}`);
+      altNames.push(`otkraid-${baseName}`);
+    }
+
+    const possibleFiles: string[] = [];
+    for (const name of altNames) {
+      possibleFiles.push(
+        path.join(this.TEMPLATES_DIR, `${name}.json`),
+        path.join(this.TEMPLATES_DIR, `${name}.dsl`),
+        path.join(this.TEMPLATES_DIR, `${name}.txt`),
+        path.join(this.TEMPLATES_DIR, `${name}.yaml`),
+        path.join(this.TEMPLATES_DIR, `${name}.yml`),
+        path.join(this.TEMPLATES_DIR, name)
+      );
+    }
 
     const filePath = possibleFiles.find(p => fs.existsSync(p));
 

@@ -104,6 +104,9 @@ export interface DailyHostExecutionSummary {
   readonly skippedLimitCount: number;
   readonly failedCount: number;
   readonly executionRecords: DailyRaidExecutionRecord[];
+  readonly retriedCount?: number;
+  readonly retriedClearedCount?: number;
+  readonly failureDiagnoses?: any[];
 
   // Backward compatibility aliases
   readonly account?: string;
@@ -134,4 +137,8 @@ export interface DailyHostExecutionOptions {
   maxCombatTimeBeforeYieldMs?: number;
   maxCombatTurnsBeforeYield?: number;
   hostedRaidRecheckIntervalMs?: number;
+
+  // Autonomous Self-Healing Retry Options
+  autoRetryFailures?: boolean; // When true, runs a targeted self-healing pass on transiently failed raids
+  maxFailureRetries?: number;  // Max retry attempts per failed raid (default: 2)
 }

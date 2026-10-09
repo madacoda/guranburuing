@@ -1,7 +1,7 @@
 // src/engines/raid-evaluator.ts
 
 export type RaidGrade = 'S+' | 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
-export type RaidEvaluatorStrategy = 'honor' | 'otk_burst';
+export type RaidEvaluatorStrategy = 'honor' | 'otk_burst' | 'leech';
 
 /**
  * Bitmask flags representing specific disqualification criteria.
@@ -174,7 +174,7 @@ export class RaidEvaluator {
     }
 
     let result: RaidEvaluationResult;
-    if (options.strategy === 'otk_burst') {
+    if (options.strategy === 'otk_burst' || options.strategy === 'leech') {
       result = this.evaluateOtkBurstCandidate(hpPct, players, maxPlayers, options, raidId, precomputedDeadSet);
     } else {
       result = this.evaluateHonorCandidate(hpPct, players, maxPlayers, options, raidId, precomputedDeadSet);
@@ -596,7 +596,7 @@ export class RaidEvaluator {
       return { best: null, viableCandidates: [], nonViableCandidates };
     }
 
-    this.sortViableCandidates(viableCandidates, options.strategy === 'otk_burst');
+    this.sortViableCandidates(viableCandidates, options.strategy === 'otk_burst' || options.strategy === 'leech');
 
     return {
       best: viableCandidates[0],
@@ -702,7 +702,7 @@ export class RaidEvaluator {
       return { best: null, viableCandidates: [], nonViableCandidates };
     }
 
-    this.sortViableCandidates(viableCandidates, options.strategy === 'otk_burst');
+    this.sortViableCandidates(viableCandidates, options.strategy === 'otk_burst' || options.strategy === 'leech');
 
     return {
       best: viableCandidates[0],

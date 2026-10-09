@@ -26,9 +26,9 @@ function main() {
 
   let addedCount = 0;
   for (const name of Array.from(templateNames).sort()) {
-    const isOtk = name.startsWith('otkraid-') || name.startsWith('otkraid');
-    const runnerCmd = isOtk
-      ? `bun src/cli/run-otkraid.ts ${name}`
+    const isLeech = name.startsWith('leech-') || name.startsWith('leech') || name.startsWith('otkraid-') || name.startsWith('otkraid');
+    const runnerCmd = isLeech
+      ? `bun src/cli/run-leech.ts ${name}`
       : `bun src/cli/run-workflow.ts ${name}`;
     const windowedCmd = `${runnerCmd} --windowed`;
 

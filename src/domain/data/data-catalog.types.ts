@@ -437,6 +437,290 @@ export interface TacticalExecutionTier {
   safetyInterlocks: string[];
 }
 
+// Events Subsystem & Collaboration Architecture (KMS Vol. 15)
+export type EventType = 'collaboration' | 'treasureraid' | 'unite_and_fight' | 'dread_barrage' | 'xeno_clash' | 'story_side' | 'tower_of_babyl' | string;
+export type EventStatus = 'active' | 'rerun' | 'archived' | 'upcoming' | 'ended' | string;
+
+export interface EventMasterItem {
+  id: string;
+  rawId: string;
+  type: EventType;
+  title: string;
+  japaneseTitle: string;
+  hashRoute: string;
+  status: EventStatus;
+  period?: {
+    startDate?: string;
+    endDate?: string;
+    exchangeDeadline?: string;
+  };
+  elements: {
+    bossElements: string[];
+    playerAdvantageousElements: string[];
+  };
+  detailCatalog?: string;
+  features?: {
+    hasTreasureTrade: boolean;
+    hasTokenDrawbox: boolean;
+    hasDailyMissions: boolean;
+    hasChallengeQuest: boolean;
+    hasNightmareHellSkip: boolean;
+    recruitableCharactersCount: number;
+    hasFlbWeapon: boolean;
+    hasFlbSummon: boolean;
+  };
+}
+
+export interface EventCurrencyDefinition {
+  id: string;
+  name: string;
+  japaneseName: string;
+  itemType: string;
+  iconAsset?: string;
+  primarySources: string[];
+  usage: string[];
+}
+
+export interface EventExchangeItem {
+  id: string;
+  name: string;
+  category: string;
+  stock: number;
+  cost: {
+    medallion: number;
+    secondary?: number;
+  };
+  priorityTier: number;
+  recommendation: string;
+}
+
+export interface EventQuestDefinition {
+  id: string;
+  name: string;
+  difficulty?: string;
+  level?: number;
+  apCost: number;
+  bpCost?: number;
+  element: string;
+  bossName: string;
+  bossHp: number;
+  maxPlayers?: number;
+  battles?: number;
+  firstClearReward?: string;
+  drops?: Record<string, any>;
+  hellProcChance?: number;
+  skipUnlockedAfterClears?: number;
+}
+
+export interface EventDetailDefinition {
+  version: string;
+  generatedAt: string;
+  description: string;
+  metadata: {
+    id: string;
+    rawId: string;
+    eventNumber?: number;
+    title: string;
+    englishTitle?: string;
+    japaneseTitle: string;
+    type: EventType;
+    status: EventStatus;
+    hashRoute: string;
+    period?: {
+      startDate?: string;
+      endDate?: string;
+      exchangeDeadline?: string;
+    };
+    elements: {
+      bossElements: string[];
+      playerAdvantageousElements: string[];
+    };
+  };
+  assets: {
+    primaryOrigin: string;
+    backupOrigin: string;
+    paths: Record<string, string>;
+    eventBanners?: Record<string, string>;
+    audioTracks?: Record<string, string>;
+  };
+  characters: Array<{
+    id: string;
+    name: string;
+    japaneseName?: string;
+    rarity: string;
+    element: string;
+    style?: string;
+    race?: string;
+    joinCondition: string;
+    cv?: string;
+    ougi?: any;
+    skills?: any[];
+    passives?: any[];
+    assets?: any;
+  }>;
+  storyNpcs?: Array<{
+    name: string;
+    cv: string;
+    imageId?: string;
+    role?: string;
+  }>;
+  summons: Array<{
+    id: string;
+    name: string;
+    element: string;
+    rarity: string;
+    maxUncap: number;
+    call: any;
+    mainAura: any;
+    subAura?: any;
+    stats?: any;
+    flbMaterials?: any;
+  }>;
+  weapons: Array<{
+    id: string;
+    name: string;
+    element: string;
+    weaponType: string;
+    rarity: string;
+    maxUncap: number;
+    ougi: any;
+    skills: any[];
+    stats?: any;
+    flbMaterials?: any;
+  }>;
+  story: {
+    totalCrystals: number;
+    chapters: Array<{
+      chapterNumber: number;
+      title: string;
+      japaneseTitle?: string;
+      part?: string;
+      episodes: Array<{
+        episodeNumber: number;
+        apCost: number;
+        hasBattle: boolean;
+        reward?: string;
+        unlockFeature?: string;
+      }>;
+    }>;
+  };
+  quests: {
+    singleQuests: EventQuestDefinition[];
+    raidQuests: EventQuestDefinition[];
+    challengeQuests?: EventQuestDefinition[];
+    hellQuests: EventQuestDefinition[];
+  };
+  currencies: EventCurrencyDefinition[];
+  exchangeShop: {
+    totalEssentialCost: {
+      medallions: number;
+      secondaryTreasure: number;
+      fruitParfaits?: number;
+    };
+    items: EventExchangeItem[];
+  };
+  dailyMissions: Array<{
+    id: string;
+    description: string;
+    targetType?: string;
+    targetCount: number;
+    reward: {
+      item: string;
+      amount: number;
+    };
+    resetTime: string;
+  }>;
+  trophies: Array<{
+    id: string;
+    title: string;
+    japaneseTitle?: string;
+    grade?: string;
+    condition: string;
+    rewardCrystals: number;
+  }>;
+  optimalFarmingBlueprint: {
+    routineSteps: string[];
+    apEpEfficiencyBreakdown: Record<string, string>;
+    recommendedParties: Record<string, any>;
+  };
+}
+
+// Side Stories Subsystem & Permanent Vault (KMS Vol. 16)
+export type SideStoryCategory =
+  | 'anniversary'
+  | 'collaboration'
+  | 'dragon_knights'
+  | 'society'
+  | 'summer'
+  | 'sky_adventures'
+  | 'robomi'
+  | 'idols'
+  | string;
+
+export interface SideStoryCharacterReward {
+  name: string;
+  japaneseName?: string;
+  rarity: 'SSR' | 'SR' | 'R' | string;
+  element: string;
+  joinCondition: string;
+}
+
+export interface SideStoryWeaponReward {
+  name: string;
+  rarity: string;
+  type: string;
+  element: string;
+  isBahamutOrAtma?: boolean;
+  notes?: string;
+}
+
+export interface SideStorySummonReward {
+  name: string;
+  rarity: string;
+  element: string;
+}
+
+export interface SideStoryMasterItem {
+  id: string;
+  sidestoryId: number;
+  title: string;
+  japaneseTitle: string;
+  category: SideStoryCategory;
+  hashRoute: string;
+  unlockPrerequisite: {
+    mainQuestChapter: number;
+    prerequisiteSideStories?: string[];
+  };
+  elements?: {
+    bossElement?: string;
+    advantageousElement?: string;
+  };
+  rewards: {
+    premiumDrawTickets: number;
+    storyCrystals: number;
+    halfElixirsMax?: number;
+    soulBerriesMax?: number;
+    characters?: SideStoryCharacterReward[];
+    weapons?: SideStoryWeaponReward[];
+    summons?: SideStorySummonReward[];
+  };
+  treasureTrade?: {
+    medallionName?: string;
+    secondaryTreasureName?: string;
+  };
+  priorityTier: number;
+}
+
+export interface SideStoryGlobalTotals {
+  totalSideStories: number;
+  totalPremiumDrawTickets: number;
+  totalStoryCrystals: number;
+  totalHalfElixirs: number;
+  totalSoulBerries?: number;
+  totalFreeCharacters: number;
+  totalSsrCharacters: number;
+}
+
 
 
 

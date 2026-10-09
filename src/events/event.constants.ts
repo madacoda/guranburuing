@@ -91,6 +91,61 @@ export const EVENT_177_DEFINITION: ScenarioEventDefinition = {
   }
 };
 
+/**
+ * Granblue Fantasy x Gintama Collaboration Event (biography045).
+ * "Gin Tama: Shonen Jump Is Best Enjoyed Cover to Cover"
+ */
+export const EVENT_BIOGRAPHY045_DEFINITION: ScenarioEventDefinition = {
+  id: 'biography045',
+  rawId: 'biography045',
+  title: 'Gin Tama: Shonen Jump Is Best Enjoyed Cover to Cover',
+  element: 'wind',
+  hostItemId: '',
+  hostItemName: 'Medallion',
+  raids: {
+    vh: {
+      difficulty: 'vh',
+      name: 'Lv30 Neo Armstrong (Very Hard Multi)',
+      questId: 'solo_vh_neo_armstrong',
+      questType: 1,
+      costAp: 20,
+      bossName: 'Neo Armstrong Cyclone Jet Armstrong Cannon',
+      bossHp: 4620000,
+      supporterPriorities: ['Agni', 'Colossus', 'Michael', 'Kaguya']
+    },
+    ex: {
+      difficulty: 'ex',
+      name: 'Lv50 Neo Armstrong (Extreme Multi)',
+      questId: 'solo_ex_neo_armstrong',
+      questType: 1,
+      costAp: 30,
+      bossName: 'Neo Armstrong Cyclone Jet Armstrong Cannon',
+      bossHp: 9680000,
+      supporterPriorities: ['Agni', 'Colossus', 'Michael', 'Kaguya']
+    },
+    hl: {
+      difficulty: 'hl',
+      name: 'Lv60 Koro (Extreme+ Multi)',
+      questId: 'raid_ex_plus_koro',
+      questType: 1,
+      costAp: 30,
+      bossName: 'Koro',
+      bossHp: 13200000,
+      supporterPriorities: ['Zeus', 'Lumi', 'Lu Woh', 'Kaguya']
+    },
+    hell: {
+      difficulty: 'hell',
+      name: 'Lv120 Koro (Nightmare)',
+      questId: 'hell_lv120_koro',
+      questType: 3,
+      costAp: 0,
+      bossName: 'Lv120 Koro',
+      bossHp: 25000000,
+      supporterPriorities: ['Zeus', 'Lumi', 'Lu Woh']
+    }
+  }
+};
+
 export const ACTIVE_EVENT = EVENT_177_DEFINITION;
 
 /**

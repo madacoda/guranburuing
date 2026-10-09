@@ -1,0 +1,122 @@
+{
+  "$schema": "../schemas/events.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Granblue Fantasy Master Events Registry, mapping past, current, and upcoming collaboration, scenario, Guild Wars, and special event instances.",
+  "events": [
+    {
+      "id": "biography045",
+      "rawId": "720",
+      "type": "collaboration",
+      "title": "Gin Tama: Shonen Jump Is Best Enjoyed Cover to Cover",
+      "japaneseTitle": "銀魂 少年ならジャンプの裏表紙までちゃんと楽しめ",
+      "hashRoute": "#event/biography045",
+      "status": "rerun",
+      "period": {
+        "startDate": "2026-10-07T17:00:00+09:00",
+        "endDate": "2026-10-14T16:59:00+09:00",
+        "exchangeDeadline": "2026-10-21T16:59:00+09:00"
+      },
+      "elements": {
+        "bossElements": ["wind", "dark"],
+        "playerAdvantageousElements": ["fire", "light"]
+      },
+      "detailCatalog": "data/events/biography045-gintama.catalog.json",
+      "features": {
+        "hasTreasureTrade": true,
+        "hasTokenDrawbox": false,
+        "hasDailyMissions": true,
+        "hasChallengeQuest": false,
+        "hasNightmareHellSkip": true,
+        "recruitableCharactersCount": 2,
+        "hasFlbWeapon": true,
+        "hasFlbSummon": true
+      }
+    },
+    {
+      "id": "treasureraid177",
+      "rawId": "treasureraid177",
+      "type": "treasureraid",
+      "title": "Farewell, Cold Heart",
+      "japaneseTitle": "氷尖に沈む",
+      "hashRoute": "#event/treasureraid177",
+      "status": "ended",
+      "period": {
+        "startDate": "2026-09-28T17:00:00+09:00",
+        "endDate": "2026-10-06T20:59:00+09:00",
+        "exchangeDeadline": "2026-10-13T16:59:00+09:00"
+      },
+      "elements": {
+        "bossElements": ["dark"],
+        "playerAdvantageousElements": ["light"]
+      },
+      "detailCatalog": "data/events/treasureraid177-cold-heart.catalog.json",
+      "features": {
+        "hasTreasureTrade": false,
+        "hasTokenDrawbox": true,
+        "hasDailyMissions": true,
+        "hasChallengeQuest": true,
+        "hasNightmareHellSkip": true,
+        "recruitableCharactersCount": 0,
+        "hasFlbWeapon": true,
+        "hasFlbSummon": true
+      }
+    },
+    {
+      "id": "dread_barrage_15",
+      "rawId": "teamraid015",
+      "type": "dread_barrage",
+      "title": "Dread Barrage (October 2026)",
+      "japaneseTitle": "ドレッドバラージュ",
+      "hashRoute": "#event/teamraid015",
+      "status": "upcoming",
+      "period": {
+        "startDate": "2026-10-22T19:00:00+09:00",
+        "endDate": "2026-10-29T18:59:00+09:00",
+        "exchangeDeadline": "2026-11-05T18:59:00+09:00"
+      },
+      "elements": {
+        "bossElements": ["earth"],
+        "playerAdvantageousElements": ["wind"]
+      },
+      "features": {
+        "hasTreasureTrade": true,
+        "hasTokenDrawbox": true,
+        "hasDailyMissions": true,
+        "hasChallengeQuest": false,
+        "hasNightmareHellSkip": false,
+        "recruitableCharactersCount": 0,
+        "hasFlbWeapon": false,
+        "hasFlbSummon": false
+      }
+    },
+    {
+      "id": "unite_and_fight_85",
+      "rawId": "teamraid085",
+      "type": "unite_and_fight",
+      "title": "Unite and Fight (November 2026)",
+      "japaneseTitle": "決戦！星の古戦場",
+      "hashRoute": "#event/teamraid085",
+      "status": "upcoming",
+      "period": {
+        "startDate": "2026-11-21T19:00:00+09:00",
+        "endDate": "2026-11-28T23:59:00+09:00",
+        "exchangeDeadline": "2026-12-05T23:59:00+09:00"
+      },
+      "elements": {
+        "bossElements": ["light"],
+        "playerAdvantageousElements": ["dark"]
+      },
+      "features": {
+        "hasTreasureTrade": true,
+        "hasTokenDrawbox": true,
+        "hasDailyMissions": false,
+        "hasChallengeQuest": false,
+        "hasNightmareHellSkip": false,
+        "recruitableCharactersCount": 0,
+        "hasFlbWeapon": false,
+        "hasFlbSummon": false
+      }
+    }
+  ]
+}

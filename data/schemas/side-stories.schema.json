@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MasterSideStoriesCatalogSchema",
+  "type": "object",
+  "required": ["version", "categories", "globalTotals", "sideStories"],
+  "properties": {
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "japaneseName", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "description": { "type": "string" },
+          "sideStoryCount": { "type": "number" }
+        }
+      }
+    },
+    "globalTotals": {
+      "type": "object",
+      "required": [
+        "totalSideStories",
+        "totalPremiumDrawTickets",
+        "totalStoryCrystals",
+        "totalHalfElixirs",
+        "totalFreeCharacters",
+        "totalSsrCharacters"
+      ],
+      "properties": {
+        "totalSideStories": { "type": "number" },
+        "totalPremiumDrawTickets": { "type": "number" },
+        "totalStoryCrystals": { "type": "number" },
+        "totalHalfElixirs": { "type": "number" },
+        "totalSoulBerries": { "type": "number" },
+        "totalFreeCharacters": { "type": "number" },
+        "totalSsrCharacters": { "type": "number" }
+      }
+    },
+    "sideStories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "sidestoryId",
+          "title",
+          "japaneseTitle",
+          "category",
+          "hashRoute",
+          "unlockPrerequisite",
+          "rewards"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "sidestoryId": { "type": "number" },
+          "title": { "type": "string" },
+          "japaneseTitle": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": [
+              "anniversary",
+              "collaboration",
+              "dragon_knights",
+              "society",
+              "summer",
+              "sky_adventures",
+              "robomi",
+              "idols"
+            ]
+          },
+          "hashRoute": { "type": "string" },
+          "unlockPrerequisite": {
+            "type": "object",
+            "required": ["mainQuestChapter"],
+            "properties": {
+              "mainQuestChapter": { "type": "number" },
+              "prerequisiteSideStories": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "elements": {
+            "type": "object",
+            "properties": {
+              "bossElement": { "type": "string" },
+              "advantageousElement": { "type": "string" }
+            }
+          },
+          "rewards": {
+            "type": "object",
+            "required": ["premiumDrawTickets", "storyCrystals"],
+            "properties": {
+              "premiumDrawTickets": { "type": "number" },
+              "storyCrystals": { "type": "number" },
+              "halfElixirsMax": { "type": "number" },
+              "soulBerriesMax": { "type": "number" },
+              "characters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "rarity", "element"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "japaneseName": { "type": "string" },
+                    "rarity": { "type": "string", "enum": ["SSR", "SR", "R"] },
+                    "element": { "type": "string" },
+                    "joinCondition": { "type": "string" }
+                  }
+                }
+              },
+              "weapons": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "rarity", "type", "element"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "rarity": { "type": "string" },
+                    "type": { "type": "string" },
+                    "element": { "type": "string" },
+                    "isBahamutOrAtma": { "type": "boolean" },
+                    "notes": { "type": "string" }
+                  }
+                }
+              },
+              "summons": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "rarity", "element"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "rarity": { "type": "string" },
+                    "element": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "treasureTrade": {
+            "type": "object",
+            "properties": {
+              "medallionName": { "type": "string" },
+              "secondaryTreasureName": { "type": "string" }
+            }
+          },
+          "priorityTier": {
+            "type": "number",
+            "description": "0: Spark/Core progression, 1: High value, 2: Standard, 3: Backlog"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "$schema": "../schemas/event-farming-optimizer.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Algorithmic decision tree, currency targets, and execution rules for Granblue Fantasy event automation engines (collaboration and scenario events).",
+  "targetEventTypes": {
+    "collaboration": {
+      "economicModel": "treasure_trade",
+      "primaryCurrency": "medallion",
+      "secondaryCurrency": "character_special",
+      "flbCurrency": "nightmare_parfait",
+      "infiniteGachaBox": false,
+      "recommendedLoop": "Single EX / EX+ spam + Daily 2x Maniac + 5x Multi"
+    },
+    "treasureraid": {
+      "economicModel": "token_drawbox",
+      "primaryCurrency": "event_token",
+      "secondaryCurrency": "host_mat",
+      "infiniteGachaBox": true,
+      "recommendedLoop": "Single VH (mat farming) -> Raid EX (token farming) -> 1-click 10x Nightmare Skips"
+    }
+  },
+  "dailyRoutinePipeline": {
+    "resetHourJst": 5,
+    "tasks": [
+      {
+        "id": "event_story_check",
+        "description": "Ensure event story episodes 1-6 + Ending are cleared on day 1 to unlock characters and high-tier quests.",
+        "precondition": "event_status == active",
+        "action": "clear_unread_story"
+      },
+      {
+        "id": "event_daily_maniac",
+        "description": "Execute daily 2/2 Maniac solo quests for high-yield medallions, character treasures, and guaranteed HELL procs.",
+        "limitPerDay": 2,
+        "action": "run_maniac_battles"
+      },
+      {
+        "id": "event_daily_missions",
+        "description": "Clear 5 Event Multi Battles to fulfill daily mission and collect 50 free Crystals.",
+        "targetCount": 5,
+        "action": "run_event_multi_5x"
+      },
+      {
+        "id": "event_nightmare_procs",
+        "description": "Clear or skip procced Nightmare (HELL) battles immediately. Prioritize Lv120 for 3x Fruit Parfaits.",
+        "action": "skip_or_clear_hell"
+      }
+    ]
+  },
+  "currencyTargetHeuristics": {
+    "priorityTiers": [
+      {
+        "tier": 0,
+        "name": "Absolute Mandatory",
+        "description": "Event SS-Rare Ticket & Damascus Crystals (3x). Irreplaceable progression value.",
+        "stopCondition": "stock == 0"
+      },
+      {
+        "tier": 1,
+        "name": "Exclusive Power & Uncap",
+        "description": "Event SSR Summon (1x), Event SSR Weapon (4x), Rings (Intricacy, Lineage), Earrings (Fire, Light), plus FLB materials.",
+        "stopCondition": "stock == 0"
+      },
+      {
+        "tier": 2,
+        "name": "Resource Positive Farming",
+        "description": "Half-Elixirs (75 packs = 150 pots) & Soul Berries (100 packs = 200 berries). Yields net positive AP/EP returns.",
+        "stopCondition": "stock == 0"
+      },
+      {
+        "tier": 3,
+        "name": "Progression Materials",
+        "description": "Coronation Rings, Steel Bricks, Psyches, JP, Merits, Cups.",
+        "stopCondition": "user_preference_or_surplus"
+      },
+      {
+        "tier": 4,
+        "name": "Skip / Low Value",
+        "description": "Elemental character uncap sets, generic islands materials, anima sets (overpriced in medallions).",
+        "stopCondition": "always_skip"
+      }
+    ],
+    "questSelectionMatrix": {
+      "medallionShortage": {
+        "bestQuest": "solo_ex_neo_armstrong",
+        "efficiencyRatio": 0.38,
+        "rationale": "Single EX has the highest Medallion per AP ratio and takes < 3 seconds with 0-button Quick Summon."
+      },
+      "secondaryTreasureShortage": {
+        "bestQuest": "solo_ex_plus_koro",
+        "efficiencyRatio": 0.13,
+        "rationale": "Single EX+ drops 3-5 Hijikata Specials consistently per 30 AP run."
+      },
+      "fruitParfaitShortage": {
+        "bestQuest": "hell_lv120_koro",
+        "efficiencyRatio": 3.0,
+        "rationale": "HELL Lv120 guarantees 3 Fruit Parfaits per clear at 0 AP."
+      },
+      "epDumping": {
+        "bestQuest": "raid_ex_plus_koro",
+        "efficiencyRatio": "1.2 Specials/BP",
+        "rationale": "Joining Koro EX+ multi raids when EP >= 5 expends unneeded raid points."
+      }
+    }
+  },
+  "combatExecutionRules": {
+    "quickSummonThresholds": {
+      "hpCapForZeroButton": 6500000,
+      "recommendedSummon": "Triple Zero (10M plain) / Beelzebub 4★ (3M plain + uncap specs) / Yatagarasu",
+      "actionSequence": ["dispatch_quick_summon", "attack_if_needed", "fast_reload"]
+    },
+    "fullAutoPolicy": {
+      "fallbackOnHpAbove": 6500000,
+      "maniacMode": "enable_full_auto_turn_1",
+      "hellMode": "enable_full_auto_turn_1"
+    }
+  }
+}

@@ -160,6 +160,26 @@
         "reward_list": "array of drop chest contents with item IDs and quantities",
         "user_result": { "rank": "number", "point": "number (honors)" }
       }
+    },
+    "sideStoryList": {
+      "path": "/quest/side_story_list.json",
+      "method": "GET",
+      "description": "Fetches all archived Side Stories grouped by category along with user completion flags."
+    },
+    "sideStoryStage": {
+      "path": "/quest/side_story_stage/{sidestoryId}.json",
+      "method": "GET",
+      "description": "Fetches episodes, story completion state, and free quest stage data for a specific side story."
+    },
+    "sideStorySkip": {
+      "path": "/quest/side_story_skip/{sidestoryId}.json",
+      "method": "POST",
+      "description": "Instantly skips all story episodes for a side story, triggering crystal rewards and character unlocks."
+    },
+    "sideStoryTrade": {
+      "path": "/shop_exchange/side_story/purchase.json",
+      "method": "POST",
+      "description": "Executes purchase of Premium Draw Tickets, Half-Elixirs, weapons, or summons in side story treasure shop."
     }
   }
 }

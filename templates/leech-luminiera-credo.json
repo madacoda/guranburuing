@@ -1,0 +1,45 @@
+{
+  "name": "Leech Raid - Luminiera Credo (Fast Leech)",
+  "description": "High-speed raid leecher for Luminiera Credo: Finder Tab 1, Hades primal supporter, HP <= 20% & Players >= 3 for rapid clear, quick damage injection, and active assist recovery on 3 pending limits.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 1,
+  "supporterPriority": ["Hades"],
+  "evaluatorStrategy": "leech",
+  "maxHpPct": 20,
+  "minHpPct": 1,
+  "minPlayers": 3,
+  "maxPlayers": 29,
+  "minRaidScore": 40,
+  "minBatchClaim": 3,
+  "maxBatchClaim": 3,
+  "speedProfile": "fast",
+  "defaultRuns": 500,
+  "autoBerry": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "steps": [
+    {
+      "code": "quick_call",
+      "optional": true,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result",
+      "optional": true
+    }
+  ]
+}

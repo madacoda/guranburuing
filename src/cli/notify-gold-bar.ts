@@ -44,7 +44,10 @@ async function main() {
   const dropLogger = new DropLogger(absLogPath, raidTitle);
   const records = dropLogger.getRecords();
 
-  if (!targetRaidId) {
+  const shouldRecord = args.includes('--record');
+  const useLatest = args.includes('--latest');
+
+  if (!targetRaidId && useLatest) {
     // Find the latest raid ID from records
     for (let i = records.length - 1; i >= 0; i--) {
       if (records[i].raidId && /^\d+$/.test(records[i].raidId)) {
@@ -58,17 +61,27 @@ async function main() {
   console.log('         🌟 Granblue Fantasy - Gold Bar Drop & Discord Dispatcher       ');
   console.log('========================================================================');
   console.log(`• Target Raid:      ${raidTitle}`);
-  console.log(`• Target Raid ID:   ${targetRaidId || 'Latest Battle'}`);
+  console.log(`• Target Raid ID:   ${targetRaidId || (useLatest ? 'Latest Battle' : 'N/A (Test Alert)')}`);
   console.log(`• Drop Log:         ${logFile}`);
+  console.log(`• Mode:             ${shouldRecord ? 'RECORD (COMMITTING TO LOGS)' : 'TEST / DISPATCH ONLY'}`);
   console.log(`• Account:          ${playerName}`);
   console.log('========================================================================\n');
 
-  // Update DropLogger
-  const updatedStats = dropLogger.recordPendingGoldBar(targetRaidId);
-  console.log(`✅ [DropLogger] Marked Gold Bar in ${logFile}!`);
-  console.log(`   - Total Gold Bars: ${updatedStats.goldBars}`);
-  console.log(`   - Blue Chests:     ${updatedStats.blueChests}`);
-  console.log(`   - Dry Streak Reset to: ${updatedStats.currentDryStreak}\n`);
+  let updatedStats = dropLogger.getStats();
+
+  if (shouldRecord) {
+    if (!targetRaidId) {
+      console.error('❌ Cannot record Gold Bar: Please provide a valid raid ID (e.g. `bun run notify:gold-bar 47000629910 --record`) or specify `--latest`.');
+      process.exit(1);
+    }
+    updatedStats = dropLogger.recordPendingGoldBar(targetRaidId);
+    console.log(`✅ [DropLogger] Marked Gold Bar in ${logFile}!`);
+    console.log(`   - Total Gold Bars: ${updatedStats.goldBars}`);
+    console.log(`   - Blue Chests:     ${updatedStats.blueChests}`);
+    console.log(`   - Dry Streak Reset to: ${updatedStats.currentDryStreak}\n`);
+  } else {
+    console.log(`ℹ️ [Safe Mode] Battle log not modified. (Use \`--record <raidId>\` to commit a real drop to log files).\n`);
+  }
 
   // Update Discord Presence
   discordPresence.updateStatus({

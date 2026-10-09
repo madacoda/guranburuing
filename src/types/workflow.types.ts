@@ -113,7 +113,7 @@ export interface WorkflowTemplate {
   minPlayers?: number;      // Minimum active players filter for raid join (e.g. 3 for OTK burst)
   maxPlayers?: number;      // Maximum players filter for raid join (e.g. 5 for honor, 29 for OTK burst)
   minRaidScore?: number;    // Minimum viability score (0-100) to join raid (default: 40)
-  evaluatorStrategy?: 'honor' | 'otk_burst'; // Scoring model: 'honor' (high HP, low players) or 'otk_burst' (low HP <= 20%, active players >= 3)
+  evaluatorStrategy?: 'honor' | 'otk_burst' | 'leech'; // Scoring model: 'honor' (high HP, low players) or 'otk_burst' / 'leech' (low HP <= 20%, active players >= 3)
   logPath?: string;         // Custom path to drop log (e.g. 'logs/gb-pbhl.md')
 }
 

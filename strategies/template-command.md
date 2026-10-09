@@ -63,16 +63,21 @@ npm run acc1 <template-name> [runs] [--windowed]
 
 ---
 
-## 5. OTK Raid Bursting & Leeching (`otkraid`)
+## 5. Leech Raid Fast Burst Automation (`leech`)
 
-Designed for fast participation/leech drops rather than honor thresholds. Targets dying raids (`HP <= 20%`, `players >= 3`) for rapid clear, fast repetition, and automatic assist recovery when 3 pending battles are reached.
+Designed for fast participation/leech drops rather than honor thresholds across all 6 Magna 3 (Omega Rebirth) elements. Targets dying raids (`HP <= 20%`, `players >= 3`) with matching Primal supporter summons for rapid clear, fast repetition, and automatic assist recovery when 3 pending battles are reached.
 
-| Command | Raid | Slot / Supporter / Strategy |
+| Command | Raid | Slot / Primal Supporter / Strategy |
 | :--- | :--- | :--- |
-| `bun run otkraid` | Default OTK Raid | Runs Colossus Ira fast burst loop (`acc1`) |
-| `bun run otkraid:colossus` | Colossus Ira | Assist Slot 1 (`#quest/assist`), Varuna support, `HP <= 20%` & `players >= 3` |
-| `bun run otkraid:colossus:windowed` | Colossus Ira | Runs Colossus Ira burst in visible GUI browser window |
-| `bun run otkraid acc2 otkraid-colossus-ira 50` | Colossus Ira | Runs 50 burst cycles on `acc2` |
+| `bun run leech` | Default Leech | Runs Colossus Ira fast leech loop (`acc1`) |
+| `bun run leech:colossus` | Colossus Ira (Fire) | Assist Slot 1 (`#quest/assist`), **Varuna** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:tiamat` | Tiamat Aura (Wind) | Assist Slot 1 (`#quest/assist`), **Agni** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:leviathan` | Leviathan Mare (Water) | Assist Slot 1 (`#quest/assist`), **Titan** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:yggdrasil` | Yggdrasil Arbos (Earth) | Assist Slot 1 (`#quest/assist`), **Zephyrus** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:luminiera` | Luminiera Credo (Light) | Assist Slot 1 (`#quest/assist`), **Hades** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:celeste` | Celeste Ater (Dark) | Assist Slot 1 (`#quest/assist`), **Zeus** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:colossus:windowed` | Colossus Ira | Runs Colossus Ira burst in visible GUI browser window |
+| `bun run leech acc2 leech-leviathan-mare 50` | Leviathan Mare | Runs 50 leech cycles on `acc2` |
 
 ---
 

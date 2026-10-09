@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EventDetailCatalogSchema",
+  "type": "object",
+  "required": ["version", "metadata", "assets", "characters", "summons", "weapons", "story", "quests", "currencies", "exchangeShop", "dailyMissions", "trophies", "optimalFarmingBlueprint"],
+  "properties": {
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "metadata": {
+      "type": "object",
+      "required": ["id", "rawId", "title", "japaneseTitle", "type", "hashRoute"],
+      "properties": {
+        "id": { "type": "string" },
+        "rawId": { "type": "string" },
+        "eventNumber": { "type": "number" },
+        "title": { "type": "string" },
+        "englishTitle": { "type": "string" },
+        "japaneseTitle": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "hashRoute": { "type": "string" },
+        "period": {
+          "type": "object",
+          "properties": {
+            "startDate": { "type": "string" },
+            "endDate": { "type": "string" },
+            "exchangeDeadline": { "type": "string" }
+          }
+        },
+        "elements": {
+          "type": "object",
+          "properties": {
+            "bossElements": { "type": "array", "items": { "type": "string" } },
+            "playerAdvantageousElements": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "required": ["primaryOrigin", "backupOrigin", "paths"],
+      "properties": {
+        "primaryOrigin": { "type": "string" },
+        "backupOrigin": { "type": "string" },
+        "paths": { "type": "object" },
+        "eventBanners": { "type": "object" },
+        "audioTracks": { "type": "object" }
+      }
+    },
+    "characters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "element", "rarity", "joinCondition"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "rarity": { "type": "string" },
+          "element": { "type": "string" },
+          "style": { "type": "string" },
+          "race": { "type": "string" },
+          "joinCondition": { "type": "string" },
+          "cv": { "type": "string" },
+          "ougi": { "type": "object" },
+          "skills": { "type": "array" },
+          "passives": { "type": "array" },
+          "assets": { "type": "object" }
+        }
+      }
+    },
+    "storyNpcs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "cv"],
+        "properties": {
+          "name": { "type": "string" },
+          "cv": { "type": "string" },
+          "imageId": { "type": "string" },
+          "role": { "type": "string" }
+        }
+      }
+    },
+    "summons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "element", "rarity", "call", "mainAura"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "element": { "type": "string" },
+          "rarity": { "type": "string" },
+          "maxUncap": { "type": "number" },
+          "call": { "type": "object" },
+          "mainAura": { "type": "object" },
+          "subAura": { "type": "object" },
+          "stats": { "type": "object" },
+          "flbMaterials": { "type": "object" }
+        }
+      }
+    },
+    "weapons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "element", "weaponType", "rarity", "skills", "ougi"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "element": { "type": "string" },
+          "weaponType": { "type": "string" },
+          "rarity": { "type": "string" },
+          "maxUncap": { "type": "number" },
+          "ougi": { "type": "object" },
+          "skills": { "type": "array" },
+          "stats": { "type": "object" },
+          "flbMaterials": { "type": "object" }
+        }
+      }
+    },
+    "story": {
+      "type": "object",
+      "required": ["chapters"],
+      "properties": {
+        "totalCrystals": { "type": "number" },
+        "chapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["chapterNumber", "title", "episodes"],
+            "properties": {
+              "chapterNumber": { "type": "number" },
+              "title": { "type": "string" },
+              "japaneseTitle": { "type": "string" },
+              "part": { "type": "string" },
+              "episodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["episodeNumber", "apCost", "hasBattle"],
+                  "properties": {
+                    "episodeNumber": { "type": "number" },
+                    "apCost": { "type": "number" },
+                    "hasBattle": { "type": "boolean" },
+                    "reward": { "type": "string" },
+                    "unlockFeature": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "quests": {
+      "type": "object",
+      "required": ["singleQuests", "raidQuests", "hellQuests"],
+      "properties": {
+        "singleQuests": { "type": "array" },
+        "raidQuests": { "type": "array" },
+        "challengeQuests": { "type": "array" },
+        "hellQuests": { "type": "array" }
+      }
+    },
+    "currencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "japaneseName", "itemType", "primarySources"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "itemType": { "type": "string" },
+          "iconAsset": { "type": "string" },
+          "primarySources": { "type": "array", "items": { "type": "string" } },
+          "usage": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "exchangeShop": {
+      "type": "object",
+      "required": ["items", "totalEssentialCost"],
+      "properties": {
+        "totalEssentialCost": {
+          "type": "object",
+          "properties": {
+            "medallions": { "type": "number" },
+            "secondaryTreasure": { "type": "number" },
+            "fruitParfaits": { "type": "number" }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "stock", "cost", "priorityTier"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "category": { "type": "string" },
+              "stock": { "type": "number" },
+              "cost": {
+                "type": "object",
+                "required": ["medallion"],
+                "properties": {
+                  "medallion": { "type": "number" },
+                  "secondary": { "type": "number" }
+                }
+              },
+              "priorityTier": { "type": "number" },
+              "recommendation": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "dailyMissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "targetCount", "reward"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "targetType": { "type": "string" },
+          "targetCount": { "type": "number" },
+          "reward": {
+            "type": "object",
+            "required": ["item", "amount"],
+            "properties": {
+              "item": { "type": "string" },
+              "amount": { "type": "number" }
+            }
+          },
+          "resetTime": { "type": "string" }
+        }
+      }
+    },
+    "trophies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "condition", "rewardCrystals"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "japaneseTitle": { "type": "string" },
+          "grade": { "type": "string" },
+          "condition": { "type": "string" },
+          "rewardCrystals": { "type": "number" }
+        }
+      }
+    },
+    "optimalFarmingBlueprint": {
+      "type": "object",
+      "required": ["routineSteps", "apEpEfficiencyBreakdown", "recommendedParties"],
+      "properties": {
+        "routineSteps": { "type": "array" },
+        "apEpEfficiencyBreakdown": { "type": "object" },
+        "recommendedParties": { "type": "object" }
+      }
+    }
+  }
+}

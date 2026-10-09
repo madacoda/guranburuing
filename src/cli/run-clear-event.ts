@@ -19,45 +19,51 @@ const noElixir = args.includes('--no-elixir');
 // Extract positional args
 const positional = args.filter(a => !a.startsWith('--'));
 
-let mode = (positional[0] || 'story').toLowerCase();
-let targetEventId = '177';
-let limitArg = '40';
+const KNOWN_MODES = new Set([
+  'story', 'challenge', 'maniac', 'nightmare', 'hell', 'skip',
+  'missions', 'mission', 'gacha', 'draw', 'box', 'token', 'tokens',
+  'sweep', 'solo', 'raid', 'quests', 'quest',
+  'all', 'full', 'pipeline'
+]);
 
-if (/^\d+$/.test(positional[0])) {
-  targetEventId = positional[0];
-  mode = (positional[1] || 'story').toLowerCase();
-  limitArg = positional[2] || (mode === 'nightmare' || mode === 'hell' ? '1000' : '40');
-} else if (mode === 'nightmare' || mode === 'hell' || mode === 'skip') {
-  limitArg = '1000'; // Default: loop until all Nightmare attempts are cleared
-  if (positional[1] && positional[2]) {
-    targetEventId = positional[1];
-    limitArg = positional[2];
-  } else if (positional[1]) {
-    if (positional[1] === '177') {
-      targetEventId = '177';
-      limitArg = '1000';
+const KNOWN_DIFFICULTIES = new Set(['vh', 'ex', 'ex_plus', 'maniac', 'hell', 'very_hard', 'extreme']);
+
+let targetEventId: string | undefined = undefined;
+let mode = 'story';
+let difficultyArg = 'ex';
+let limitArg: string | undefined = undefined;
+
+for (const arg of positional) {
+  const lower = arg.toLowerCase();
+  if (KNOWN_MODES.has(lower) && mode === 'story') {
+    mode = lower;
+  } else if (KNOWN_DIFFICULTIES.has(lower)) {
+    difficultyArg = lower === 'very_hard' ? 'vh' : lower === 'extreme' ? 'ex' : lower;
+  } else if (/^(biography\d+|treasureraid\d+|https?:\/\/|#event\/)/i.test(arg)) {
+    targetEventId = arg;
+  } else if (/^\d+$/.test(arg)) {
+    if (!targetEventId && mode === 'story') {
+      targetEventId = arg;
     } else {
-      targetEventId = '177';
-      limitArg = positional[1];
+      limitArg = arg;
     }
+  } else if (!targetEventId && !KNOWN_MODES.has(lower)) {
+    targetEventId = arg;
   }
-} else if (mode === 'gacha' || mode === 'draw' || mode === 'box' || mode === 'token' || mode === 'tokens') {
-  limitArg = '200'; // Default: loop up to 200 boxes or until tokens depleted
-  if (positional[1] && positional[2]) {
-    targetEventId = positional[1];
-    limitArg = positional[2];
-  } else if (positional[1]) {
-    if (positional[1] === '177' || /^\d{3,}$/.test(positional[1])) {
-      targetEventId = positional[1];
-      limitArg = '200';
-    } else {
-      targetEventId = '177';
-      limitArg = positional[1];
-    }
+}
+
+if (!limitArg) {
+  if (mode === 'nightmare' || mode === 'hell' || mode === 'skip') {
+    limitArg = '1000';
+  } else if (mode === 'gacha' || mode === 'draw' || mode === 'box' || mode === 'token' || mode === 'tokens') {
+    limitArg = '200';
+  } else if (mode === 'raid') {
+    limitArg = '5';
+  } else if (mode === 'solo') {
+    limitArg = '1';
+  } else {
+    limitArg = '40';
   }
-} else {
-  targetEventId = positional[1] || '177';
-  limitArg = positional[2] || '40';
 }
 
 // Account selection
@@ -71,7 +77,8 @@ const account: AccountConfig | undefined = AccountRegistry.getAccountById(target
 
 console.log(`Account:           ${account?.name || 'default'} (${account?.id || 'acc1'})`);
 console.log(`Mode:              ${mode.toUpperCase()}`);
-console.log(`Target Event ID:   treasureraid${targetEventId}`);
+console.log(`Target Specifier:  ${targetEventId || 'AUTO-DETECT'}`);
+console.log(`Limit:             ${limitArg}`);
 console.log(`Window Mode:       ${isWindowed ? 'HEADFUL (Windowed)' : 'HEADLESS'}`);
 console.log(`Auto AP Restore:   ${!noElixir ? 'ENABLED (Half-Elixir)' : 'DISABLED'}`);
 console.log('========================================================================\n');
@@ -95,6 +102,10 @@ try {
   await sentinel.assertSafe();
 
   const eventEngine = new EventEngine(page, sentinel);
+  const eventInfo = await eventEngine.resolveEventInfo(targetEventId);
+
+  console.log(`Target Event:       ${eventInfo.name} (${eventInfo.url})`);
+  console.log(`Event Type:         ${eventInfo.type.toUpperCase()}\n`);
 
   // Graceful SIGINT (Ctrl+C) handling
   let sigintReceived = false;
@@ -110,21 +121,41 @@ try {
 
   if (mode === 'all' || mode === 'full') {
     // Run complete event routine
-    await eventEngine.runFullEventPipeline(targetEventId);
+    await eventEngine.runFullEventPipeline(eventInfo.id);
   } else if (mode === 'challenge') {
     // Challenge Quest only
-    await eventEngine.runClearChallengeQuest(targetEventId);
+    await eventEngine.runClearChallengeQuest(eventInfo.id);
   } else if (mode === 'maniac') {
     // Daily Maniac only
-    await eventEngine.runClearDailyManiac(targetEventId);
+    if (eventInfo.type === 'collaboration' || eventInfo.type === 'biography' || eventInfo.id.startsWith('biography')) {
+      await eventEngine.runClearCollaborationQuests({
+        eventId: eventInfo.id,
+        mode: 'maniac',
+        autoReplenishAp: !noElixir,
+        onProgress: (p) => {
+          const icon = p.status === 'SUCCESS' ? '✅' : p.status === 'FAILED' ? '❌' : '👑';
+          console.log(`[EventCLI] ${icon} [MANIAC] ${p.questName}: ${p.status} - ${p.message}`);
+        }
+      });
+    } else {
+      await eventEngine.runClearDailyManiac(eventInfo.id);
+    }
   } else if (mode === 'nightmare' || mode === 'hell' || mode === 'skip') {
-    // Nightmare Solo Skip Loop
-    const maxBatches = parseInt(limitArg, 10) || 100;
-    await eventEngine.runClearNightmareLoop(targetEventId, maxBatches);
+    // Nightmare / HELL loop
+    if (eventInfo.type === 'collaboration' || eventInfo.type === 'biography' || eventInfo.id.startsWith('biography')) {
+      await eventEngine.runClearCollaborationQuests({
+        eventId: eventInfo.id,
+        mode: 'hell',
+        autoReplenishAp: !noElixir
+      });
+    } else {
+      const maxBatches = parseInt(limitArg, 10) || 100;
+      await eventEngine.runClearNightmareLoop(eventInfo.id, maxBatches);
+    }
   } else if (mode === 'gacha' || mode === 'draw' || mode === 'box' || mode === 'token' || mode === 'tokens') {
     // Token drawbox loop
     const maxBoxes = parseInt(limitArg, 10) || 200;
-    const summary = await eventEngine.runClearTokenGachaLoop(targetEventId, maxBoxes, (p) => {
+    const summary = await eventEngine.runClearTokenGachaLoop(eventInfo.id, maxBoxes, (p) => {
       const icon = p.status === 'COMPLETED' ? '✅' : p.status === 'RESETTING' ? '🔄' : '🎁';
       console.log(`[EventCLI] ${icon} [Box #${p.boxNumber}] Cycle #${p.cycle}: ${p.status} - Remaining tokens: ${p.tokensRemaining?.toLocaleString() ?? 'Unknown'}`);
     });
@@ -132,18 +163,60 @@ try {
     console.log('\n========================================================================');
     console.log('             Event Token Drawbox Session Summary                        ');
     console.log('========================================================================');
-    console.log(`Event ID:               treasureraid${summary.eventId}`);
+    console.log(`Event:                  ${eventInfo.name}`);
     console.log(`Boxes Cleared:          ${summary.boxesCleared}`);
     console.log(`Tokens Spent:           ${summary.tokensSpent.toLocaleString()}`);
     console.log(`Tokens Remaining:       ${summary.finalTokens?.toLocaleString() ?? 'Unknown'}`);
     console.log(`Elapsed Time:           ${(summary.totalDurationMs / 1000).toFixed(1)}s`);
     console.log(`Final Status:           ${summary.status}`);
     console.log('========================================================================\n');
+  } else if (mode === 'missions' || mode === 'mission') {
+    // Daily event missions claim
+    await eventEngine.runClaimDailyMissions(eventInfo.id);
+  } else if (mode === 'sweep' || mode === 'quests' || mode === 'quest') {
+    // First clear sweep of all event quests
+    await eventEngine.runClearCollaborationQuests({
+      eventId: eventInfo.id,
+      mode: 'sweep',
+      autoReplenishAp: !noElixir,
+      onProgress: (p) => {
+        const icon = p.status === 'SUCCESS' ? '✅' : p.status === 'FAILED' ? '❌' : '⚔️';
+        console.log(`[EventCLI] ${icon} [${p.difficulty?.toUpperCase() || 'QUEST'}] ${p.questName}: ${p.status} - ${p.message}`);
+      }
+    });
+  } else if (mode === 'solo') {
+    // Farm solo collaboration quest
+    const runs = parseInt(limitArg, 10) || 1;
+    await eventEngine.runClearCollaborationQuests({
+      eventId: eventInfo.id,
+      mode: 'solo',
+      difficulty: difficultyArg || 'ex',
+      runs,
+      autoReplenishAp: !noElixir,
+      onProgress: (p) => {
+        const icon = p.status === 'SUCCESS' ? '✅' : p.status === 'FAILED' ? '❌' : '⚔️';
+        console.log(`[EventCLI] ${icon} [Run ${p.currentRun}/${p.totalRuns}] ${p.questName}: ${p.status} - ${p.message}`);
+      }
+    });
+  } else if (mode === 'raid') {
+    // Host collaboration multi raid
+    const runs = parseInt(limitArg, 10) || 5;
+    await eventEngine.runClearCollaborationQuests({
+      eventId: eventInfo.id,
+      mode: 'raid',
+      difficulty: difficultyArg || 'vh',
+      runs,
+      autoReplenishAp: !noElixir,
+      onProgress: (p) => {
+        const icon = p.status === 'SUCCESS' ? '✅' : p.status === 'FAILED' ? '❌' : '🤝';
+        console.log(`[EventCLI] ${icon} [Raid ${p.currentRun}/${p.totalRuns}] ${p.questName}: ${p.status} - ${p.message}`);
+      }
+    });
   } else {
     // Default: Clear event story chapters & episodes
     const maxEpisodes = parseInt(limitArg, 10) || 40;
     const summary = await eventEngine.runClearEventStory({
-      eventId: targetEventId,
+      eventId: eventInfo.id,
       maxEpisodes,
       autoReplenishAp: !noElixir,
       onProgress: (p) => {
@@ -155,7 +228,7 @@ try {
     console.log('\n========================================================================');
     console.log('                 Event Story Session Summary                            ');
     console.log('========================================================================');
-    console.log(`Event ID:               treasureraid${summary.eventId}`);
+    console.log(`Event:                  ${eventInfo.name}`);
     console.log(`Total Episodes Cleared: ${summary.episodesCleared}`);
     console.log(`Dialogue Cutscenes:     ${summary.cutscenesSkipped}`);
     console.log(`Combat Battles:         ${summary.storyBattlesCleared}`);
@@ -166,9 +239,10 @@ try {
   }
 
   console.log('Returning safely to event top page...');
-  await page.evaluate((id: string) => {
-    window.location.hash = `#event/treasureraid${id}`;
-  }, targetEventId).catch(() => null);
+  await page.evaluate((destUrl: string) => {
+    const hash = destUrl.substring(destUrl.indexOf('#'));
+    window.location.hash = hash;
+  }, eventInfo.url).catch(() => null);
 
   await cdp.disconnect();
   process.exit(0);

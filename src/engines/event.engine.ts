@@ -1,7 +1,7 @@
 // src/engines/event.engine.ts
 import { Page, ElementHandle } from 'puppeteer-core';
 import { SentinelWatchdog } from '../sentinel-watchdog.js';
-import { logNormalDelay } from '../human-motor.js';
+import { logNormalDelay, humanizedClick } from '../human-motor.js';
 
 export interface EventStoryProgress {
   episodeNumber: number;
@@ -55,9 +55,44 @@ export interface EventTokenGachaSummary {
   status: 'COMPLETED' | 'STOPPED' | 'DEPLETED' | 'FAILED';
 }
 
+export interface ResolvedEventInfo {
+  id: string;
+  type: 'treasureraid' | 'biography' | 'collaboration' | 'generic';
+  route: string;
+  url: string;
+  name: string;
+}
+
+export interface CollaborationQuestOptions {
+  eventId?: string;
+  mode?: 'sweep' | 'solo' | 'raid' | 'maniac' | 'hell';
+  difficulty?: 'vh' | 'ex' | 'ex_plus' | 'maniac' | 'hell' | string;
+  runs?: number;
+  autoReplenishAp?: boolean;
+  extraGroupId?: string;
+  onProgress?: (progress: {
+    questId: string;
+    questName: string;
+    difficulty?: string;
+    status: 'STARTING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
+    currentRun: number;
+    totalRuns: number;
+    message: string;
+  }) => void;
+}
+
+export interface CollaborationQuestSummary {
+  eventId: string;
+  mode: string;
+  questsCleared: number;
+  totalDurationMs: number;
+  status: 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'STOPPED';
+  history: Array<{ questId: string; questName: string; difficulty: string; status: string }>;
+}
+
 /**
  * EventEngine
- * Granblue Fantasy Story Event (treasureraid) Automation Engine.
+ * Granblue Fantasy Story Event (treasureraid & biography) Automation Engine.
  * Supports:
  * - Autonomous Main Story Clears (dialogue fast-skip + story combat)
  * - 1-Time Challenge Quest Clears (fixed party puzzle battle)
@@ -81,22 +116,133 @@ export class EventEngine {
     this.stopRequested = true;
   }
 
+  public async ensureViewportAndMobile(): Promise<void> {
+    try {
+      await this.page.setViewport({
+        width: 480,
+        height: 960,
+        deviceScaleFactor: 1,
+        isMobile: true,
+        hasTouch: true
+      });
+    } catch (err: any) {
+      console.warn('[EventEngine] Notice setting viewport:', err.message);
+    }
+  }
+
+  /**
+   * Resolves target event metadata and routing information.
+   * Universally handles monthly story events (treasureraidXXX), collaboration events (biographyXXX),
+   * and raw URLs / hashes (#event/biography045).
+   */
+  public async resolveEventInfo(explicitId?: string): Promise<ResolvedEventInfo> {
+    let clean = (explicitId || '').trim();
+
+    if (clean.includes('#')) {
+      clean = clean.split('#')[1] || '';
+    }
+    clean = clean.replace(/^\/+/, '');
+    if (clean.startsWith('event/')) {
+      clean = clean.substring(6);
+    }
+    clean = clean.split('/')[0];
+
+    if (clean.length > 0) {
+      if (clean.startsWith('biography')) {
+        return {
+          id: clean,
+          type: 'biography',
+          route: `event/${clean}/top`,
+          url: `https://game.granbluefantasy.jp/#event/${clean}/top`,
+          name: clean
+        };
+      }
+      if (clean.startsWith('treasureraid')) {
+        const num = clean.replace(/[^0-9]/g, '');
+        return {
+          id: num || clean,
+          type: 'treasureraid',
+          route: `event/${clean}`,
+          url: `https://game.granbluefantasy.jp/#event/${clean}`,
+          name: clean
+        };
+      }
+      if (/^\d+$/.test(clean)) {
+        const curr = this.page.url();
+        const bioMatch = curr.match(/#event\/(biography\d+)/);
+        if (bioMatch && bioMatch[1].endsWith(clean)) {
+          return {
+            id: bioMatch[1],
+            type: 'biography',
+            route: `event/${bioMatch[1]}/top`,
+            url: `https://game.granbluefantasy.jp/#event/${bioMatch[1]}/top`,
+            name: bioMatch[1]
+          };
+        }
+        return {
+          id: clean,
+          type: 'treasureraid',
+          route: `event/treasureraid${clean}`,
+          url: `https://game.granbluefantasy.jp/#event/treasureraid${clean}`,
+          name: `treasureraid${clean}`
+        };
+      }
+      return {
+        id: clean,
+        type: 'generic',
+        route: `event/${clean}`,
+        url: `https://game.granbluefantasy.jp/#event/${clean}`,
+        name: clean
+      };
+    }
+
+    const currentUrl = this.page.url();
+    const eventMatch = currentUrl.match(/#event\/([a-zA-Z0-9_-]+)/);
+    if (eventMatch && eventMatch[1]) {
+      const seg = eventMatch[1].split('/')[0];
+      if (seg.startsWith('biography')) {
+        return {
+          id: seg,
+          type: 'biography',
+          route: `event/${seg}/top`,
+          url: `https://game.granbluefantasy.jp/#event/${seg}/top`,
+          name: seg
+        };
+      }
+      if (seg.startsWith('treasureraid')) {
+        const num = seg.replace(/[^0-9]/g, '');
+        return {
+          id: num || seg,
+          type: 'treasureraid',
+          route: `event/${seg}`,
+          url: `https://game.granbluefantasy.jp/#event/${seg}`,
+          name: seg
+        };
+      }
+      return {
+        id: seg,
+        type: 'generic',
+        route: `event/${seg}`,
+        url: `https://game.granbluefantasy.jp/#event/${seg}`,
+        name: seg
+      };
+    }
+
+    return {
+      id: '177',
+      type: 'treasureraid',
+      route: 'event/treasureraid177',
+      url: 'https://game.granbluefantasy.jp/#event/treasureraid177',
+      name: 'treasureraid177'
+    };
+  }
+
   /**
    * Resolves target event ID (defaults to '177' or parses from current URL/hash).
    */
   public async resolveEventId(explicitId?: string): Promise<string> {
-    if (explicitId && explicitId.trim().length > 0) {
-      return explicitId.replace(/[^0-9]/g, '');
-    }
-
-    const currentUrl = this.page.url();
-    const match = currentUrl.match(/#event\/treasureraid(\d+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
-
-    // Default to the current active event ID (Farewell, Cold Heart = 177)
-    return '177';
+    const info = await this.resolveEventInfo(explicitId);
+    return info.id;
   }
 
   /**
@@ -126,14 +272,17 @@ export class EventEngine {
     onProgress?: (progress: EventStoryProgress) => void;
   }): Promise<EventStorySummary> {
     const startTime = Date.now();
-    const eventId = await this.resolveEventId(options?.eventId);
+    const eventInfo = await this.resolveEventInfo(options?.eventId);
+    const eventId = eventInfo.id;
     const maxEpisodes = options?.maxEpisodes || 40;
     const autoReplenishAp = options?.autoReplenishAp !== false;
 
+    await this.ensureViewportAndMobile();
+
     console.log('\n========================================================================');
-    console.log(`      📖 GBF Event Story Engine: treasureraid${eventId}                 `);
+    console.log(`      📖 GBF Event Story Engine: ${eventInfo.name}                 `);
     console.log('========================================================================');
-    console.log(`Target Event:     https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+    console.log(`Target Event:     ${eventInfo.url}`);
     console.log(`Max Episodes:     ${maxEpisodes}`);
     console.log(`Auto AP Restore:  ${autoReplenishAp ? 'ENABLED (Half-Elixir)' : 'DISABLED'}`);
     console.log('========================================================================\n');
@@ -144,7 +293,7 @@ export class EventEngine {
     const history: EventStoryProgress[] = [];
 
     // Navigate to event top page
-    const eventUrl = `https://game.granbluefantasy.jp/#event/treasureraid${eventId}`;
+    const eventUrl = eventInfo.url;
     await this.safeNavigate(eventUrl);
     
     // Wait for event page DOM or active quest card/modal to mount
@@ -387,7 +536,7 @@ export class EventEngine {
       }
 
       // If we previously entered the scene and now exited to result or event home, scene is concluded!
-      if (hasEnteredScene && (currentUrl.includes('result') || currentUrl.includes('#event/treasureraid') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#mypage'))) {
+      if (hasEnteredScene && (currentUrl.includes('result') || currentUrl.includes('#event/') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#mypage'))) {
         break;
       }
 
@@ -464,7 +613,7 @@ export class EventEngine {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const url = this.page.url();
-      if (url.includes('result') || url.includes('#event/treasureraid') || url.includes('#mypage')) {
+      if (url.includes('result') || url.includes('#event/') || url.includes('#mypage')) {
         return true;
       }
       await new Promise(r => setTimeout(r, 350));
@@ -473,17 +622,24 @@ export class EventEngine {
   }
 
   /**
-   * Activates Full Auto in battle.
+   * Activates Full Auto in battle via touchscreen coordinates and DOM trigger.
    */
   private async activateFullAuto(): Promise<void> {
-    await this.page.evaluate(() => {
-      const autoBtn = document.querySelector('.btn-auto, .btn-ability-auto') as HTMLElement;
-      if (autoBtn && !autoBtn.classList.contains('active')) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(autoBtn).trigger('tap');
-        autoBtn.click();
+    try {
+      const autoBtn = await this.page.$('.btn-auto, .btn-ability-auto');
+      if (autoBtn) {
+        const isAutoActive = await this.page.evaluate((el: any) => el?.classList?.contains('active') || false, autoBtn).catch(() => false);
+        if (!isAutoActive) {
+          await humanizedClick(this.page, autoBtn).catch(() => null);
+        }
       }
-    }).catch(() => null);
+
+      // Also trigger attack button if attack is available and active
+      const atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack.display-on, .btn-attack-start:not(.display-off)');
+      if (atkBtn) {
+        await humanizedClick(this.page, atkBtn).catch(() => null);
+      }
+    } catch {}
   }
 
   /**
@@ -498,6 +654,23 @@ export class EventEngine {
     sceneId: string;
   } | null> {
     return await this.page.evaluate(() => {
+      // Check if prologue opening card is present and unplayed
+      const openingCard = document.querySelector('.btn-quest-list.is-opening') as HTMLElement;
+      if (openingCard && !openingCard.classList.contains('ico-clear') && !openingCard.classList.contains('treasureraid-cleared')) {
+        const isCurrent = openingCard.classList.contains('ico-current') || openingCard.classList.contains('ico-new');
+        const hasOtherCurrent = document.querySelector('.btn-quest-list.ico-current:not(.is-opening)');
+        if (isCurrent || !hasOtherCurrent) {
+          return {
+            chapterId: '0',
+            questId: openingCard.dataset.questId || 'opening',
+            questName: 'Prologue Opening',
+            sceneOnly: '1',
+            ap: '0',
+            sceneId: openingCard.dataset.sceneId || ''
+          };
+        }
+      }
+
       const candidates = Array.from(document.querySelectorAll(
         '.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list, .btn-quest-list.lis-quest-list.main'
       )) as HTMLElement[];
@@ -549,9 +722,10 @@ export class EventEngine {
     // 2. Locate story card coordinates and tap via touchscreen
     const cardCoords = await this.page.evaluate(() => {
       const btn = document.querySelector(
-        '.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list, .btn-quest-list.lis-quest-list.main'
+        '.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list, .btn-quest-list.lis-quest-list.main, .btn-quest-list.is-opening'
       ) as HTMLElement;
       if (!btn) return null;
+      btn.scrollIntoView({ block: 'center' });
       const r = btn.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     }).catch(() => null);
@@ -562,9 +736,10 @@ export class EventEngine {
       // Fallback DOM click
       await this.page.evaluate(() => {
         const btn = document.querySelector(
-          '.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list, .btn-quest-list.lis-quest-list.main'
+          '.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .prt-main-quest .btn-quest-list, .btn-quest-list.lis-quest-list.main, .btn-quest-list.is-opening'
         ) as HTMLElement;
         if (btn) {
+          btn.scrollIntoView({ block: 'center' });
           const $ = (window as any).$ || (window as any).Zepto;
           try { if ($) $(btn).trigger('tap'); } catch {}
           try { btn.click(); } catch {}
@@ -572,33 +747,43 @@ export class EventEngine {
       }).catch(() => null);
     }
 
-    await logNormalDelay(500, 0.2);
+    await logNormalDelay(600, 0.2);
 
-    // 3. Immediately handle any modal that popped up from tapping the card
-    const postModalCoord = await this.page.evaluate(() => {
-      // Resume quest popup if appeared
-      const restartOk = document.querySelector('.popRestartQuest .btn-usual-ok') as HTMLElement;
-      if (restartOk && restartOk.offsetParent !== null) {
-        const r = restartOk.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2, type: 'restart' };
-      }
-      // Synopsis skip popup if appeared
-      const synopsisSkip = document.querySelector('.pop-synopsis .btn-scene-skip, .pop-usual .btn-scene-skip') as HTMLElement;
-      if (synopsisSkip && synopsisSkip.offsetParent !== null) {
-        const r = synopsisSkip.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2, type: 'synopsis' };
-      }
-      // Quest start button
-      const startOk = document.querySelector('.btn-usual-ok.se-quest-start') as HTMLElement;
-      if (startOk && startOk.offsetParent !== null) {
-        const r = startOk.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2, type: 'start' };
-      }
-      return null;
-    }).catch(() => null);
+    // 3. Await and immediately handle any modal that popped up from tapping the card (synopsis, continue, restart)
+    const tModalStart = Date.now();
+    while (Date.now() - tModalStart < 4000) {
+      if (this.isCutsceneActive() || this.isCombatRaidActive() || this.page.url().includes('result')) break;
 
-    if (postModalCoord) {
-      await this.page.touchscreen.tap(postModalCoord.x, postModalCoord.y).catch(() => null);
+      const postModalCoord = await this.page.evaluate(() => {
+        // Resume quest popup if appeared
+        const restartOk = document.querySelector('.popRestartQuest .btn-usual-ok') as HTMLElement;
+        if (restartOk && restartOk.offsetParent !== null) {
+          const r = restartOk.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2, type: 'restart' };
+        }
+        // Synopsis skip popup if appeared
+        const synopsisSkip = document.querySelector('.pop-synopsis .btn-scene-skip, .pop-usual .btn-scene-skip') as HTMLElement;
+        if (synopsisSkip && synopsisSkip.offsetParent !== null) {
+          const r = synopsisSkip.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2, type: 'synopsis' };
+        }
+        // Synopsis or continue quest start button
+        const startOk = document.querySelector(
+          '.pop-synopsis .btn-usual-ok, .pop-continue-quest-comfirm .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, .btn-usual-ok.se-quest-start, .pop-usual .btn-usual-ok'
+        ) as HTMLElement;
+        if (startOk && startOk.offsetParent !== null) {
+          const r = startOk.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2, type: 'start' };
+        }
+        return null;
+      }).catch(() => null);
+
+      if (postModalCoord) {
+        await this.page.touchscreen.tap(postModalCoord.x, postModalCoord.y).catch(() => null);
+        await logNormalDelay(600, 0.2);
+        break;
+      }
+      await new Promise(r => setTimeout(r, 250));
     }
 
     return true;
@@ -610,20 +795,27 @@ export class EventEngine {
   public async isStoryFullyCleared(): Promise<boolean> {
     return await this.page.evaluate(() => {
       // 1. Check if ending card is cleared
-      const endingCard = document.querySelector('.btn-quest-list[data-chapter-id*="7"], .btn-quest-list.main[data-chapter-id*="7"]');
+      const endingCard = document.querySelector(
+        '.btn-quest-list.ending, .btn-quest-list.is-ending, .btn-quest-list[data-chapter-id*="7"], .btn-quest-list.main[data-chapter-id*="7"], .btn-quest-list[data-chapter-id*="ending"]'
+      );
       if (endingCard && (endingCard.classList.contains('ico-clear') || endingCard.classList.contains('treasureraid-cleared'))) {
         return true;
       }
 
-      // 2. Check if all main story cards have clear badges
-      const storyCards = Array.from(document.querySelectorAll('.btn-quest-list.lis-quest-list.main.type-treasureraid-top, .btn-quest-list.main.is-opening'));
+      // 2. Check if any in-progress / unread card exists
+      const inProgress = document.querySelector('.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress, .btn-quest-list.ico-new');
+      if (inProgress) return false;
+
+      // 3. Check if all main story cards have clear badges
+      const storyCards = Array.from(document.querySelectorAll(
+        '.btn-quest-list.lis-quest-list.main.type-treasureraid-top, .btn-quest-list.lis-quest-list.main'
+      ));
       if (storyCards.length > 0 && storyCards.every(c => c.classList.contains('ico-clear') || c.classList.contains('treasureraid-cleared'))) {
         return true;
       }
 
-      // 3. Fallback: If battle list is directly unlocked and no in-progress main story card exists
-      const inProgress = document.querySelector('.btn-quest-list.ico-current, .btn-quest-list.treasureraid-in-progress');
-      const battleQuests = document.querySelector('.prt-battle-quest, .cnt-quest.battle, .btn-event-battle, .btn-event-raid');
+      // 4. Fallback: If battle list is directly unlocked and no in-progress main story card exists
+      const battleQuests = document.querySelector('.prt-battle-quest, .cnt-quest.battle, .btn-event-battle, .btn-event-raid, .prt-raid-quest');
       const textCleared = document.body.innerText.includes('Ending Cleared') || document.body.innerText.includes('All chapters cleared');
 
       return !inProgress && (!!battleQuests || textCleared);
@@ -635,7 +827,9 @@ export class EventEngine {
    */
   private async handleSynopsisSkipIfPresent(): Promise<boolean> {
     const coords = await this.page.evaluate(() => {
-      const skipBtn = document.querySelector('.pop-synopsis .btn-scene-skip, .btn-scene-skip, .pop-usual .btn-scene-skip') as HTMLElement;
+      const skipBtn = document.querySelector(
+        '.pop-synopsis .btn-scene-skip, .pop-usual .btn-scene-skip, .pop-synopsis .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, .btn-scene-skip'
+      ) as HTMLElement;
       if (skipBtn && skipBtn.offsetParent !== null) {
         const r = skipBtn.getBoundingClientRect();
         return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -668,24 +862,38 @@ export class EventEngine {
   }
 
   /**
-   * Selects the first visible supporter summon.
+   * Selects the first visible supporter summon across elemental containers.
    */
-  private async selectFirstSupporter(timeoutMs = 8000): Promise<boolean> {
+  private async selectFirstSupporter(timeoutMs = 12000): Promise<boolean> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      const selected = await this.page.evaluate(() => {
-        const supporter = document.querySelector('.btn-supporter, .lis-supporter, .prt-supporter-detail') as HTMLElement;
-        if (supporter && supporter.offsetParent !== null) {
+      if (this.stopRequested) return false;
+
+      const coords = await this.page.evaluate(() => {
+        const containers = Array.from(document.querySelectorAll('.prt-supporter-attribute'));
+        const visibleContainer = containers.find(
+          c => (c as HTMLElement).offsetParent !== null && window.getComputedStyle(c).display !== 'none'
+        );
+        const supporter =
+          visibleContainer?.querySelector('.btn-supporter') ||
+          document.querySelector('.btn-autoselect-supporter') ||
+          Array.from(document.querySelectorAll('.btn-supporter')).find(el => (el as HTMLElement).offsetParent !== null);
+
+        if (supporter) {
+          const r = (supporter as HTMLElement).getBoundingClientRect();
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(supporter).trigger('tap');
-          supporter.click();
-          return true;
+          (supporter as HTMLElement).click();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
         }
-        return false;
-      }).catch(() => false);
+        return null;
+      }).catch(() => null);
 
-      if (selected) return true;
-      await new Promise(r => setTimeout(r, 300));
+      if (coords && coords.x && coords.y) {
+        await this.page.touchscreen.tap(coords.x, coords.y).catch(() => null);
+        return true;
+      }
+      await new Promise(r => setTimeout(r, 400));
     }
     return false;
   }
@@ -803,6 +1011,7 @@ export class EventEngine {
    */
   private async safeNavigate(targetUrl: string): Promise<void> {
     const hash = targetUrl.includes('#') ? targetUrl.substring(targetUrl.indexOf('#')) : '';
+    const route = hash.replace(/^#/, '');
     console.log(`[EventEngine] Navigating to: ${targetUrl}...`);
 
     // Ensure GBF core runtime is ready before changing hash
@@ -810,19 +1019,43 @@ export class EventEngine {
       return (window as any).Game || document.querySelector('.cnt-mypage, .prt-header, #ready, .prt-user-info') !== null;
     }).catch(() => false);
 
-    await this.page.evaluate((destHash: string) => {
+    // Try Backbone navigate first (cleanest route change in GBF)
+    await this.page.evaluate((r: string, h: string) => {
       try {
-        if (destHash) {
-          window.location.hash = destHash;
+        const bb = (window as any).Backbone;
+        if (bb && bb.history) {
+          bb.history.navigate(r, { trigger: true });
+          return;
         }
-      } catch {}
-    }, hash).catch(() => null);
+        window.location.hash = h;
+      } catch {
+        window.location.hash = h;
+      }
+    }, route, hash).catch(() => null);
 
-    // Wait for hash to apply and event DOM to mount
+    // Wait for hash to apply
     const tWait = Date.now();
-    while (Date.now() - tWait < 12000) {
+    let routeApplied = false;
+    while (Date.now() - tWait < 4000) {
+      routeApplied = await this.page.evaluate((targetRoute: string) => {
+        const currentHash = window.location.hash.replace(/^#/, '');
+        return currentHash.includes(targetRoute) || ((window as any).Backbone?.history?.fragment || '').includes(targetRoute);
+      }, route).catch(() => false);
+      if (routeApplied) break;
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Fallback if hash did not switch (e.g. Backbone router frozen)
+    if (!routeApplied && !this.page.url().includes(route)) {
+      console.log(`[EventEngine] Route transition pending, loading URL via page.goto...`);
+      await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch(() => null);
+    }
+
+    // Wait for event DOM or quest container to mount (note: do NOT check .pop-usual as it is statically present everywhere)
+    const tMount = Date.now();
+    while (Date.now() - tMount < 10000) {
       const ready = await this.page.evaluate(() => {
-        return !!document.querySelector('.btn-quest-list, .prt-main-quest, .cnt-quest, .popRestartQuest, .pop-usual');
+        return !!document.querySelector('.btn-quest-list, .prt-main-quest, .cnt-quest, .cnt-list-layout, .lis-event-list, .cnt-event, .popRestartQuest');
       }).catch(() => false);
       if (ready) break;
       await new Promise(r => setTimeout(r, 400));
@@ -856,6 +1089,7 @@ export class EventEngine {
 
   /**
    * Waits for combat battle to conclude and reach result screen.
+   * Auto-detects server victory (boss hp 0 / finish flag) and reloads instantly to skip slow animations.
    */
   private async waitForBattleEnd(timeoutMs = 180000): Promise<boolean> {
     const start = Date.now();
@@ -864,20 +1098,47 @@ export class EventEngine {
       await this.sentinel.assertSafe();
 
       const url = this.page.url();
-      if (url.includes('result') || url.includes('#event/treasureraid') || url.includes('#mypage')) {
+      if (url.includes('result')) {
         return true;
       }
 
-      const hasResult = await this.page.evaluate(() => {
-        return !!document.querySelector('.cnt-result, .pop-usual, .btn-result-next, .flex-next');
-      }).catch(() => false);
+      const stageStatus = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        const g = stage?.gGameStatus;
+        const isFinalWave = !g?.totalwave || g?.wave === g?.totalwave;
+        const hasBosses = Array.isArray(g?.boss?.param) && g.boss.param.length > 0;
+        const allBossesDead = hasBosses && g.boss.param.every((b: any) => (Number(b.hp) === 0 || Number(b.alive) === 0) && Number(b.hpmax) > 0);
+        const isEnded = g?.finish === true || (isFinalWave && allBossesDead);
+        const hasResult = !!document.querySelector('.cnt-result, .pop-usual, .btn-result-next, .flex-next');
+        const canAttack = !!document.querySelector('.btn-attack-start:not(.display-off)');
+        return { isEnded, hasResult, canAttack, attacking: g?.attacking };
+      }).catch(() => null);
 
-      if (hasResult) return true;
+      if (stageStatus?.hasResult) return true;
+
+      // Only fast-reload if we're past the initial battle mount delay (> 2000ms)
+      if (stageStatus?.isEnded && (Date.now() - start > 2000)) {
+        console.log('[EventEngine] 🎉 Boss defeated on server! Fast-reloading to result screen...');
+        await this.page.reload().catch(() => null);
+        await new Promise(r => setTimeout(r, 2500));
+        return true;
+      }
+
+      // If attack button ready and not currently attacking, tap Attack / engage auto
+      if (stageStatus?.canAttack && !stageStatus?.attacking) {
+        const atkBtn = await this.page.$('.btn-attack-start:not(.display-off)');
+        if (atkBtn) {
+          const box = await atkBtn.boundingBox();
+          if (box && box.width > 0) {
+            await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
+          }
+        }
+      }
 
       // Keep full auto active if it turned off somehow
       await this.activateFullAuto();
 
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1200));
     }
     return false;
   }
@@ -977,10 +1238,10 @@ export class EventEngine {
    * Clears the event Challenge Quest (1-time clear for 3x Blue Sky Crystals / Draw Ticket).
    */
   public async runClearChallengeQuest(eventIdExplicit?: string): Promise<{ status: 'SUCCESS' | 'ALREADY_CLEARED' | 'NOT_AVAILABLE'; message: string }> {
-    const eventId = await this.resolveEventId(eventIdExplicit);
-    console.log(`\n[EventEngine] 🎯 Checking Challenge Quest for treasureraid${eventId}...`);
+    const eventInfo = await this.resolveEventInfo(eventIdExplicit);
+    console.log(`\n[EventEngine] 🎯 Checking Challenge Quest for ${eventInfo.name}...`);
 
-    await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}/challenge`);
+    await this.safeNavigate(`https://game.granbluefantasy.jp/#${eventInfo.route}/challenge`);
     await logNormalDelay(1500, 0.2);
 
     const challengeCard = await this.page.evaluate(() => {
@@ -1042,13 +1303,820 @@ export class EventEngine {
   }
 
   /**
+   * Navigates to the collaboration extra quest hub (e.g. #quest/extra/event/6045).
+   * Also verifies and clicks the Event category tab if on #quest/extra.
+   */
+  public async navigateToEventExtraQuests(extraGroupId = '6045'): Promise<boolean> {
+    await this.ensureViewportAndMobile();
+    const targetUrl = `https://game.granbluefantasy.jp/#quest/extra/event/${extraGroupId}`;
+
+    if (!this.page.url().includes(`#quest/extra/event/${extraGroupId}`)) {
+      console.log(`[EventEngine] Navigating to Extra Quest Event hub: ${targetUrl}...`);
+      await this.safeNavigate(targetUrl);
+    }
+
+    // Await either event banners or tab
+    const t0 = Date.now();
+    while (Date.now() - t0 < 12000) {
+      if (this.stopRequested) return false;
+      const ready = await this.page.evaluate((groupId: string) => {
+        const banners = document.querySelectorAll(`.lis-event-list.event-id-${groupId}, .lis-event-list.extra`);
+        if (banners.length > 0) return true;
+        const eventTab = document.querySelector('.btn-tabs.event-general') as HTMLElement;
+        if (eventTab && !eventTab.classList.contains('active')) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(eventTab).trigger('tap');
+          eventTab.click();
+        }
+        return false;
+      }, extraGroupId).catch(() => false);
+
+      if (ready) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    // Handle any suspended quest resume dialog if actually shown
+    const resumeOk = await this.page.$('.popRestartQuest.pop-show .btn-usual-ok');
+    if (resumeOk) {
+      const rBox = await resumeOk.boundingBox();
+      if (rBox && rBox.width > 0 && rBox.height > 0) {
+        console.log('[EventEngine] Detected suspended quest prompt (popRestartQuest). Resuming to finish...');
+        await this.page.touchscreen.tap(rBox.x + rBox.width / 2, rBox.y + rBox.height / 2);
+        await logNormalDelay(1500, 0.2);
+        await this.activateFullAuto();
+        await this.waitForBattleEnd(180000);
+        await this.dismissPopupsAndResults();
+        await this.safeNavigate(targetUrl);
+      }
+    }
+
+    await logNormalDelay(600, 0.15);
+    return true;
+  }
+
+  /**
+   * Universal battle flow for single/multi/hell collaboration quests:
+   * Selects supporter summon -> handles AP restore -> clicks Start battle -> Full Auto -> awaits victory -> sweeps results.
+   */
+  public async executeCollaborationBattleFlow(autoReplenishAp = true): Promise<boolean> {
+    // 0. Handle quest confirmation modal (.pop-confirm-battle), suspended battle (.popRestartQuest), or AP recovery before supporter screen
+    const tConfirm = Date.now();
+    while (Date.now() - tConfirm < 8000) {
+      if (this.stopRequested) return false;
+      if (this.page.url().includes('supporter') || this.isCombatRaidActive() || this.page.url().includes('#raid/')) break;
+
+      // Check AP replenishment
+      await this.handleApRecoveryIfPresent(autoReplenishAp);
+
+      // Handle suspended quest prompt (.popRestartQuest)
+      const restartBtn = await this.page.$('.popRestartQuest.pop-show .btn-usual-ok');
+      if (restartBtn) {
+        const box = await restartBtn.boundingBox();
+        if (box && box.width > 0) {
+          console.log('[EventEngine] Detected suspended quest prompt (.popRestartQuest). Resuming battle...');
+          await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
+          await this.page.evaluate(() => {
+            const btn = document.querySelector('.popRestartQuest.pop-show .btn-usual-ok') as HTMLElement;
+            if (btn && btn.offsetParent !== null) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              btn.click();
+            }
+          }).catch(() => null);
+          await logNormalDelay(1500, 0.2);
+          break;
+        }
+      }
+
+      // Handle .pop-confirm-battle
+      const confirmBtn = await this.page.$('.pop-confirm-battle.pop-show .btn-usual-ok');
+      if (confirmBtn) {
+        const box = await confirmBtn.boundingBox();
+        if (box && box.width > 0) {
+          console.log('[EventEngine] Detected battle confirmation popup (.pop-confirm-battle). Confirming...');
+          await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
+          await this.page.evaluate(() => {
+            const btn = document.querySelector('.pop-confirm-battle.pop-show .btn-usual-ok') as HTMLElement;
+            if (btn && btn.offsetParent !== null) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              btn.click();
+            }
+          }).catch(() => null);
+          await logNormalDelay(1000, 0.2);
+          break;
+        }
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    // 1. Wait for supporter screen or battle directly
+    const tSupporter = Date.now();
+    while (Date.now() - tSupporter < 15000) {
+      if (this.stopRequested) return false;
+      if (this.page.url().includes('supporter') || this.isCombatRaidActive() || this.page.url().includes('#raid/')) break;
+
+      // Check confirm button or suspended prompt one more time if still not moved
+      const confirmBtn = await this.page.$('.pop-confirm-battle.pop-show .btn-usual-ok, .popRestartQuest.pop-show .btn-usual-ok');
+      if (confirmBtn) {
+        const box = await confirmBtn.boundingBox();
+        if (box && box.width > 0) {
+          await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
+        }
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    if (this.page.url().includes('supporter')) {
+      // 2. Select supporter summon
+      console.log('[EventEngine] Selecting supporter summon...');
+      const supporterOk = await this.selectFirstSupporter();
+      if (!supporterOk) {
+        console.warn('[EventEngine] Could not select supporter summon.');
+      }
+      await logNormalDelay(800, 0.15);
+
+      // 3. Wait for party prompt (.pop_party) or start button (.se-quest-start)
+      const tPrompt = Date.now();
+      while (Date.now() - tPrompt < 8000) {
+        if (this.stopRequested) return false;
+
+        const partyCancel = await this.page.$('.pop-usual.pop_party.pop-show .btn-usual-cancel, .pop-usual.pop_party .btn-usual-cancel, .pop_party .btn-usual-cancel');
+        if (partyCancel) {
+          console.log('[EventEngine] Detected party members prompt. Dismissing to proceed with current party...');
+          const box = await partyCancel.boundingBox();
+          if (box && box.width > 0) {
+            await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
+          }
+          await this.page.evaluate(() => {
+            const btn = document.querySelector('.pop-usual.pop_party .btn-usual-cancel, .pop_party .btn-usual-cancel') as HTMLElement;
+            if (btn) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              btn.click();
+            }
+          }).catch(() => null);
+          await logNormalDelay(800, 0.15);
+          break;
+        }
+
+        const startVisible = await this.page.evaluate(() => {
+          const s = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start') as HTMLElement;
+          return !!(s && s.offsetParent !== null);
+        }).catch(() => false);
+        if (startVisible) break;
+
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      // 4. Handle AP restoration if needed
+      const apOk = await this.handleApRecoveryIfPresent(autoReplenishAp);
+      if (!apOk) {
+        console.warn('[EventEngine] Insufficient AP for quest.');
+        return false;
+      }
+      await logNormalDelay(400, 0.15);
+
+      // 5. Confirm Start Battle modal with polling wait
+      const okBtn = await this.page.waitForSelector('.btn-usual-ok.se-quest-start, .se-quest-start', { visible: true, timeout: 8000 }).catch(() => null);
+      if (okBtn) {
+        const box = await okBtn.boundingBox();
+        if (box && box.width > 0) {
+          await this.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => null);
+        }
+      }
+
+      // Fallback: If start button still present, click via DOM
+      await this.page.evaluate(() => {
+        const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start') as HTMLElement;
+        if (ok && ok.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(ok).trigger('tap');
+          ok.click();
+        }
+      }).catch(() => null);
+    }
+
+    // If redirected to #party/index, handle return
+    if (this.page.url().includes('party/index')) {
+      console.log('[EventEngine] Detected #party/index. Returning to quest flow...');
+      await this.page.evaluate(() => {
+        const link = document.querySelector('.btn-link.quest, .btn-treasure-footer-back') as HTMLElement;
+        if (link) link.click();
+        else window.history.back();
+      }).catch(() => null);
+      await logNormalDelay(1500, 0.2);
+    }
+
+    // 6. Wait for combat raid to mount
+    console.log('[EventEngine] Waiting for combat raid UI to mount...');
+    const inBattle = await this.waitForBattleStart(30000);
+    if (!inBattle) {
+      console.warn('[EventEngine] Battle did not start within timeout.');
+      return false;
+    }
+
+    // 7. Activate Full Auto
+    console.log('[EventEngine] Activating Full Auto...');
+    await this.activateFullAuto();
+
+    // 8. Await victory (auto fast-reloads on boss defeat to skip animations)
+    console.log('[EventEngine] Awaiting victory...');
+    const victory = await this.waitForBattleEnd(180000);
+    if (!victory) {
+      console.warn('[EventEngine] Battle timed out.');
+      return false;
+    }
+
+    // 9. Sweep victory results
+    console.log('[EventEngine] Sweeping rewards and result screens...');
+    await this.dismissPopupsAndResults();
+    return true;
+  }
+
+  /**
+   * Master Autonomous Runner for Collaboration Event Quests (#quest/extra/event/XXXX).
+   * Fully supports:
+   * - First Clear Sweep across all Solo & Raid difficulties (collecting all first-clear Crystals)
+   * - Solo Quest Farming Loop (Very Hard, Extreme, Extreme+)
+   * - Raid Quest Hosting Loop (Very Hard Multi, Extreme Multi, Extreme+ Multi)
+   * - Daily Maniac Solo Clears (2/2 daily limit)
+   * - Nightmare (HELL) Detection and Autonomous Clearance
+   */
+  public async runClearCollaborationQuests(options: CollaborationQuestOptions = {}): Promise<CollaborationQuestSummary> {
+    const {
+      eventId = 'biography045',
+      mode = 'sweep',
+      difficulty = 'ex',
+      runs = 1,
+      autoReplenishAp = true,
+      extraGroupId = '6045',
+      onProgress
+    } = options;
+
+    const startTime = Date.now();
+    const history: Array<{ questId: string; questName: string; difficulty: string; status: string }> = [];
+    let questsCleared = 0;
+
+    console.log('\n========================================================================');
+    console.log(`      ⚔️ Granblue Fantasy - Collaboration Quest Engine                  `);
+    console.log(`      Event: ${eventId} | Extra Group: ${extraGroupId}                 `);
+    console.log(`      Mode:  ${mode.toUpperCase()} | Target Difficulty: ${difficulty.toUpperCase()} | Runs: ${runs} `);
+    console.log('========================================================================\n');
+
+    await this.ensureViewportAndMobile();
+
+    const closeModal = async () => {
+      await this.page.evaluate(() => {
+        const closeBtn = document.querySelector('.pop-usual.pop-show .btn-usual-close, .pop-usual.pop-show .btn-close') as HTMLElement;
+        if (closeBtn) closeBtn.click();
+      }).catch(() => null);
+      await logNormalDelay(600, 0.15);
+    };
+
+    if (mode === 'sweep') {
+      console.log('[EventEngine] 🚀 Starting First-Clear Sweep for collaboration quests...');
+
+      // 1. Solo Quests Sweep
+      let soloSweepDone = false;
+      while (!soloSweepDone && !this.stopRequested) {
+        await this.navigateToEventExtraQuests(extraGroupId);
+        await closeModal();
+
+        const opened = await this.page.evaluate((groupId: string) => {
+          const banner = document.querySelector(`.lis-event-list.extra.event-id-${groupId}:not(.solo-multi):not(.is-select-hell) .btn-stage-detail, .lis-event-list.extra:not(.solo-multi):not(.is-select-hell) .btn-stage-detail`) as HTMLElement;
+          if (!banner) return false;
+          banner.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(banner).trigger('tap');
+          banner.click();
+          return true;
+        }, extraGroupId).catch(() => false);
+
+        if (!opened) {
+          console.warn('[EventEngine] Solo banner not found.');
+          break;
+        }
+
+        let modal = await this.page.waitForSelector('.pop-quest-detail.pop-show:not(.solo-multi)', { timeout: 6000 }).catch(() => null);
+        if (!modal) {
+          await this.page.evaluate((groupId: string) => {
+            const banner = document.querySelector(`.lis-event-list.extra.event-id-${groupId}:not(.solo-multi):not(.is-select-hell) .btn-stage-detail, .lis-event-list.extra:not(.solo-multi):not(.is-select-hell) .btn-stage-detail`) as HTMLElement;
+            if (banner) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(banner).trigger('tap');
+              banner.click();
+            }
+          }, extraGroupId).catch(() => null);
+          modal = await this.page.waitForSelector('.pop-quest-detail.pop-show:not(.solo-multi)', { timeout: 6000 }).catch(() => null);
+        }
+        await logNormalDelay(600, 0.15);
+
+        const newQuest = await this.page.evaluate(() => {
+          const modal = document.querySelector('.pop-quest-detail.pop-show:not(.solo-multi)');
+          const btns = Array.from(modal?.querySelectorAll('.btn-set-quest') || []) as HTMLElement[];
+          const newBtn = btns.find(b => {
+            const parent = b.closest('.lis-quest') || b.parentElement;
+            return b.classList.contains('ico-new') || !!parent?.querySelector('.ico-new');
+          });
+          if (!newBtn) return null;
+          newBtn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(newBtn).trigger('tap');
+          newBtn.click();
+          const r = newBtn.getBoundingClientRect();
+          return {
+            questId: newBtn.getAttribute('data-quest-id') || '',
+            chapterId: newBtn.getAttribute('data-chapter-id') || '',
+            difficulty: newBtn.getAttribute('data-difficulty') || '',
+            name: newBtn.getAttribute('data-chapter-name') || 'Solo Quest',
+            x: r.left + r.width / 2,
+            y: r.top + r.height / 2
+          };
+        }).catch(() => null);
+
+        if (!newQuest) {
+          console.log('[EventEngine] ✅ All available Solo Quests cleared (no new quests remaining).');
+          await closeModal();
+          soloSweepDone = true;
+          break;
+        }
+
+        console.log(`\n[EventEngine] [Solo Sweep] Starting NEW Quest: "${newQuest.name}" (ID: ${newQuest.questId}, Diff: ${newQuest.difficulty})...`);
+        onProgress?.({ questId: newQuest.questId, questName: newQuest.name, difficulty: newQuest.difficulty, status: 'STARTING', currentRun: questsCleared + 1, totalRuns: -1, message: 'Starting quest' });
+
+        await logNormalDelay(600, 0.15);
+
+        const ok = await this.executeCollaborationBattleFlow(autoReplenishAp);
+        if (ok) {
+          questsCleared++;
+          history.push({ questId: newQuest.questId, questName: newQuest.name, difficulty: newQuest.difficulty, status: 'SUCCESS' });
+          onProgress?.({ questId: newQuest.questId, questName: newQuest.name, difficulty: newQuest.difficulty, status: 'SUCCESS', currentRun: questsCleared, totalRuns: -1, message: 'First clear victory' });
+        } else {
+          history.push({ questId: newQuest.questId, questName: newQuest.name, difficulty: newQuest.difficulty, status: 'FAILED' });
+          break;
+        }
+      }
+
+      // 2. Raid Quests Sweep
+      let raidSweepDone = false;
+      while (!raidSweepDone && !this.stopRequested) {
+        await this.navigateToEventExtraQuests(extraGroupId);
+        await closeModal();
+
+        const opened = await this.page.evaluate((groupId: string) => {
+          const banner = document.querySelector(`.lis-event-list.extra.solo-multi.event-id-${groupId} .btn-stage-detail, .lis-event-list.extra.solo-multi .btn-stage-detail`) as HTMLElement;
+          if (!banner) return false;
+          banner.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(banner).trigger('tap');
+          banner.click();
+          return true;
+        }, extraGroupId).catch(() => false);
+
+        if (!opened) {
+          console.warn('[EventEngine] Raid banner not found.');
+          break;
+        }
+
+        let modal = await this.page.waitForSelector('.pop-quest-detail.solo-multi.pop-show', { timeout: 6000 }).catch(() => null);
+        if (!modal) {
+          await this.page.evaluate((groupId: string) => {
+            const banner = document.querySelector(`.lis-event-list.extra.solo-multi.event-id-${groupId} .btn-stage-detail, .lis-event-list.extra.solo-multi .btn-stage-detail`) as HTMLElement;
+            if (banner) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(banner).trigger('tap');
+              banner.click();
+            }
+          }, extraGroupId).catch(() => null);
+          modal = await this.page.waitForSelector('.pop-quest-detail.solo-multi.pop-show', { timeout: 6000 }).catch(() => null);
+        }
+        await logNormalDelay(600, 0.15);
+
+        const newRaid = await this.page.evaluate(() => {
+          const modal = document.querySelector('.pop-quest-detail.solo-multi.pop-show');
+          const btns = Array.from(modal?.querySelectorAll('.btn-set-quest') || []) as HTMLElement[];
+          const newBtn = btns.find(b => {
+            const parent = b.closest('.lis-quest') || b.parentElement;
+            return b.classList.contains('ico-new') || !!parent?.querySelector('.ico-new');
+          });
+          if (!newBtn) return null;
+          newBtn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(newBtn).trigger('tap');
+          newBtn.click();
+          const r = newBtn.getBoundingClientRect();
+          return {
+            questId: newBtn.getAttribute('data-quest-id') || '',
+            chapterId: newBtn.getAttribute('data-chapter-id') || '',
+            difficulty: newBtn.getAttribute('data-difficulty') || '',
+            name: newBtn.getAttribute('data-chapter-name') || 'Raid Quest',
+            x: r.left + r.width / 2,
+            y: r.top + r.height / 2
+          };
+        }).catch(() => null);
+
+        if (!newRaid) {
+          console.log('[EventEngine] ✅ All available Raid Quests cleared (no new raids remaining).');
+          await closeModal();
+          raidSweepDone = true;
+          break;
+        }
+
+        console.log(`\n[EventEngine] [Raid Sweep] Starting NEW Raid: "${newRaid.name}" (ID: ${newRaid.questId}, Diff: ${newRaid.difficulty})...`);
+        onProgress?.({ questId: newRaid.questId, questName: newRaid.name, difficulty: newRaid.difficulty, status: 'STARTING', currentRun: questsCleared + 1, totalRuns: -1, message: 'Starting raid' });
+
+        await logNormalDelay(600, 0.15);
+
+        const ok = await this.executeCollaborationBattleFlow(autoReplenishAp);
+        if (ok) {
+          questsCleared++;
+          history.push({ questId: newRaid.questId, questName: newRaid.name, difficulty: newRaid.difficulty, status: 'SUCCESS' });
+          onProgress?.({ questId: newRaid.questId, questName: newRaid.name, difficulty: newRaid.difficulty, status: 'SUCCESS', currentRun: questsCleared, totalRuns: -1, message: 'First clear victory' });
+        } else {
+          history.push({ questId: newRaid.questId, questName: newRaid.name, difficulty: newRaid.difficulty, status: 'FAILED' });
+          break;
+        }
+      }
+
+      // 3. Check for Nightmare (HELL) proc
+      await this.navigateToEventExtraQuests(extraGroupId);
+      await this.runClearCollaborationHellIfPresent(extraGroupId, autoReplenishAp);
+
+    } else if (mode === 'solo') {
+      console.log(`[EventEngine] 🌾 Starting Solo Quest Farm Loop: Difficulty "${difficulty.toUpperCase()}", Target Runs: ${runs}...`);
+      for (let r = 1; r <= runs; r++) {
+        if (this.stopRequested) break;
+        await this.navigateToEventExtraQuests(extraGroupId);
+        await closeModal();
+
+        const hellCleared = await this.runClearCollaborationHellIfPresent(extraGroupId, autoReplenishAp);
+        if (hellCleared) {
+          await this.navigateToEventExtraQuests(extraGroupId);
+          await closeModal();
+        }
+
+        await this.page.waitForSelector(`.lis-event-list.extra.event-id-${extraGroupId}, .lis-event-list.extra`, { timeout: 8000 }).catch(() => null);
+        await logNormalDelay(500, 0.15);
+
+        const opened = await this.page.evaluate((groupId: string) => {
+          const banner = document.querySelector(`.lis-event-list.extra.event-id-${groupId}:not(.solo-multi):not(.is-select-hell) .btn-stage-detail, .lis-event-list.extra:not(.solo-multi):not(.is-select-hell) .btn-stage-detail`) as HTMLElement;
+          if (!banner) return false;
+          banner.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(banner).trigger('tap');
+          banner.click();
+          return true;
+        }, extraGroupId).catch(() => false);
+
+        if (!opened) {
+          console.warn('[EventEngine] Solo banner not found.');
+          break;
+        }
+
+        let modalFound = await this.page.waitForSelector('.pop-quest-detail.pop-show:not(.solo-multi)', { timeout: 6000 }).catch(() => null);
+        if (!modalFound) {
+          await this.page.evaluate((groupId: string) => {
+            const banner = document.querySelector(`.lis-event-list.extra.event-id-${groupId}:not(.solo-multi):not(.is-select-hell) .btn-stage-detail, .lis-event-list.extra:not(.solo-multi):not(.is-select-hell) .btn-stage-detail`) as HTMLElement;
+            if (banner) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(banner).trigger('tap');
+              banner.click();
+            }
+          }, extraGroupId).catch(() => null);
+          modalFound = await this.page.waitForSelector('.pop-quest-detail.pop-show:not(.solo-multi)', { timeout: 6000 }).catch(() => null);
+        }
+        await logNormalDelay(600, 0.15);
+
+        const targetDiff = difficulty === 'vh' ? '3' : difficulty === 'ex_plus' ? '9' : (difficulty === 'maniac' ? '6' : '4');
+        const targetQuest = await this.page.evaluate((diff: string, diffName: string) => {
+          const modal = document.querySelector('.pop-quest-detail.pop-show:not(.solo-multi)');
+          if (!modal) return null;
+          const btns = Array.from(modal.querySelectorAll('.btn-set-quest')) as HTMLElement[];
+          let btn = btns.find(b => b.getAttribute('data-difficulty') === diff);
+          if (!btn) {
+            if (diffName === 'vh') btn = btns.find(b => (b.getAttribute('data-chapter-name') || '').includes('15') || (b.innerText || '').includes('Very Hard'));
+            else if (diffName === 'ex') btn = btns.find(b => (b.getAttribute('data-chapter-name') || '').includes('50') || (b.innerText || '').includes('Extreme'));
+            else if (diffName === 'ex_plus') btn = btns.find(b => (b.getAttribute('data-chapter-name') || '').includes('60') || (b.innerText || '').includes('Extreme+'));
+            else if (diffName === 'maniac') btn = btns.find(b => (b.getAttribute('data-chapter-name') || '').includes('75') || (b.innerText || '').includes('Maniac'));
+          }
+          if (!btn) return null;
+          btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(btn).trigger('tap');
+          btn.click();
+          const r = btn.getBoundingClientRect();
+          return {
+            questId: btn.getAttribute('data-quest-id') || '',
+            name: btn.getAttribute('data-chapter-name') || 'Solo Quest',
+            x: r.left + r.width / 2,
+            y: r.top + r.height / 2
+          };
+        }, targetDiff, difficulty).catch(() => null);
+
+        if (!targetQuest) {
+          console.warn(`[EventEngine] Solo quest with difficulty ${difficulty} not found!`);
+          break;
+        }
+
+        console.log(`\n[EventEngine] [Run ${r}/${runs}] Starting Solo: "${targetQuest.name}"...`);
+        onProgress?.({ questId: targetQuest.questId, questName: targetQuest.name, difficulty, status: 'STARTING', currentRun: r, totalRuns: runs, message: 'Starting run' });
+
+        await logNormalDelay(600, 0.15);
+
+        const ok = await this.executeCollaborationBattleFlow(autoReplenishAp);
+        if (ok) {
+          questsCleared++;
+          history.push({ questId: targetQuest.questId, questName: targetQuest.name, difficulty, status: 'SUCCESS' });
+          onProgress?.({ questId: targetQuest.questId, questName: targetQuest.name, difficulty, status: 'SUCCESS', currentRun: r, totalRuns: runs, message: 'Victory' });
+        } else {
+          history.push({ questId: targetQuest.questId, questName: targetQuest.name, difficulty, status: 'FAILED' });
+          break;
+        }
+      }
+
+    } else if (mode === 'raid') {
+      console.log(`[EventEngine] 🤝 Starting Raid Host Loop: Target Runs: ${runs}...`);
+      for (let r = 1; r <= runs; r++) {
+        if (this.stopRequested) break;
+        await this.navigateToEventExtraQuests(extraGroupId);
+        await closeModal();
+
+        const hellCleared = await this.runClearCollaborationHellIfPresent(extraGroupId, autoReplenishAp);
+        if (hellCleared) {
+          await this.navigateToEventExtraQuests(extraGroupId);
+          await closeModal();
+        }
+
+        await this.page.waitForSelector(`.lis-event-list.extra.solo-multi.event-id-${extraGroupId}, .lis-event-list.extra.solo-multi`, { timeout: 8000 }).catch(() => null);
+        await logNormalDelay(500, 0.15);
+
+        const opened = await this.page.evaluate((groupId: string) => {
+          const banner = document.querySelector(`.lis-event-list.extra.solo-multi.event-id-${groupId} .btn-stage-detail.solo-multi, .lis-event-list.extra.solo-multi .btn-stage-detail`) as HTMLElement;
+          if (!banner) return false;
+          banner.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(banner).trigger('tap');
+          banner.click();
+          return true;
+        }, extraGroupId).catch(() => false);
+
+        if (!opened) {
+          console.warn('[EventEngine] Raid banner not found.');
+          break;
+        }
+
+        let modalFound = await this.page.waitForSelector('.pop-quest-detail.solo-multi.pop-show', { timeout: 6000 }).catch(() => null);
+        if (!modalFound) {
+          await this.page.evaluate((groupId: string) => {
+            const banner = document.querySelector(`.lis-event-list.extra.solo-multi.event-id-${groupId} .btn-stage-detail.solo-multi, .lis-event-list.extra.solo-multi .btn-stage-detail`) as HTMLElement;
+            if (banner) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(banner).trigger('tap');
+              banner.click();
+            }
+          }, extraGroupId).catch(() => null);
+          modalFound = await this.page.waitForSelector('.pop-quest-detail.solo-multi.pop-show', { timeout: 6000 }).catch(() => null);
+        }
+        await logNormalDelay(600, 0.15);
+
+        const targetDiff = difficulty === 'vh' ? '3' : difficulty === 'ex_plus' ? '9' : (difficulty === 'ex' ? '4' : '');
+        const targetRaid = await this.page.evaluate((diff: string) => {
+          const modal = document.querySelector('.pop-quest-detail.solo-multi.pop-show');
+          const btns = Array.from(modal?.querySelectorAll('.btn-set-quest') || []) as HTMLElement[];
+          const btn = diff ? btns.find(b => b.getAttribute('data-difficulty') === diff) : btns[btns.length - 1];
+          if (!btn) return null;
+          btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(btn).trigger('tap');
+          btn.click();
+          const rect = btn.getBoundingClientRect();
+          return {
+            questId: btn.getAttribute('data-quest-id') || '',
+            name: btn.getAttribute('data-chapter-name') || 'Raid Quest',
+            diff: btn.getAttribute('data-difficulty') || '',
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+          };
+        }, targetDiff).catch(() => null);
+
+        if (!targetRaid) {
+          console.warn('[EventEngine] Raid quest not found!');
+          break;
+        }
+
+        console.log(`\n[EventEngine] [Raid ${r}/${runs}] Hosting Raid: "${targetRaid.name}" (Diff: ${targetRaid.diff})...`);
+        onProgress?.({ questId: targetRaid.questId, questName: targetRaid.name, difficulty: targetRaid.diff, status: 'STARTING', currentRun: r, totalRuns: runs, message: 'Hosting raid' });
+
+        await logNormalDelay(600, 0.15);
+
+        const ok = await this.executeCollaborationBattleFlow(autoReplenishAp);
+        if (ok) {
+          questsCleared++;
+          history.push({ questId: targetRaid.questId, questName: targetRaid.name, difficulty: targetRaid.diff, status: 'SUCCESS' });
+          onProgress?.({ questId: targetRaid.questId, questName: targetRaid.name, difficulty: targetRaid.diff, status: 'SUCCESS', currentRun: r, totalRuns: runs, message: 'Raid victory' });
+        } else {
+          history.push({ questId: targetRaid.questId, questName: targetRaid.name, difficulty: targetRaid.diff, status: 'FAILED' });
+          break;
+        }
+      }
+
+    } else if (mode === 'maniac') {
+      console.log(`[EventEngine] 👑 Starting Daily Maniac Quests for event group ${extraGroupId}...`);
+      await this.navigateToEventExtraQuests(extraGroupId);
+      await closeModal();
+
+      const soloBanner = await this.page.$(`.lis-event-list.extra.event-id-${extraGroupId}:not(.solo-multi):not(.is-select-hell) .btn-stage-detail`);
+      if (soloBanner) {
+        const sBox = await soloBanner.boundingBox();
+        if (sBox) await this.page.touchscreen.tap(sBox.x + sBox.width / 2, sBox.y + sBox.height / 2);
+        await this.page.waitForSelector('.pop-quest-detail.pop-show:not(.solo-multi)', { timeout: 8000 }).catch(() => null);
+        await logNormalDelay(800, 0.15);
+      }
+
+      const maniacQuests = await this.page.evaluate(() => {
+        const modal = document.querySelector('.pop-quest-detail.pop-show:not(.solo-multi)');
+        const btns = Array.from(modal?.querySelectorAll('.btn-set-quest[data-difficulty="6"]') || []) as HTMLElement[];
+        return btns.map(b => {
+          const isCleared = b.classList.contains('ico-clear') || b.classList.contains('is-cleared-limit');
+          return {
+            questId: b.getAttribute('data-quest-id') || '',
+            name: b.getAttribute('data-chapter-name') || 'Maniac Quest',
+            isCleared
+          };
+        });
+      }).catch(() => []);
+
+      console.log(`[EventEngine] Found ${maniacQuests.length} Maniac quests:`, maniacQuests.map(m => `${m.name} (${m.questId})`).join(', '));
+      await closeModal();
+
+      for (const m of maniacQuests) {
+        if (this.stopRequested) break;
+        await this.navigateToEventExtraQuests(extraGroupId);
+        await closeModal();
+
+        const opened = await this.page.evaluate((groupId: string) => {
+          const banner = document.querySelector(`.lis-event-list.extra.event-id-${groupId}:not(.solo-multi):not(.is-select-hell) .btn-stage-detail, .lis-event-list.extra:not(.solo-multi):not(.is-select-hell) .btn-stage-detail`) as HTMLElement;
+          if (!banner) return false;
+          banner.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(banner).trigger('tap');
+          banner.click();
+          return true;
+        }, extraGroupId).catch(() => false);
+
+        if (!opened) break;
+        await this.page.waitForSelector('.pop-quest-detail.pop-show:not(.solo-multi)', { timeout: 6000 }).catch(() => null);
+        await logNormalDelay(600, 0.15);
+
+        const targetCoords = await this.page.evaluate((qId: string) => {
+          const btn = document.querySelector(`.btn-set-quest[data-quest-id="${qId}"]`) as HTMLElement;
+          if (!btn) return null;
+          btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(btn).trigger('tap');
+          btn.click();
+          const rect = btn.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }, m.questId).catch(() => null);
+
+        if (!targetCoords) {
+          console.log(`[EventEngine] Maniac "${m.name}" limit reached or not available.`);
+          continue;
+        }
+
+        console.log(`\n[EventEngine] Starting Daily Maniac: "${m.name}" (${m.questId})...`);
+        onProgress?.({ questId: m.questId, questName: m.name, difficulty: 'maniac', status: 'STARTING', currentRun: questsCleared + 1, totalRuns: maniacQuests.length, message: 'Starting Maniac' });
+
+        await logNormalDelay(600, 0.15);
+
+        const ok = await this.executeCollaborationBattleFlow(autoReplenishAp);
+        if (ok) {
+          questsCleared++;
+          history.push({ questId: m.questId, questName: m.name, difficulty: 'maniac', status: 'SUCCESS' });
+          onProgress?.({ questId: m.questId, questName: m.name, difficulty: 'maniac', status: 'SUCCESS', currentRun: questsCleared, totalRuns: maniacQuests.length, message: 'Maniac clear' });
+        } else {
+          history.push({ questId: m.questId, questName: m.name, difficulty: 'maniac', status: 'FAILED' });
+        }
+      }
+
+      await this.navigateToEventExtraQuests(extraGroupId);
+      await this.runClearCollaborationHellIfPresent(extraGroupId, autoReplenishAp);
+
+    } else if (mode === 'hell') {
+      await this.navigateToEventExtraQuests(extraGroupId);
+      const hellCleared = await this.runClearCollaborationHellIfPresent(extraGroupId, autoReplenishAp);
+      if (hellCleared) {
+        questsCleared++;
+        history.push({ questId: 'hell', questName: 'Nightmare (HELL)', difficulty: 'hell', status: 'SUCCESS' });
+      }
+    }
+
+    const totalDurationMs = Date.now() - startTime;
+    console.log('\n========================================================================');
+    console.log(`      🏁 Collaboration Quest Session Summary                           `);
+    console.log('========================================================================');
+    console.log(`Total Quests Cleared:   ${questsCleared}`);
+    console.log(`Duration:               ${(totalDurationMs / 1000).toFixed(1)}s`);
+    console.log('========================================================================\n');
+
+    return {
+      eventId,
+      mode,
+      questsCleared,
+      totalDurationMs,
+      status: questsCleared > 0 ? 'COMPLETED' : 'PARTIAL',
+      history
+    };
+  }
+
+  /**
+   * Checks if Nightmare (HELL) banner is active in extra quest hub and clears it.
+   */
+  public async runClearCollaborationHellIfPresent(extraGroupId = '6045', autoReplenishAp = true): Promise<boolean> {
+    const hasHell = await this.page.evaluate((groupId: string) => {
+      const banner = document.querySelector(`.lis-event-list.extra.event-id-${groupId}.is-select-hell, .lis-event-list.extra.is-select-hell`);
+      return !!banner;
+    }, extraGroupId).catch(() => false);
+
+    if (!hasHell) {
+      console.log('[EventEngine] No active Nightmare (HELL) banner detected.');
+      return false;
+    }
+
+    console.log('\n🔥 [EventEngine] Nightmare (HELL) Encounter Spawned! Launching HELL battle...');
+    await this.page.evaluate((groupId: string) => {
+      const btn = document.querySelector(`.lis-event-list.extra.event-id-${groupId}.is-select-hell .btn-stage-detail.select-hell, .lis-event-list.extra.is-select-hell .btn-stage-detail.select-hell`) as HTMLElement;
+      if (btn) {
+        btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(btn).trigger('tap');
+        btn.click();
+      }
+    }, extraGroupId).catch(() => null);
+
+    await logNormalDelay(1000, 0.15);
+
+    // 1. Wait for .pop-select-hell-quest modal and select difficulty (prioritize ico-new or highest lvl)
+    await this.page.waitForSelector('.pop-select-hell-quest.pop-show', { timeout: 8000 }).catch(() => null);
+    const selectedHell = await this.page.evaluate(() => {
+      const modal = document.querySelector('.pop-select-hell-quest.pop-show');
+      const btns = Array.from(modal?.querySelectorAll('.btn-select-hell') || []) as HTMLElement[];
+      const btn = btns.find(b => b.classList.contains('ico-new')) || btns[btns.length - 1];
+      if (!btn) return null;
+      btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+      const $ = (window as any).$ || (window as any).Zepto;
+      if ($) $(btn).trigger('tap');
+      btn.click();
+      return {
+        id: btn.dataset.questId,
+        name: btn.dataset.chapterName
+      };
+    }).catch(() => null);
+
+    if (selectedHell) {
+      console.log(`[EventEngine] Selected HELL difficulty: "${selectedHell.name || 'Nightmare'}" (${selectedHell.id || 'hell'})...`);
+    }
+    await logNormalDelay(1000, 0.15);
+
+    // 2. Click Play on confirmation modal .pop-start-select-hell (.btn-usual-ok)
+    await this.page.waitForSelector('.pop-start-select-hell.pop-show .btn-usual-ok, .pop-start-select-hell .btn-usual-ok', { visible: true, timeout: 6000 }).catch(() => null);
+    await this.page.evaluate(() => {
+      const btn = document.querySelector('.pop-start-select-hell.pop-show .btn-usual-ok, .pop-start-select-hell .btn-usual-ok') as HTMLElement;
+      if (btn) {
+        btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(btn).trigger('tap');
+        btn.click();
+      }
+    }).catch(() => null);
+    await logNormalDelay(1000, 0.15);
+
+    // 3. Complete combat through full auto flow
+    const ok = await this.executeCollaborationBattleFlow(autoReplenishAp);
+    if (ok) {
+      console.log('🎉 [EventEngine] Nightmare (HELL) victory! Cleared successfully.');
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Clears daily 2/2 Maniac Solo Battles for the event.
    */
   public async runClearDailyManiac(eventIdExplicit?: string): Promise<{ clears: number; message: string }> {
-    const eventId = await this.resolveEventId(eventIdExplicit);
-    console.log(`\n[EventEngine] ⚔️ Checking Daily Maniac for treasureraid${eventId}...`);
+    const eventInfo = await this.resolveEventInfo(eventIdExplicit);
+    console.log(`\n[EventEngine] ⚔️ Checking Daily Maniac for ${eventInfo.name}...`);
 
-    await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}/quest`);
+    if (eventInfo.type === 'biography') {
+      const summary = await this.runClearCollaborationQuests({
+        eventId: eventInfo.id,
+        mode: 'maniac'
+      });
+      return { clears: summary.questsCleared, message: `Completed ${summary.questsCleared} collaboration Maniac clears.` };
+    }
+
+    await this.safeNavigate(`https://game.granbluefantasy.jp/#${eventInfo.route}/quest`);
     await logNormalDelay(1500, 0.2);
 
     let clears = 0;
@@ -1089,11 +2157,23 @@ export class EventEngine {
     eventIdExplicit?: string,
     maxBatches = 100
   ): Promise<{ batchesCleared: number; totalBattlesSkipped: number; message: string }> {
-    const eventId = await this.resolveEventId(eventIdExplicit);
+    const eventInfo = await this.resolveEventInfo(eventIdExplicit);
     console.log('\n========================================================================');
     console.log(`      ⚡ Granblue Fantasy - Nightmare (HELL) Solo Skip Looper           `);
-    console.log(`      Event: treasureraid${eventId} | Max Batches: ${maxBatches}        `);
+    console.log(`      Event: ${eventInfo.name} | Max Batches: ${maxBatches}        `);
     console.log('========================================================================\n');
+
+    if (eventInfo.type === 'biography') {
+      const summary = await this.runClearCollaborationQuests({
+        eventId: eventInfo.id,
+        mode: 'hell'
+      });
+      return {
+        batchesCleared: summary.questsCleared,
+        totalBattlesSkipped: 0,
+        message: `Cleared ${summary.questsCleared} collaboration Nightmare (HELL) battles.`
+      };
+    }
 
     let batchesCleared = 0;
     let totalBattlesSkipped = 0;
@@ -1103,9 +2183,9 @@ export class EventEngine {
 
       // 1. Ensure on event page
       const currentUrl = this.page.url();
-      if (!currentUrl.includes(`treasureraid${eventId}`)) {
-        console.log(`[EventEngine] Navigating to event page #event/treasureraid${eventId}...`);
-        await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+      if (!currentUrl.includes(eventInfo.name)) {
+        console.log(`[EventEngine] Navigating to event page #${eventInfo.route}...`);
+        await this.safeNavigate(eventInfo.url);
         await logNormalDelay(1500, 0.2);
       }
 
@@ -1143,7 +2223,7 @@ export class EventEngine {
         const curHash = await this.page.evaluate(() => window.location.hash || '');
         if (curHash.includes('result') || curHash.includes('supporter')) {
           await this.dismissPopupsAndResults();
-          await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+          await this.safeNavigate(eventInfo.url);
         }
 
         await new Promise(r => setTimeout(r, 600));
@@ -1333,7 +2413,7 @@ export class EventEngine {
 
       await logNormalDelay(600, 0.2);
       await this.dismissPopupsAndResults();
-      await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+      await this.safeNavigate(eventInfo.url);
       await logNormalDelay(1200, 0.2);
     }
 
@@ -1366,10 +2446,10 @@ export class EventEngine {
    * Checks and claims daily event mission rewards (50 Crystals).
    */
   public async runClaimDailyMissions(eventIdExplicit?: string): Promise<boolean> {
-    const eventId = await this.resolveEventId(eventIdExplicit);
-    console.log(`\n[EventEngine] 🎁 Checking Daily Event Missions for treasureraid${eventId}...`);
+    const eventInfo = await this.resolveEventInfo(eventIdExplicit);
+    console.log(`\n[EventEngine] 🎁 Checking Daily Event Missions for ${eventInfo.name}...`);
 
-    await this.safeNavigate(`https://game.granbluefantasy.jp/#event/treasureraid${eventId}`);
+    await this.safeNavigate(eventInfo.url);
     await logNormalDelay(1200, 0.2);
 
     const claimed = await this.page.evaluate(() => {
@@ -1410,8 +2490,23 @@ export class EventEngine {
     onProgress?: (progress: EventTokenGachaProgress) => void
   ): Promise<EventTokenGachaSummary> {
     const startTime = Date.now();
-    const eventId = await this.resolveEventId(eventIdExplicit);
-    const gachaUrl = `https://game.granbluefantasy.jp/#event/treasureraid${eventId}/gacha`;
+    const eventInfo = await this.resolveEventInfo(eventIdExplicit);
+    const eventId = eventInfo.id;
+
+    if (eventInfo.type === 'biography') {
+      console.log(`[EventEngine] Collaboration event (${eventInfo.name}) uses Treasure Exchange Shop, not Senka Token Gacha.`);
+      return {
+        eventId,
+        initialTokens: 0,
+        finalTokens: 0,
+        tokensSpent: 0,
+        boxesCleared: 0,
+        totalDurationMs: 0,
+        status: 'COMPLETED'
+      };
+    }
+
+    const gachaUrl = `https://game.granbluefantasy.jp/#${eventInfo.route}/gacha`;
 
     let initialTokens: number | null = null;
     let finalTokens: number | null = null;
@@ -1420,7 +2515,7 @@ export class EventEngine {
 
     console.log('\n========================================================================');
     console.log(`      🎰 Granblue Fantasy - Event Token Drawbox Clearer                `);
-    console.log(`      Event: treasureraid${eventId} | Max Boxes: ${maxBoxes}          `);
+    console.log(`      Event: ${eventInfo.name} | Max Boxes: ${maxBoxes}          `);
     console.log('========================================================================\n');
 
     while (boxesCleared < maxBoxes) {
@@ -1610,7 +2705,8 @@ export class EventEngine {
    * Detects, scrolls to, clicks, and confirms the Reset Drawbox modal for events.
    */
   private async executeEventBoxReset(eventId: string): Promise<boolean> {
-    const gachaUrl = `https://game.granbluefantasy.jp/#event/treasureraid${eventId}/gacha`;
+    const eventInfo = await this.resolveEventInfo(eventId);
+    const gachaUrl = `https://game.granbluefantasy.jp/#${eventInfo.route}/gacha`;
 
     // 1. Check if reset button is available
     const hasReset = await this.page.evaluate(() => {
@@ -1680,57 +2776,58 @@ export class EventEngine {
    * 3. Clears Daily 2/2 Maniac Battles
    * 4. Checks and Skips / Battles Nightmare
    * 5. Claims Daily Event Missions
-   * 6. Pulls Event Token Gacha
+   * 6. Pulls Event Token Gacha (if standard scenario event)
    */
   public async runFullEventPipeline(eventIdExplicit?: string): Promise<EventFullRoutineSummary> {
     const startTime = Date.now();
-    const eventId = await this.resolveEventId(eventIdExplicit);
+    const eventInfo = await this.resolveEventInfo(eventIdExplicit);
+    const eventId = eventInfo.id;
 
     console.log('\n========================================================================');
-    console.log(`      🚀 FULL EVENT PIPELINE: treasureraid${eventId}                    `);
+    console.log(`      🚀 FULL EVENT PIPELINE: ${eventInfo.name}                    `);
     console.log('========================================================================\n');
 
     // Step 1: Main Story
-    const storySummary = await this.runClearEventStory({ eventId });
+    const storySummary = await this.runClearEventStory({ eventId: eventInfo.id });
 
     // Step 2: Challenge Quest
     let challengeStatus = 'NOT_AVAILABLE';
     if (!this.stopRequested) {
-      const res = await this.runClearChallengeQuest(eventId);
+      const res = await this.runClearChallengeQuest(eventInfo.id);
       challengeStatus = res.status;
     }
 
     // Step 3: Daily Maniac
     let maniacClears = 0;
     if (!this.stopRequested) {
-      const res = await this.runClearDailyManiac(eventId);
+      const res = await this.runClearDailyManiac(eventInfo.id);
       maniacClears = res.clears;
     }
 
     // Step 4: Nightmare
     let nightmareStatus = 'NONE';
     if (!this.stopRequested) {
-      const res = await this.runCheckNightmare(eventId);
+      const res = await this.runCheckNightmare(eventInfo.id);
       nightmareStatus = res.status;
     }
 
     // Step 5: Daily Missions
     let missionsClaimed = false;
     if (!this.stopRequested) {
-      missionsClaimed = await this.runClaimDailyMissions(eventId);
+      missionsClaimed = await this.runClaimDailyMissions(eventInfo.id);
     }
 
-    // Step 6: Token Gacha
+    // Step 6: Token Gacha (skip if collaboration event)
     let tokensDrawn = 0;
-    if (!this.stopRequested) {
-      const res = await this.runDrawTokenGacha(eventId);
+    if (!this.stopRequested && eventInfo.type !== 'biography') {
+      const res = await this.runDrawTokenGacha(eventInfo.id);
       tokensDrawn = res.drawsProcessed;
     }
 
     console.log('\n========================================================================');
     console.log('              🎉 EVENT ROUTINE COMPLETE SUMMARY                        ');
     console.log('========================================================================');
-    console.log(`Event ID:               treasureraid${eventId}`);
+    console.log(`Event ID:               ${eventInfo.name}`);
     console.log(`Story Episodes Cleared: ${storySummary.episodesCleared} (${storySummary.cutscenesSkipped} cutscenes, ${storySummary.storyBattlesCleared} battles)`);
     console.log(`All Story Completed:    ${storySummary.allStoryCleared ? 'YES' : 'NO'}`);
     console.log(`Challenge Quest:        ${challengeStatus}`);

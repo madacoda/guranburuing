@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EventFarmingOptimizerSchema",
+  "type": "object",
+  "required": ["version", "targetEventTypes", "dailyRoutinePipeline", "currencyTargetHeuristics", "combatExecutionRules"],
+  "properties": {
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "targetEventTypes": {
+      "type": "object",
+      "properties": {
+        "collaboration": { "type": "object" },
+        "treasureraid": { "type": "object" }
+      }
+    },
+    "dailyRoutinePipeline": {
+      "type": "object",
+      "required": ["resetHourJst", "tasks"],
+      "properties": {
+        "resetHourJst": { "type": "number" },
+        "tasks": { "type": "array" }
+      }
+    },
+    "currencyTargetHeuristics": {
+      "type": "object",
+      "required": ["priorityTiers", "questSelectionMatrix"],
+      "properties": {
+        "priorityTiers": { "type": "array" },
+        "questSelectionMatrix": { "type": "object" }
+      }
+    },
+    "combatExecutionRules": {
+      "type": "object",
+      "required": ["quickSummonThresholds", "fullAutoPolicy"],
+      "properties": {
+        "quickSummonThresholds": { "type": "object" },
+        "fullAutoPolicy": { "type": "object" }
+      }
+    }
+  }
+}

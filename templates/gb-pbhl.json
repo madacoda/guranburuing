@@ -22,6 +22,7 @@
       "code": "skill",
       "character": 4,
       "skill": 3,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {

@@ -465,20 +465,15 @@ export class DropLogger {
       }
     }
 
-    if (!matched && this.records.length > 0) {
-      // Mark the most recent battle as having dropped the Gold Bar
-      this.records[this.records.length - 1].hasGoldBar = true;
-      this.records[this.records.length - 1].hasBlueChest = true;
-      if (screenshotPath) this.records[this.records.length - 1].screenshotPath = screenshotPath;
-    } else if (!matched && this.records.length === 0) {
-      // Direct drop record
+    if (!matched) {
+      // Direct drop record for unlinked / pending claim battle (do NOT overwrite an unrelated previous battle)
       const cleanRaidId = (raidId || 'Pending Claim').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
       const battleUrl = /^\d+$/.test(cleanRaidId)
         ? `https://game.granbluefantasy.jp/#result_multi/${cleanRaidId}`
         : undefined;
 
       this.records.push({
-        runNumber: 1,
+        runNumber: this.records.length + 1,
         timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
         raidId: cleanRaidId,
         turns: '-',

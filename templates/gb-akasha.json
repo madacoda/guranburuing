@@ -31,12 +31,14 @@
       "code": "skill",
       "character": 2,
       "skill": 1,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
       "code": "skill",
       "character": 3,
       "skill": 1,
+      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {

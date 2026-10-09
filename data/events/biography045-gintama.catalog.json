@@ -1,0 +1,815 @@
+{
+  "$schema": "../schemas/event-detail.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "description": "Comprehensive authoritative technical catalog for Granblue Fantasy x Gintama Collaboration Event (biography045): 'Gin Tama: Shonen Jump Is Best Enjoyed Cover to Cover'. Covers CDN assets, story progression, single/multi/HELL quest encounters, recruitable SSR characters, weapons, summons, treasure exchange shop, and zero-waste farming optimization blueprints.",
+  "metadata": {
+    "id": "biography045",
+    "rawId": "biography045",
+    "eventNumber": 720,
+    "title": "Gin Tama: Shonen Jump Is Best Enjoyed Cover to Cover",
+    "englishTitle": "Gin Tama: Shonen Jump Is Best Enjoyed Cover to Cover",
+    "japaneseTitle": "銀魂 少年ならジャンプの裏表紙までちゃんと楽しめ",
+    "type": "collaboration",
+    "status": "active",
+    "hashRoute": "#event/biography045",
+    "period": {
+      "startDate": "2026-10-07T17:00:00+09:00",
+      "endDate": "2026-10-14T16:59:00+09:00",
+      "exchangeDeadline": "2026-10-21T16:59:00+09:00"
+    },
+    "elements": {
+      "bossElements": ["wind", "dark"],
+      "playerAdvantageousElements": ["fire", "light"]
+    }
+  },
+  "assets": {
+    "primaryOrigin": "https://prd-game-a-granbluefantasy.akamaized.net",
+    "backupOrigin": "https://prd-game-a1-granbluefantasy.akamaized.net",
+    "paths": {
+      "topBanner": "/assets/img/sp/banner/events/biography045/top.png",
+      "eventNews": "/assets/img/sp/event/biography045/news.png",
+      "header": "/assets/img/sp/event/biography045/header.png",
+      "logo": "/assets/img/sp/event/biography045/logo.png",
+      "storyBackground": "/assets/img/sp/quest/scene/character/body/{bgId}.jpg",
+      "questLobbyBanner": "/assets/img/sp/event/biography045/quest/banner_{questId}.png",
+      "characterThumbnail": "/assets/img/sp/assets/npc/m/{characterId}_{style}.jpg",
+      "characterFull": "/assets/img/sp/assets/npc/b/{characterId}_{style}.png",
+      "summonThumbnail": "/assets/img/sp/assets/summon/m/{summonId}.jpg",
+      "weaponThumbnail": "/assets/img/sp/assets/weapon/m/{weaponId}.jpg",
+      "itemIcon": "/assets/img/sp/assets/item/article/s/{itemId}.jpg"
+    },
+    "eventBanners": {
+      "mainPageBanner": "https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/banner/events/biography045/banner_event.png",
+      "exchangeBanner": "https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/banner/events/biography045/banner_exchange.png",
+      "collabNews": "https://prd-game-a-granbluefantasy.akamaized.net/attach2/696D67_62696F6772617068793033305F6E6577732E706E67.png"
+    },
+    "audioTracks": {
+      "eventTheme": "/assets/sound/bgm/bgm_event_biography045_01.mp3",
+      "battleNeoArmstrong": "/assets/sound/bgm/bgm_event_biography045_battle.mp3",
+      "battleKoro": "/assets/sound/bgm/bgm_event_biography045_boss.mp3",
+      "storyComical": "/assets/sound/bgm/bgm_comic_01.mp3"
+    }
+  },
+  "characters": [
+    {
+      "id": "3040362000",
+      "name": "Shinsengumi (Toshiro Hijikata & Sougo Okita)",
+      "japaneseName": "真選組 土方十四郎＆沖田総悟",
+      "rarity": "SSR",
+      "element": "fire",
+      "style": "attack",
+      "race": "human",
+      "joinCondition": "Clear Story Part 1 Chapter 1 Episode 3 (携行食を持ち歩け)",
+      "cv": "Kazuya Nakai, Kenichi Suzumura",
+      "ougi": {
+        "name": "局中法度・真選組乱舞",
+        "description": "Massive Fire damage to a foe. Boost to Fire ATK and Hostility for 3 turns."
+      },
+      "skills": [
+        {
+          "name": "マヨネーズキャノン",
+          "cd": 6,
+          "description": "500% Fire damage to a foe (Cap: ~630,000). Inflict 15% DEF Down."
+        },
+        {
+          "name": "バズーカ掃射",
+          "cd": 7,
+          "description": "4-hit Fire damage to random foes. Inflict Burn and Delay (Slow)."
+        },
+        {
+          "name": "鬼の副長・一番隊隊長",
+          "cd": 8,
+          "description": "Gain Critical Hit Rate UP and Damage Cap UP for 3 turns."
+        }
+      ],
+      "passives": [
+        {
+          "name": "真選組の威信",
+          "description": "Boost to ATK and multiattack rate as HP decreases (Enmity)."
+        }
+      ],
+      "assets": {
+        "thumbHijikata": "/assets/img/sp/assets/npc/m/3040362000_01_101.jpg",
+        "thumbOkita": "/assets/img/sp/assets/npc/m/3040362000_01_102.jpg",
+        "fullBody": "/assets/img/sp/assets/npc/b/3040362000_01.png"
+      }
+    },
+    {
+      "id": "3040363000",
+      "name": "Yorozuya Gin-chan (Sakata Gintoki, Shimura Shinpachi & Kagura)",
+      "japaneseName": "万事屋銀ちゃん 坂田銀時＆志村新八＆神楽",
+      "rarity": "SSR",
+      "element": "light",
+      "style": "balance",
+      "race": "human",
+      "joinCondition": "Clear Story Part 2 Chapter 5 Episode 3 (作戦会議はなによりも大事)",
+      "cv": "Tomokazu Sugita, Daisuke Sakaguchi, Rie Kugimiya",
+      "ougi": {
+        "name": "洞爺湖乱れ桜・銀河一のツッコミ",
+        "description": "Massive Light damage to a foe. All allies gain 15% Charge Bar. Dispel 1 buff from foe."
+      },
+      "skills": [
+        {
+          "name": "かめはめ波（？）",
+          "cd": 6,
+          "description": "Light damage to a foe. Inflict Blind and gain C.A. DMG UP."
+        },
+        {
+          "name": "酢昆布補給",
+          "cd": 6,
+          "description": "Restore 2,500 HP and remove 1 debuff from all allies (Cleanse)."
+        },
+        {
+          "name": "万事屋本気モード",
+          "cd": 7,
+          "description": "All allies gain Light ATK UP and Guaranteed Triple Attack for 1 turn."
+        }
+      ],
+      "passives": [
+        {
+          "name": "糖分過多",
+          "description": "Gain Sugar Rush buffs on taking damage, granting stacking ATK boosts."
+        }
+      ],
+      "assets": {
+        "thumbGintoki": "/assets/img/sp/assets/npc/m/3040363000_84.jpg",
+        "thumbShinpachi": "/assets/img/sp/assets/npc/m/3040363000_85.jpg",
+        "thumbKagura": "/assets/img/sp/assets/npc/m/3040363000_86.jpg",
+        "fullBody": "/assets/img/sp/assets/npc/b/3040363000_01.png"
+      }
+    }
+  ],
+  "storyNpcs": [
+    {
+      "name": "Sadaharu",
+      "cv": "Mikako Takahashi",
+      "imageId": "3992359000_01",
+      "role": "Yorozuya Pet / Divine Beast"
+    },
+    {
+      "name": "Tatsuma Sakamoto",
+      "cv": "Shinichiro Miki",
+      "imageId": "3992366000_01",
+      "role": "Kaientai Leader / Merchant"
+    },
+    {
+      "name": "Shinsuke Takasugi",
+      "cv": "Takehito Koyasu",
+      "imageId": "3992367000_01",
+      "role": "Kiheitai Commander"
+    },
+    {
+      "name": "Prince Hata",
+      "cv": "Kouichi Sakaguchi",
+      "imageId": "3992368000_01",
+      "role": "Alien Prince / Owner of Koro"
+    }
+  ],
+  "summons": [
+    {
+      "id": "2040405000",
+      "name": "Kotaro Katsura & Elizabeth",
+      "element": "wind",
+      "rarity": "SSR",
+      "maxUncap": 4,
+      "call": {
+        "name": "かもしれない運転でいけ",
+        "cooldown": 9,
+        "firstCallTurns": 3,
+        "effectBase": "3.0x Wind damage to all foes. Inflict 15% DEF Down (3 turns).",
+        "effectFlb": "4.0x Wind damage to all foes. Inflict 20% DEF Down (3 turns). All allies gain C.A. Specs UP (1 time)."
+      },
+      "mainAura": {
+        "name": "狂乱の貴公子",
+        "baseEffect": "50% boost to all allies' ATK, 10% boost to C.A. DMG, and 20% boost to HP.",
+        "flbEffect": "50% boost to all allies' ATK, 30% boost to C.A. DMG, and 20% boost to HP."
+      },
+      "subAura": {
+        "name": "攘夷志士の絆",
+        "baseEffect": "At start of battle: Yorozuya unit gains Veil (1 time).",
+        "flbEffect": "At start of battle: Yorozuya unit gains Veil (1 time), ATK UP, and Guaranteed Triple Attack for 1 turn."
+      },
+      "stats": {
+        "uncap3": { "maxHp": 600, "maxAtk": 1374 },
+        "uncap4Flb": { "maxHp": 726, "maxAtk": 1668 }
+      },
+      "flbMaterials": {
+        "windElementalStones": 60,
+        "hijikataSpecials": 30,
+        "fruitParfaits": 20,
+        "championMerits": 1,
+        "supremeMerits": 3,
+        "blueSkyCrystals": 5,
+        "rupieCost": 20000
+      }
+    }
+  ],
+  "weapons": [
+    {
+      "id": "1040913200",
+      "name": "Wooden Sword Lake Toya",
+      "element": "light",
+      "weaponType": "katana",
+      "rarity": "SSR",
+      "maxUncap": 4,
+      "ougi": {
+        "name": "銀ノ太刀",
+        "baseEffect": "Massive Light damage to a foe. Gain Dodge/Tank-and-Counter effect (3 hits).",
+        "flbEffect": "Massive Light damage to a foe. Gain Dodge/Tank-and-Counter effect (3 hits) and Guts (踏ん張り) effect (survive lethal damage with 1 HP)."
+      },
+      "skills": [
+        {
+          "name": "2度あることは3度ある",
+          "skillType": "ex_attack",
+          "description": "Big boost to Light allies' ATK (EX modifier: 15% at SL10, 18% at SL15)."
+        },
+        {
+          "name": "修学旅行の思い出",
+          "skillType": "mc_enmity",
+          "description": "Boost to main character's ATK as HP decreases (Enmity modifier, MC only)."
+        }
+      ],
+      "stats": {
+        "uncap3": { "maxHp": 205, "maxAtk": 1900 },
+        "uncap4Flb": { "maxHp": 246, "maxAtk": 2308 }
+      },
+      "flbMaterials": {
+        "katanaStones": 60,
+        "holyGenes": 40,
+        "lightGrimoires": 30,
+        "hijikataSpecials": 60,
+        "fruitParfaits": 30,
+        "rupieCost": 10000
+      }
+    }
+  ],
+  "story": {
+    "totalCrystals": 350,
+    "chapters": [
+      {
+        "chapterNumber": 1,
+        "title": "Carry Rations with You",
+        "japaneseTitle": "携行食を持ち歩け",
+        "part": "part1",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 2, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 3, "apCost": 0, "hasBattle": false, "reward": "Shinsengumi (Hijikata & Okita) recruited" },
+          { "episodeNumber": 4, "apCost": 0, "hasBattle": false, "reward": "50 Crystals" }
+        ]
+      },
+      {
+        "chapterNumber": 2,
+        "title": "Mobs Have a Strange Charm",
+        "japaneseTitle": "モブって妙に魅力がある",
+        "part": "part1",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 2, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 3, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 4, "apCost": 0, "hasBattle": false, "reward": "50 Crystals" }
+        ]
+      },
+      {
+        "chapterNumber": 3,
+        "title": "Don't Lose Sight of Your Dreams and Path",
+        "japaneseTitle": "夢と道を見失うな",
+        "part": "part1",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 2, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 3, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 4, "apCost": 0, "hasBattle": false, "reward": "50 Crystals" }
+        ]
+      },
+      {
+        "chapterNumber": 3.5,
+        "title": "Partings Happen Unexpectedly (Part 1 Ending)",
+        "japaneseTitle": "別れは突然やってくる",
+        "part": "part1_ending",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false, "reward": "50 Crystals", "unlockFeature": "Unlocks Extra Quests (Neo Armstrong Solo & Multi)" }
+        ]
+      },
+      {
+        "chapterNumber": 4,
+        "title": "Meeting Right After Parting is Awkward",
+        "japaneseTitle": "別れてすぐ会うと気まずい",
+        "part": "part2",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 2, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 3, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 4, "apCost": 0, "hasBattle": false, "reward": "50 Crystals" }
+        ]
+      },
+      {
+        "chapterNumber": 5,
+        "title": "Strategy Meetings are Most Important",
+        "japaneseTitle": "作戦会議はなによりも大事",
+        "part": "part2",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 2, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 3, "apCost": 0, "hasBattle": false, "reward": "Yorozuya Gin-chan recruited" },
+          { "episodeNumber": 4, "apCost": 0, "hasBattle": false, "reward": "50 Crystals" }
+        ]
+      },
+      {
+        "chapterNumber": 6,
+        "title": "Get Permission and Take Extreme Care When Keeping Alien Creatures as Pets",
+        "japaneseTitle": "外来生物をペットにするときはちゃんと許可を取って細心の注意を払え",
+        "part": "part2",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 2, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 3, "apCost": 0, "hasBattle": false },
+          { "episodeNumber": 4, "apCost": 0, "hasBattle": false, "reward": "50 Crystals" }
+        ]
+      },
+      {
+        "chapterNumber": 7,
+        "title": "Ending",
+        "japaneseTitle": "エンディング",
+        "part": "ending",
+        "episodes": [
+          { "episodeNumber": 1, "apCost": 0, "hasBattle": false, "reward": "50 Crystals", "unlockFeature": "Unlocks Koro Quests (EXTREME+, MANIAC, HELL Lv120, Multi EXTREME+)" }
+        ]
+      }
+    ]
+  },
+  "quests": {
+    "extraGroupId": "6045",
+    "route": "#quest/extra/event/6045",
+    "selectors": {
+      "soloBanner": ".lis-event-list.extra.event-id-6045:not(.solo-multi):not(.is-select-hell) .btn-stage-detail",
+      "soloModal": ".pop-usual.pop-quest-detail.pop-show:not(.solo-multi)",
+      "raidBanner": ".lis-event-list.extra.solo-multi.event-id-6045 .btn-stage-detail.solo-multi",
+      "raidModal": ".pop-usual.pop-quest-detail.solo-multi.pop-show",
+      "hellBanner": ".lis-event-list.extra.event-id-6045.is-select-hell .btn-stage-detail.select-hell",
+      "hellPlayModal": ".pop-start-select-hell.pop-show .btn-usual-ok",
+      "hellAction": ".pop-select-hell-quest .btn-select-hell"
+    },
+    "singleQuests": [
+      {
+        "id": "solo_vh_neo_armstrong",
+        "questId": "948131",
+        "chapterId": "94813",
+        "technicalDifficulty": "3",
+        "name": "Lv15 NeoArm (Abbrv.) [VERY HARD]",
+        "difficulty": "vh",
+        "apCost": 20,
+        "element": "wind",
+        "bossName": "Neo Armstrong Cyclone Jet Armstrong Cannon",
+        "bossHp": 1250000,
+        "battles": 2,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRange": [3, 8], "hijikataSpecialRange": [1, 2] }
+      },
+      {
+        "id": "solo_ex_neo_armstrong",
+        "questId": "948141",
+        "chapterId": "94814",
+        "technicalDifficulty": "4",
+        "name": "Lv50 NeoArm (Abbrv.) [EXTREME]",
+        "difficulty": "ex",
+        "apCost": 30,
+        "element": "wind",
+        "bossName": "Neo Armstrong Cyclone Jet Armstrong Cannon",
+        "bossHp": 4800000,
+        "battles": 2,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRange": [9, 13], "hijikataSpecialRange": [1, 3], "rareDrop": "Wooden Sword Lake Toya" },
+        "hellProcChance": 0.25
+      },
+      {
+        "id": "solo_ex_plus_koro",
+        "questId": "948151",
+        "chapterId": "94815",
+        "technicalDifficulty": "9",
+        "name": "Lv60 Koro [EXTREME+]",
+        "difficulty": "ex_plus",
+        "apCost": 40,
+        "element": "dark",
+        "bossName": "Koro",
+        "bossHp": 6200000,
+        "battles": 1,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRange": [14, 14], "hijikataSpecialRange": [3, 5], "rareDrop": "Wooden Sword Lake Toya" },
+        "hellProcChance": 0.35
+      },
+      {
+        "id": "solo_maniac_neo_armstrong",
+        "questId": "948161",
+        "chapterId": "94816",
+        "technicalDifficulty": "6",
+        "name": "Lv75 NeoArm (Abbrv.) [MANIAC]",
+        "difficulty": "maniac",
+        "apCost": 50,
+        "dailyLimit": 1,
+        "element": "wind",
+        "bossName": "Neo Armstrong Cyclone Jet Armstrong Cannon",
+        "bossHp": 18000000,
+        "battles": 2,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRange": [18, 24], "hijikataSpecialRange": [4, 6], "guaranteedHell": true }
+      },
+      {
+        "id": "solo_maniac_koro",
+        "questId": "948171",
+        "chapterId": "94817",
+        "technicalDifficulty": "6",
+        "name": "Lv75 Koro [MANIAC]",
+        "difficulty": "maniac",
+        "apCost": 50,
+        "dailyLimit": 1,
+        "element": "dark",
+        "bossName": "Koro",
+        "bossHp": 22000000,
+        "battles": 2,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRange": [20, 22], "hijikataSpecialRange": [4, 6], "guaranteedHell": true }
+      }
+    ],
+    "raidQuests": [
+      {
+        "id": "raid_vh_neo_armstrong",
+        "questId": "948211",
+        "chapterId": "94821",
+        "technicalDifficulty": "3",
+        "name": "Lv30 NeoArm (Abbrv.) [VERY HARD Multi]",
+        "difficulty": "vh",
+        "apCost": 20,
+        "bpCost": 1,
+        "element": "wind",
+        "bossName": "Neo Armstrong Cyclone Jet Armstrong Cannon",
+        "bossHp": 4620000,
+        "maxPlayers": 30,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRed": [0, 2], "medallionSilver": [0, 3], "hijikataSpecial": [0, 3] }
+      },
+      {
+        "id": "raid_ex_neo_armstrong",
+        "technicalDifficulty": "4",
+        "name": "Lv50 NeoArm (Abbrv.) [EXTREME Multi]",
+        "difficulty": "ex",
+        "apCost": 30,
+        "bpCost": 2,
+        "element": "wind",
+        "bossName": "Neo Armstrong Cyclone Jet Armstrong Cannon",
+        "bossHp": 9680000,
+        "maxPlayers": 30,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRed": [0, 1], "hijikataSpecial": [0, 3], "fruitParfaitGold": [0, 1] }
+      },
+      {
+        "id": "raid_ex_plus_koro",
+        "technicalDifficulty": "9",
+        "name": "Lv60 Koro [EXTREME+ Multi]",
+        "difficulty": "ex_plus",
+        "apCost": 30,
+        "bpCost": 2,
+        "element": "dark",
+        "bossName": "Koro",
+        "bossHp": 13200000,
+        "maxPlayers": 30,
+        "firstClearReward": "50 Crystals",
+        "drops": { "medallionRed": [0, 1], "hijikataSpecial": [2, 3], "fruitParfaitGold": [0, 1], "rareDrop": "Wooden Sword Lake Toya" }
+      }
+    ],
+    "challengeQuests": [],
+    "hellQuests": [
+      {
+        "id": "hell_lv60_neo_armstrong",
+        "questId": "948181",
+        "chapterId": "94818",
+        "technicalDifficulty": "5",
+        "level": 60,
+        "apCost": 0,
+        "element": "wind",
+        "bossName": "When Fists Have to Do the Talking (Lv60 Neo Armstrong)",
+        "bossHp": 6050000,
+        "drops": { "medallions": 7, "hijikataSpecial": 3, "fruitParfait": 1 },
+        "skipUnlockedAfterClears": 3
+      }
+    ]
+  },
+  "currencies": [
+    {
+      "id": "10397",
+      "name": "Yorozuya Medallion",
+      "japaneseName": "万事屋のメダリオン",
+      "itemType": "primary_medallion",
+      "iconAsset": "/assets/img/sp/assets/item/article/s/10397.jpg",
+      "primarySources": ["Single EX / EX+", "Maniac", "HELL", "Multi Battles"],
+      "usage": ["Treasure Exchange Shop base currency"]
+    },
+    {
+      "id": "10398",
+      "name": "Hijikata Special",
+      "japaneseName": "土方スペシャル",
+      "itemType": "secondary_treasure",
+      "iconAsset": "/assets/img/sp/assets/item/article/s/10398.jpg",
+      "primarySources": ["Single EX / EX+", "Maniac", "HELL Gold Chests", "Multi Battles"],
+      "usage": ["High-value item exchanges (Tickets, Rings, Earrings)", "Weapon/Summon FLB uncap"]
+    },
+    {
+      "id": "10399",
+      "name": "Fruit Parfait",
+      "japaneseName": "フルーツパフェ",
+      "itemType": "flb_exclusive_material",
+      "iconAsset": "/assets/img/sp/assets/item/article/s/10399.jpg",
+      "primarySources": ["Nightmare (HELL Lv60/100/120)", "Multi Battle Gold Chest (low chance)"],
+      "usage": ["Exclusively used for 4★ FLB uncap of Lake Toya Katana (30x) and Katsura & Elizabeth Summon (20x)"]
+    }
+  ],
+  "exchangeShop": {
+    "totalEssentialCost": {
+      "medallions": 1790,
+      "secondaryTreasure": 595,
+      "fruitParfaits": 50
+    },
+    "items": [
+      {
+        "id": "ssr_ticket_202610",
+        "name": "October 2026 SS-Rare Guaranteed Ticket",
+        "category": "gacha_ticket",
+        "stock": 1,
+        "cost": { "medallion": 300, "secondary": 30 },
+        "priorityTier": 0,
+        "recommendation": "Tier 0 (Mandatory): Guaranteed SSR character weapon or summon."
+      },
+      {
+        "id": "damascus_crystal",
+        "name": "Damascus Crystal (ダマスカス骸晶)",
+        "category": "uncap_material",
+        "stock": 3,
+        "cost": { "medallion": 50, "secondary": 15 },
+        "priorityTier": 0,
+        "recommendation": "Tier 0 (Mandatory): Core resource for Damascus Ingot trade and Juutenshu 5★/6★ progression."
+      },
+      {
+        "id": "intricacy_ring",
+        "name": "Intricacy Ring (至極の指輪)",
+        "category": "emp_ring",
+        "stock": 1,
+        "cost": { "medallion": 120, "secondary": 40 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1 (High Value): Top-tier Over Mastery stats."
+      },
+      {
+        "id": "lineage_ring",
+        "name": "Lineage Ring (覇業の指輪)",
+        "category": "emp_ring",
+        "stock": 3,
+        "cost": { "medallion": 50, "secondary": 15 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1 (High Value): High-tier Over Mastery stats."
+      },
+      {
+        "id": "fire_earring",
+        "name": "Fire Earring (猛火の耳飾り)",
+        "category": "emp_earring",
+        "stock": 1,
+        "cost": { "medallion": 120, "secondary": 40 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1 (High Value): Aetherial Mastery bonus for Fire units."
+      },
+      {
+        "id": "light_earring",
+        "name": "Light Earring (旭光の耳飾り)",
+        "category": "emp_earring",
+        "stock": 1,
+        "cost": { "medallion": 120, "secondary": 40 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1 (High Value): Aetherial Mastery bonus for Light units."
+      },
+      {
+        "id": "summon_katsura_elizabeth",
+        "name": "SSR Summon: Kotaro Katsura & Elizabeth (桂小太郎＆エリザベス)",
+        "category": "event_summon",
+        "stock": 1,
+        "cost": { "medallion": 300, "secondary": 100 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1 (Exclusive): Arrives at ★3 Lv100. Unlocks sub aura Veil + 1-turn Guaranteed TA for Yorozuya."
+      },
+      {
+        "id": "weapon_lake_toya_1",
+        "name": "SSR Weapon: Wooden Sword Lake Toya (Copy 1)",
+        "category": "event_weapon",
+        "stock": 1,
+        "cost": { "medallion": 20, "secondary": 5 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1: EX-mod Katana with Counter + Guts for MC."
+      },
+      {
+        "id": "weapon_lake_toya_2",
+        "name": "SSR Weapon: Wooden Sword Lake Toya (Copy 2)",
+        "category": "event_weapon",
+        "stock": 1,
+        "cost": { "medallion": 50, "secondary": 20 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1: Uncap material."
+      },
+      {
+        "id": "weapon_lake_toya_3",
+        "name": "SSR Weapon: Wooden Sword Lake Toya (Copy 3)",
+        "category": "event_weapon",
+        "stock": 1,
+        "cost": { "medallion": 80, "secondary": 40 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1: Uncap material."
+      },
+      {
+        "id": "weapon_lake_toya_4",
+        "name": "SSR Weapon: Wooden Sword Lake Toya (Copy 4)",
+        "category": "event_weapon",
+        "stock": 1,
+        "cost": { "medallion": 100, "secondary": 60 },
+        "priorityTier": 1,
+        "recommendation": "Tier 1: Creates ★3 Lv100 Katana ready for FLB."
+      },
+      {
+        "id": "coronation_ring",
+        "name": "Coronation Ring (栄冠の指輪)",
+        "category": "emp_ring",
+        "stock": 3,
+        "cost": { "medallion": 20, "secondary": 0 },
+        "priorityTier": 2,
+        "recommendation": "Tier 2: Medallion-only cost, easy pickup."
+      },
+      {
+        "id": "half_elixir",
+        "name": "Half-Elixir x2 (エリクシールハーフ)",
+        "category": "recovery",
+        "stock": 75,
+        "cost": { "medallion": 10, "secondary": 0 },
+        "priorityTier": 2,
+        "recommendation": "Tier 2 (AP Positive): 150 half-elixirs total. Excellent AP ROI."
+      },
+      {
+        "id": "soul_berry",
+        "name": "Soul Berry x2 (ソウルシード)",
+        "category": "recovery",
+        "stock": 100,
+        "cost": { "medallion": 4, "secondary": 0 },
+        "priorityTier": 2,
+        "recommendation": "Tier 2 (EP Positive): 200 soul berries total."
+      },
+      {
+        "id": "steel_brick",
+        "name": "Steel Brick (玉鋼)",
+        "category": "uncap_material",
+        "stock": 1,
+        "cost": { "medallion": 50, "secondary": 15 },
+        "priorityTier": 3,
+        "recommendation": "Tier 3: SR weapon uncap (useful for CCW forging)."
+      },
+      {
+        "id": "wind_psyche",
+        "name": "Wind Psyche (風のプシュケー)",
+        "category": "grimoire",
+        "stock": 3,
+        "cost": { "medallion": 50, "secondary": 15 },
+        "priorityTier": 3,
+        "recommendation": "Tier 3: Weapon forging material."
+      },
+      {
+        "id": "dark_psyche",
+        "name": "Dark Psyche (闇のプシュケー)",
+        "category": "grimoire",
+        "stock": 3,
+        "cost": { "medallion": 50, "secondary": 15 },
+        "priorityTier": 3,
+        "recommendation": "Tier 3: Weapon forging material."
+      },
+      {
+        "id": "job_points",
+        "name": "10 JP (ジョブポイント)",
+        "category": "progression",
+        "stock": 40,
+        "cost": { "medallion": 10, "secondary": 0 },
+        "priorityTier": 3,
+        "recommendation": "Tier 3: Class mastery points."
+      }
+    ]
+  },
+  "dailyMissions": [
+    {
+      "id": "daily_collab_multi_5",
+      "description": "Clear Event Multi Battles 5 times (イベントマルチバトルを5回クリア)",
+      "targetType": "raid_clear",
+      "targetCount": 5,
+      "reward": {
+        "item": "crystal",
+        "amount": 50
+      },
+      "resetTime": "05:00 JST"
+    }
+  ],
+  "trophies": [
+    {
+      "id": "trophy_yorozuya_200",
+      "title": "We're the Yorozuya!",
+      "japaneseTitle": "万事屋銀ちゃんとは俺達の事だ！",
+      "grade": "silver",
+      "condition": "Collect 200 Yorozuya Medallions cumulatively",
+      "rewardCrystals": 30
+    },
+    {
+      "id": "trophy_mayo_100",
+      "title": "Not Enough Mayonnaise?!",
+      "japaneseTitle": "マヨネーズが足りないんだけどォォ！",
+      "grade": "silver",
+      "condition": "Collect 100 Hijikata Specials cumulatively",
+      "rewardCrystals": 30
+    },
+    {
+      "id": "trophy_part1_clear",
+      "title": "High Quality, Huh?!",
+      "japaneseTitle": "完成度高っけーなオイ",
+      "grade": "bronze",
+      "condition": "Clear Story Part 1 up to 'Partings Happen Unexpectedly'",
+      "rewardCrystals": 10
+    },
+    {
+      "id": "trophy_part2_clear",
+      "title": "Waiting for Collab Part 2!",
+      "japaneseTitle": "コラボ第2弾、待ってるぜ！",
+      "grade": "silver",
+      "condition": "Clear Story Part 2 through Ending",
+      "rewardCrystals": 30
+    },
+    {
+      "id": "trophy_mobs_5",
+      "title": "MADAO",
+      "japaneseTitle": "マダオ",
+      "grade": "bronze",
+      "condition": "Clear Very Hard or higher Extra Quests 5 times",
+      "rewardCrystals": 10
+    },
+    {
+      "id": "trophy_mobs_50",
+      "title": "Otsu Fan Club",
+      "japaneseTitle": "寺門通親衛隊",
+      "grade": "silver",
+      "condition": "Clear Very Hard or higher Extra Quests 50 times",
+      "rewardCrystals": 30
+    },
+    {
+      "id": "trophy_mobs_200",
+      "title": "Four Heavenly Kings of the Joui",
+      "japaneseTitle": "攘夷四天王",
+      "grade": "gold",
+      "condition": "Clear Very Hard or higher Extra Quests 200 times",
+      "rewardCrystals": 50
+    },
+    {
+      "id": "trophy_hell_clear",
+      "title": "Are You in Heat, Bastard?",
+      "japaneseTitle": "発情期ですかコノヤロー",
+      "grade": "gold",
+      "condition": "Defeat Neo Armstrong in Nightmare (HELL)",
+      "rewardCrystals": 50
+    },
+    {
+      "id": "trophy_maniac_clear",
+      "title": "Old Guy with a Mob Face",
+      "japaneseTitle": "モブ顔のオッさん",
+      "grade": "gold",
+      "condition": "Defeat Neo Armstrong in Maniac",
+      "rewardCrystals": 50
+    }
+  ],
+  "optimalFarmingBlueprint": {
+    "routineSteps": [
+      "Step 1 (One-Time): Clear Story Chapters 1-6 + Ending (350 Crystals, unlocks Yorozuya, Shinsengumi, and all Quests).",
+      "Step 2 (Daily Mandatory): Run 2x Maniac battles (Neo Armstrong + Koro) at 05:00 JST reset. Massive drops + guaranteed HELL proc.",
+      "Step 3 (Daily Mandatory): Clear 5x Event Multi Battles to claim 50 Daily Mission Crystals (350 total crystals over 7-day event).",
+      "Step 4 (HELL Farming): Clear HELL procs when available. Lv120 Koro grants 3x Fruit Parfaits. 17 clears of Lv120 HELL yields all 50 required Fruit Parfaits for both weapon and summon FLBs.",
+      "Step 5 (Solo EX Loop): Farm Solo EX (Lv50 Neo Armstrong) using Fire 0-Button OTK (Quick Summon / Yamato / Relic Buster) for optimal AP-to-Medallion ratio.",
+      "Step 6 (Exchange Priority): Clear Tier 0 (SSR Ticket, Damascus Crystals) -> Tier 1 (Rings, Earrings, Summon, Weapon) -> Tier 2 (Half-Elixirs, Soul Berries)."
+    ],
+    "apEpEfficiencyBreakdown": {
+      "bestMedallionApEfficiency": "Single Battle EX (Lv50 Neo Armstrong): 0.38 Medallions/AP",
+      "bestSecondaryTreasureApEfficiency": "Single Battle EX+ (Lv60 Koro): 0.13 Specials/AP",
+      "bestFruitParfaitSource": "HELL Lv120 (Koro): 3 guaranteed Parfaits per 0 AP battle",
+      "recommendedHeuristics": "Solo EX is strictly superior to Multi EX for AP cost; use Multi EX only for the 5 daily mission clears or when EP is at cap."
+    },
+    "recommendedParties": {
+      "vsNeoArmstrong": {
+        "bossElement": "wind",
+        "recommendedPlayerElement": "fire",
+        "burstArchetype": "Fire 0-Button Quick Summon (Triple Zero / Beelzebub 4★) or Relic Buster Engage Augment + Limit Burst",
+        "frontlineUnits": ["Percival (Grand)", "Wilnas", "Zeta", "Anderson", "Shinsengumi"]
+      },
+      "vsKoro": {
+        "bossElement": "dark",
+        "recommendedPlayerElement": "light",
+        "burstArchetype": "Light 0-Button Quick Summon (Beelzebub / Triple Zero) or Chrysaor Dual Arts",
+        "frontlineUnits": ["Nehan", "Yuni", "Florence (Halloween)", "Gawain (Light)", "Yorozuya Gin-chan"]
+      }
+    }
+  }
+}

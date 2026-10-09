@@ -18,6 +18,9 @@ export class DailyHostReporter implements IDailyHostReporter {
     console.log(`Skipped (No Material): ${summary.skippedNoMaterialCount}`);
     console.log(`Skipped (Daily Limit): ${summary.skippedLimitCount}`);
     console.log(`Failed:                ${summary.failedCount}`);
+    if ((summary.retriedCount ?? 0) > 0) {
+      console.log(`Self-Healing Retries:  ${summary.retriedCount} attempt(s) (Recovered: ${summary.retriedClearedCount ?? 0} cleared) 🛡️`);
+    }
     console.log('------------------------------------------------------------------------');
 
     for (const r of summary.executionRecords) {
@@ -63,6 +66,7 @@ export class DailyHostReporter implements IDailyHostReporter {
       `- **Skipped (No Material):** ${summary.skippedNoMaterialCount}`,
       `- **Skipped (Daily Limit):** ${summary.skippedLimitCount}`,
       `- **Failed:** ${summary.failedCount}`,
+      `- **Self-Healing Retries:** ${summary.retriedCount ?? 0} attempts (Recovered: ${summary.retriedClearedCount ?? 0} cleared)`,
       ``,
       `## Detailed Raid Breakdown`,
       ``,

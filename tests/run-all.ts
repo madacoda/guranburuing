@@ -110,9 +110,9 @@ const TEST_SUITES: TestSuite[] = [
     description: 'PBHL Fire burst rotation, named summon resolution, natural language DSL parsing, and round-trip validation'
   },
   {
-    name: 'OTK Raid Burst & Leech Evaluator Unit Tests',
-    file: 'tests/test-otkraid-evaluator.ts',
-    description: 'Fast burst raid evaluation (HP <= 20%, players >= 3), Colossus Ira template validation, and active assist limit recovery'
+    name: 'Magna 3 Leech & Fast Burst 6-Element Evaluator Unit Tests',
+    file: 'tests/test-leech-evaluator.ts',
+    description: 'Fast burst raid evaluation (HP <= 20%, players >= 3), 6-element Magna 3 primal supporter validation, and active assist limit recovery'
   },
   {
     name: 'Raid Evaluator Parallel Multi-Condition & High-Performance Tests',
@@ -138,6 +138,26 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Dual-Track Assist Interleaving & Background Host Recheck Tests',
     file: 'tests/test-assist-interleaving.ts',
     description: 'Frontline wipeout/turn yield triage, assist farming interleaving, 180s cooldown re-broadcast, and slot reclamation'
+  },
+  {
+    name: 'Failure Diagnostic Classifier & Critical Analysis Tests',
+    file: 'tests/test-failure-analyzer.ts',
+    description: 'Material deficit vs transient modal/network classification and non-retriable safeguards'
+  },
+  {
+    name: 'Daily Reset Scheduler Daemon & JST Math Tests',
+    file: 'tests/test-daily-scheduler.ts',
+    description: 'JST reset calculation, anti-drift scheduling, advance notification, and time formatting'
+  },
+  {
+    name: 'Discord Remote Controller Security & Whitelist Tests',
+    file: 'tests/test-discord-controller.ts',
+    description: 'User snowflake authorization, strict whitelist routing, injection prevention, and CDP concurrency lock'
+  },
+  {
+    name: 'PBHL 0-Honors Bug Critical Verification & Regression Tests',
+    file: 'tests/test-pbhl-zero-honor-fix.ts',
+    description: 'Verify syncCurrentHonors result isolation, waitForCombatTurnResolution attack gating, and handleTapReady honors generation'
   }
 ];
 

@@ -63,6 +63,7 @@ Data is segregated strictly by domain boundary:
 - `ui/`: DOM selectors, modal overlays, and Backbone.js client routes.
 - `network/`: HTTP REST specifications, auth gateways, and Akamai CDN layouts.
 - `automation/`: Daily routines, pro-skips, and anti-detection kinematics.
+- `events/`: Collaboration events, scenario events, Master Events Registry, and treasure trade optimization.
 
 ### Principle 8: Cognitive Decision Engine Independence
 Decision logic is encoded in declarative JSON trees rather than hardcoded in imperative TypeScript. Modifying a counter strategy, adjusting an HP join threshold, or updating a blue chest target requires **zero code changes or recompilations**.
@@ -114,8 +115,19 @@ data/
 │   ├── cooldown-and-pacing.schema.json  # Schema: Server Cooldowns & Rest Schedules
 │   ├── multi-account-orchestration.schema.json # Schema: CDP Port & Topology
 │   ├── state-machine-recovery.schema.json # Schema: State Machine & Error Self-Healing
-│   └── sentinel-watchdog.schema.json    # Schema: CAPTCHA Tripwires & Escalation
+│   ├── sentinel-watchdog.schema.json    # Schema: CAPTCHA Tripwires & Escalation
+│   ├── events.schema.json               # Schema: Master Events Catalog & Schedules
+│   ├── event-detail.schema.json         # Schema: Detailed Collaboration & Scenario Events
+│   ├── event-farming-optimizer.schema.json # Schema: Event Farming Decision Trees
+│   ├── side-stories.schema.json         # Schema: Permanent Side Story Vault & Spark Calculations
+│   └── side-story-optimizer.schema.json # Schema: Side Story Farming Priorities & Pacing
 ├── raids/                               # Raids Subsystem
+├── events/                              # Events Subsystem (Master & Detailed Event Catalogs)
+│   ├── events.catalog.json              # Master Registry of All Events
+│   ├── biography045-gintama.catalog.json# Authoritative Gintama Collaboration Catalog
+│   ├── event-farming-optimizer.json    # Algorithmic Event Farming Decision Tree
+│   ├── side-stories.catalog.json        # Permanent Side Story Vault (56 Stories, 8 Sagas)
+│   └── side-story-optimizer.json        # Side Story Speed-Clearing & Spark Acceleration Tree
 ├── combat/                              # Combat Subsystem
 ├── elements/                            # Elements Subsystem
 ├── ui/                                  # UI & Navigation Subsystem
