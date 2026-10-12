@@ -3,8 +3,8 @@
 # Allows you to view, click, type, log in, and solve CAPTCHAs directly on the VPS!
 
 param(
-    [string]$VpsHost = "108.171.45.86",
-    [string]$User = "root",
+    [string]$VpsHost = $(if ($env:VPS_HOST) { $env:VPS_HOST } elseif ($env:VPS_IP) { $env:VPS_IP } else { "localhost" }),
+    [string]$User = $(if ($env:VPS_USER) { $env:VPS_USER } else { "root" }),
     [int]$RemotePort = 9222,
     [int]$LocalPort = 9222
 )

@@ -35,11 +35,11 @@ const authToken = customToken || config.AUTH_TOKEN;
 const defaultCookieFile = path.resolve(process.cwd(), 'data', `${accountId}-cookies.json`);
 const cookieFile = customFile ? path.resolve(process.cwd(), customFile) : defaultCookieFile;
 
-let resolvedHost = '108.171.45.86';
+let resolvedHost = 'localhost';
 try {
-  resolvedHost = customRemote ? new URL(customRemote).hostname : (vpsIp || '108.171.45.86');
+  resolvedHost = customRemote ? new URL(customRemote).hostname : (vpsIp || process.env.VPS_HOST || 'localhost');
 } catch {
-  resolvedHost = vpsIp || '108.171.45.86';
+  resolvedHost = vpsIp || process.env.VPS_HOST || 'localhost';
 }
 const remoteWorkingDir = process.env.VPS_DIR || '/var/www/guranburuing';
 

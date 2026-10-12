@@ -49,6 +49,11 @@ const CONTENT_CHECKS = [
     name: 'Private Cryptographic Key',
     regex: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/,
     description: 'Private RSA/EC cryptographic key material'
+  },
+  {
+    name: 'Hardcoded Public Server IP',
+    regex: /\b(?!127\.|10\.|192\.168\.|172\.(?:1[6-9]|2[0-9]|3[0-1])\.|100\.|0\.0\.0\.0\b)(?:[1-9][0-9]{0,2}\.){3}[0-9]{1,3}\b/,
+    description: 'Hardcoded public server IP address (use environment variables or placeholders)'
   }
 ];
 
