@@ -3,6 +3,7 @@ import { Page } from 'puppeteer-core';
 import { UniversalContext } from './types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
 import { WorkflowStep } from '../../types/workflow.types.js';
+import { config } from '../../config.js';
 import {
   humanizedClick,
   humanReactionDelay,
@@ -1103,11 +1104,11 @@ export class CombatExecutionService {
         return true;
       }
 
-      await this.page.evaluate(() => {
+      await this.page.evaluate((targetFps: number) => {
         const cjs = (window as any).createjs;
         if (cjs?.Ticker) {
-          cjs.Ticker.framerate = 120;
-          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / 120);
+          cjs.Ticker.framerate = targetFps;
+          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
         }
         if (cjs?.Tween?.tick) {
           cjs.Tween.tick(2000, false);
@@ -1118,7 +1119,7 @@ export class CombatExecutionService {
           if ($) $(readyEl).trigger('tap');
           (readyEl as HTMLElement).click();
         }
-      }).catch(() => null);
+      }, config.TICKER_FPS).catch(() => null);
 
       const combatPromise = this.deps.combatResolution.waitForCombatTurnResolution(targetNet, isTurbo ? 6000 : 12000);
 
@@ -1431,12 +1432,12 @@ export class CombatExecutionService {
     await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
 
     const isManual = this.isManualWorkflow();
-    await this.page.evaluate((manual: boolean) => {
+    await this.page.evaluate((manual: boolean, targetFps: number) => {
       const cjs = (window as any).createjs;
       if (cjs?.Ticker) {
-        cjs.Ticker.framerate = 120;
+        cjs.Ticker.framerate = targetFps;
         if (typeof cjs.Ticker.setInterval === 'function') {
-          cjs.Ticker.setInterval(1000 / 120);
+          cjs.Ticker.setInterval(1000 / targetFps);
         }
       }
       if (cjs?.Tween?.tick) {
@@ -1457,7 +1458,7 @@ export class CombatExecutionService {
           ready.click();
         }
       }
-    }, isManual).catch(() => null);
+    }, isManual, config.TICKER_FPS).catch(() => null);
 
     if (!isManual) {
       await this.page.touchscreen.tap(240, 260).catch(() => null);

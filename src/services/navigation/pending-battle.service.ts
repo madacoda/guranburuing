@@ -2,6 +2,7 @@
 import { Page } from 'puppeteer-core';
 import { IPendingBattleService, PendingBattleResolution } from '../../domain/navigation/navigation.types.js';
 import { logNormalDelay } from '../../human-motor.js';
+import { config } from '../../config.js';
 
 /**
  * Universal service for detecting, inspecting, and claiming pending / unclaimed battles.
@@ -97,7 +98,12 @@ export class PendingBattleService implements IPendingBattleService {
       }
     }).catch(() => null);
 
-    await logNormalDelay(1800, 0.15);
+    // Reactive wait for unclaimed cards or assist screen to mount
+    await this.waitForConditionOrTimeout(async () => {
+      return await this.page.evaluate(() => {
+        return !!document.querySelector('.btn-unclaimed, .btn-reward-check, .btn-claim, .prt-lead-unclaimed, .cnt-quest-assist');
+      }).catch(() => false);
+    }, config.isProduction ? 800 : 1800, config.isProduction ? 35 : 75);
 
     let clearedCount = 0;
     let goldBarDetected = false;
@@ -127,7 +133,12 @@ export class PendingBattleService implements IPendingBattleService {
         }
       }).catch(() => null);
 
-      await logNormalDelay(1500, 0.15);
+      // Reactive wait for result modal or blue chest / loot roll
+      await this.waitForConditionOrTimeout(async () => {
+        return await this.page.evaluate(() => {
+          return !!document.querySelector('.pop-usual, .btn-usual-ok, .prt-blue-chest, [data-item-id]');
+        }).catch(() => false);
+      }, config.isProduction ? 800 : 1500, config.isProduction ? 35 : 75);
 
       // Check if reward result screen reached
       const resultData = await this.page.evaluate(() => {
@@ -154,22 +165,28 @@ export class PendingBattleService implements IPendingBattleService {
         }
       }).catch(() => null);
 
-      await logNormalDelay(1200, 0.15);
+      await logNormalDelay(config.isProduction ? 150 : 600, 0.15);
     }
 
     // Clean return to target URL
     console.log(`[PendingBattleService] Clean return to: ${returnUrl}`);
+    const targetHash = returnUrl.includes('#') ? returnUrl.split('#')[1] : returnUrl;
     await this.page.evaluate((url: string) => {
-      const targetHash = url.includes('#') ? url.split('#')[1] : url;
+      const hash = url.includes('#') ? url.split('#')[1] : url;
       const Game = (window as any).Game;
       if (Game?.router?.navigate) {
-        Game.router.navigate(targetHash, { trigger: true });
+        Game.router.navigate(hash, { trigger: true });
       } else {
         window.location.href = url;
       }
     }, returnUrl).catch(() => null);
 
-    await logNormalDelay(1200, 0.15);
+    // Reactive return wait
+    await this.waitForConditionOrTimeout(async () => {
+      return await this.page.evaluate((target: string) => {
+        return window.location.href.includes(target) || !!document.querySelector('.cnt-quest, .prt-command, .btn-attack-start');
+      }, targetHash).catch(() => false);
+    }, config.isProduction ? 700 : 1200, config.isProduction ? 35 : 75);
 
     return {
       hasPendingBattles: clearedCount > 0,
@@ -179,5 +196,18 @@ export class PendingBattleService implements IPendingBattleService {
       blueChestDetected,
       message: clearedCount > 0 ? `Successfully cleared ${clearedCount} pending battle(s).` : 'No pending battles found.'
     };
+  }
+
+  private async waitForConditionOrTimeout(
+    predicate: () => Promise<boolean>,
+    timeoutMs: number,
+    pollMs = 50
+  ): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (await predicate().catch(() => false)) return true;
+      await new Promise(r => setTimeout(r, pollMs));
+    }
+    return false;
   }
 }

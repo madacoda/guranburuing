@@ -6,6 +6,7 @@ import {
   WorkflowExecutionContext
 } from '../../context/workflow-context.types.js';
 import { logNormalDelay } from '../../../human-motor.js';
+import { config } from '../../../config.js';
 
 export class ReloadStepHandler implements IStepHandler {
   public readonly supportedActions: WorkflowActionType[] = ['reload', 'f5'];
@@ -22,10 +23,11 @@ export class ReloadStepHandler implements IStepHandler {
     if (!isTurbo) await logNormalDelay(100, 0.1);
 
     // Fast-forward CreateJS and dismiss dialogs
-    await page.evaluate(() => {
+    await page.evaluate((targetFps: number) => {
       const cjs = (window as any).createjs;
       if (cjs?.Ticker) {
-        cjs.Ticker.framerate = 120;
+        cjs.Ticker.framerate = targetFps;
+        if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
       }
       if (cjs?.Tween?.tick) {
         cjs.Tween.tick(3000, false);
@@ -39,7 +41,7 @@ export class ReloadStepHandler implements IStepHandler {
       // Clear processing turn modal if present
       const ok = document.querySelector('.pop-usual .btn-usual-ok, #pop .btn-usual-ok') as HTMLElement;
       if (ok) ok.click();
-    }).catch(() => null);
+    }, config.TICKER_FPS).catch(() => null);
 
     await context.services.combat.dismissCombatDrawersAndPopups();
     return { success: true, actionCode: step.code || 'reload', durationMs: 0 };

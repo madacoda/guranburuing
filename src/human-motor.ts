@@ -50,7 +50,11 @@ export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<vo
   let effectiveMedian = medianMs;
   let allowHesitation = false;
 
-  if (currentSpeedProfile === 'turbo') {
+  if (config.isProduction) {
+    // Production VPS: trimmed delays to capitalize on low-latency Tokyo ping
+    effectiveMedian = Math.max(10, medianMs * 0.20);
+    allowHesitation = false;
+  } else if (currentSpeedProfile === 'turbo') {
     effectiveMedian = Math.max(15, medianMs * 0.25);
   } else if (currentSpeedProfile === 'fast') {
     // Fast human racer: maintain ~75% of human baseline
@@ -69,7 +73,7 @@ export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<vo
     duration += Math.exp(sampleGaussian(Math.log(1400), 0.30));
   }
 
-  const minDelay = currentSpeedProfile === 'turbo' ? 10 : (currentSpeedProfile === 'fast' ? 25 : 45);
+  const minDelay = config.isProduction ? 8 : (currentSpeedProfile === 'turbo' ? 10 : (currentSpeedProfile === 'fast' ? 25 : 45));
   await new Promise(resolve => setTimeout(resolve, Math.max(minDelay, duration)));
 }
 
@@ -230,6 +234,22 @@ export async function humanizedClick(
       node.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
     }
   }).catch(() => null);
+
+  // Production VPS / DOM Mode Fast-Path:
+  // Dispatches touch/DOM event directly without synchronous layout calculation or multi-step CDP Bézier cursor delay
+  if (config.isProduction || config.EXECUTION_MODE === 'dom') {
+    await el.evaluate((node: any) => {
+      if (node) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(node).trigger('tap');
+        if (typeof node.click === 'function') node.click();
+      }
+    }).catch(() => null);
+
+    const microJitter = 10 + Math.random() * 15;
+    await new Promise(r => setTimeout(r, microJitter));
+    return;
+  }
 
   if (currentSpeedProfile === 'stealth') {
     await logNormalDelay(60, 0.15);

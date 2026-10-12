@@ -148,7 +148,12 @@ export class CdpConnectionManager {
           pageTitle = await this.gbfPage.title().catch(() => 'Granblue Fantasy');
         }
 
-        console.log(`[CDP] Connected successfully to page: ${pageTitle}`);
+        // Production VPS Optimization Gate (Mute audio, lite canvas graphics, mobile touch viewport)
+        if (config.isProduction || config.AUTO_MUTE_GAME) {
+          await this.optimizePageEnvironment(this.gbfPage);
+        }
+
+        console.log(`[CDP] Connected successfully to page: ${pageTitle} (Env: ${config.APP_ENV}, Ticker: ${config.TICKER_FPS}fps)`);
         return { browser: this.browser, page: this.gbfPage };
 
       } catch (err: any) {
@@ -237,7 +242,50 @@ export class CdpConnectionManager {
       if (profileDir) cmd += ` --user-data-dir "${profileDir}"`;
       if (proxy) cmd += ` --proxy "${proxy}"`;
       if (forceRestart) cmd += ' --force';
-      execSync(cmd, { stdio: 'inherit' });
+      execSync(cmd, {
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          V8_MAX_OLD_SPACE: String(config.V8_MAX_OLD_SPACE),
+          DISK_CACHE_SIZE: String(config.DISK_CACHE_SIZE),
+          WINDOW_SIZE: `${config.VIEWPORT_WIDTH},${config.VIEWPORT_HEIGHT}`
+        }
+      });
+    }
+  }
+
+  public async optimizePageEnvironment(page: Page): Promise<void> {
+    try {
+      await page.evaluate(() => {
+        try {
+          // 1. Mute GBF WebAudio/SoundJS to eliminate CPU audio decoding
+          localStorage.setItem('sound_bgm_volume', '0');
+          localStorage.setItem('sound_se_volume', '0');
+          localStorage.setItem('sound_voice_volume', '0');
+          // 2. Set quality to standard/lite (suppresses heavy canvas particle effects)
+          localStorage.setItem('quality', '1');
+          
+          const g = (window as any).Game;
+          if (g?.storage) {
+            g.storage.set('sound_bgm_volume', '0');
+            g.storage.set('sound_se_volume', '0');
+            g.storage.set('sound_voice_volume', '0');
+            g.storage.set('quality', '1');
+          }
+        } catch {}
+      }).catch(() => null);
+
+      if (config.isProduction && config.VIEWPORT_WIDTH && config.VIEWPORT_HEIGHT) {
+        await page.setViewport({
+          width: config.VIEWPORT_WIDTH,
+          height: config.VIEWPORT_HEIGHT,
+          isMobile: true,
+          hasTouch: true,
+          deviceScaleFactor: 1
+        }).catch(() => null);
+      }
+    } catch (e: any) {
+      console.warn('[CDP] Environment optimization notice:', e.message);
     }
   }
 

@@ -178,6 +178,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Fate Stories Engine & Routine Unit Tests',
     file: 'tests/test-fate-engine-unit.ts',
     description: 'Verify fate episode template schema, card filtering, quest skip uncheck, caution modal, cutscene skip, and routine loop integration'
+  },
+  {
+    name: 'Production vs Local Environment & Performance Architecture Tests',
+    file: 'tests/test-production-environment.ts',
+    description: 'Verify APP_ENV detection, SwiftShader 30fps cap, V8 1024MB heap, 512MB disk cache, 360x720 viewport, and audio auto-mute'
   }
 ];
 

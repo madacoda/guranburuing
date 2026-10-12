@@ -2,6 +2,7 @@
 import { HTTPResponse, Page } from 'puppeteer-core';
 import { humanizedClick, logNormalDelay, sampleGaussian, getSpeedProfile } from '../../human-motor.js';
 import { UniversalContext } from './types.js';
+import { config } from '../../config.js';
 
 /**
  * Service orchestrating combat readiness, turn polling, honors synchronization,
@@ -176,7 +177,7 @@ export class CombatResolutionService {
 
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     const effectiveTimeout = isTurbo ? Math.min(timeoutMs, 2500) : timeoutMs;
-    const pollInterval = isTurbo ? 25 : 100;
+    const pollInterval = isTurbo ? (config.isProduction ? 40 : 25) : 100;
     const isManual = this.isManualWorkflow();
     const start = Date.now();
 
@@ -188,11 +189,11 @@ export class CombatResolutionService {
         await this.cancelFullAutoAndActionQueue();
       }
 
-      const isReady = await this.page.evaluate((manual: boolean) => {
+      const isReady = await this.page.evaluate((manual: boolean, targetFps: number) => {
         const cjs = (window as any).createjs;
         if (cjs?.Ticker) {
-          cjs.Ticker.framerate = 120;
-          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / 120);
+          cjs.Ticker.framerate = targetFps;
+          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
         }
         if (cjs?.Tween?.tick) cjs.Tween.tick(2000, false);
 
@@ -238,7 +239,7 @@ export class CombatResolutionService {
           }
         }
         return false;
-      }, isManual).catch(() => false);
+      }, isManual, config.TICKER_FPS).catch(() => false);
 
       if (isReady) {
         if (!isTurbo) {
@@ -269,18 +270,18 @@ export class CombatResolutionService {
   public async waitForCombatInputReady(timeoutMs = 5000): Promise<boolean> {
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     const effectiveTimeout = isTurbo ? Math.min(timeoutMs, 1000) : timeoutMs;
-    const pollInterval = isTurbo ? 15 : 50;
+    const pollInterval = isTurbo ? (config.isProduction ? 35 : 15) : 50;
     const start = Date.now();
 
     while (Date.now() - start < effectiveTimeout) {
       if (this.ctx.state.stopRequested) return false;
       if (await this.isBattleEnded()) return true;
 
-      const isReady = await this.page.evaluate(() => {
+      const isReady = await this.page.evaluate((targetFps: number) => {
         const cjs = (window as any).createjs;
         if (cjs?.Ticker) {
-          cjs.Ticker.framerate = 120;
-          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / 120);
+          cjs.Ticker.framerate = targetFps;
+          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
         }
         if (cjs?.Tween?.tick) cjs.Tween.tick(2000, false);
 
@@ -302,7 +303,7 @@ export class CombatResolutionService {
         if (gStatus && !gStatus.lock && !gStatus.btn_lock && !gStatus.attacking) return true;
 
         return false;
-      }).catch(() => false);
+      }, config.TICKER_FPS).catch(() => false);
 
       if (isReady) return true;
       await new Promise(r => setTimeout(r, pollInterval));
@@ -350,13 +351,13 @@ export class CombatResolutionService {
         });
 
         if (check === 'MOUNTED') {
-          await this.page.evaluate(() => {
+          await this.page.evaluate((targetFps: number) => {
             const cjs = (window as any).createjs;
             if (cjs?.Ticker) {
-              cjs.Ticker.framerate = 120;
-              if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / 120);
+              cjs.Ticker.framerate = targetFps;
+              if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
             }
-          }).catch(() => null);
+          }, config.TICKER_FPS).catch(() => null);
           const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
           if (!isTurbo) await logNormalDelay(150, 0.1);
           return true;

@@ -23,7 +23,6 @@
       "code": "skill",
       "character": 4,
       "skill": 3,
-      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
@@ -31,7 +30,6 @@
     },
     {
       "code": "quick_call",
-      "optional": true,
       "waitForNetwork": "summon_result.json"
     },
     {
@@ -41,7 +39,6 @@
       "code": "skill",
       "character": 4,
       "skill": 4,
-      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
@@ -51,7 +48,6 @@
       "code": "skill",
       "character": 1,
       "skill": 3,
-      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
@@ -61,7 +57,6 @@
       "code": "skill",
       "character": 2,
       "skill": 3,
-      "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
@@ -77,7 +72,6 @@
     {
       "code": "summon",
       "slot": 2,
-      "optional": true,
       "waitForNetwork": "summon_result.json"
     },
     {

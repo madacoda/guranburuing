@@ -108,20 +108,44 @@ fi
 # 3. Clean up stale lock and socket files from ungraceful shutdowns / OOMs
 rm -f "$USER_DATA_DIR"/Singleton* "$USER_DATA_DIR"/*/Singleton* "$USER_DATA_DIR"/lockfile "$USER_DATA_DIR"/*/lockfile 2>/dev/null || true
 
-# 4. Assemble Chrome arguments optimized for minimal memory and headless stability
+# 4. Hardware-aware dynamic resource allocation (Optimized for 2 vCPU / 2GB RAM Production VPS)
+TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 1024)
+CPU_CORES=$(nproc 2>/dev/null || echo 1)
+
+if [[ "$TOTAL_RAM_MB" -ge 1800 ]]; then
+  # 2GB+ RAM VPS (Production Profile)
+  V8_HEAP_MB=${V8_MAX_OLD_SPACE:-1024}
+  DISK_CACHE_BYTES=${DISK_CACHE_SIZE:-536870912} # 512MB persistent game asset cache
+  RENDERER_PROC_LIMIT=${RENDERER_LIMIT:-2}
+else
+  # 1GB RAM Low-Spec Fallback
+  V8_HEAP_MB=${V8_MAX_OLD_SPACE:-384}
+  DISK_CACHE_BYTES=${DISK_CACHE_SIZE:-104857600} # 100MB
+  RENDERER_PROC_LIMIT=${RENDERER_LIMIT:-1}
+fi
+
+# Viewport: 360x720 cuts software rasterization pixels by ~44% vs 480x960
+TARGET_WINDOW_SIZE=${WINDOW_SIZE:-"360,720"}
+
+# Shared memory check: If /dev/shm >= 256MB, use lightning-fast RAM IPC instead of disk /tmp
+SHM_ARGS=()
+SHM_AVAILABLE_MB=$(df -m /dev/shm 2>/dev/null | awk 'NR==2 {print $2}' || echo 0)
+if [[ "$SHM_AVAILABLE_MB" -lt 256 ]]; then
+  SHM_ARGS+=("--disable-dev-shm-usage")
+fi
+
 CHROME_ARGS=(
   "--remote-debugging-port=$PORT"
   "--remote-allow-origins=*"
   "--user-data-dir=$USER_DATA_DIR"
   "--no-first-run"
   "--no-default-browser-check"
-  "--disable-dev-shm-usage"
   "--disable-gpu"
   "--no-sandbox"
   "--password-store=basic"
   "--use-mock-keychain"
-  "--js-flags=--max-old-space-size=384"
-  "--renderer-process-limit=1"
+  "--js-flags=--max-old-space-size=$V8_HEAP_MB"
+  "--renderer-process-limit=$RENDERER_PROC_LIMIT"
   "--disable-background-timer-throttling"
   "--disable-backgrounding-occluded-windows"
   "--disable-renderer-backgrounding"
@@ -135,11 +159,15 @@ CHROME_ARGS=(
   "--disable-speech-api"
   "--disable-breakpad"
   "--disable-crash-reporter"
-  "--disable-features=Translate,OptimizationHints,MediaRouter,BlockThirdPartyCookies,ThirdPartyStoragePartitioning,TrackingProtection3pcd"
+  "--disable-features=Translate,OptimizationHints,MediaRouter,BlockThirdPartyCookies,ThirdPartyStoragePartitioning,TrackingProtection3pcd,CalculateNativeWinOcclusion,InterestFeedContentSuggestions"
+  "--enable-features=NetworkService,NetworkServiceInProcess"
+  "--disable-gpu-vsync"
+  "--run-all-compositor-stages-before-draw=false"
   "--test-third-party-cookie-phaseout=disabled"
   "--metrics-recording-only"
-  "--window-size=480,960"
-  "--disk-cache-size=104857600"
+  "--window-size=$TARGET_WINDOW_SIZE"
+  "--disk-cache-size=$DISK_CACHE_BYTES"
+  "${SHM_ARGS[@]}"
 )
 
 WRAPPER_CMD=()
