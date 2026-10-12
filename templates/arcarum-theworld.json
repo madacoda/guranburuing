@@ -1,6 +1,6 @@
 {
   "name": "Arcarum Sandbox - The World",
-  "description": "High-speed The World battle loop (Zone Mundus): Quick Call -> MC & Frontline Skills -> Attack -> Wait & Reload (Animation Skip) -> Multi-Turn Fast Attack/Reload Loop -> Confirm Result",
+  "description": "The World battle loop (Zone Mundus): C4S1 -> Quick Call -> Reload -> C3S1 -> C2S1 -> C2S2 -> C1S1 -> C1S3 -> Attack -> Reload -> C2S3 -> Summon #4 -> Attack -> Reload -> Summon #3 -> Attack -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/16/819131/25/0/25085",
   "humanMotor": true,
   "stopOnCaptcha": true,
@@ -9,33 +9,48 @@
   "speedProfile": "fast",
   "steps": [
     {
+      "code": "skill",
+      "character": 4,
+      "skill": 1,
+      "optional": true
+    },
+    {
       "code": "quick_call",
-      "waitForNetwork": "summon_result.json"
+      "waitForNetwork": "summon_result.json",
+      "optional": true
     },
     {
-      "code": "skill",
-      "character": 1,
-      "skill": 1
-    },
-    {
-      "code": "skill",
-      "character": 1,
-      "skill": 2
-    },
-    {
-      "code": "skill",
-      "character": 2,
-      "skill": 1
+      "code": "reload"
     },
     {
       "code": "skill",
       "character": 3,
-      "skill": 1
+      "skill": 1,
+      "optional": true
     },
     {
       "code": "skill",
-      "character": 4,
-      "skill": 1
+      "character": 2,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 2,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 3,
+      "optional": true
     },
     {
       "code": "attack",
@@ -46,19 +61,35 @@
       "code": "reload"
     },
     {
-      "code": "repeat",
-      "repeatCount": 15,
-      "subSteps": [
-        {
-          "code": "attack",
-          "optional": true,
-          "waitForNetwork": "normal_attack_result.json",
-          "delayAfterMs": 350
-        },
-        {
-          "code": "reload"
-        }
-      ]
+      "code": "skill",
+      "character": 2,
+      "skill": 3,
+      "optional": true
+    },
+    {
+      "code": "summon",
+      "slot": 4,
+      "waitForNetwork": "summon_result.json",
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "summon",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json",
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
     },
     {
       "code": "confirm_result"
