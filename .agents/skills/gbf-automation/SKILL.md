@@ -39,10 +39,13 @@ This guide establishes the architectural standards, runtime environment, and ope
 | **Export Cookies (Local)**| `bun run session:export <acc>`| `npx tsx scripts/export-session.ts` |
 | **Import Cookies (VPS)**  | `bun run session:import <acc>`| `npx tsx src/cli/import-cookies.ts` |
 | **1-Click Sync to VPS**   | `bun run session:sync <acc>`  | `npx tsx scripts/sync-session.ts`   |
-| **Run All Tests** | `bun run test` | `npm run test:node` |
-| **Template Validation**| `bun run workflow:validate` | `npm run workflow:validate` |
-| **Install Packages** | `bun install` | `npm install` |
-| **Build Types** | `bun run build` | `npm run build` |
+| **Interactive VPS Login** | `bun run vps:login`           | `.\scripts\vps-browser.ps1`         |
+| **Security Hygiene Gate** | `bun run hygiene`             | `bun scripts/verify-hygiene.ts`     |
+| **Run All Tests**         | `bun run test`                | `npm run test:node`                 |
+| **Template Validation**   | `bun run workflow:validate`   | `npm run workflow:validate`         |
+| **Full Security & Tests** | `bun run verify`              | `npm run verify`                    |
+| **Install Packages**      | `bun install`                 | `npm install`                       |
+| **Build Types**           | `bun run build`               | `npm run build`                     |
 
 ---
 
@@ -298,32 +301,36 @@ This automatically:
 - Installs Google Chrome Stable.
 - Installs Bun runtime and packages.
 
-### Effortless Cookie Sync (Local Windows ➔ VPS):
-To authenticate your VPS accounts without typing passwords, completing 2FA, or solving Captchas on the server:
+### Recommended: Native VPS Remote Login & Interactive Mirror (`bun run vps:login`):
+Syncing cookies across machines via files can be brittle due to Mobage IP binding and session token expiration. Generating and maintaining the session **directly inside the remote VPS Chrome instance** under the VPS’s own IP address is the gold standard:
 
-**Method 1: Instant 1-Command Sync (Recommended)**:
-From your local Windows terminal:
+1. **Launch the Remote Mirror**:
+   ```powershell
+   bun run vps:login
+   # or
+   .\scripts\vps-browser.ps1
+   ```
+2. **What this does**:
+   - Securely tunnels port `9222` from the VPS directly to your PC via SSH (`ssh -N -L 9222:127.0.0.1:9222`).
+   - Automatically opens your local Google Chrome to `chrome://inspect`.
+3. **Inspect & Control**:
+   - Under **Remote Target**, click **"inspect"** next to **Granblue Fantasy**.
+   - An interactive mirror opens. Click buttons with your mouse, type your Mobage credentials on your keyboard, or solve any CAPTCHA challenge.
+   - All session state, cookies, and local storage tokens are saved **directly inside the VPS profile directory** (`/var/www/guranburuing/data/accounts/acc1`), registered natively under the VPS's public IP address.
+
+### Low-Spec VPS CDP Connection & Timeout Rules:
+- On 1 vCPU / 1 GB RAM low-memory VPS instances using SwiftShader CPU software rendering, target discovery across multiple iframes takes **10–15 seconds**.
+- The CDP connection timeout in `src/cdp-connection.ts` is standardized to **25,000ms** (25 seconds).
+- If connection stalls due to zombie sockets, the runner automatically re-launches with `--force` / `-Force` to kill stale sockets on port 9222.
+
+### Alternative Cookie Sync (Local Windows ➔ VPS):
+To sync existing session cookies directly to the VPS:
 ```bash
-# Sync acc1 cookies to VPS (reads from local Chrome profile, POSTs to VPS, injects & verifies):
+# Sync acc1 cookies to VPS:
 bun run session:sync acc1 --remote http://<VPS_IP>:3000
 
-# Or using SSH port forward if port 3000 is firewalled:
-# ssh -L 3000:localhost:3000 root@<VPS_IP>
-bun run session:sync acc1 --remote http://localhost:3000
-```
-
-**Method 2: Interactive Web Cockpit**:
-1. Open the companion web cockpit: `http://<VPS_IP>:3000/?token=<AUTH_TOKEN>`
-2. Click **🔑 Sync Cookies** in the top bar.
-3. Click **📋 Paste Clipboard** and tap **🚀 Apply & Verify Session**.
-4. The cockpit injects cookies via CDP and verifies the player name and rank instantly.
-
-**Method 3: Offline / Manual CLI**:
-```bash
-# 1. On Windows: Export cookies to clipboard and JSON
-bun run session:export acc1
-
-# 2. On VPS: Import directly from JSON string or file
+# Or via SSH directly:
+bun run session:sync acc1 --ssh
 ```
 
 ---
@@ -383,4 +390,36 @@ The codebase adheres strictly to gold industry standard senior software architec
   - `GoldBarHunterEngine`: Base hunter engine extended by `PbhlEngine`, `GoEngine`, and `AkashaEngine`.
   - `DailyHostEngine`: 16-raid hosting engine.
   - `UniversalWorkflowEngine`: Config-driven workflow engine.
+
+---
+
+## 8. Public Repository Security & Anti-Leak Hygiene Policy
+
+Because this repository is public, strict zero-leak hygiene is mandatory:
+
+### 1. Zero Hardcoded Credentials & Private Data:
+- **Never commit real credentials**: Emails, passwords, and user IDs must never exist in tracked files.
+- **Never hardcode server IP addresses**: Use dynamic environment variables (`process.env.VPS_HOST` / `process.env.VPS_IP`) with `localhost` fallbacks.
+- **Forbidden in git tracked files**:
+  - `.env` and `.env.*` (secrets, tokens, webhooks)
+  - `accounts.config.json` (live account credentials)
+  - `data/*-cookies.json` (exported session cookies)
+  - `data/accounts/*` (Chrome user data profiles)
+  - `artifacts/*` and `logs/*` (screenshots, CAPTCHA crops, drops)
+
+### 2. Automated Hygiene Gate:
+Always run the hygiene audit before pushing:
+```bash
+bun run hygiene
+# or full gate:
+bun run verify
+```
+The hygiene script (`scripts/verify-hygiene.ts`) automatically audits all tracked files in the git index for:
+- Exposed real email addresses (requires `@example.com` placeholders)
+- Personal Windows file paths (`C:\Users\<username>`)
+- Hardcoded public IPv4 server addresses
+- Discord webhook URLs with secret tokens
+- Telegram bot tokens
+- Private cryptographic keys (`.pem`, `.key`)
+- `.gitignore` rule completeness
 
