@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Goddess of the Wild Hunt (Smart Full Auto)",
+  "description": "Zone Mundus Light 5-gauge farming loop: Smart Full Auto battle routine for Goddess of the Wild Hunt (Desolate Ravine: The Crown, Division 15). Fills Light Sephira Box points and Wind Defender gauge",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/15/819121/25",
+  "questId": "819121",
+  "divisionId": 15,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

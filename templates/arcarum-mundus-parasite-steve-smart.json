@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Parasite Steve (Smart Full Auto)",
+  "description": "Zone Mundus Water 5-gauge farming loop: Optimal Smart Full Auto battle routine for Parasite Steve (Grotto of Solace: Entrance, Division 9). Turn 1 Quick Call + Adaptive Tactical Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Confirm Result -> Rapidly builds Ca Ong Militis Defender gauge and Water Sephira Box",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/9/819071/25",
+  "questId": "819071",
+  "divisionId": 9,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

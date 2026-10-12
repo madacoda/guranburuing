@@ -1,7 +1,7 @@
 // scripts/sync-session.ts
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { AccountRegistry } from '../src/auth/account-registry.js';
 import { config } from '../src/config.js';
 
@@ -18,12 +18,14 @@ const fileIdx = args.indexOf('--file');
 const customFile = fileIdx !== -1 ? args[fileIdx + 1] : null;
 
 const isFresh = args.includes('--fresh') || args.includes('-f');
+const isSshOnly = args.includes('--ssh') || args.includes('-s');
 
 const account = AccountRegistry.getAccountById(accountId);
 const accountName = account?.name || accountId;
 
-// Resolve default target remote URL
-let defaultRemote = process.env.REMOTE_VPS_URL || process.env.VPS_HOST || 'http://localhost:3000';
+// Resolve default target remote URL / IP from .env
+const vpsIp = process.env.VPS_IP || process.env.VPS_HOST || null;
+let defaultRemote = process.env.REMOTE_VPS_URL || (vpsIp ? `http://${vpsIp}:3000` : 'http://localhost:3000');
 if (!defaultRemote.startsWith('http://') && !defaultRemote.startsWith('https://')) {
   defaultRemote = `http://${defaultRemote}:3000`;
 }
@@ -33,6 +35,14 @@ const authToken = customToken || config.AUTH_TOKEN;
 const defaultCookieFile = path.resolve(process.cwd(), 'data', `${accountId}-cookies.json`);
 const cookieFile = customFile ? path.resolve(process.cwd(), customFile) : defaultCookieFile;
 
+let resolvedHost = '108.171.45.86';
+try {
+  resolvedHost = customRemote ? new URL(customRemote).hostname : (vpsIp || '108.171.45.86');
+} catch {
+  resolvedHost = vpsIp || '108.171.45.86';
+}
+const remoteWorkingDir = process.env.VPS_DIR || '/var/www/guranburuing';
+
 console.log('========================================================================');
 console.log('       Granblue Fantasy Instant Local ➔ VPS Session Synchronizer        ');
 console.log(`               Account: [${accountName}] (${accountId})                `);
@@ -40,6 +50,7 @@ console.log('===================================================================
 console.log(`Source Account:      ${accountName} (${accountId})`);
 console.log(`Local Cookie Cache:  ${cookieFile}`);
 console.log(`Target VPS Gateway:  ${remoteUrl}`);
+console.log(`Target VPS Host:     ${resolvedHost}`);
 console.log(`Auth Token:          ${authToken.slice(0, 8)}...`);
 console.log('========================================================================\n');
 
@@ -65,12 +76,52 @@ async function ensureLocalCookies(): Promise<any[]> {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
+async function syncViaSsh(host: string): Promise<boolean> {
+  console.log(`\n========================================================================`);
+  console.log(` 🚀 Synchronizing session to VPS via Direct SSH/SCP (${host})...`);
+  console.log(`========================================================================`);
+
+  console.log(`[SCP] Transferring local cookies to VPS:${remoteWorkingDir}/data/${accountId}-cookies.json...`);
+  const scpRes = spawnSync('scp', [
+    cookieFile,
+    `root@${host}:${remoteWorkingDir}/data/${accountId}-cookies.json`
+  ], { stdio: 'inherit', shell: true });
+
+  if (scpRes.status !== 0) {
+    console.error(`\n❌ SCP transfer failed with exit code ${scpRes.status}.`);
+    return false;
+  }
+
+  console.log(`[SSH] Invoking remote session importer on VPS...`);
+  const remoteCmd = `cd ${remoteWorkingDir} && bun src/cli/import-cookies.ts ${accountId} --file data/${accountId}-cookies.json`;
+  const sshRes = spawnSync('ssh', [
+    `root@${host}`,
+    remoteCmd
+  ], { stdio: 'inherit', shell: true });
+
+  if (sshRes.status === 0) {
+    console.log('\n========================================================================');
+    console.log(`🎉 SUCCESS: Account [${accountName}] Successfully Synchronized to VPS!`);
+    console.log('========================================================================');
+    console.log('👉 You can now run workflows directly on the VPS:');
+    console.log(`   ssh root@${host} "cd ${remoteWorkingDir} && bun src/cli/run-workflow.ts ${accountId} arcarum-gilgamesh-militis"\n`);
+    return true;
+  } else {
+    console.error(`\n❌ Remote cookie import failed with exit code ${sshRes.status}.`);
+    return false;
+  }
+}
+
 async function main() {
   const cookies = await ensureLocalCookies();
   console.log(`\n[Sync] Ready to synchronize ${cookies.length} session cookies to remote VPS...`);
 
-  const endpoint = `${remoteUrl.replace(/\/+$/, '')}/api/cookies/import?token=${encodeURIComponent(authToken)}`;
+  if (isSshOnly) {
+    const ok = await syncViaSsh(resolvedHost);
+    process.exit(ok ? 0 : 1);
+  }
 
+  const endpoint = `${remoteUrl.replace(/\/+$/, '')}/api/cookies/import?token=${encodeURIComponent(authToken)}`;
   console.log(`[Sync] Connecting to VPS Gateway: ${remoteUrl}...`);
 
   try {
@@ -84,7 +135,7 @@ async function main() {
         accountId,
         cookies
       }),
-      signal: AbortSignal.timeout(25000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!res.ok) {
@@ -107,24 +158,30 @@ async function main() {
       console.log(`   Remote Status:    AUTHENTICATED & READY FOR HEADLESS FARMING`);
       console.log('========================================================================\n');
       console.log('👉 You can now run daily routines or combat workflows on the VPS:');
-      console.log(`   ssh root@${new URL(remoteUrl).hostname} "cd /laragon/www/gbf || cd ~/gbf && bun run daily:${accountId}"\n`);
+      console.log(`   ssh root@${resolvedHost} "cd ${remoteWorkingDir} && bun run daily:${accountId}"\n`);
     } else {
       console.warn('\n⚠️ Cookies were received by VPS, but verification returned empty.');
       console.warn('Response:', data);
     }
   } catch (err: any) {
-    console.error(`\n❌ Failed to connect to VPS Gateway at ${remoteUrl}:`, err.message);
+    console.warn(`\n⚠️ VPS Gateway at ${remoteUrl} is unreachable (${err.message}).`);
+    console.log(`🔄 Automatically falling back to direct SSH/SCP synchronization to ${resolvedHost}...`);
+    const sshOk = await syncViaSsh(resolvedHost);
+    if (sshOk) {
+      process.exit(0);
+    }
+
     console.log('\n------------------------------------------------------------------------');
     console.log(' 💡 HOW TO RESOLVE VPS CONNECTION ISSUES:');
     console.log('------------------------------------------------------------------------');
-    console.log(' 1. If port 3000 is firewalled on your VPS, create a secure SSH tunnel:');
-    const host = new URL(remoteUrl).hostname || 'YOUR_VPS_IP';
-    console.log(`    ssh -L 3000:localhost:3000 root@${host}`);
-    console.log(`    Then run again: bun run session:sync ${accountId} --remote http://localhost:3000\n`);
-    console.log(' 2. If Gateway is not yet running on VPS, launch it:');
-    console.log(`    ssh root@${host} "cd ~/gbf && bun src/cli/setup-account.ts ${accountId}"\n`);
-    console.log(' 3. Or import cookies manually via SSH CLI using copied JSON:');
-    console.log(`    ssh root@${host} "cd ~/gbf && bun src/cli/import-cookies.ts ${accountId} --json '$(cat data/${accountId}-cookies.json)'"\n`);
+    console.log(' 1. To start the HTTP Gateway on your VPS:');
+    console.log(`    ssh root@${resolvedHost} "cd ${remoteWorkingDir} && bun run gateway"`);
+    console.log('    And allow port 3000 in your firewall: ufw allow 3000/tcp\n');
+    console.log(' 2. Or create a secure SSH tunnel from your local PC:');
+    console.log(`    ssh -L 3000:localhost:3000 root@${resolvedHost}`);
+    console.log(`    Then run: bun run sync ${accountId} --remote http://localhost:3000\n`);
+    console.log(' 3. Or synchronize directly via SSH anytime with:');
+    console.log(`    bun run sync ${accountId} --ssh\n`);
     console.log('------------------------------------------------------------------------\n');
     process.exit(1);
   }

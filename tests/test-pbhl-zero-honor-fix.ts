@@ -203,8 +203,23 @@ console.log('✅ PASS: waitForCombatTurnResolution waited through attacking stat
 // -------------------------------------------------------------
 console.log('--- Test 4: Verifying handleTapReady Dispatches Attack and Records Server Honors ---');
 
-// Reset score
+// Reset score and provide mock raid combat DOM so waitForBattleToMount resolves instantly
 (engine as any).currentScore = 0;
+(globalThis as any).document = {
+  querySelector: (sel: string) => {
+    if (sel.includes('.btn-attack-start') || sel.includes('#canvas') || sel.includes('.cnt-raid') || sel.includes('.prt-command')) {
+      return {
+        offsetWidth: 100,
+        offsetHeight: 40,
+        offsetParent: {},
+        classList: { contains: (cls: string) => cls === 'display-on' },
+        click: () => {}
+      };
+    }
+    return null;
+  },
+  querySelectorAll: () => []
+};
 
 // Setup mock turn action response
 setTimeout(async () => {

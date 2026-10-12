@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Hotheaded Pincers (Smart Full Auto)",
+  "description": "Zone Mundus Fire 3-gauge fast burst farming loop: Smart Full Auto routine for Hotheaded Pincers (Serenity Ridge: Foothills, Division 2). Low HP, rapid clears for quick Sephira treasure farming",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/2/819011/25",
+  "questId": "819011",
+  "divisionId": 2,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

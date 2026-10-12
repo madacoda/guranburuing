@@ -173,6 +173,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Arcarum Zone Mundus (Stage 10) Militis Bosses & Map Tests',
     file: 'tests/test-arcarum-mundus-militis.ts',
     description: 'Verify Prometheus, Morrigna, Ca Ong, and Gilgamesh Militis templates, URLs, DSL round-trip, and Stage 10 quest selection'
+  },
+  {
+    name: 'Fate Stories Engine & Routine Unit Tests',
+    file: 'tests/test-fate-engine-unit.ts',
+    description: 'Verify fate episode template schema, card filtering, quest skip uncheck, caution modal, cutscene skip, and routine loop integration'
   }
 ];
 

@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Herald of Water (Smart Full Auto)",
+  "description": "Zone Mundus Sephira Herald battle routine: Defeats Herald of Water (Grotto of Solace: Entrance, Division 9) to activate +100% Sephira Gauge boost buff for 60 minutes",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/9/819191/25",
+  "questId": "819191",
+  "divisionId": 9,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 1,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

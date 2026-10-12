@@ -167,21 +167,21 @@ export class FateEngine {
         )) as HTMLElement[];
 
         const unread = candidates.filter(c => {
-          const isCleared = c.classList.contains('ico-clear') || c.classList.contains('is-cleared');
-          const rect = c.getBoundingClientRect();
+          const isCleared = c.classList?.contains('ico-clear') || c.classList?.contains('is-cleared');
+          const rect = typeof c.getBoundingClientRect === 'function' ? c.getBoundingClientRect() : { height: 50 };
           return !isCleared && rect.height > 0 && c.offsetParent !== null;
         });
 
         return unread.map(c => {
-          const questName = c.querySelector('.prt-quest-title, .txt-quest-title, .prt-chapter-name')?.textContent?.trim() ||
-                            c.innerText.split('\n')[0] ||
+          const questName = c.querySelector?.('.prt-quest-title, .txt-quest-title, .prt-chapter-name')?.textContent?.trim() ||
+                            c.innerText?.split('\n')?.[0] ||
                             'Fate Episode';
           return {
-            questId: c.getAttribute('data-quest-id') || '',
-            chapterId: c.getAttribute('data-chapter-id') || '',
+            questId: c.getAttribute?.('data-quest-id') || '',
+            chapterId: c.getAttribute?.('data-chapter-id') || '',
             questName,
-            className: c.className,
-            inProgress: c.classList.contains('ico-progress')
+            className: c.className || '',
+            inProgress: c.classList?.contains('ico-progress') || false
           };
         });
       }).catch(() => []);

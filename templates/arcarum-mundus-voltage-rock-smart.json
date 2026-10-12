@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - High-Voltage Rock (Smart Full Auto)",
+  "description": "Zone Mundus Light 5-gauge farming loop: Smart Full Auto battle routine for High-Voltage Rock (Serenity Ridge: Peaks, Division 4). Fills Light Sephira Box points and Fire Defender gauge",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/4/819031/25",
+  "questId": "819031",
+  "divisionId": 4,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

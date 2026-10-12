@@ -127,38 +127,43 @@ Autonomous daily raid hosting with transient DOM sanitization and material defic
 Optimized Smart Full Auto and Burst workflows for all major Zone Mundus encounters.
 
 ### 🔥 Prometheus Militis (Fire — Div 3 | Quest ID: 819141)
+### 🚀 Unified Arcarum Zone Mundus CLI Controller
 ```bash
-bun run prometheus:smart              # Smart Full Auto (Headless)
-bun run prometheus:smart:windowed     # Smart Full Auto (Windowed)
-bun run prometheus                    # Fast Burst Rotation
+bun run arcarum                       # Interactive Target Selection Menu
+bun run arcarum:help                  # Print Complete Target Catalog & Syntax
+bun src/cli/run-arcarum.ts acc1 ca-ong 100        # Run 100 battles of Ca Ong Militis
+bun src/cli/run-arcarum.ts acc1 steve 200          # Farm 200 runs of Parasite Steve (spawns Ca Ong)
+bun src/cli/run-arcarum.ts acc1 theworld 50 -w     # Run 50 battles of The World (Windowed)
+bun src/cli/run-arcarum.ts acc1 stage10 500        # Universal Stage 10 Map Scanner
 ```
 
-### 🌪️ Morrigna Militis (Wind — Div 15 | Quest ID: 819171)
-```bash
-bun run morrigna:smart                # Smart Full Auto (Headless)
-bun run morrigna:smart:windowed       # Smart Full Auto (Windowed)
-bun run morrigna                      # Fast Burst Rotation
-```
+### ⚔️ Militis Defenders & Core Bosses (30 AAP)
+| Target | Element | Div | Quest ID | Quick CLI Shortcut | Drops |
+| :--- | :---: | :---: | :---: | :--- | :--- |
+| **Ca Ong Militis** | Water | 10 | `819151` | `bun run ca-ong:smart` | Glacial Rapier Militis, Water Luster, Pillar of Sea |
+| **Prometheus Militis** | Fire | 3 | `819141` | `bun run prometheus:smart` | Prominence Militis, Fire Luster, Pillar of Sun |
+| **Gilgamesh Militis** | Earth | 7 | `819161` | `bun run gilgamesh:smart` | Heavy Cane Militis, Earth Luster, Pillar of Land |
+| **Morrigna Militis** | Wind | 15 | `819171` | `bun run morrigna:smart` | Tempest Militis, Wind Luster, Pillar of Sky |
+| **The World** | All | 16 | `819131` | `bun run theworld:smart` | World Idean, Mundus Lusters, New World Quartz |
+| **Zone Mundus Map** | All | 10 | — | `bun run stage10` | Universal Map Scanner & Auto-Defender Target |
 
-### 💧 Ca Ong Militis (Water — Div 9 | Quest ID: 819151)
-```bash
-bun run ca-ong:smart                  # Smart Full Auto (Headless)
-bun run ca-ong:smart:windowed         # Smart Full Auto (Windowed)
-bun run ca-ong                        # Fast Burst Rotation
-```
+### 🌾 Primary 5-Gauge Farming Targets (20 AAP — Builds Sephira Boxes & Defender Gauges)
+| Target | Element | Div | Quest ID | Quick CLI Shortcut | Purpose |
+| :--- | :---: | :---: | :---: | :--- | :--- |
+| **Parasite Steve** | Water | 9 | `819071` | `bun run arcarum:steve` | Primary Water farm, builds Ca Ong gauge |
+| **Tide Caller** | Water | 10 | `819081` | `bun run arcarum:tide-caller` | Water Sephira Box, Ca Ong gauge |
+| **Earth-Shattering Fire Demon** | Fire | 3 | `819021` | `bun run arcarum:fire-demon` | Primary Fire farm, builds Prometheus gauge |
+| **Elephant Stomping Ground** | Earth | 7 | `819051` | `bun run arcarum:elephant` | Primary Earth farm, builds Gilgamesh gauge |
+| **Princess of the Horde** | Earth | 6 | `819041` | `bun run arcarum:princess` | Earth Sephira Box, Gilgamesh gauge |
+| **Dragon in Glittering Green** | Wind | 14 | `819111` | `bun run arcarum:dragon-green` | Primary Wind farm, builds Morrigna gauge |
 
-### ⛰️ Gilgamesh Militis (Earth — Div 8 | Quest ID: 819161)
-```bash
-bun run gilgamesh:smart               # Smart Full Auto (Headless)
-bun run gilgamesh:smart:windowed      # Smart Full Auto (Windowed)
-bun run gilgamesh                     # Fast Burst Rotation
-```
-
-### 🗺️ Zone Mundus Stage 10 Map Sweeper (Direct `#replicard/stage/10`)
-```bash
-bun run stage10                       # Auto-targets active Militis/Defender (Headless)
-bun run stage10:windowed              # Auto-targets active Militis/Defender (Windowed)
-```
+### ⚡ 3-Gauge Fast Burst & Sephira Heralds (+100% Boost)
+| Target | Element | Div | Quest ID | Quick CLI Shortcut | Purpose |
+| :--- | :---: | :---: | :---: | :--- | :--- |
+| **Herald of Water** | Fire | 9 | `819191` | `bun run arcarum:herald-water` | **+100% Sephira Gauge Boost for 60 Minutes** |
+| **Herald of Earth** | Fire | 6 | `819201` | `bun run arcarum:herald-earth` | **+100% Sephira Gauge Boost for 60 Minutes** |
+| **Hotheaded Pincers** | Fire | 2 | `819011` | `bun run arcarum:pincers` | 3-bar low HP fast burst farming |
+| **Winged Demon Cat** | Wind | 13 | `819101` | `bun run arcarum:winged-cat` | 3-bar low HP fast burst farming |
 
 ---
 
@@ -352,8 +357,8 @@ Mandatory quality gates executed locally and in CI.
 
 | Command | Gate / Test | Description |
 | :--- | :---: | :--- |
-| `bun run verify` | Full Pre-Flight | Runs Hygiene + DSL Validation + `tsc` Build + 33/33 Tests |
-| `bun run test` | Unified Runner | Executes all 33 test suites (`tests/run-all.ts`) |
+| `bun run verify` | Full Pre-Flight | Runs Hygiene + DSL Validation + `tsc` Build + 34/34 Tests |
+| `bun run test` | Unified Runner | Executes all 34 test suites (`tests/run-all.ts`) |
 | `bun run hygiene` | Security Gate | Audits git index for secret leaks, personal paths, or credentials |
 | `bun run workflow:validate` | Schema Gate | Validates all workflow templates against Zod AST schemas |
 | `bun run typecheck` | Type Safety | Executes TypeScript static type-checking (`tsc --noEmit`) |

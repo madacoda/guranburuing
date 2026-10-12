@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Dragon in Glittering Green (Smart Full Auto)",
+  "description": "Zone Mundus Wind 5-gauge farming loop: Optimal Smart Full Auto battle routine for Dragon in Glittering Green (Desolate Ravine: The Belly, Division 14). Turn 1 Quick Call + Tactical Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Confirm Result -> Rapidly builds Morrigna Militis Defender gauge and Wind Sephira Box",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/14/819111/25",
+  "questId": "819111",
+  "divisionId": 14,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

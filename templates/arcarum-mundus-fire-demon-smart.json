@@ -1,0 +1,41 @@
+{
+  "name": "Arcarum Sandbox - Earth-Shattering Fire Demon (Smart Full Auto)",
+  "description": "Zone Mundus Fire 5-gauge farming loop: Optimal Smart Full Auto battle routine for Earth-Shattering Fire Demon (Serenity Ridge: Slopes, Division 3). Turn 1 Quick Call + Tactical Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Confirm Result -> Rapidly builds Prometheus Militis Defender gauge and Fire Sephira Box",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/3/819021/25",
+  "questId": "819021",
+  "divisionId": 3,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "repeat",
+      "repeatCount": 2,
+      "subSteps": [
+        {
+          "code": "attack",
+          "optional": true,
+          "waitForNetwork": "normal_attack_result.json",
+          "delayAfterMs": 350
+        },
+        {
+          "code": "reload",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

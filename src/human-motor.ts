@@ -118,6 +118,11 @@ export async function moveMouseSmoothly(page: Page, target: Point): Promise<void
     y: start.y + dy * 0.72 + perp.y * curvature * 0.6,
   };
 
+  if (typeof page.mouse?.move !== 'function') {
+    currentCursorPos = { ...target };
+    return;
+  }
+
   // Steps scaled via speed profile
   const steps = currentSpeedProfile === 'fast'
     ? Math.max(3, Math.min(8, Math.floor(distance / 70)))
@@ -269,15 +274,17 @@ export async function humanizedClick(
         x: Math.max(box.x + 3, Math.min(box.x + box.width - 3, targetPoint.x + (Math.random() * 6 - 3))),
         y: Math.max(box.y + 3, Math.min(box.y + box.height - 3, targetPoint.y + (Math.random() * 6 - 3)))
       };
-      await page.mouse.move(jitterPoint.x, jitterPoint.y);
+      if (typeof page.mouse?.move === 'function') {
+        await page.mouse.move(jitterPoint.x, jitterPoint.y);
+      }
       currentCursorPos = jitterPoint;
     }
 
     // Physical click actuation (realistic microswitch hold duration: 40ms - 75ms)
-    await page.mouse.down();
+    if (typeof page.mouse?.down === 'function') await page.mouse.down();
     const holdMs = currentSpeedProfile === 'turbo' ? 20 : (currentSpeedProfile === 'fast' ? 45 : 70);
     await logNormalDelay(holdMs, 0.18);
-    await page.mouse.up();
+    if (typeof page.mouse?.up === 'function') await page.mouse.up();
 
     // Failsafe trigger for Zepto/Backbone mobile web controls
     await el.evaluate((node: any) => {

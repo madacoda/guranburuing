@@ -8,15 +8,10 @@ import { DropLogger } from './drop-logger.js';
 import { goldBarTracker } from '../services/telemetry/gold-bar-tracker.service.js';
 import { discordPresence } from '../relay/discord-presence.js';
 import { discordDmRelay } from '../relay/discord-dm-relay.js';
-import { ProSkipEngine } from './pro-skip.engine.js';
 import {
-  humanizedClick,
-  humanReactionDelay,
-  randomDelay,
-  logNormalDelay,
-  sampleGaussian,
   setSpeedProfile,
-  getSpeedProfile
+  getSpeedProfile,
+  logNormalDelay
 } from '../human-motor.js';
 import {
   WorkflowTemplate,
@@ -24,13 +19,23 @@ import {
   WorkflowRunResult,
   WorkflowSummary
 } from '../types/workflow.types.js';
-import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions } from './raid-evaluator.js';
 import { AccountRegistry } from '../auth/account-registry.js';
 import { RecoveryModalService, PendingBattleService, SupporterSelectionService } from '../services/navigation/index.js';
 import { CombatActionService } from '../services/combat/index.js';
 import { LootTrackerService } from '../services/telemetry/index.js';
 import { StepHandlerRegistry, createDefaultStepHandlerRegistry, WorkflowExecutionContext } from '../workflows/index.js';
-import { FateEngine } from './fate.engine.js';
+
+// Modular Universal Sub-Services
+import {
+  UniversalWorkflowState,
+  UniversalContext,
+  ScreenDiagnosticService,
+  CombatResolutionService,
+  CombatExecutionService,
+  MilestoneSweeperService,
+  QuestNavigationService,
+  RoutineExecutionService
+} from './universal/index.js';
 
 export interface WorkflowLoopOptions {
   runs?: number;
@@ -41,128 +46,217 @@ export interface WorkflowLoopOptions {
 }
 
 export class UniversalWorkflowEngine {
-  private stopRequested = false;
-  private totalGoldBarsAccumulated = 0;
-  private totalBlueChestsAccumulated = 0;
-  private totalHonorsAccumulated = 0;
-  private totalLootItemsAccumulated = 0;
-  private currentRaidId: string = 'N/A';
-  private myUserId: string = '';
-  private currentScore = 0;
-  private currentTurn = 1;
-  private dropLogger?: DropLogger;
-  private alertRelay = new AlertRelay();
-  private joinedInCurrentBatch = 0;
-  private currentBatchThreshold = 3;
-  private latestRewardData: any = null;
-  private responseListenerInitialized = false;
-  private currentLogPath = 'logs/workflow.md';
-  private currentDropLogPath?: string;
-  private currentWorkflowLogPath = 'logs/workflow.md';
-  private currentBattleHadGoldBar = false;
-  private currentBattleHadBlueChest = false;
-  private totalCompletedRuns = 0;
-  private dailyCatalogCache: any[] | null = null;
-  private totalJoinedAndClearedBattles = 0;
-  private lastStartFailureWasRaidLimit = false;
-  private lastStartFailureWasRaidWait = false;
-  private lastStartFailureWasMaintenance = false;
-  private consecutiveEmptyRaidSearches = 0;
-  private deadRaidIds = new Map<string, number>();
-  private playerName?: string;
-  private lastAttackLockoutExpires = 0;
+  public ctx: UniversalContext;
+  public screenDiagnostic: ScreenDiagnosticService;
+  public combatResolution: CombatResolutionService;
+  public combatExecution: CombatExecutionService;
+  public milestoneSweeper: MilestoneSweeperService;
+  public questNavigation: QuestNavigationService;
+  public routineExecution: RoutineExecutionService;
+
+  // Legacy services retained for backward compatibility
   private recoveryModalService: RecoveryModalService;
   private pendingBattleService: PendingBattleService;
   private supporterSelectionService: SupporterSelectionService;
   private combatActionService: CombatActionService;
   private lootTrackerService: LootTrackerService;
   private stepRegistry: StepHandlerRegistry;
+  private responseListenerInitialized = false;
 
   constructor(
-    private page: Page,
+    private _page: Page,
     private sentinel: SentinelWatchdog,
     private template: WorkflowTemplate,
     private accountId: string
   ) {
-    this.recoveryModalService = new RecoveryModalService(page);
-    this.pendingBattleService = new PendingBattleService(page);
-    this.supporterSelectionService = new SupporterSelectionService(page);
-    this.combatActionService = new CombatActionService(page);
-    this.lootTrackerService = new LootTrackerService(page);
+    const accConfig = AccountRegistry.getAccountById(this.accountId);
+    const playerName = accConfig?.name || this.accountId;
+
+    const state: UniversalWorkflowState = {
+      stopRequested: false,
+      totalGoldBarsAccumulated: 0,
+      totalBlueChestsAccumulated: 0,
+      totalHonorsAccumulated: 0,
+      totalLootItemsAccumulated: 0,
+      currentRaidId: 'N/A',
+      myUserId: '',
+      currentScore: 0,
+      currentTurn: 1,
+      joinedInCurrentBatch: 0,
+      currentBatchThreshold: 3,
+      latestRewardData: null,
+      currentLogPath: 'logs/workflow.md',
+      currentWorkflowLogPath: 'logs/workflow.md',
+      currentBattleHadGoldBar: false,
+      currentBattleHadBlueChest: false,
+      totalCompletedRuns: 0,
+      dailyCatalogCache: null,
+      totalJoinedAndClearedBattles: 0,
+      lastStartFailureWasRaidLimit: false,
+      lastStartFailureWasRaidWait: false,
+      lastStartFailureWasMaintenance: false,
+      consecutiveEmptyRaidSearches: 0,
+      deadRaidIds: new Map<string, number>(),
+      playerName,
+      lastAttackLockoutExpires: 0
+    };
+
+    this.ctx = {
+      page: this._page,
+      sentinel: this.sentinel,
+      template: this.template,
+      accountId: this.accountId,
+      state,
+      alertRelay: new AlertRelay(),
+      updatePage: (newPage: Page) => {
+        this.ctx.page = newPage;
+        this._page = newPage;
+      }
+    };
+
+    // Initialize modular domain services
+    this.screenDiagnostic = new ScreenDiagnosticService(this.ctx);
+    this.combatResolution = new CombatResolutionService(this.ctx);
+    this.milestoneSweeper = new MilestoneSweeperService(this.ctx, undefined, undefined, {
+      claimPendingBattles: (logPath, currentRuns, returnUrl) => this.claimPendingBattles(logPath, currentRuns, returnUrl),
+      resolveLingeringRaidLimit: (logPath, currentRuns) => this.resolveLingeringRaidLimit(logPath, currentRuns)
+    });
+
+    this.questNavigation = new QuestNavigationService(this.ctx, {
+      milestoneSweeper: this.milestoneSweeper,
+      combatResolution: this.combatResolution,
+      screenDiagnostic: this.screenDiagnostic,
+      handleAapRecoveryModal: (autoReplenish) => this.routineExecution.handleAapRecoveryModal(autoReplenish)
+    });
+
+    this.routineExecution = new RoutineExecutionService(this.ctx, {
+      executeSingleStep: (s, num, runNum) => this.executeSingleStep(s, num, runNum)
+    });
+
+    this.combatExecution = new CombatExecutionService(this.ctx, {
+      combatResolution: this.combatResolution,
+      executeSingleStep: (s, num, runNum) => this.executeSingleStep(s, num, runNum),
+      isManualWorkflow: () => this.isManualWorkflow()
+    });
+
+    this.recoveryModalService = new RecoveryModalService(this._page);
+    this.pendingBattleService = new PendingBattleService(this._page);
+    this.supporterSelectionService = new SupporterSelectionService(this._page);
+    this.combatActionService = new CombatActionService(this._page);
+    this.lootTrackerService = new LootTrackerService(this._page);
     this.stepRegistry = createDefaultStepHandlerRegistry();
 
     setSpeedProfile(template.speedProfile || 'fast');
-    this.currentBatchThreshold = this.calculateNextBatchThreshold();
-    const accConfig = AccountRegistry.getAccountById(this.accountId);
-    this.playerName = accConfig?.name || this.accountId;
+    this.ctx.state.currentBatchThreshold = this.calculateNextBatchThreshold();
+
     this.sentinel?.setSessionContext?.({
       accountId: this.accountId,
-      playerName: this.playerName,
-      questName: this.template.name,
+      playerName: this.ctx.state.playerName,
+      questName: this.template.name
     });
+
     this.setupResponseListener();
   }
 
+  // --- Dynamic property delegates for backward compatibility ---
+  public get page(): Page { return this.ctx.page; }
+  public set page(p: Page) { this.updatePage(p); }
+
+  public get currentScore(): number { return this.ctx.state.currentScore; }
+  public set currentScore(v: number) { this.ctx.state.currentScore = v; }
+
+  public get currentTurn(): number { return this.ctx.state.currentTurn; }
+  public set currentTurn(v: number) { this.ctx.state.currentTurn = v; }
+
+  public get currentRaidId(): string { return this.ctx.state.currentRaidId; }
+  public set currentRaidId(v: string) { this.ctx.state.currentRaidId = v; }
+
+  public get totalGoldBarsAccumulated(): number { return this.ctx.state.totalGoldBarsAccumulated; }
+  public set totalGoldBarsAccumulated(v: number) { this.ctx.state.totalGoldBarsAccumulated = v; }
+
+  public get totalBlueChestsAccumulated(): number { return this.ctx.state.totalBlueChestsAccumulated; }
+  public set totalBlueChestsAccumulated(v: number) { this.ctx.state.totalBlueChestsAccumulated = v; }
+
+  public get totalHonorsAccumulated(): number { return this.ctx.state.totalHonorsAccumulated; }
+  public set totalHonorsAccumulated(v: number) { this.ctx.state.totalHonorsAccumulated = v; }
+
+  public get totalCompletedRuns(): number { return this.ctx.state.totalCompletedRuns; }
+  public set totalCompletedRuns(v: number) { this.ctx.state.totalCompletedRuns = v; }
+
+  public get totalJoinedAndClearedBattles(): number { return this.ctx.state.totalJoinedAndClearedBattles; }
+  public set totalJoinedAndClearedBattles(v: number) { this.ctx.state.totalJoinedAndClearedBattles = v; }
+
+  public get lastStartFailureWasRaidLimit(): boolean { return this.ctx.state.lastStartFailureWasRaidLimit; }
+  public set lastStartFailureWasRaidLimit(v: boolean) { this.ctx.state.lastStartFailureWasRaidLimit = v; }
+
+  public get lastStartFailureWasRaidWait(): boolean { return this.ctx.state.lastStartFailureWasRaidWait; }
+  public set lastStartFailureWasRaidWait(v: boolean) { this.ctx.state.lastStartFailureWasRaidWait = v; }
+
+  public get lastStartFailureWasMaintenance(): boolean { return this.ctx.state.lastStartFailureWasMaintenance; }
+  public set lastStartFailureWasMaintenance(v: boolean) { this.ctx.state.lastStartFailureWasMaintenance = v; }
+
+  public get stopRequested(): boolean { return this.ctx.state.stopRequested; }
+  public set stopRequested(v: boolean) { this.ctx.state.stopRequested = v; }
+
+  public get currentLogPath(): string { return this.ctx.state.currentLogPath; }
+  public set currentLogPath(v: string) { this.ctx.state.currentLogPath = v; }
+
+  public get currentWorkflowLogPath(): string { return this.ctx.state.currentWorkflowLogPath; }
+  public set currentWorkflowLogPath(v: string) { this.ctx.state.currentWorkflowLogPath = v; }
+
+  public get currentDropLogPath(): string | undefined { return this.ctx.state.currentDropLogPath; }
+  public set currentDropLogPath(v: string | undefined) { this.ctx.state.currentDropLogPath = v; }
+
+  public get dailyCatalogCache(): any[] | null { return this.ctx.state.dailyCatalogCache; }
+  public set dailyCatalogCache(v: any[] | null) { this.ctx.state.dailyCatalogCache = v; }
+
+  public get alertRelay(): AlertRelay { return this.ctx.alertRelay; }
+  public get dropLogger(): DropLogger | undefined { return this.ctx.dropLogger; }
+  public set dropLogger(dl: DropLogger | undefined) { this.ctx.dropLogger = dl; }
+
   public async syncInGamePlayerName(): Promise<string> {
     try {
-      if (typeof this.page.evaluate === 'function') {
-        const inGameName = await this.page.evaluate(() => {
-          const Game = (window as any).Game;
-          const nameEl = document.querySelector('.prt-user-name .txt-user-name, .prt-user-name, .txt-user-name, .prt-status-user-name');
-          if (nameEl?.textContent?.trim()) return nameEl.textContent.trim();
-          if (Game?.userName) return String(Game.userName).trim();
-          return null;
-        }).catch(() => null);
+      const name = await this.page.evaluate(() => {
+        const el = document.querySelector('.txt-user-name, .prt-user-name, .prt-user-id');
+        return el ? (el.textContent || '').trim() : '';
+      }).catch(() => '');
 
-        if (inGameName && inGameName !== 'Player') {
-          this.playerName = inGameName;
-          this.sentinel?.setSessionContext?.({
-            accountId: this.accountId,
-            playerName: this.playerName,
-            questName: this.template.name,
-          });
-          return inGameName;
-        }
+      if (name) {
+        this.ctx.state.playerName = name;
+        this.sentinel?.setSessionContext?.({ playerName: name });
+        return name;
       }
-    } catch {}
-    return this.playerName || this.accountId;
+    } catch {
+      // Best-effort extraction
+    }
+    return this.ctx.state.playerName || this.accountId;
   }
 
   public updatePage(newPage: Page): void {
-    console.log(`[Workflow] 🔄 Re-binding active page for [${this.accountId}] following CDP reconnect.`);
-    this.page = newPage;
-    this.recoveryModalService?.updatePage(newPage);
-    this.pendingBattleService?.updatePage(newPage);
-    this.supporterSelectionService?.updatePage(newPage);
-    this.combatActionService?.updatePage(newPage);
-    this.lootTrackerService?.updatePage(newPage);
+    this.ctx.updatePage(newPage);
+    this.screenDiagnostic.updatePage(newPage);
+    this.recoveryModalService = new RecoveryModalService(newPage);
+    this.pendingBattleService = new PendingBattleService(newPage);
+    this.supporterSelectionService = new SupporterSelectionService(newPage);
+    this.combatActionService = new CombatActionService(newPage);
+    this.lootTrackerService = new LootTrackerService(newPage);
     this.responseListenerInitialized = false;
     this.setupResponseListener();
   }
 
   public async ensureViewportAndMobile(): Promise<void> {
     try {
-      await this.page.setViewport({
-        width: 480,
-        height: 960,
-        deviceScaleFactor: 1,
-        isMobile: true,
-        hasTouch: true
-      });
-    } catch (err: any) {
-      console.warn('[Workflow] Notice setting viewport:', err.message);
+      await this.page.setViewport({ width: 480, height: 960, isMobile: true, hasTouch: true });
+    } catch {
+      // In mock tests or disconnected pages
     }
   }
 
   public requestStop(): void {
-    console.log(`\n[Workflow] 🛑 Graceful stop requested for [${this.accountId}]. Finishing active run...`);
-    this.stopRequested = true;
+    this.ctx.state.stopRequested = true;
+    console.log(`[Workflow] 🛑 Stop requested for engine (${this.template.name}).`);
   }
 
-  /**
-   * Sets up real-time telemetry interceptor to track ground-truth turn count,
-   * honors, raid IDs, and reward drops across combat JSON payloads.
-   */
   private setupResponseListener(): void {
     if (this.responseListenerInitialized) return;
     this.responseListenerInitialized = true;
@@ -180,22 +274,22 @@ export class UniversalWorkflowEngine {
           const json = await res.json().catch(() => null);
           if (json) {
             if (json.raid_id) {
-              this.currentRaidId = String(json.raid_id);
-              this.sentinel?.setSessionContext?.({ raidId: this.currentRaidId });
+              this.ctx.state.currentRaidId = String(json.raid_id);
+              this.sentinel?.setSessionContext?.({ raidId: this.ctx.state.currentRaidId });
             }
 
-            if (json.user_id && !this.myUserId) this.myUserId = String(json.user_id);
+            if (json.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(json.user_id);
             let memberPoint: number | null = null;
             if (Array.isArray(json.multi_raid_member_info)) {
-              const myId = String(this.myUserId || json.user_id || '');
-              const myName = this.playerName || '';
+              const myId = String(this.ctx.state.myUserId || json.user_id || '');
+              const myName = this.ctx.state.playerName || '';
               const me = json.multi_raid_member_info.find((m: any) => 
                 (myId && String(m.user_id) === myId) || 
                 (myName && (m.nickname === myName || m.name === myName)) ||
                 (m.is_host && json.is_host)
               );
               if (me) {
-                if (me.user_id && !this.myUserId) this.myUserId = String(me.user_id);
+                if (me.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(me.user_id);
                 if (me.point !== undefined) {
                   const pt = parseInt(String(me.point).replace(/,/g, ''), 10);
                   if (!isNaN(pt) && pt > 0) memberPoint = pt;
@@ -209,30 +303,30 @@ export class UniversalWorkflowEngine {
               (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null) ??
               (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
               (typeof json.player?.point === 'number' && json.player.point > 0 ? json.player.point : null);
-            if (serverPoint !== null) this.currentScore = Math.max(this.currentScore, serverPoint);
-            if (json.turn !== undefined) this.currentTurn = Number(json.turn);
-            else if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+            if (serverPoint !== null) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, serverPoint);
+            if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
+            else if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
           }
         }
 
         // 2. Normal Attack Result
         if (url.includes('normal_attack_result.json')) {
-          this.lastAttackLockoutExpires = Date.now() + 2400;
+          this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
           const json = await res.json().catch(() => null);
           if (json) {
-            if (json.user_id && !this.myUserId) this.myUserId = String(json.user_id);
+            if (json.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(json.user_id);
             let directPoint: number | null = null;
 
             if (Array.isArray(json.multi_raid_member_info)) {
-              const myId = String(this.myUserId || json.user_id || '');
-              const myName = this.playerName || '';
+              const myId = String(this.ctx.state.myUserId || json.user_id || '');
+              const myName = this.ctx.state.playerName || '';
               const me = json.multi_raid_member_info.find((m: any) => 
                 (myId && String(m.user_id) === myId) || 
                 (myName && (m.nickname === myName || m.name === myName)) ||
                 (m.is_host && json.is_host)
               );
               if (me) {
-                if (me.user_id && !this.myUserId) this.myUserId = String(me.user_id);
+                if (me.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(me.user_id);
                 if (me.point !== undefined) {
                   const pt = parseInt(String(me.point).replace(/,/g, ''), 10);
                   if (!isNaN(pt) && pt > 0) directPoint = pt;
@@ -249,22 +343,25 @@ export class UniversalWorkflowEngine {
             }
 
             const targetHonors = this.template.targetScore || 1500000;
+            const payloadKey = `${json.raid_id || 'battle'}_t${json.status?.turn || json.turn || ''}_hp${json.status?.boss?.param?.[0]?.hp ?? ''}`;
+
             if (directPoint !== null) {
-              this.currentScore = Math.max(this.currentScore, directPoint);
-              const pct = ((this.currentScore / targetHonors) * 100).toFixed(1);
-              console.log(`[Combat] 🎯 Attack Honors Synced: ${this.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
-            } else {
+              this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, directPoint);
+              this.ctx.state.lastProcessedAttackKey = payloadKey;
+              const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+              console.log(`[Combat] 🎯 Attack Honors Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+            } else if (this.ctx.state.lastProcessedAttackKey !== payloadKey) {
+              this.ctx.state.lastProcessedAttackKey = payloadKey;
               const turnDmg = this.extractTurnDamage(json);
               if (turnDmg > 0) {
-                // In Granblue Fantasy raids, 1 honor = 100 damage (e.g. 148M damage = 1.48M honors)
                 const turnHonors = Math.floor(turnDmg / 100);
-                this.currentScore += turnHonors;
-                const pct = ((this.currentScore / targetHonors) * 100).toFixed(1);
-                console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+                this.ctx.state.currentScore += turnHonors;
+                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+                console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
               }
             }
-            if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
-            else if (json.turn !== undefined) this.currentTurn = Number(json.turn);
+            if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
+            else if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
           }
         }
 
@@ -272,26 +369,26 @@ export class UniversalWorkflowEngine {
         if (url.includes('ability_result.json')) {
           const json = await res.json().catch(() => null);
           if (json) {
-            // Check if this ability triggered an attack without using a turn (e.g. Tag Team, König)
             const hasAttackCmd = Array.isArray(json.scenario) && json.scenario.some((s: any) => s && s.cmd === 'attack');
             if (hasAttackCmd) {
-              this.lastAttackLockoutExpires = Date.now() + 2400;
-              const abilityDmg = this.extractTurnDamage(json);
-              if (abilityDmg > 0) {
-                const abilityHonors = Math.floor(abilityDmg / 100);
-                this.currentScore += abilityHonors;
-                const targetHonors = this.template.targetScore || 1500000;
-                const pct = ((this.currentScore / targetHonors) * 100).toFixed(1);
-                console.log(`[Combat] ⚔️ Skill Attack Dmg: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
-              }
+              this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
+            }
+
+            const abilityDmg = this.extractTurnDamage(json);
+            if (abilityDmg > 0) {
+              const abilityHonors = Math.floor(abilityDmg / 100);
+              this.ctx.state.currentScore += abilityHonors;
+              const targetHonors = this.template.targetScore || 1500000;
+              const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+              console.log(`[Combat] ⚡ Skill Damage: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
             }
 
             const abilityPoint =
               (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
               (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
               (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null);
-            if (abilityPoint !== null) this.currentScore = Math.max(this.currentScore, abilityPoint);
-            if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+            if (abilityPoint !== null) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, abilityPoint);
+            if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
           }
         }
 
@@ -303,8 +400,19 @@ export class UniversalWorkflowEngine {
               (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
               (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
               (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null);
-            if (summonPoint !== null) this.currentScore = Math.max(this.currentScore, summonPoint);
-            if (json.status?.turn !== undefined) this.currentTurn = Number(json.status.turn);
+            if (summonPoint !== null) {
+              this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, summonPoint);
+            } else {
+              const summonDmg = this.extractTurnDamage(json);
+              if (summonDmg > 0) {
+                const summonHonors = Math.floor(summonDmg / 100);
+                this.ctx.state.currentScore += summonHonors;
+                const targetHonors = this.template.targetScore || 1500000;
+                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+                console.log(`[Combat] 🔮 Summon Damage: ${summonDmg.toLocaleString()} (~${summonHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+              }
+            }
+            if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
           }
         }
 
@@ -318,21 +426,20 @@ export class UniversalWorkflowEngine {
         ) {
           const json = await res.json().catch(() => null);
           if (json) {
-            this.latestRewardData = json;
+            this.ctx.state.latestRewardData = json;
             const resPoint =
               (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
               (typeof json.point === 'number' && json.point > 0 ? json.point : null) ??
               (typeof json.total_point === 'number' && json.total_point > 0 ? json.total_point : null);
-            if (resPoint !== null) this.currentScore = Math.max(this.currentScore, resPoint);
+            if (resPoint !== null) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, resPoint);
 
-            // Check if encoded HTML contains honors
             if (typeof json.data === 'string') {
               try {
                 const decoded = decodeURIComponent(json.data);
                 const match = decoded.match(/class=["'](?:prt-user-point|txt-user-point)["'][^>]*>.*?([0-9,]+)/i);
                 if (match && match[1]) {
                   const num = parseInt(match[1].replace(/,/g, ''), 10);
-                  if (!isNaN(num) && num > 0) this.currentScore = Math.max(this.currentScore, num);
+                  if (!isNaN(num) && num > 0) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, num);
                 }
               } catch {}
             }
@@ -342,162 +449,23 @@ export class UniversalWorkflowEngine {
           }
         }
       } catch {
-        // Silently ignore parsing errors on interrupted responses during navigation
+        // Silently ignore parsing errors
       }
     });
   }
 
-  /**
-   * Traverses battle scenario AST to aggregate total damage dealt by player this turn.
-   */
   public extractTurnDamage(data: any): number {
-    if (!data || !Array.isArray(data.scenario)) return 0;
-    let turnDamage = 0;
-
-    const traverse = (node: any) => {
-      if (!node) return;
-      if (typeof node === 'number') {
-        if (node > 0 && node < 100000000 && Number.isFinite(node)) {
-          turnDamage += node;
-        }
-        return;
-      }
-      if (Array.isArray(node)) {
-        for (const item of node) traverse(item);
-        return;
-      }
-      if (typeof node === 'object') {
-        for (const [key, val] of Object.entries(node)) {
-          if (key === 'damage' || key === 'value' || key === 'val' || key === 'total_damage') {
-            if (typeof val === 'number' && val > 0 && val < 100000000) {
-              turnDamage += val;
-            } else if (Array.isArray(val) || typeof val === 'object') {
-              traverse(val);
-            }
-          } else if (key === 'list') {
-            traverse(val);
-          }
-        }
-      }
-    };
-
-    for (const s of data.scenario) {
-      if (!s) continue;
-      // Skip healing, boss gauges, and incoming enemy damage
-      if (s.cmd === 'heal' || s.cmd === 'boss_gauge' || s.cmd === 'special' || s.cmd === 'special_npc') continue;
-      if (s.from === 'boss' || s.from === 'enemy' || s.target === 'player' || s.to === 'player' || s.name === 'player') continue;
-
-      if (s.cmd === 'attack' || s.cmd === 'damage') {
-        if (s.damage !== undefined) traverse(s.damage);
-        if (s.list !== undefined) traverse(s.list);
-      }
-    }
-
-    return turnDamage;
+    return CombatResolutionService.extractTurnDamage(data);
   }
 
-  /**
-   * Synchronizes ground-truth honors from DOM and window/stage client state.
-   */
-  public async syncCurrentHonors(): Promise<number> {
-    try {
-      const result = await this.page.evaluate((cachedId, accountName) => {
-        const stage = (window as any).stage;
-        const pJsn = stage?.pJsnData;
-        let detectedUserId = cachedId || '';
-
-        // 1. Authoritative: multi_raid_member_info from stage.pJsnData
-        if (pJsn?.multi_raid_member_info && Array.isArray(pJsn.multi_raid_member_info)) {
-          const myId = String(cachedId || pJsn.user_id || (window as any).Game?.userId || '');
-          const me = pJsn.multi_raid_member_info.find((m: any) => 
-            (myId && String(m.user_id) === myId) || 
-            (accountName && (m.nickname === accountName || m.name === accountName)) ||
-            (m.is_host && pJsn.is_host)
-          );
-          if (me) {
-            if (me.user_id) detectedUserId = String(me.user_id);
-            if (me.point !== undefined) {
-              const pt = parseInt(String(me.point).replace(/,/g, ''), 10);
-              if (!isNaN(pt) && pt > 0) return { score: pt, userId: detectedUserId };
-            }
-          }
-        }
-
-        if (pJsn?.user_id) detectedUserId = String(pJsn.user_id);
-
-        // 2. Direct server user_point from stage.pJsnData
-        if (pJsn?.user_point !== undefined) {
-          const pt = parseInt(String(pJsn.user_point).replace(/,/g, ''), 10);
-          if (!isNaN(pt) && pt > 0) return { score: pt, userId: detectedUserId };
-        }
-
-        // 3. Direct server point_info from stage.pJsnData
-        if (pJsn?.point_info?.user_point !== undefined) {
-          const pt = parseInt(String(pJsn.point_info.user_point).replace(/,/g, ''), 10);
-          if (!isNaN(pt) && pt > 0) return { score: pt, userId: detectedUserId };
-        }
-
-        // 4. stage.gGameStatus.player.point
-        if (stage?.gGameStatus?.player?.point !== undefined) {
-          const pt = parseInt(String(stage.gGameStatus.player.point).replace(/,/g, ''), 10);
-          if (!isNaN(pt) && pt > 0) return { score: pt, userId: detectedUserId };
-        }
-
-        // 5. In raid & result DOM elements (.txt-user-point, .prt-user-point, .txt-point, .prt-point, .prt-point-info, .lis-user.user-me)
-        const pointEls = Array.from(document.querySelectorAll('.txt-user-point, .prt-user-point, .txt-point, .prt-point, .prt-point-info .txt-point, .lis-user.user-me .txt-point'));
-        for (const el of pointEls) {
-          const text = (el as HTMLElement).innerText || '';
-          const match = text.match(/(?:honors|貢献度|point)?\s*[:：]?\s*([0-9,]+)\s*(?:pt)?/i);
-          if (match && match[1]) {
-            const num = parseInt(match[1].replace(/,/g, ''), 10);
-            if (!isNaN(num) && num > 0) return { score: num, userId: detectedUserId };
-          }
-        }
-
-        // 6. Look for raid info displaying honors / points (e.g. "... pt")
-        // STRICT GUARD: Only search .prt-result-cnt if currently on a result page (#result or #result_multi).
-        // In active combat (#raid_multi), querying .prt-result-cnt reads lingering DOM from past raids!
-        const isResultPage = window.location.hash.includes('result');
-        const selector = isResultPage
-          ? '.prt-raid-info *, .cnt-raid-info *, .prt-result-cnt *'
-          : '.prt-raid-info *, .cnt-raid-info *, .cnt-raid *';
-        const ptElements = Array.from(document.querySelectorAll(selector));
-        for (const el of ptElements) {
-          if ((el as HTMLElement).offsetParent === null) continue;
-          const text = (el as HTMLElement).innerText?.trim() || '';
-          if (text.includes('pt') && text.length < 25) {
-            const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
-            if (!isNaN(num) && num > 0) return { score: num, userId: detectedUserId };
-          }
-        }
-
-        return { score: 0, userId: detectedUserId };
-      }, this.myUserId, this.playerName || '').catch(() => ({ score: 0, userId: '' }));
-
-      if (result.userId && !this.myUserId) {
-        this.myUserId = result.userId;
-      }
-
-      if (result.score > this.currentScore) {
-        this.currentScore = result.score;
-        const target = this.template.targetScore || 1500000;
-        const pct = ((this.currentScore / target) * 100).toFixed(1);
-        console.log(`[Honors] Synced: ${this.currentScore.toLocaleString()} / ${target.toLocaleString()} pt (${pct}%)`);
-      }
-      return this.currentScore;
-    } catch {
-      return this.currentScore;
-    }
+  public static extractTurnDamage(data: any): number {
+    return CombatResolutionService.extractTurnDamage(data);
   }
 
-  /**
-   * Checks reward payload for Gold Bar (item_id 20004 / "ヒヒイロカネ" / "Gold Bar" / "Gold Brick").
-   */
   private checkForGoldBarDrop(payload: any): boolean {
     if (!payload) return false;
     let found = false;
 
-    // 1. Recursive object search across all properties (arrays, dictionaries, chest keys)
     const traverse = (node: any) => {
       if (!node || found) return;
       if (typeof node === 'object') {
@@ -514,7 +482,6 @@ export class UniversalWorkflowEngine {
     };
     traverse(payload);
 
-    // 2. Fast string serialization check across entire payload
     if (!found) {
       try {
         const str = JSON.stringify(payload);
@@ -524,7 +491,6 @@ export class UniversalWorkflowEngine {
       } catch {}
     }
 
-    // 3. Encoded data string check (HTML template inside payload.data)
     if (!found && typeof payload.data === 'string') {
       try {
         if (
@@ -546,24 +512,19 @@ export class UniversalWorkflowEngine {
           }
         }
       } catch {
-        if (payload.data.includes('20004')) {
-          found = true;
-        }
+        if (payload.data.includes('20004')) found = true;
       }
     }
 
-    if (found && !this.currentBattleHadGoldBar) {
-      this.currentBattleHadGoldBar = true;
-      this.totalGoldBarsAccumulated++;
+    if (found && !this.ctx.state.currentBattleHadGoldBar) {
+      this.ctx.state.currentBattleHadGoldBar = true;
+      this.ctx.state.totalGoldBarsAccumulated++;
       this.broadcastGoldBarFound();
     }
 
     return found;
   }
 
-  /**
-   * Checks reward payload for Blue Chest (special_reward_flag / box_type 11 / "特別報酬").
-   */
   private checkForBlueChestDrop(payload: any): boolean {
     if (!payload) return false;
     let found = false;
@@ -593,120 +554,26 @@ export class UniversalWorkflowEngine {
       try {
         if (
           payload.data.includes('box_type="11"') ||
-          payload.data.includes('box-type="11"') ||
-          payload.data.includes('prt-special-reward') ||
+          payload.data.includes('box_type=\\"11\\"') ||
+          payload.data.includes('special_reward') ||
           payload.data.includes('特別報酬')
         ) {
           found = true;
-        } else {
-          const decoded = decodeURIComponent(payload.data);
-          if (
-            decoded.includes('box_type="11"') ||
-            decoded.includes('box-type="11"') ||
-            decoded.includes('prt-special-reward') ||
-            decoded.includes('特別報酬') ||
-            decoded.includes('Special Reward')
-          ) {
-            found = true;
-          }
         }
       } catch {}
     }
 
-    if (found && !this.currentBattleHadBlueChest) {
-      this.currentBattleHadBlueChest = true;
-      this.totalBlueChestsAccumulated++;
+    if (found && !this.ctx.state.currentBattleHadBlueChest) {
+      this.ctx.state.currentBattleHadBlueChest = true;
+      this.ctx.state.totalBlueChestsAccumulated++;
+      console.log(`[Telemetry] 💎 Blue Chest drop confirmed! Total Blue Chests: ${this.ctx.state.totalBlueChestsAccumulated}`);
     }
 
     return found;
   }
 
-  /**
-   * Inspects result DOM for on-screen Gold Bar drop indicators.
-   */
-  private async inspectDomForGoldBar(): Promise<{ hasGoldBar: boolean; raidId: string }> {
-    try {
-      return await this.page.evaluate(() => {
-        const text = document.body?.innerText || '';
-        const hasText = text.includes('Gold Bar') || text.includes('Gold Brick') || text.includes('ヒヒイロカネ');
-        const hasImg = !!document.querySelector([
-          'img[src*="20004"]',
-          'img.img-thumb[src*="20004"]',
-          'img[src*="evolution/s/20004"]',
-          'img[src*="evolution/m/20004"]',
-          'img[src*="assets/item/evolution/s/20004.jpg"]',
-          'img[src*="assets/item/evolution/m/20004.jpg"]',
-          '[data-item-name*="Gold Bar"]',
-          '[data-item-name*="Gold Brick"]',
-          '[data-item-name*="ヒヒイロカネ"]',
-          '[alt*="Gold Bar"]',
-          '[alt*="Gold Brick"]',
-          '[alt*="ヒヒイロカネ"]',
-          'div[data-item-id="20004"]',
-          '[data-item-id="20004"]'
-        ].join(', '));
-
-        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
-        const textMatch = text.match(/ID[:\s]*(\d+)/i);
-        const raidId = raidIdMatch ? raidIdMatch[1] : (textMatch ? textMatch[1] : '');
-        return { hasGoldBar: hasText || hasImg, raidId };
-      });
-    } catch {
-      return { hasGoldBar: false, raidId: '' };
-    }
-  }
-
-  /**
-   * Inspects result DOM for on-screen Blue Chest drop indicators.
-   */
-  private async inspectDomForBlueChest(): Promise<boolean> {
-    try {
-      return await this.page.evaluate(() => {
-        const hasSpecialRewardElement = !!document.querySelector([
-          '.prt-special-reward',
-          '.prt-special-reward-box',
-          '.ico-special-reward',
-          '.box-special',
-          '.prt-box-special',
-          '.special-reward',
-          '[data-box-type="11"]',
-          '.box-11',
-          '.reward-box-11',
-          'div.prt-special-item',
-          'div.prt-special-box'
-        ].join(', '));
-
-        if (hasSpecialRewardElement) return true;
-
-        const text = document.body?.innerText || '';
-        if (text.includes('特別報酬') || text.includes('Special Reward') || text.includes('Blue Chest')) {
-          return true;
-        }
-
-        try {
-          const stage = (window as any).stage;
-          if (stage && stage.g && stage.g.result) {
-            const res = stage.g.result;
-            if (res.special_reward_flag || res.special_reward || res.reward_box_11) {
-              return true;
-            }
-          }
-        } catch {}
-
-        return false;
-      });
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Captures a clean, unobstructed proof screenshot of the raid rewards and loot collected.
-   * Eliminates blocking modals (EXP Gained, Level Up, Trophy, overlays), brings the loot list
-   * into crisp view, and clips neatly to the battle result card (.prt-module) whenever possible.
-   */
   private async captureCleanLootProof(raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
-    const cleanRaidId = (raidId || this.currentRaidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+    const cleanRaidId = (raidId || this.ctx.state.currentRaidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
     const capDir = path.resolve(process.cwd(), 'artifacts/captures');
     if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
     const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
@@ -717,14 +584,12 @@ export class UniversalWorkflowEngine {
       const currentUrl = this.page.url();
       const isAlreadyOnResult = currentUrl.includes('result_multi') || currentUrl.includes('result');
 
-      // 1. If NOT already on a result page and valid numeric raidId is given, navigate directly to official battle log archive
       if (!isAlreadyOnResult && cleanRaidId && /^\d+$/.test(cleanRaidId)) {
         const resultUrl = `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`;
         console.log(`[Workflow] 📸 Navigating to battle result for clean loot proof: ${resultUrl}`);
         await this.page.goto(resultUrl, { waitUntil: 'domcontentloaded' }).catch(() => null);
       }
 
-      // 2. Wait up to 7000ms for loading overlay to vanish and result DOM to mount
       const tWaitStart = Date.now();
       while (Date.now() - tWaitStart < 7000) {
         const ready = await this.page.evaluate(() => {
@@ -741,7 +606,6 @@ export class UniversalWorkflowEngine {
       }
       await logNormalDelay(600, 0.15);
 
-      // 3. Tap Blue Chest if present and unopened to trigger opening animation & reveal contents
       await this.page.evaluate(() => {
         const blueBox = document.querySelector(
           '.prt-box-special, .prt-special-reward-box, [data-box-type="11"], .prt-box-item.special, .ico-box-special'
@@ -754,94 +618,42 @@ export class UniversalWorkflowEngine {
       }).catch(() => null);
       await logNormalDelay(800, 0.15);
 
-      // 4. Dismiss any active modal popups (EXP, Level Up, Trophy, Settle) via UI click
       await this.page.evaluate(() => {
         const okBtns = document.querySelectorAll(
           '.pop-usual .btn-usual-ok, .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-close, .btn-settle, .btn-result-close'
         );
-        okBtns.forEach((b: any) => {
-          try {
+        okBtns.forEach((btn: any) => {
+          if (btn.offsetParent !== null) {
             const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(b).trigger('tap');
-            b.click();
-          } catch {}
+            if ($) $(btn).trigger('tap');
+            btn.click();
+          }
         });
       }).catch(() => null);
       await logNormalDelay(400, 0.1);
 
-      // 5. Forcibly hide any lingering modal dialogs, popups, loading masks, and backdrops
-      await this.page.evaluate(() => {
-        const hideSelectors = [
-          '.pop-usual', '#pop', '.prt-popup-header', '.prt-popup-body',
-          '.prt-popup-footer', '.mask', '.pop-show', '.common-pop-error', '.cnt-error',
-          '#loading', '.prt-loading', '.cnt-loading'
-        ];
-        hideSelectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
-            const htmlEl = el as HTMLElement;
-            htmlEl.style.display = 'none';
-            htmlEl.style.visibility = 'hidden';
-            htmlEl.style.opacity = '0';
-            htmlEl.style.pointerEvents = 'none';
-          });
-        });
-      }).catch(() => null);
-
-      // 6. Scroll the Gold Bar or loot container into view
-      await this.page.evaluate(() => {
-        const loot = document.querySelector(
-          '[data-item-id="20004"], img[src*="20004"], img[src*="20011"], [data-item-name*="Gold Bar"], [data-item-name*="ヒヒイロカネ"], .prt-box-special, .prt-special-reward-box, .prt-reward-item, .prt-item-list, .prt-module'
-        ) as HTMLElement;
-        if (loot) {
-          loot.scrollIntoView({ behavior: 'instant', block: 'center' });
-        }
-      }).catch(() => null);
-      await logNormalDelay(300, 0.05);
-
-      // 7. Measure .prt-result-cnt or .prt-module for a clean, framed card capture
-      const clip = await this.page.evaluate(() => {
-        const el = (document.querySelector('.prt-result-cnt') || document.querySelector('.cnt-result') || document.querySelector('.prt-module')) as HTMLElement;
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0) return null;
-        return {
-          x: Math.max(0, Math.round(r.x)),
-          y: Math.max(0, Math.round(r.y)),
-          width: Math.round(r.width),
-          height: Math.min(Math.round(r.height), 820)
-        };
-      }).catch(() => null);
-
-      if (clip && clip.width > 0 && clip.height > 0) {
-        console.log(`[Workflow] 📸 Clipping clean loot reward card (${clip.width}x${clip.height})...`);
-        const buf = await this.page.screenshot({ clip });
-        fs.writeFileSync(proofPath, buf);
-        shotBuf = Buffer.from(buf);
+      const targetEl = await this.page.$(
+        '#cnt-result, .cnt-result, .prt-result-cnt, #wrapper, body'
+      );
+      if (targetEl) {
+        shotBuf = await targetEl.screenshot({ path: proofPath, type: 'png' }) as Buffer;
       } else {
-        const buf = await this.page.screenshot();
-        fs.writeFileSync(proofPath, buf);
-        shotBuf = Buffer.from(buf);
+        shotBuf = await this.page.screenshot({ path: proofPath, fullPage: false }) as Buffer;
       }
-      console.log(`[Workflow] ✅ Clean Gold Bar proof screenshot saved: ${proofPath}`);
+      console.log(`[Workflow] 📸 Proof screenshot captured: ${proofPath}`);
     } catch (shotErr: any) {
-      console.warn(`[Workflow] Notice taking clean screenshot, falling back to basic capture:`, shotErr.message);
-      try {
-        const fallbackBuf = await this.page.screenshot();
-        fs.writeFileSync(proofPath, fallbackBuf);
-        shotBuf = Buffer.from(fallbackBuf);
-      } catch {}
+      console.warn(`[Workflow] Proof capture error: ${shotErr.message}`);
     }
 
     return { buffer: shotBuf, path: proofPath };
   }
 
   private async broadcastGoldBarFound(overrideRaidId?: string): Promise<void> {
-    const raidId = overrideRaidId || this.currentRaidId || '';
+    const raidId = overrideRaidId || this.ctx.state.currentRaidId || '';
     console.log(`\n========================================================================`);
     console.log(`  🌟🌟🌟 [GOLD BAR FOUND!] Account: [${this.accountId}] Raid: ${raidId || 'Active'} 🌟🌟🌟`);
     console.log(`========================================================================\n`);
 
-    // Terminal audible bell
     process.stdout.write('\x07\x07\x07');
 
     const battleUrl = raidId
@@ -851,12 +663,11 @@ export class UniversalWorkflowEngine {
     try {
       const { buffer: shotBuffer, path: proofPath } = await this.captureCleanLootProof(raidId);
 
-      // Record in modular GoldBarTrackerService (JST Server Day Ledger)
       await goldBarTracker.recordDrop({
         raidId: raidId || 'Raid',
         questName: this.template.name,
-        honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
-        turns: this.currentTurn || '-',
+        honors: this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-',
+        turns: this.ctx.state.currentTurn || '-',
         screenshotPath: proofPath,
         screenshotBuffer: shotBuffer,
         source: 'live_combat',
@@ -864,30 +675,30 @@ export class UniversalWorkflowEngine {
         skipAlert: true
       }).catch(() => null);
 
-      if (this.dropLogger) {
-        await this.dropLogger.notifyGoldBarDrop({
+      if (this.ctx.dropLogger) {
+        await this.ctx.dropLogger.notifyGoldBarDrop({
           raidId: raidId || 'Raid',
-          honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
-          turns: this.currentTurn || '-',
+          honors: this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-',
+          turns: this.ctx.state.currentTurn || '-',
           screenshotBuffer: shotBuffer,
           screenshotPath: proofPath,
           accountId: this.accountId,
         });
       } else {
         const playerName = this.accountId || 'acc1';
-        await this.alertRelay.sendEmergencyAlert(
-          `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.currentScore.toLocaleString()} pt\n• Total GB: ${this.totalGoldBarsAccumulated}`,
+        await this.ctx.alertRelay.sendEmergencyAlert(
+          `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.ctx.state.currentScore.toLocaleString()} pt\n• Total GB: ${this.ctx.state.totalGoldBarsAccumulated}`,
           shotBuffer
         );
 
         if (discordDmRelay.isConfigured()) {
           try {
             await discordDmRelay.sendMessage(
-              `🌟 **Gold Brick Drop Confirmed** 🌟\n• **Raid**: ${this.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}\n• **Honors**: ${this.currentScore.toLocaleString()} pt\n• **Total GB**: ${this.totalGoldBarsAccumulated}`,
+              `🌟 **Gold Brick Drop Confirmed** 🌟\n• **Raid**: ${this.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}\n• **Honors**: ${this.ctx.state.currentScore.toLocaleString()} pt\n• **Total GB**: ${this.ctx.state.totalGoldBarsAccumulated}`,
               shotBuffer,
               `gold-bar-${raidId || 'drop'}.png`,
               undefined,
-              true // force = true
+              true
             );
           } catch (dmErr: any) {
             console.error('[Workflow] Direct Discord DM dispatch error:', dmErr.message);
@@ -908,9 +719,6 @@ export class UniversalWorkflowEngine {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  /**
-   * Runs the automated workflow loop.
-   */
   public async runLoop(options: WorkflowLoopOptions = {}): Promise<WorkflowSummary> {
     const {
       runs = this.template.defaultRuns || 100,
@@ -922,22 +730,21 @@ export class UniversalWorkflowEngine {
 
     const startTime = Date.now();
     let totalCompleted = 0;
-    this.stopRequested = false;
-    this.totalGoldBarsAccumulated = 0;
-    this.totalHonorsAccumulated = 0;
-    this.totalLootItemsAccumulated = 0;
-    this.joinedInCurrentBatch = 0;
-    this.totalJoinedAndClearedBattles = 0;
-    this.lastStartFailureWasRaidLimit = false;
-    this.lastStartFailureWasRaidWait = false;
-    this.lastStartFailureWasMaintenance = false;
-    this.consecutiveEmptyRaidSearches = 0;
+    this.ctx.state.stopRequested = false;
+    this.ctx.state.totalGoldBarsAccumulated = 0;
+    this.ctx.state.totalHonorsAccumulated = 0;
+    this.ctx.state.totalLootItemsAccumulated = 0;
+    this.ctx.state.joinedInCurrentBatch = 0;
+    this.ctx.state.totalJoinedAndClearedBattles = 0;
+    this.ctx.state.lastStartFailureWasRaidLimit = false;
+    this.ctx.state.lastStartFailureWasRaidWait = false;
+    this.ctx.state.lastStartFailureWasMaintenance = false;
+    this.ctx.state.consecutiveEmptyRaidSearches = 0;
 
     await this.syncInGamePlayerName();
 
     const isAssistRaid = this.template.questUrl.includes('assist');
 
-    // Canonical drop log resolution (for Gold Bar ledger & raid statistics)
     let dropLogPath: string | undefined = logPath || this.template.logPath;
     if (!dropLogPath) {
       const lowerName = this.template.name.toLowerCase();
@@ -954,16 +761,15 @@ export class UniversalWorkflowEngine {
 
     const workflowSlug = this.template.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const workflowLogPath = `logs/workflow-${this.accountId}-${workflowSlug}.md`;
-    this.currentWorkflowLogPath = workflowLogPath;
-    this.currentDropLogPath = dropLogPath;
+    this.ctx.state.currentWorkflowLogPath = workflowLogPath;
+    this.ctx.state.currentDropLogPath = dropLogPath;
     const activeLogPath = dropLogPath || workflowLogPath;
-    this.currentLogPath = activeLogPath;
+    this.ctx.state.currentLogPath = activeLogPath;
 
-    // Initialize DropLogger if dropLogPath resolved
     if (dropLogPath) {
       this.ensureLogDirExists(dropLogPath);
-      this.dropLogger = new DropLogger(path.resolve(process.cwd(), dropLogPath), this.template.name);
-      const initialStats = this.dropLogger.getStats();
+      this.ctx.dropLogger = new DropLogger(path.resolve(process.cwd(), dropLogPath), this.template.name);
+      const initialStats = this.ctx.dropLogger.getStats();
       console.log(`[Workflow] Drop Logger active: ${dropLogPath} (${initialStats.totalBattles} historical battles, ${initialStats.blueChests} Blue Chests, ${initialStats.goldBars} Gold Bars, dry streak: ${initialStats.currentDryStreak} ${initialStats.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'})`);
 
       discordPresence.updateStatus({
@@ -997,7 +803,7 @@ export class UniversalWorkflowEngine {
     console.log(`Auto Half-Elixir:     ${autoReplenishAp ? 'Enabled' : 'Disabled'}`);
     console.log(`Auto Soul-Berry:      ${autoReplenishEp ? 'Enabled' : 'Disabled'}`);
     if (isAssistRaid) {
-      console.log(`Batch Claim Window:   Randomized ${this.template.minBatchClaim || 3} - ${this.template.maxBatchClaim || 5} raids (First batch: ${this.currentBatchThreshold})`);
+      console.log(`Batch Claim Window:   Randomized ${this.template.minBatchClaim || 3} - ${this.template.maxBatchClaim || 5} raids (First batch: ${this.ctx.state.currentBatchThreshold})`);
     }
     if (dropLogPath) {
       console.log(`Drop Log (Gold Bars): ${dropLogPath}`);
@@ -1005,39 +811,35 @@ export class UniversalWorkflowEngine {
     console.log(`Workflow Log:         ${workflowLogPath}`);
     console.log(`========================================================================\n`);
 
-    // Clean up any lingering popups or unfinished battles on startup
-    await this.resolveLingeringState();
+    await this.combatResolution.resolveLingeringState();
 
-    // Check and clear pre-existing pending battles before starting session
-    // Critical for Guild Wars (GW / Unite and Fight) where having any unclaimed battle strictly blocks starting quests
     const isGw = this.template.name.toLowerCase().includes('gw') || this.template.questUrl.includes('teamraid') || this.template.questUrl.includes('event');
     if (isAssistRaid || isGw) {
       console.log('[Workflow] 🛡️ Verifying zero pending/unclaimed battles exist before starting runs...');
-      await this.claimPendingBattles(activeLogPath, 0, this.template.questUrl);
+      await this.milestoneSweeper.claimPendingBattles(activeLogPath, 0, this.template.questUrl);
     }
 
     let consecutiveStartFailures = 0;
     const MAX_START_FAILURES = 5;
 
-    while (totalCompleted < runs && !this.stopRequested) {
+    while (totalCompleted < runs && !this.ctx.state.stopRequested) {
       const runNumber = totalCompleted + 1;
       const runStart = Date.now();
-      this.currentScore = 0;
-      this.currentTurn = 1;
-      this.currentBattleHadGoldBar = false;
-      this.currentBattleHadBlueChest = false;
-      this.totalCompletedRuns = totalCompleted;
+      this.ctx.state.currentScore = 0;
+      this.ctx.state.currentTurn = 1;
+      this.ctx.state.currentBattleHadGoldBar = false;
+      this.ctx.state.currentBattleHadBlueChest = false;
+      this.ctx.state.totalCompletedRuns = totalCompleted;
 
-      // Check proactive pending battle batch limit in assist mode
-      if (isAssistRaid && this.joinedInCurrentBatch >= this.currentBatchThreshold) {
-        console.log(`\n[Workflow] Batch claim threshold (${this.currentBatchThreshold}) reached. Claiming pending battles...`);
-        await this.claimPendingBattles(activeLogPath, totalCompleted);
-        this.joinedInCurrentBatch = 0;
-        this.currentBatchThreshold = this.calculateNextBatchThreshold();
-        console.log(`[Workflow] Next pending claim scheduled in ${this.currentBatchThreshold} raids.\n`);
+      if (isAssistRaid && this.ctx.state.joinedInCurrentBatch >= this.ctx.state.currentBatchThreshold) {
+        console.log(`\n[Workflow] Batch claim threshold (${this.ctx.state.currentBatchThreshold}) reached. Claiming pending battles...`);
+        await this.milestoneSweeper.claimPendingBattles(activeLogPath, totalCompleted);
+        this.ctx.state.joinedInCurrentBatch = 0;
+        this.ctx.state.currentBatchThreshold = this.calculateNextBatchThreshold();
+        console.log(`[Workflow] Next pending claim scheduled in ${this.ctx.state.currentBatchThreshold} raids.\n`);
       }
 
-      if (this.stopRequested) break;
+      if (this.ctx.state.stopRequested) break;
 
       console.log(`------------------------------------------------------------------------`);
       console.log(`[${this.accountId}] [Run ${runNumber}] Initiating Workflow Run...`);
@@ -1049,337 +851,240 @@ export class UniversalWorkflowEngine {
         runNumber: runNumber,
       });
 
-      const currentStats = this.dropLogger?.getStats();
       discordPresence.updateStatus({
         raidName: this.template.name,
-        runNumber: currentStats ? (currentStats.totalBattles + 1) : runNumber,
+        runNumber,
         totalRuns: runs === Infinity ? undefined : runs,
-        goldBars: currentStats ? currentStats.goldBars : this.totalGoldBarsAccumulated,
-        goldBarsToday: currentStats?.goldBarsToday,
-        goldBarsSession: this.totalGoldBarsAccumulated,
-        blueChests: currentStats ? currentStats.blueChests : this.totalBlueChestsAccumulated,
-        dryStreak: currentStats ? currentStats.currentDryStreak : undefined,
-        dryStreakMode: currentStats ? currentStats.dryStreakMode : undefined,
-        status: 'In Combat',
-        turn: 1,
+        goldBars: this.ctx.state.totalGoldBarsAccumulated,
+        blueChests: this.ctx.state.totalBlueChestsAccumulated,
+        status: isAssistRaid ? 'Searching' : 'Starting',
         accountId: this.accountId
-      });
+      }, true);
 
-      try {
-        // Routine Mode: Directly navigate if questUrl provided and execute pipeline without raid/supporter initialization
-        if (this.template.mode === 'routine') {
-          if (this.template.questUrl && !this.template.questUrl.includes('#mypage')) {
-            const currentHash = await this.page.evaluate(() => window.location.hash);
-            const targetHash = this.template.questUrl.includes('#') ? '#' + this.template.questUrl.split('#')[1] : this.template.questUrl;
-            if (!currentHash.includes(targetHash)) {
-              console.log(`[${this.accountId}] [Run ${runNumber}] Navigating to routine URL: ${this.template.questUrl}`);
-              if (!this.page.url().includes('granbluefantasy.jp')) {
-                await this.page.goto(this.template.questUrl, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
+      // Phase 1: Navigation / Supporter selection
+      let started = false;
+      if (this.template.mode === 'routine') {
+        started = true;
+        if (this.template.questUrl) {
+          const targetHash = this.template.questUrl.includes('#') ? '#' + this.template.questUrl.split('#')[1] : this.template.questUrl;
+          const curUrl = this.page.url();
+          if (targetHash.startsWith('#') && !curUrl.includes(targetHash)) {
+            await this.page.evaluate((h: string) => {
+              if (window.location.hash === h) {
+                window.location.reload();
               } else {
-                await this.page.evaluate((url: string) => { window.location.href = url; }, this.template.questUrl).catch(() => null);
+                window.location.hash = h;
               }
-              await logNormalDelay(600, 0.2);
-            }
-          }
-
-          const pipelineSuccess = await this.executeStepPipeline(runNumber);
-          const durationMs = Date.now() - runStart;
-          totalCompleted++;
-
-          const result: WorkflowRunResult = {
-            runNumber,
-            status: pipelineSuccess ? 'SUCCESS' : 'FAILED',
-            durationMs,
-            supporterName: 'N/A (Routine Mode)',
-            honors: 0,
-            message: `Routine run ${runNumber} completed in ${(durationMs / 1000).toFixed(1)}s`
-          };
-
-          this.appendRunLog(workflowLogPath, result);
-          console.log(`[${this.accountId}] [Run ${runNumber}] Routine run finished in ${(durationMs / 1000).toFixed(1)}s (Total Completed: ${totalCompleted}/${runs})\n`);
-          if (onProgress) onProgress(result);
-          continue;
-        }
-
-        // Step 1: Supporter Selection & Quest Start
-        const questStarted = await this.selectSupporterAndStartQuest(autoReplenishAp, autoReplenishEp, activeLogPath, totalCompleted);
-        if (!questStarted) {
-          if (this.stopRequested) break;
-          if (this.lastStartFailureWasMaintenance) {
-            this.lastStartFailureWasMaintenance = false;
-            consecutiveStartFailures = 0;
-            continue;
-          }
-          if (this.lastStartFailureWasRaidLimit) {
-            this.lastStartFailureWasRaidLimit = false;
-            consecutiveStartFailures = 0;
-            continue;
-          }
-          if (this.lastStartFailureWasRaidWait) {
-            this.lastStartFailureWasRaidWait = false;
-            consecutiveStartFailures = 0;
-            continue;
-          }
-
-          // Assert safety / check CAPTCHA immediately
-          if (this.template.stopOnCaptcha !== false) {
-            await this.sentinel.assertSafe();
-          }
-
-          // Execute Deep Screen Analysis & Autonomous Self-Healing
-          const recovery = await this.diagnoseAndRecoverQuestStart(
-            runNumber,
-            autoReplenishAp,
-            autoReplenishEp,
-            activeLogPath,
-            totalCompleted
-          );
-
-          if (recovery.recovered) {
-            console.log(`[Workflow] 🛠️ Deep Analysis auto-recovered: ${recovery.reason}. Retrying quest start...`);
-            consecutiveStartFailures = 0;
-            await logNormalDelay(1000, 0.15);
-            continue;
-          }
-
-          consecutiveStartFailures++;
-          console.warn(`\n[${this.accountId}] [Run ${runNumber}] ⚠️ Failed to start quest (Attempt ${consecutiveStartFailures}/${MAX_START_FAILURES})`);
-          if (recovery.reason) {
-            console.warn(`[Diagnostic] Probable Cause: ${recovery.reason}`);
-          }
-
-          if (consecutiveStartFailures >= MAX_START_FAILURES) {
-            console.error(`\n========================================================================`);
-            console.error(`  🚨 WORKFLOW HALTED: QUEST START FAILED ${consecutiveStartFailures} CONSECUTIVE TIMES`);
-            console.error(`========================================================================`);
-            console.error(`Account:      [${this.accountId}]`);
-            console.error(`Quest:        ${this.template.questUrl}`);
-            console.error(`Reason:       ${recovery.reason || 'Modal / obstruction blocking quest start'}`);
-            if (recovery.capturePath) {
-              console.error(`Screenshot:   ${recovery.capturePath}`);
-            }
-            console.error(`Current URL:  ${this.page.url()}`);
-            console.error(`========================================================================\n`);
-
-            process.stdout.write('\x07\x07\x07');
-
-            if (recovery.condition === 'CAPTCHA_CHALLENGE') {
-              console.log('[Workflow] 🚨 Verification challenge detected at quest start. Entering resolution...');
-              const solved = await this.sentinel.handleVerificationChallenge();
-              if (solved) {
-                consecutiveStartFailures = 0;
-                continue;
-              }
-            }
-
-            break;
-          }
-
-          console.warn(`Retrying in 2.5s...\n`);
-          await new Promise(r => setTimeout(r, 2500));
-          continue;
-        }
-
-        consecutiveStartFailures = 0;
-
-        this.joinedInCurrentBatch++;
-        const battleStart = Date.now();
-
-        // Guard: In combat/assist mode, verify we are actually in a combat hash (#raid_multi/ or #raid/ or #battle/)
-        if (this.template.mode === 'combat' || this.template.mode === 'assist' || !this.template.mode) {
-          const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-          const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(currentHash) || currentHash.includes('replicard/battle');
-          if (!isCombat) {
-            console.warn(`[Workflow] Page hash (${currentHash}) is not active combat. Re-verifying mount or aborting run...`);
-            const mounted = await this.waitForBattleToMount(4000);
-            if (!mounted) {
-              console.warn(`[Workflow] Combat scene did not mount. Returning to quest start...`);
-              continue;
-            }
+            }, targetHash).catch(() => null);
+            await logNormalDelay(600, 0.15);
           }
         }
-
-        // Step 2: Execute Step Pipeline
-        const pipelineSuccess = await this.executeStepPipeline(runNumber);
-        if (!pipelineSuccess) {
-          console.warn(`[${this.accountId}] [Run ${runNumber}] Step pipeline exited early. Resolving battle state...`);
+      } else {
+        try {
+          started = await this.questNavigation.selectSupporterAndStartQuest(autoReplenishAp, autoReplenishEp, activeLogPath, totalCompleted);
+        } catch (startErr: any) {
+          console.warn(`[Workflow] Error during quest navigation: ${startErr.message}`);
+          started = false;
         }
+      }
 
-        // Step 3: Resolve Result Screen & Collect Metrics
-        await this.handleConfirmResult();
+      if (!started) {
+        consecutiveStartFailures++;
+        console.warn(`[Workflow] Quest launch failed on Run ${runNumber} (Failure ${consecutiveStartFailures}/${MAX_START_FAILURES}).`);
 
-        const durationMs = Date.now() - battleStart;
-        const totalCycleMs = Date.now() - runStart;
-        totalCompleted++;
-        this.totalHonorsAccumulated += this.currentScore;
-        this.totalJoinedAndClearedBattles++;
-        await this.checkFiveBattleMilestone(activeLogPath, totalCompleted);
-
-        const result: WorkflowRunResult = {
+        const recovery = await this.screenDiagnostic.diagnoseAndRecoverQuestStart(
           runNumber,
-          status: 'SUCCESS',
-          durationMs,
-          supporterName: 'Selected Supporter',
-          honors: this.currentScore,
-          message: `Cleared in ${(durationMs / 1000).toFixed(1)}s`
-        };
+          autoReplenishAp,
+          autoReplenishEp,
+          activeLogPath,
+          totalCompleted
+        );
 
-        // Record in DropLogger if assist mode or drop logger active
-        if (this.dropLogger && (isAssistRaid || dropLogPath)) {
-          const targetMet = this.template.targetScore ? this.currentScore >= this.template.targetScore : true;
-          const hasBlueChest = this.currentBattleHadGoldBar || this.currentBattleHadBlueChest || targetMet;
-          const { stats } = this.dropLogger.logBattle({
-            raidId: this.currentRaidId,
-            turns: this.currentTurn,
-            honors: this.currentScore,
-            targetMet,
-            hasBlueChest,
-            hasGoldBar: this.currentBattleHadGoldBar
-          });
-
-          discordPresence.updateStatus({
-            raidName: this.template.name,
-            runNumber: stats.totalBattles,
-            totalRuns: runs === Infinity ? undefined : runs,
-            goldBars: stats.goldBars,
-            goldBarsToday: stats.goldBarsToday,
-            goldBarsSession: this.totalGoldBarsAccumulated,
-            blueChests: stats.blueChests,
-            dryStreak: stats.currentDryStreak,
-            dryStreakMode: stats.dryStreakMode,
-            honors: this.currentScore,
-            status: 'Searching'
-          }, true);
-        } else {
-          discordPresence.updateStatus({
-            raidName: this.template.name,
-            runNumber,
-            totalRuns: runs === Infinity ? undefined : runs,
-            honors: this.currentScore,
-            status: 'Searching'
-          }, true);
+        if (recovery.recovered) {
+          console.log(`[Workflow] Self-healing diagnostic successfully recovered obstruction (${recovery.condition}). Retrying run immediately...`);
+          consecutiveStartFailures = 0;
+          await logNormalDelay(600, 0.15);
+          continue;
         }
 
-        this.appendRunLog(workflowLogPath, result);
-        console.log(`[${this.accountId}] [Run ${runNumber}] Cleared in ${(durationMs / 1000).toFixed(1)}s (Total cycle: ${(totalCycleMs / 1000).toFixed(1)}s) | Honors: ${this.currentScore.toLocaleString()} pt (Total Session: ${this.totalHonorsAccumulated.toLocaleString()} pt)\n`);
-
-        if (onProgress) onProgress(result);
-
-      } catch (err: any) {
-        const isSentinelHalt = err.message?.includes('SENTINEL') || (await this.sentinel.inspectForVerification());
-        if (isSentinelHalt) {
-          console.error(`\n========================================================================`);
-          console.error(`  🚨 WORKFLOW HARD-FROZEN BY SAFETY SENTINEL: CAPTCHA DETECTED`);
-          console.error(`========================================================================`);
-          console.error(`👉 Automation is strictly paused to protect your account.`);
-          console.error(`👉 Please solve the puzzle manually in your browser.`);
-          console.error(`👉 Once solved, the engine will automatically resume your runs.`);
-          console.error(`========================================================================\n`);
-
-          process.stdout.write('\x07\x07\x07');
-          const solved = await this.sentinel.handleVerificationChallenge();
-          if (solved) {
-            console.log(`[${this.playerName || this.accountId}] ✅ CAPTCHA solved by operator! Resuming in 3s...\n`);
-            await new Promise(r => setTimeout(r, 3000));
-            continue;
-          } else {
-            console.error(`[${this.playerName || this.accountId}] 🛑 Verification wait timed out or aborted. Stopping workflow.`);
-            break;
-          }
+        if (recovery.isFatal) {
+          console.error(`[Workflow] ❌ Unrecoverable screen condition encountered (${recovery.condition}): ${recovery.reason}. Aborting loop.`);
+          break;
         }
 
-        console.error(`[${this.accountId}] [Run ${runNumber}] Error: ${err.stack || err.message}`);
-        await this.resolveLingeringState();
-        await new Promise(r => setTimeout(r, 2000));
+        if (this.ctx.state.lastStartFailureWasRaidLimit) {
+          console.log(`[Workflow] Recovered from 3-raid backup limit via passive wait cycle. Resuming runs immediately...`);
+          consecutiveStartFailures = 0;
+          this.ctx.state.lastStartFailureWasRaidLimit = false;
+          continue;
+        }
+
+        if (this.ctx.state.lastStartFailureWasRaidWait || this.ctx.state.lastStartFailureWasMaintenance) {
+          consecutiveStartFailures = 0;
+          this.ctx.state.lastStartFailureWasRaidWait = false;
+          this.ctx.state.lastStartFailureWasMaintenance = false;
+          continue;
+        }
+
+        if (consecutiveStartFailures >= MAX_START_FAILURES) {
+          console.error(`[Workflow] Aborting: Quest failed to launch ${MAX_START_FAILURES} consecutive times.`);
+          break;
+        }
+
+        await logNormalDelay(1500, 0.2);
+        continue;
+      }
+
+      consecutiveStartFailures = 0;
+      this.ctx.state.joinedInCurrentBatch++;
+      this.ctx.state.totalJoinedAndClearedBattles++;
+
+      discordPresence.updateStatus({
+        raidName: this.template.name,
+        runNumber,
+        totalRuns: runs === Infinity ? undefined : runs,
+        goldBars: this.ctx.state.totalGoldBarsAccumulated,
+        blueChests: this.ctx.state.totalBlueChestsAccumulated,
+        status: this.template.mode === 'routine' ? 'Routine Running' : 'In Combat',
+        accountId: this.accountId
+      }, true);
+
+      // Phase 2: Execute step pipeline
+      const pipelineSuccess = await this.executeStepPipeline(runNumber);
+
+      // Phase 3: Result settlement & rewards processing (combat mode only)
+      if (this.template.mode !== 'routine') {
+        const isAssist = this.template.questUrl?.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
+        if (!isAssist) {
+          await this.combatExecution.ensureBattleConcluded(10);
+        }
+        await this.combatResolution.handleConfirmResult();
+        await this.combatResolution.syncCurrentHonors();
+        this.ctx.state.totalHonorsAccumulated += this.ctx.state.currentScore;
+        // Phase 4: 5-Battle Milestone Unclaimed Sweep
+        await this.milestoneSweeper.checkFiveBattleMilestone(activeLogPath, totalCompleted + 1);
+      }
+
+      totalCompleted++;
+      this.ctx.state.totalCompletedRuns = totalCompleted;
+
+      if (this.ctx.state.stopRequested) {
+        console.log(`[Workflow] 🏁 Stop requested (completed ${totalCompleted} run(s)). Concluding workflow.`);
+        break;
+      }
+
+      const runDuration = Date.now() - runStart;
+
+      const result: WorkflowRunResult = {
+        runNumber,
+        durationMs: runDuration,
+        status: pipelineSuccess ? 'SUCCESS' : 'FAILED',
+        supporterName: 'N/A',
+        honors: this.ctx.state.currentScore,
+        message: `Cleared in ${(runDuration / 1000).toFixed(1)}s. Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`
+      };
+
+      if (this.ctx.dropLogger) {
+        this.ctx.dropLogger.logBattle({
+          raidId: this.ctx.state.currentRaidId || 'N/A',
+          turns: this.ctx.state.currentTurn,
+          honors: this.ctx.state.currentScore,
+          targetMet: (!this.template.targetScore || this.ctx.state.currentScore >= this.template.targetScore),
+          hasGoldBar: this.ctx.state.currentBattleHadGoldBar,
+          hasBlueChest: this.ctx.state.currentBattleHadBlueChest
+        });
+      }
+
+      this.appendRunLog(activeLogPath, result);
+      if (onProgress) onProgress(result);
+
+      if (this.ctx.dropLogger) {
+        const stats = this.ctx.dropLogger.getStats();
+        discordPresence.updateStatus({
+          raidName: this.template.name,
+          runNumber: stats.totalBattles,
+          totalRuns: runs === Infinity ? undefined : runs,
+          goldBars: stats.goldBars,
+          goldBarsToday: stats.goldBarsToday,
+          goldBarsSession: this.ctx.state.totalGoldBarsAccumulated,
+          blueChests: stats.blueChests,
+          dryStreak: stats.currentDryStreak,
+          dryStreakMode: stats.dryStreakMode,
+          status: 'Searching',
+          accountId: this.accountId
+        }, true);
+      } else {
+        discordPresence.updateStatus({
+          raidName: this.template.name,
+          runNumber: totalCompleted,
+          totalRuns: runs === Infinity ? undefined : runs,
+          goldBars: this.ctx.state.totalGoldBarsAccumulated,
+          blueChests: this.ctx.state.totalBlueChestsAccumulated,
+          status: 'Searching',
+          accountId: this.accountId
+        }, true);
+      }
+
+      console.log(`[Run ${runNumber}] Completed in ${(runDuration / 1000).toFixed(1)}s | Honors: ${this.ctx.state.currentScore.toLocaleString()} pt | Overall: ${totalCompleted}/${runs} runs`);
+
+      if ((this.template as any).delayBetweenRunsMs) {
+        await new Promise(r => setTimeout(r, (this.template as any).delayBetweenRunsMs));
+      } else {
+        await logNormalDelay(400, 0.15);
       }
     }
 
-    // Final pending battles sweep in assist mode
-    if (isAssistRaid && this.joinedInCurrentBatch > 0) {
-      console.log('\n[Workflow] Final sweep: Claiming remaining pending battles...');
-      await this.claimPendingBattles(activeLogPath, totalCompleted);
-    }
-
-    discordPresence.updateStatus({
-      status: 'Finished'
-    }, true);
-
     const totalDurationMs = Date.now() - startTime;
-    const avgSec = totalCompleted > 0 ? (totalDurationMs / totalCompleted / 1000) : 0;
-
-    console.log(`\n========================================================================`);
-    console.log(`                      Workflow Execution Summary                        `);
-    console.log(`========================================================================`);
-    console.log(`Template:                 ${this.template.name}`);
-    console.log(`Account:                  ${this.accountId}`);
-    console.log(`Total Battles Cleared:    ${totalCompleted}`);
-    console.log(`Total Honors Earned:      ${this.totalHonorsAccumulated.toLocaleString()} pt`);
-    if (this.totalGoldBarsAccumulated > 0) {
-      console.log(`🌟 Total Gold Bars:       ${this.totalGoldBarsAccumulated}`);
-    }
-    console.log(`Average Time Per Run:     ${avgSec.toFixed(1)}s`);
-    console.log(`Total Session Duration:   ${(totalDurationMs / 1000 / 60).toFixed(1)} minutes`);
-    if (dropLogPath) {
-      console.log(`Drop Log (Gold Bars):     ${dropLogPath}`);
-    }
-    console.log(`Workflow Execution Log:   ${workflowLogPath}`);
-    console.log(`========================================================================\n`);
-
     return {
       templateName: this.template.name,
       accountId: this.accountId,
       totalRunsCompleted: totalCompleted,
       totalDurationMs,
-      averageDurationSec: avgSec,
-      logPath: dropLogPath || workflowLogPath
+      averageDurationSec: totalCompleted > 0 ? (totalDurationMs / totalCompleted) / 1000 : 0,
+      logPath: this.ctx.state.currentLogPath
     };
   }
 
-  /**
-   * Executes the sequential step pipeline defined in the template.
-   */
   private async executeStepPipeline(runNumber: number): Promise<boolean> {
-    // Reset battle-level score and turn tracking at pipeline start
-    this.currentScore = 0;
-    this.currentTurn = 1;
+    this.ctx.state.currentScore = 0;
+    this.ctx.state.currentTurn = 1;
 
-    // In combat or assist mode, ensure the battle scene is truly interactive before Step 1
     if (this.template.mode !== 'routine') {
-      await this.ensureInitialCombatReady();
+      await this.combatResolution.ensureInitialCombatReady();
     }
 
     for (let i = 0; i < this.template.steps.length; i++) {
       const step = this.template.steps[i];
-      if (this.stopRequested) return false;
+      if (this.ctx.state.stopRequested) return false;
 
-      // Check CAPTCHA Sentinel before executing action
       if (this.template.stopOnCaptcha !== false) {
         await this.sentinel.assertSafe();
       }
 
-      // Check early score termination condition (only for automated/non-manual workflows with honorGuard)
-      if (!this.isManualWorkflow() && this.template.honorGuard !== false && this.template.targetScore && this.currentScore >= this.template.targetScore) {
-        console.log(`[Run ${runNumber}] Target score reached (${this.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Terminating combat pipeline early.`);
+      if (!this.isManualWorkflow() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
+        console.log(`[Run ${runNumber}] Target score reached (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Terminating combat pipeline early.`);
         return true;
       }
 
-      // Check explicit exit_if_score step
       if (step.code === 'exit_if_score' || step.action === 'exit_if_score') {
-        await this.syncCurrentHonors();
+        await this.combatResolution.syncCurrentHonors();
         const threshold = step.targetScore || this.template.targetScore || 1500000;
-        if (this.currentScore >= threshold) {
-          console.log(`[Run ${runNumber}] Honor threshold met (${this.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat pipeline early.`);
+        if (this.ctx.state.currentScore >= threshold) {
+          console.log(`[Run ${runNumber}] Honor threshold met (${this.ctx.state.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat pipeline early.`);
           return true;
         }
-        console.log(`[Run ${runNumber}] Current honors (${this.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing pipeline...`);
+        console.log(`[Run ${runNumber}] Current honors (${this.ctx.state.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing pipeline...`);
         continue;
       }
 
-      // In combat/assist mode, check if battle already concluded BEFORE running next step!
-      if (this.template.mode !== 'routine' && i > 0 && await this.isBattleEnded()) {
-        await this.syncCurrentHonors();
-        console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${step.code || step.action}). Exiting combat pipeline early. Final Honors: ${this.currentScore.toLocaleString()} pt.`);
-        return true;
+      if (this.template.mode !== 'routine' && i > 0 && await this.combatResolution.isBattleEnded()) {
+        const stepAction = step.code || step.action;
+        const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
+        if (!isPostBattleCleanup) {
+          await this.combatResolution.syncCurrentHonors();
+          console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
+          return true;
+        }
       }
 
       console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
@@ -1387,12 +1092,11 @@ export class UniversalWorkflowEngine {
       const success = await this.executeSingleStep(step, i + 1, runNumber);
       if (!success && !step.optional) {
         console.warn(`[Run ${runNumber}] Step ${i + 1} (${step.code || step.action}) failed all attempts.`);
-        if (await this.isBattleEnded()) {
+        if (await this.combatResolution.isBattleEnded()) {
           console.log(`[Run ${runNumber}] Battle already concluded. Proceeding to result resolution.`);
           return true;
         }
 
-        // In combat/assist mode, if a skill, summon, or quick call failed, check if subsequent attack/tap_ready steps exist
         const isCombatSkillOrSummon = step.code === 'skill' || step.action === 'skill' ||
                                       step.code === 'summon' || step.action === 'summon' ||
                                       step.code === 'quick_call' || step.action === 'quick_call';
@@ -1408,179 +1112,26 @@ export class UniversalWorkflowEngine {
           continue;
         }
 
-        await this.resolveLingeringState();
         return false;
       }
 
-      if (step.delayAfterMs && step.delayAfterMs > 0) {
+      if (step.delayAfterMs) {
         await new Promise(r => setTimeout(r, step.delayAfterMs));
       }
     }
 
-    // Enforce minimum honor threshold if current honors are still below targetScore
-    if (this.template.honorGuard !== false && this.template.targetScore && this.currentScore < this.template.targetScore && !(await this.isBattleEnded())) {
-      console.log(`[Honors Guard] Combat pipeline concluded with ${this.currentScore.toLocaleString()} pt (< ${this.template.targetScore.toLocaleString()} pt). Invoking honor guard...`);
-      await this.ensureMinimumHonors(this.template.targetScore);
+    if (this.template.honorGuard !== false && this.template.targetScore) {
+      await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
     }
 
     return true;
   }
 
-  /**
-   * For manual workflows, aggressively cancels Full Auto and any queued combat actions.
-   */
-  private async cancelFullAutoAndActionQueue(): Promise<void> {
-    try {
-      await this.page.evaluate(() => {
-        // 1. Disengage Auto / Full Auto if active
-        const autoBtns = Array.from(document.querySelectorAll('.btn-auto, .btn-ability-auto, #btn-auto, .btn-auto.display-on, .btn-ability-auto.display-on')) as HTMLElement[];
-        for (const btn of autoBtns) {
-          const isActive = btn.classList.contains('display-on') || btn.classList.contains('active') || btn.classList.contains('full');
-          if (isActive) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(btn).trigger('tap');
-            btn.click();
-          }
-        }
-
-        // 2. Clear stage gGameStatus auto flags
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.auto = false;
-        }
-
-        // 3. Cancel any pending action queue
-        const cancelBtns = Array.from(document.querySelectorAll(
-          '.btn-cancel, .btn-action-cancel, .btn-command-cancel, .prt-queue .btn-cancel, .pop-usual .btn-usual-cancel'
-        )) as HTMLElement[];
-        for (const btn of cancelBtns) {
-          if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(btn).trigger('tap');
-            btn.click();
-          }
-        }
-      });
-    } catch {
-      // Ignore navigation race
-    }
-  }
-
-  /**
-   * Determines if the workflow is strictly manual (i.e. does not rely on Full Auto or tap_ready).
-   */
   private isManualWorkflow(): boolean {
-    return !this.template?.steps?.some(
-      s => s.code === 'tap_ready' || s.action === 'tap_ready' || s.code === 'auto' || s.action === 'auto' || s.code === 'smart_full_auto' || s.action === 'smart_full_auto'
-    );
-  }
-
-  /**
-   * Ensures the combat stage has fully resolved its entrance animation, boss intro banner,
-   * and CreateJS status lock before the first combat action (skill/attack) begins.
-   */
-  private async ensureInitialCombatReady(timeoutMs = 8000): Promise<void> {
-    const isCombatHash = await this.page.evaluate(() => {
-      const hash = window.location.hash;
-      return /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash) || hash.includes('replicard/battle');
-    }).catch(() => false);
-
-    if (!isCombatHash) return;
-
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    const effectiveTimeout = isTurbo ? Math.min(timeoutMs, 2500) : timeoutMs;
-    const pollInterval = isTurbo ? 25 : 100;
-    const isManual = this.isManualWorkflow();
-    const start = Date.now();
-
-    while (Date.now() - start < effectiveTimeout) {
-      if (this.stopRequested) return;
-      if (await this.isBattleEnded()) return;
-
-      if (isManual) {
-        await this.cancelFullAutoAndActionQueue();
-      }
-
-      const isReady = await this.page.evaluate((manual: boolean) => {
-        // Fast-forward any tween animations and accelerate Ticker
-        const cjs = (window as any).createjs;
-        if (cjs?.Ticker) {
-          cjs.Ticker.framerate = 120;
-          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / 120);
-        }
-        if (cjs?.Tween?.tick) cjs.Tween.tick(2000, false);
-
-        // In manual workflows, ensure Auto is turned OFF so GBF never auto-casts skills
-        if (manual) {
-          const autoBtn = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-          if (autoBtn && (autoBtn.classList.contains('display-on') || autoBtn.classList.contains('active') || autoBtn.classList.contains('full'))) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(autoBtn).trigger('tap');
-            autoBtn.click();
-          }
-        } else {
-          const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
-          if (readyEl && (readyEl as HTMLElement).offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(readyEl).trigger('tap');
-            (readyEl as HTMLElement).click();
-          }
-        }
-
-        // 1. Authoritative indicator: Attack button is on and visible
-        const atkBtn = document.querySelector('.btn-attack-start') as HTMLElement;
-        if (atkBtn && atkBtn.offsetWidth > 0 && window.getComputedStyle(atkBtn).display !== 'none') {
-          const isOff = atkBtn.classList.contains('display-off') || atkBtn.classList.contains('lock');
-          const isOn = atkBtn.classList.contains('display-on');
-          if (isOn || !isOff) return true;
-        }
-
-        // 2. Character ability drawer already open
-        const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (backBtn && backBtn.offsetWidth > 0 && window.getComputedStyle(backBtn).display !== 'none') {
-          return true;
-        }
-
-        // 3. Quick Summon ready
-        const qsBtn = document.querySelector('.btn-quick-summon.qs-ready') as HTMLElement;
-        if (qsBtn && qsBtn.offsetWidth > 0) return true;
-
-        // 4. Stage is unlocked, ready screen is gone, and character portraits are interactive
-        const stage = (window as any).stage;
-        const gStatus = stage?.gGameStatus;
-        if (gStatus && !gStatus.lock && !gStatus.btn_lock && !gStatus.attacking) {
-          const char0 = document.querySelector('.lis-character0.btn-command-character, .lis-character0') as HTMLElement;
-          if (char0 && char0.offsetWidth > 0) {
-            const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
-            const hasReady = readyEl && (readyEl as HTMLElement).offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none';
-            if (!hasReady) return true;
-          }
-        }
-
-        return false;
-      }, isManual).catch(() => false);
-
-      if (isReady) {
-        // Authoritatively initialize current turn and score from mounted battle stage
-        const initialCombatState = await this.page.evaluate(() => {
-          const stage = (window as any).stage;
-          const pJsn = stage?.pJsnData;
-          const gStatus = stage?.gGameStatus;
-          const turn = Number(pJsn?.turn || gStatus?.turn || 1);
-          return { turn };
-        }).catch(() => ({ turn: 1 }));
-        this.currentTurn = initialCombatState.turn;
-        await this.syncCurrentHonors();
-
-        // Human reaction settling delay after battle scene becomes interactive (only in stealth/fast)
-        if (!isTurbo) {
-          await logNormalDelay(250, 0.12);
-        }
-        return;
-      }
-
-      await new Promise(r => setTimeout(r, pollInterval));
-    }
+    const mode = this.template.mode as string | undefined;
+    const isManualMode = mode === 'single' || mode === 'multi' || mode === 'routine';
+    const isRaidEvaluatorOrBurst = !!this.template.evaluatorStrategy || (this.template.speedProfile === 'turbo' && mode === 'assist');
+    return isManualMode && !isRaidEvaluatorOrBurst;
   }
 
   private createExecutionContext(): WorkflowExecutionContext {
@@ -1588,7 +1139,7 @@ export class UniversalWorkflowEngine {
       page: this.page,
       template: this.template,
       accountId: this.accountId,
-      playerName: this.playerName,
+      playerName: this.ctx.state.playerName,
       services: {
         combat: this.combatActionService,
         recovery: this.recoveryModalService,
@@ -1596,21 +1147,21 @@ export class UniversalWorkflowEngine {
         supporter: this.supporterSelectionService,
         loot: this.lootTrackerService,
         sentinel: this.sentinel,
-        alertRelay: this.alertRelay,
-        dropLogger: this.dropLogger
+        alertRelay: this.ctx.alertRelay,
+        dropLogger: this.ctx.dropLogger
       },
       state: {
-        currentScore: this.currentScore,
-        currentTurn: this.currentTurn,
-        currentRaidId: this.currentRaidId,
+        currentScore: this.ctx.state.currentScore,
+        currentTurn: this.ctx.state.currentTurn,
+        currentRaidId: this.ctx.state.currentRaidId,
         isCombatActive: true,
-        totalGoldBarsAccumulated: this.totalGoldBarsAccumulated,
-        totalBlueChestsAccumulated: this.totalBlueChestsAccumulated,
-        totalHonorsAccumulated: this.totalHonorsAccumulated,
-        totalCompletedRuns: this.totalCompletedRuns,
-        lastAttackLockoutExpires: this.lastAttackLockoutExpires,
-        stopRequested: this.stopRequested,
-        myUserId: this.myUserId
+        totalGoldBarsAccumulated: this.ctx.state.totalGoldBarsAccumulated,
+        totalBlueChestsAccumulated: this.ctx.state.totalBlueChestsAccumulated,
+        totalHonorsAccumulated: this.ctx.state.totalHonorsAccumulated,
+        totalCompletedRuns: this.ctx.state.totalCompletedRuns,
+        lastAttackLockoutExpires: this.ctx.state.lastAttackLockoutExpires,
+        stopRequested: this.ctx.state.stopRequested,
+        myUserId: this.ctx.state.myUserId
       },
       executeSubSteps: async (steps, runNum) => {
         for (let i = 0; i < steps.length; i++) {
@@ -1626,55 +1177,52 @@ export class UniversalWorkflowEngine {
     };
   }
 
-  /**
-   * Executes a single workflow step with type-safe action dispatch.
-   */
-  private async executeSingleStep(step: WorkflowStep, stepNum: number, runNumber: number): Promise<boolean> {
+  public async executeSingleStep(step: WorkflowStep, stepNum: number, runNumber: number): Promise<boolean> {
     const actionCode = step.code || step.action;
 
     switch (actionCode) {
       case 'tap_ready':
-        return await this.handleTapReady(step);
+        return await this.combatExecution.handleTapReady(step);
 
       case 'quick_call':
-        return await this.handleQuickCall(step);
+        return await this.combatExecution.handleQuickCall(step);
 
       case 'attack':
-        return await this.handleAttack(step);
+        return await this.combatExecution.handleAttack(step);
 
       case 'reload':
       case 'f5':
-        return await this.handleReload(step);
+        return await this.combatExecution.handleReload(step);
 
       case 'skill':
-        return await this.handleSkill(step);
+        return await this.combatExecution.handleSkill(step);
 
       case 'summon':
-        return await this.handleSummon(step);
+        return await this.combatExecution.handleSummon(step);
 
       case 'target_enemy':
-        return await this.handleTargetEnemy(step);
+        return await this.combatExecution.handleTargetEnemy(step);
 
       case 'heal':
-        return await this.handleHeal(step);
+        return await this.combatExecution.handleHeal(step);
 
       case 'backup_request':
-        return await this.handleBackupRequest();
+        return await this.combatExecution.handleBackupRequest();
 
       case 'exit_if_score':
-        return await this.handleExitIfScore(step);
+        return await this.combatExecution.handleExitIfScore(step);
 
       case 'wait_turn':
-        return await this.handleWaitTurn(step);
+        return await this.combatExecution.handleWaitTurn(step);
 
       case 'repeat':
-        return await this.handleRepeat(step, runNumber);
+        return await this.combatExecution.handleRepeat(step, runNumber);
 
       case 'auto':
-        return await this.handleAuto(step);
+        return await this.combatExecution.handleAuto(step);
 
       case 'guard':
-        return await this.handleGuard(step);
+        return await this.combatExecution.handleGuard(step);
 
       case 'navigate':
         if (step.target) {
@@ -1683,7 +1231,7 @@ export class UniversalWorkflowEngine {
         return true;
 
       case 'click':
-        return await this.handleClick(step);
+        return await this.combatExecution.handleClick(step);
 
       case 'touch_tap':
         if (step.x !== undefined && step.y !== undefined) {
@@ -1711,7 +1259,7 @@ export class UniversalWorkflowEngine {
 
       case 'wait_network':
         if (step.waitForNetwork) {
-          await this.waitForNetworkResponse(step.waitForNetwork, step.timeoutMs || 5000);
+          await this.combatResolution.waitForNetworkResponse(step.waitForNetwork, step.timeoutMs || 5000);
         }
         return true;
 
@@ -1730,7 +1278,7 @@ export class UniversalWorkflowEngine {
         return true;
 
       case 'confirm_result':
-        return await this.handleConfirmResult();
+        return await this.combatResolution.handleConfirmResult();
 
       case 'loop_while':
         return await this.handleLoopWhile(step, runNumber);
@@ -1739,33 +1287,30 @@ export class UniversalWorkflowEngine {
         return await this.handleLoopUntil(step, runNumber);
 
       case 'skip_story_scene':
-        return await this.handleSkipStoryScene(step);
+        return await this.routineExecution.handleSkipStoryScene(step);
 
       case 'auto_fate_episode':
       case 'skip_fate_episode':
-        return await this.handleFateEpisode(step);
+        return await this.routineExecution.handleFateEpisode(step);
 
       case 'pro_skip_favorites':
-        return await this.handleProSkipFavorites(step);
+        return await this.routineExecution.handleProSkipFavorites(step);
 
       case 'dismiss_popups':
-        return await this.handleDismissPopups(step);
+        return await this.routineExecution.handleDismissPopups(step);
 
       case 'smart_full_auto':
-        return await this.handleSmartFullAuto(step, runNumber);
+        return await this.combatExecution.handleSmartFullAuto(step, runNumber);
 
       case 'do_until_finish':
       case 'run_daily_target':
-        return await this.handleDoUntilFinish(step, runNumber);
+        return await this.routineExecution.handleDoUntilFinish(step, runNumber);
 
       default:
         return true;
     }
   }
 
-  /**
-   * Executes a loop_while block of subSteps while selector exists and is visible.
-   */
   private async handleLoopWhile(step: WorkflowStep, runNumber: number): Promise<boolean> {
     const selector = step.target || step.conditionElement;
     if (!selector || !step.subSteps || step.subSteps.length === 0) return true;
@@ -1774,10 +1319,9 @@ export class UniversalWorkflowEngine {
     console.log(`[Workflow] 🔄 Starting loop_while: "${selector}" (max loops: ${maxLoops})...`);
 
     for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
-      if (this.stopRequested) return false;
+      if (this.ctx.state.stopRequested) return false;
       if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
 
-      // Check if element exists and is visible on page (with initial settle window for AJAX mounting)
       let exists = false;
       const waitLimit = loopIdx === 0 ? 3500 : 600;
       const tCheckStart = Date.now();
@@ -1816,9 +1360,6 @@ export class UniversalWorkflowEngine {
     return true;
   }
 
-  /**
-   * Executes a loop_until block of subSteps until selector appears and is visible.
-   */
   private async handleLoopUntil(step: WorkflowStep, runNumber: number): Promise<boolean> {
     const selector = step.target || step.conditionElement;
     if (!selector || !step.subSteps || step.subSteps.length === 0) return true;
@@ -1827,7 +1368,7 @@ export class UniversalWorkflowEngine {
     console.log(`[Workflow] 🔄 Starting loop_until: "${selector}" (max loops: ${maxLoops})...`);
 
     for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
-      if (this.stopRequested) return false;
+      if (this.ctx.state.stopRequested) return false;
       if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
 
       const exists = await this.page.evaluate((sel: string) => {
@@ -1859,5672 +1400,309 @@ export class UniversalWorkflowEngine {
     return true;
   }
 
-  /**
-   * Fast-skips story dialogues, scene cutscenes, dialogue selections, and confirms dialog skips.
-   */
-  private async handleSkipStoryScene(step: WorkflowStep): Promise<boolean> {
-    const timeoutMs = step.timeoutMs || 15000;
-    console.log(`[Workflow] 📖 Fast-skipping story scene (timeout: ${timeoutMs}ms)...`);
-    const tStart = Date.now();
+  // --- Delegated Sub-Service Methods for 100% Backward Compatibility ---
 
-    while (Date.now() - tStart < timeoutMs) {
-      if (this.stopRequested) return false;
-      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
-
-      // Check if scene has already concluded (redirected to result, supporter, or list)
-      const currentUrl = this.page.url();
-      if (!currentUrl.includes('scene') && (currentUrl.includes('result') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#raid') || currentUrl.includes('#quest/fate'))) {
-        break;
-      }
-
-      // Check and execute scene progression actions
-      const actionTaken = await this.page.evaluate(() => {
-        try {
-          const $ = (window as any).$ || (window as any).Zepto;
-
-          // 1. Episode prerequisite caution / spoiler warning: tap "Spoil Me", then tap OK
-          const caution = document.querySelector('.pop-episode-caution') as HTMLElement;
-          if (caution && caution.offsetParent !== null) {
-            const spoil = caution.querySelector('.btn-check-caution') as HTMLElement;
-            if (spoil) {
-              if ($) $(spoil).trigger('tap');
-              spoil.click();
-            }
-            const ok = caution.querySelector('.btn-usual-ok.start-fate:not(.disable)') as HTMLElement;
-            if (ok) {
-              if ($) $(ok).trigger('tap');
-              ok.click();
-              return 'confirmed_caution';
-            }
-          }
-
-          // 2. Conflict error dialog: "This quest does not have a battle part"
-          const cannotBattle = document.querySelector('.pop-can-not-multi-battle') as HTMLElement;
-          if (cannotBattle && cannotBattle.offsetParent !== null) {
-            const closeBtn = cannotBattle.querySelector('.btn-usual-close, .btn-usual-ok') as HTMLElement;
-            if (closeBtn) {
-              if ($) $(closeBtn).trigger('tap');
-              closeBtn.click();
-            }
-            return 'conflict_error';
-          }
-
-          // 3. Skip confirmation popup: strictly skip buttons, NOT generic pop-usual OK!
-          const skipOkBtn = document.querySelector(
-            '.pop-synopsis .btn-scene-skip, .btn-scene-skip, .pop-skip .btn-usual-ok, .btn-skip-ok, .pop-skip .btn-skip-confirm'
-          ) as HTMLElement;
-          if (skipOkBtn && skipOkBtn.offsetParent !== null && !skipOkBtn.classList.contains('disable')) {
-            try {
-              if ($) $(skipOkBtn).trigger('tap');
-              skipOkBtn.click();
-              return 'confirmed_skip_modal';
-            } catch {
-              return null;
-            }
-          }
-
-          // 4. Synopsis / start modal OK button
-          const startOk = document.querySelector(
-            '.btn-usual-ok.se-quest-start, .pop-synopsis .btn-usual-ok:not(.disable)'
-          ) as HTMLElement;
-          if (startOk && startOk.offsetParent !== null) {
-            try {
-              if ($) $(startOk).trigger('tap');
-              startOk.click();
-              return 'started_quest';
-            } catch {
-              return null;
-            }
-          }
-
-          // 5. Story scene SKIP button: ".btn-skip", ".prt-scene-setting .btn-skip", "[data-action='skip']"
-          const skipBtn = document.querySelector(
-            '.btn-skip:not(.btn-scene-skip), .prt-scene-setting .btn-skip, [data-action="skip"]'
-          ) as HTMLElement;
-          if (skipBtn && skipBtn.offsetParent !== null) {
-            try {
-              if ($) $(skipBtn).trigger('tap');
-              skipBtn.click();
-              return 'clicked_skip_button';
-            } catch {
-              return null;
-            }
-          }
-
-          // 6. Dialogue choice inside story: ".prt-selection .btn-selection", ".btn-command"
-          const choiceBtn = document.querySelector(
-            '.prt-selection .btn-selection, .btn-selection, .prt-balloon .btn-usual-ok'
-          ) as HTMLElement;
-          if (choiceBtn && choiceBtn.offsetParent !== null) {
-            try {
-              if ($) $(choiceBtn).trigger('tap');
-              choiceBtn.click();
-              return 'selected_choice';
-            } catch {
-              return null;
-            }
-          }
-
-          // 7. Scene canvas or stage active: tap to awaken HUD
-          const sceneCanvas = document.querySelector('canvas#canvas, canvas#cjs-canvas, .prt-scene-comment, .cnt-quest-scene') as HTMLElement;
-          if (sceneCanvas && sceneCanvas.offsetParent !== null) {
-            return 'canvas_ready';
-          }
-
-          return null;
-        } catch {
-          return null;
-        }
-      }).catch(() => null);
-
-      if (actionTaken === 'confirmed_skip_modal') {
-        console.log('[Workflow] Confirmed story skip dialog. Awaiting transition to result/combat...');
-        await logNormalDelay(600, 0.2);
-
-        // Await redirect out of scene
-        const tWait = Date.now();
-        while (Date.now() - tWait < 12000) {
-          const url = this.page.url();
-          if (url.includes('result') || url.includes('#quest/supporter') || url.includes('#raid') || url.includes('#quest/fate') || url.includes('#mypage')) {
-            break;
-          }
-          await new Promise(r => setTimeout(r, 300));
-        }
-        break;
-      } else if (actionTaken === 'conflict_error') {
-        console.warn('[Workflow] ⚠️ "Skip Cutscenes" conflict detected. Resetting setting via FateEngine...');
-        const fateEngine = new FateEngine(this.page, this.sentinel);
-        await fateEngine.ensureQuestSkipDisabled();
-        continue;
-      } else if (actionTaken === 'confirmed_caution' || actionTaken === 'started_quest') {
-        await logNormalDelay(600, 0.2);
-        continue;
-      } else if (actionTaken === 'clicked_skip_button') {
-        console.log('[Workflow] Clicked story Skip button.');
-        await logNormalDelay(400, 0.2);
-        continue;
-      } else if (actionTaken === 'selected_choice') {
-        console.log('[Workflow] Selected story dialogue option.');
-        await logNormalDelay(350, 0.15);
-        continue;
-      } else if (actionTaken === 'canvas_ready') {
-        // Tap screen to display HUD / skip button
-        await this.page.touchscreen.tap(240, 360).catch(() => null);
-        await logNormalDelay(350, 0.2);
-      } else {
-        await new Promise(r => setTimeout(r, 300));
-      }
-    }
-
-    // Dismiss any post-scene reward dialogues (crystals, EXP, unlocked skills)
-    await this.handleDismissPopups(step);
-    return true;
+  public async syncCurrentHonors(): Promise<number> {
+    return await this.combatResolution.syncCurrentHonors();
   }
 
-  /**
-   * Autonomous Fate Episode clearer for UniversalWorkflowEngine:
-   * Handles caution spoiler check, dialogues cutscenes, combat if needed, and reward claims.
-   */
-  private async handleFateEpisode(step?: WorkflowStep): Promise<boolean> {
-    console.log('[Workflow] 📖 Processing Fate Episode via FateEngine...');
-    try {
-      const fateEngine = new FateEngine(this.page, this.sentinel);
-      const result = await fateEngine.processSingleFateEpisode();
-      if (result.status === 'SUCCESS') {
-        return true;
-      }
-      if (result.status === 'NO_UNREAD_EPISODES') {
-        console.log('[Workflow] 🏁 All available Fate Episodes are cleared!');
-        this.requestStop();
-        return true;
-      }
-      if (result.status === 'STOPPED') {
-        return false;
-      }
-      console.warn(`[Workflow] ⚠️ Fate Episode ended with status: ${result.status} (${result.message}). Continuing...`);
-      return true;
-    } catch (err: any) {
-      console.warn(`[Workflow] ⚠️ Recovered from exception in handleFateEpisode: ${err?.message || err}`);
-      return true;
-    }
+  public async isBattleEnded(): Promise<boolean> {
+    return await this.combatResolution.isBattleEnded();
   }
 
-  /**
-   * Executes all pinned Favorite Pro Skips via ProSkipEngine with full hybrid/DOM and AP handling.
-   */
-  private async handleProSkipFavorites(step: WorkflowStep): Promise<boolean> {
-    console.log(`[Workflow] ⚡ Running Daily Favorites Pro Skips via ProSkipEngine...`);
-    const autoReplenish = this.template.autoElixir !== false;
-    const proSkipEngine = new ProSkipEngine(this.page, this.sentinel);
-    const results = await proSkipEngine.runFavoritesProSkips(autoReplenish);
-
-    let clearedCount = 0;
-    for (const r of results) {
-      if (r.status === 'SUCCESS' || r.status === 'ALREADY_CLEARED') {
-        clearedCount++;
-      }
-    }
-    console.log(`[Workflow] 🏁 Daily Favorites complete: ${clearedCount}/${results.length} pro skips processed.`);
-    return true;
+  public async ensureInitialCombatReady(timeoutMs = 8000): Promise<void> {
+    return await this.combatResolution.ensureInitialCombatReady(timeoutMs);
   }
 
-  /**
-   * Dismisses all active popups, result overlays, error notifications, and modals.
-   */
-  private async handleDismissPopups(step?: WorkflowStep): Promise<boolean> {
-    const maxIterations = 5;
-    for (let i = 0; i < maxIterations; i++) {
-      const dismissed = await this.page.evaluate(() => {
-        const selectors = [
-          '.pop-usual .btn-usual-ok',
-          '.pop-usual .btn-usual-cancel',
-          '.pop-usual .btn-usual-close',
-          '.pop-level-up .btn-usual-ok',
-          '.common-pop-error .btn-usual-ok',
-          '.common-pop-error .btn-usual-close',
-          '.js-pop-skyscope-achieved .btn-usual-close',
-          '.btn-result-close',
-          '.btn-usual-close',
-          '.prt-popup-footer .btn-usual-ok',
-          '.prt-popup-footer .btn-usual-close',
-          '.prt-popup-header .btn-usual-close',
-          '.pop-synopsis.pop-show .btn-usual-ok',
-          '.pop-synopsis.pop-show .btn-usual-cancel'
-        ];
-
-        for (const sel of selectors) {
-          const els = Array.from(document.querySelectorAll(sel));
-          for (const el of els) {
-            const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden') {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(el).trigger('tap');
-              (el as HTMLElement).click();
-              return true;
-            }
-          }
-        }
-        return false;
-      });
-
-      if (!dismissed) break;
-      await logNormalDelay(250, 0.15);
-    }
-    return true;
+  public async cancelFullAutoAndActionQueue(): Promise<void> {
+    return await this.combatResolution.cancelFullAutoAndActionQueue();
   }
 
-  /**
-   * Retrieves a task definition from data/index.json dailyCatalog by tag or id.
-   */
-  private getDailyCatalogTask(tagOrId: string): any | null {
-    try {
-      if (!this.dailyCatalogCache) {
-        const catalogPath = path.resolve(process.cwd(), 'data', 'index.json');
-        if (fs.existsSync(catalogPath)) {
-          const raw = JSON.parse(fs.readFileSync(catalogPath, 'utf-8'));
-          this.dailyCatalogCache = raw.dailyCatalog?.tasks || [];
-        } else {
-          this.dailyCatalogCache = [];
-        }
-      }
-      return (this.dailyCatalogCache || []).find((t: any) => t.tag === tagOrId || t.id === tagOrId) || null;
-    } catch {
-      return null;
-    }
+  public async waitForCombatInputReady(timeoutMs = 5000): Promise<boolean> {
+    return await this.combatResolution.waitForCombatInputReady(timeoutMs);
   }
 
-  /**
-   * Navigates to target page or hash if not already active.
-   */
-  private async navigateIfNeeded(targetUrl: string): Promise<void> {
-    const currentUrl = this.page.url();
-    const hash = targetUrl.includes('#') ? targetUrl.substring(targetUrl.indexOf('#')) : null;
-
-    if (hash && currentUrl.includes(hash)) {
-      return;
-    }
-
-    console.log(`[Workflow] 🧭 Navigating to: ${targetUrl}...`);
-    await this.page.evaluate((dest: string) => {
-      if (dest.startsWith('#')) {
-        window.location.hash = dest;
-      } else if (dest.includes('#')) {
-        const h = dest.substring(dest.indexOf('#'));
-        window.location.hash = h;
-      } else {
-        window.location.href = dest;
-      }
-    }, targetUrl).catch(() => null);
-
-    await this.sentinel.assertSafe();
-    await logNormalDelay(600, 0.2);
-    await this.handleDismissPopups();
+  public async waitForBattleToMount(timeoutMs = 15000): Promise<boolean> {
+    return await this.combatResolution.waitForBattleToMount(timeoutMs);
   }
 
-  /**
-   * Evaluates whether a target element or quest is finished today.
-   */
-  private async evaluateTargetFinished(selector: string): Promise<boolean> {
-    return await this.page.evaluate((sel: string) => {
-      const el = document.querySelector(sel) as HTMLElement;
-      if (!el) {
-        return false;
-      }
-
-      const rect = el.getBoundingClientRect();
-      const style = window.getComputedStyle(el);
-      const isVisible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-
-      const classes = el.className || '';
-      const text = (el.innerText || '').trim();
-      const limitedCount = el.getAttribute('data-limited_count');
-      const isCleared = el.getAttribute('data-cleared');
-      const exchangeLimit = el.getAttribute('data-exchange-limit');
-
-      // 1. Explicit GBF zero-remaining attributes
-      if (limitedCount === '0' || isCleared === '1' || exchangeLimit === '0') return true;
-
-      // 2. Element disabled classes
-      if (classes.includes('is-completed') || classes.includes('btn-disable') || classes.includes('btn-cleared')) return true;
-      if (classes.includes('disable') && !classes.includes('btn-enable')) return true;
-
-      // 3. Text patterns indicating completion
-      if (/\b0\s*\/\s*\d+/.test(text)) return true;
-      if (/completed|finished|達成済み|本日分終了|残り\s*0\s*個|0\s*left/i.test(text)) return true;
-
-      // 4. Button disabled attribute
-      if ((el as HTMLButtonElement).disabled) return true;
-
-      return false;
-    }, selector).catch(() => false);
+  public async waitForBattleToMountOrResult(timeoutMs = 12000): Promise<'MOUNTED' | 'RESULT' | 'TIMEOUT'> {
+    return await this.combatResolution.waitForBattleToMountOrResult(timeoutMs);
   }
 
-  /**
-   * Handles AP recovery modal if present, consuming Half-Elixir if autoElixir is permitted.
-   */
-  private async handleApRecoveryModal(): Promise<boolean> {
-    const recoveryNeeded = await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-usual .btn-use-item, .pop-show .btn-use-item, .btn-use-item');
-      return !!modal;
-    }).catch(() => false);
-
-    if (!recoveryNeeded) return false;
-
-    if (this.template.autoElixir === false) {
-      console.warn('[Workflow] AP recovery modal detected, but autoElixir is disabled.');
-      await this.page.evaluate(() => {
-        const cancelBtn = document.querySelector('.pop-usual .btn-usual-cancel, .pop-show .btn-usual-cancel') as HTMLElement;
-        if (cancelBtn) cancelBtn.click();
-      }).catch(() => null);
-      return false;
-    }
-
-    console.log('[Workflow] 🧪 AP recovery needed. Consuming Half-Elixir...');
-    await this.page.evaluate(() => {
-      const useBtn = document.querySelector('.pop-usual .btn-use-item, .pop-show .btn-use-item, .btn-use-item') as HTMLElement;
-      if (useBtn) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(useBtn).trigger('tap');
-        useBtn.click();
-      }
-    }).catch(() => null);
-
-    await logNormalDelay(400, 0.15);
-
-    // Confirm item usage
-    await this.page.evaluate(() => {
-      const okBtn = document.querySelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok') as HTMLElement;
-      if (okBtn) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(okBtn).trigger('tap');
-        okBtn.click();
-      }
-    }).catch(() => null);
-
-    await logNormalDelay(400, 0.15);
-    await this.sentinel.assertSafe();
-    return true;
+  public async inspectDomForGoldBar(): Promise<{ hasGoldBar: boolean; raidId?: string }> {
+    return await this.combatResolution.inspectDomForGoldBar();
   }
 
-  /**
-   * Detects and handles Replicard AAP (Arcarum Action Points) recovery modal.
-   * Restores AAP using Half-Elixir / Elixir and confirms replenishment dialog.
-   */
-  public async handleAapRecoveryModal(autoReplenishAap = true): Promise<boolean> {
-    try {
-      const isAapModal = await this.page.evaluate(() => {
-        const pop = document.querySelector('.pop-usual');
-        if (!pop) return false;
-        const text = (pop as HTMLElement).innerText || '';
-        return text.includes('AAP') || text.includes('回復') || text.includes('recover') || !!pop.querySelector('.btn-use-item');
-      });
-
-      if (!isAapModal) return false;
-
-      console.log(`[${this.accountId}] [Replicard] AAP recovery modal detected.`);
-      if (!autoReplenishAap) {
-        console.warn(`[${this.accountId}] [Replicard] AAP replenishment is disabled. Canceling modal.`);
-        const cancelBtn = await this.page.$('.pop-usual .btn-usual-cancel');
-        if (cancelBtn) await humanizedClick(this.page, cancelBtn);
-        return false;
-      }
-
-      console.log(`[${this.accountId}] [Replicard] Consuming item to restore AAP...`);
-      const useItemBtn = await this.page.waitForSelector('.pop-usual .btn-use-item, .btn-use-item', { visible: true, timeout: 5000 }).catch(() => null);
-      if (useItemBtn) {
-        await humanReactionDelay(250, 0.18);
-        await humanizedClick(this.page, useItemBtn);
-        await logNormalDelay(600, 0.15);
-
-        const confirmBtn = await this.page.waitForSelector('.pop-usual .btn-usual-ok, .btn-usual-ok', { visible: true, timeout: 5000 }).catch(() => null);
-        if (confirmBtn) {
-          await humanReactionDelay(250, 0.18);
-          await humanizedClick(this.page, confirmBtn);
-          await logNormalDelay(800, 0.15);
-        }
-      }
-
-      return true;
-    } catch {
-      return false;
-    }
+  public async inspectDomForBlueChest(): Promise<boolean> {
+    return await this.combatResolution.inspectDomForBlueChest();
   }
 
-  /**
-   * Ensures the Cygames Pro Quest List modal (.pop-pro-quest-list) is open on #quest/extra.
-   */
-  private async ensureProListModalOpen(): Promise<boolean> {
-    const isAlreadyOpen = await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-pro-quest-list.pop-show') as HTMLElement;
-      return !!(modal && modal.offsetParent !== null && window.getComputedStyle(modal).display !== 'none');
-    }).catch(() => false);
-
-    if (isAlreadyOpen) return true;
-
-    // Await pro button on #quest/extra or #quest if page is still rendering
-    await this.page.waitForSelector('.btn-pro-list, .btn-pro-quest, #js-pro-list-button .btn-pro-list, .prt-pro-list-wrapper .btn-pro-list, [data-location-id="pro_quest"]', { visible: true, timeout: 3500 }).catch(() => null);
-
-    // Look for .btn-pro-list on #quest/extra or #quest
-    const opened = await this.page.evaluate(() => {
-      const btn = document.querySelector('.btn-pro-list, .btn-pro-quest, #js-pro-list-button .btn-pro-list, .prt-pro-list-wrapper .btn-pro-list, [data-location-id="pro_quest"]') as HTMLElement;
-      if (btn) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(btn).trigger('tap');
-        btn.click();
-        return true;
-      }
-      return false;
-    }).catch(() => false);
-
-    if (!opened) {
-      return false;
-    }
-
-    // Await modal appearance
-    await this.page.waitForSelector('.pop-pro-quest-list.pop-show', { visible: true, timeout: 5000 }).catch(() => null);
-    await logNormalDelay(400, 0.15);
-    return true;
+  public async checkAndDismissProcessingTurnPopup(): Promise<boolean> {
+    return await this.combatResolution.checkAndDismissProcessingTurnPopup();
   }
 
-  /**
-   * Closes the Pro Quest List modal if it is currently open.
-   */
-  private async closeProListModalIfOpen(): Promise<void> {
-    await this.page.evaluate(() => {
-      const closeBtn = document.querySelector('.pop-pro-quest-list .btn-usual-close') as HTMLElement;
-      if (closeBtn) closeBtn.click();
-    }).catch(() => null);
-    await logNormalDelay(250, 0.1);
+  public async dismissCombatDrawersAndPopups(): Promise<boolean> {
+    return await this.combatResolution.dismissCombatDrawersAndPopups();
   }
 
-  /**
-   * Automated Pro Skip execution targeting specific catalog item or selector.
-   * Handles opening the Cygames Pro Quest List modal (.pop-pro-quest-list), switching
-   * tabs (normal, high, extra), checking completion (0/N), AP replenishment, supporter start,
-   * and result dismissal.
-   */
-  private async executeAutomatedProSkip(task: any, selector?: string): Promise<boolean> {
-    const qId = task?.questId;
-    const chId = task?.chapterId;
-    const proChId = task?.proChapterId;
-    const qName = task?.name || qId || 'Pro Skip';
-    console.log(`[Workflow] ⚡ Checking Pro Skip: "${qName}"...`);
-
-    const currentUrl = this.page.url();
-    const isQuestExtra = currentUrl.includes('#quest/extra');
-
-    if (isQuestExtra) {
-      // 1. Open Pro List modal if not open
-      const modalReady = await this.ensureProListModalOpen();
-      if (!modalReady) {
-        console.warn(`[Workflow] Could not open Pro Quest List modal on #quest/extra`);
-        return false;
-      }
-
-      // 2. Find quest button across tabs (normal, high, extra) and trigger skip click
-      const itemState = await this.page.evaluate(async (questId, chapterId, questName, proChapterId) => {
-        const $ = (window as any).$ || (window as any).Zepto;
-        const tabs = Array.from(document.querySelectorAll('.pop-pro-quest-list .btn-quest-type')) as HTMLElement[];
-        const numTabs = tabs.length > 0 ? tabs.length : 1;
-
-        const matchBanner = () => {
-          const activeStage = document.querySelector('.pop-pro-quest-list .prt-stage-quest.active') ||
-                              document.querySelector('.pop-pro-quest-list .prt-stage-quest');
-          const banners = Array.from((activeStage || document).querySelectorAll('.prt-quest-banner')) as HTMLElement[];
-          for (const b of banners) {
-            const bQuestId = b.getAttribute('data-quest-id');
-            const btn = b.querySelector('.btn-set-quest') as HTMLElement;
-            const bChapterId = btn?.getAttribute('data-chapter-id');
-            const bProChapterId = btn?.getAttribute('data-pro-chapter-id') || b.getAttribute('data-pro-chapter-id');
-            const bName = (b.getAttribute('data-chapter-name') || b.querySelector('.txt-quest-name')?.textContent || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            const qLower = (questName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            const isMatch = (questId && bQuestId === questId) ||
-                            (chapterId && bChapterId === chapterId) ||
-                            (proChapterId && bProChapterId === proChapterId) ||
-                            (qLower && (bName.includes(qLower) || qLower.includes(bName))) ||
-                            (questId === '305321' && (bName.includes('atum') || bName.includes('ennead')));
-
-            if (isMatch) {
-              return { banner: b, btn };
-            }
-          }
-          return null;
-        };
-
-        for (let t = 0; t < numTabs; t++) {
-          if (tabs[t]) {
-            if ($) $(tabs[t]).trigger('tap');
-            tabs[t].click();
-            await new Promise(r => setTimeout(r, 350));
-          }
-
-          const matched = matchBanner();
-          if (matched) {
-            const { banner, btn } = matched;
-            const isLocked = !!banner.querySelector('.ico-lock, .prt-lock, .btn-lock') ||
-                             banner.classList.contains('is-locked') ||
-                             banner.classList.contains('lock') ||
-                             btn?.classList.contains('btn-lock') ||
-                             banner.getAttribute('data-is-lock') === '1';
-
-            const limited = btn?.getAttribute('data-limited_count');
-            const isCleared = banner.classList.contains('onm-mask') ||
-                              !!banner.querySelector('.ico-cleared, .prt-cleared') ||
-                              (btn?.classList.contains('disable') && !isLocked) ||
-                              btn?.classList.contains('has-error') ||
-                              btn?.classList.contains('is-completed') ||
-                              limited === '0';
-
-            let clicked = false;
-            if (!isLocked && !isCleared && btn) {
-              if ($) $(btn).trigger('tap');
-              btn.click();
-              clicked = true;
-            }
-
-            return {
-              found: true,
-              isLocked,
-              isCleared,
-              clicked
-            };
-          }
-        }
-
-        return { found: false, isLocked: false, isCleared: false, clicked: false };
-      }, qId, chId, qName, proChId);
-
-      if (!itemState.found) {
-        console.warn(`[Workflow] ⚠️ Quest "${qName}" (ID: ${qId}) not found in Pro Quest List modal.`);
-        await this.closeProListModalIfOpen();
-        return true;
-      }
-
-      if (itemState.isCleared) {
-        console.log(`[Workflow] ✅ "${qName}" is already cleared today.`);
-        await this.closeProListModalIfOpen();
-        return true;
-      }
-
-      if (itemState.isLocked) {
-        console.warn(`[Workflow] ⚠️ "${qName}" is locked (prerequisites not met on this account). Skipping...`);
-        await this.closeProListModalIfOpen();
-        return true;
-      }
-
-      if (!itemState.clicked) {
-        console.warn(`[Workflow] Quest button for "${qName}" was not clickable. Skipping...`);
-        await this.closeProListModalIfOpen();
-        return true;
-      }
-
-      await logNormalDelay(500, 0.15);
-      await this.sentinel.assertSafe();
-
-      // 4. Handle Phase 1 confirmation modal (.pop-pro-quest-skip)
-      const confirmOk = await this.page.waitForSelector('.pop-pro-quest-skip .btn-usual-ok, .pop-usual .btn-usual-ok', { visible: true, timeout: 6000 }).catch(() => null);
-      if (confirmOk) {
-        console.log(`[Workflow] Confirming skip dialog for "${qName}"...`);
-        await this.page.evaluate(() => {
-          const okBtn = document.querySelector('.pop-pro-quest-skip .btn-usual-ok, .pop-usual .btn-usual-ok') as HTMLElement;
-          if (okBtn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(okBtn).trigger('tap');
-            okBtn.click();
-          }
-        });
-        await logNormalDelay(500, 0.15);
-      }
-
-      // 5. Check AP recovery modal
-      await this.handleApRecoveryModal();
-
-      // 6. Handle Phase 2 supporter screen (.se-quest-start)
-      const startOk = await this.page.waitForSelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok[data-type-id="28"]', { visible: true, timeout: 8000 }).catch(() => null);
-      if (startOk) {
-        console.log(`[Workflow] Confirming final skip start on supporter screen (.se-quest-start)...`);
-        await this.page.evaluate(() => {
-          const startBtn = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok[data-type-id="28"]') as HTMLElement;
-          if (startBtn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(startBtn).trigger('tap');
-            startBtn.click();
-          }
-        });
-      }
-
-      // 7. Await result resolution (#result_pro_quest_skip)
-      console.log(`[Workflow] Awaiting result for "${qName}"...`);
-      await this.page.waitForFunction(() => {
-        return window.location.hash.includes('result_pro_quest_skip') ||
-               !!document.querySelector('.pop-exp, .prt-result-head');
-      }, { timeout: 12000 }).catch(() => null);
-
-      console.log(`[Workflow] 🎉 "${qName}" Pro Skip successfully cleared!`);
-      await logNormalDelay(800, 0.2);
-
-      // 8. Dismiss reward popups
-      await this.handleDismissPopups();
-
-      // 9. Safely return to #quest/extra for the next pro skip
-      await this.navigateIfNeeded('https://game.granbluefantasy.jp/#quest/extra');
-      return true;
-    }
-
-    // Fallback: If on #quest favorites list
-    const favState = await this.page.evaluate((questId, chapterId, questName) => {
-      const cards = Array.from(document.querySelectorAll('.prt-noindex-list .prt-list-contents, .cnt-quest .prt-list-contents'));
-      for (const c of cards) {
-        const proEl = c.querySelector('[data-pro-quest-skip="true"]') || (c.getAttribute('data-pro-quest-skip') === 'true' ? c : null);
-        if (!proEl) continue;
-        const qId = proEl.getAttribute('data-quest-id') || c.getAttribute('data-quest-id');
-        const chId = proEl.getAttribute('data-pro-chapter-id') || c.getAttribute('data-pro-chapter-id');
-        const name = c.getAttribute('data-quest-name') || proEl.getAttribute('data-quest-name') || c.querySelector('.txt-quest-title')?.textContent?.trim();
-
-        if ((questId && qId === questId) || (chapterId && chId === chapterId) || (questName && name?.includes(questName))) {
-          const limited = proEl.getAttribute('data-limited_count') || c.getAttribute('data-limited_count');
-          return {
-            found: true,
-            isCleared: limited === '0' || c.classList.contains('is-completed') || c.classList.contains('disable')
-          };
-        }
-      }
-      return { found: false, isCleared: false };
-    }, qId, chId, qName);
-
-    if (favState.found && favState.isCleared) {
-      console.log(`[Workflow] ✅ "${qName}" is already cleared in Favorites.`);
-      return true;
-    }
-
-    // Default DOM click fallback
-    const sel = selector || task?.selector || '.btn-pro-skip';
-    return await this.executeGenericClickUntilFinish(sel);
+  public async handleConfirmResult(): Promise<boolean> {
+    return await this.combatResolution.handleConfirmResult();
   }
 
-  /**
-   * Automated 100-Draw Rupie Gacha execution.
-   * Handles:
-   * 1. Navigation directly to #gacha/normal
-   * 2. Finding and clicking the 100-Draw button (.btn-lupi.multi[data-count="100"])
-   * 3. Confirming expenditure modal (.btn-usual-ok)
-   * 4. Fast-forwarding animation and dismissing result screen
-   */
-  /**
-   * Automated 100-Draw Rupie Gacha execution.
-   * Handles:
-   * 1. Navigation directly to #gacha/normal
-   * 2. Finding and clicking the 100-Draw button (.btn-lupi.multi.free[data-id="6002"][data-count="100"])
-   * 3. Confirming expenditure modal (.btn-usual-ok)
-   * 4. Fast-forwarding animation and dismissing result screen
-   */
-  private async executeAutomatedRupieGacha(task: any, selector?: string): Promise<boolean> {
-    console.log('[Workflow] 🎁 Checking Daily 100-Draw Rupie Gacha...');
-
-    // 1. Ensure navigation directly to #gacha/normal
-    const currentUrl = this.page.url();
-    if (!currentUrl.includes('#gacha/normal') && !currentUrl.includes('gacha/normal')) {
-      console.log('[Workflow] 🧭 Navigating to #gacha/normal...');
-      await this.page.evaluate(() => {
-        window.location.hash = '#gacha/normal';
-      }).catch(() => null);
-      await logNormalDelay(1500, 0.2);
-    } else {
-      // Re-verify hash in case we are on #gacha (premium tab)
-      await this.page.evaluate(() => {
-        if (!window.location.hash.includes('#gacha/normal')) {
-          window.location.hash = '#gacha/normal';
-        }
-      }).catch(() => null);
-    }
-
-    // Wait for the gacha container or .btn-lupi to appear
-    await this.page.waitForFunction(() => {
-      return (
-        !!document.querySelector('.btn-lupi, [data-id="6002"], .btn-lupi.multi, [data-count="100"]') ||
-        !!document.querySelector('.cnt-gacha-normal, .prt-gacha-normal, .cnt-gacha, #gacha')
-      );
-    }, { timeout: 8000 }).catch(() => null);
-    await logNormalDelay(600, 0.15);
-
-    // 2. Evaluate draw state on #gacha/normal
-    const drawState = await this.page.evaluate((userSel?: string) => {
-      const $ = (window as any).$ || (window as any).Zepto;
-
-      // 1. Locate the 100-Draw button:
-      // Exact element: <div class="btn-lupi multi free" data-id="6002" data-count="100">
-      const selectors = [
-        'div.btn-lupi.multi.free[data-id="6002"][data-count="100"]',
-        '.btn-lupi[data-id="6002"][data-count="100"]',
-        '.btn-lupi.multi[data-count="100"]',
-        '.btn-lupi.multi.free[data-count="100"]',
-        '.btn-lupi.multi.free',
-        '.btn-lupi[data-id="6002"]',
-        '.btn-lupi.multi',
-        '.btn-lupi[data-count="100"]',
-        '[data-id="6002"]',
-        userSel,
-        '.btn-draw-100',
-        '.btn-multi-draw'
-      ].filter(Boolean) as string[];
-
-      let btn100: HTMLElement | null = null;
-      for (const sel of selectors) {
-        const el = document.querySelector(sel) as HTMLElement;
-        if (el) {
-          btn100 = el;
-          break;
-        }
-      }
-
-      // Fallback: search for any .btn-lupi with 100-draw characteristics
-      if (!btn100) {
-        const allLupi = Array.from(document.querySelectorAll('.btn-lupi, [class*="btn-lupi"]')) as HTMLElement[];
-        for (const el of allLupi) {
-          const count = el.getAttribute('data-count');
-          const id = el.getAttribute('data-id');
-          const hasCount1 = !!el.querySelector('.count-1');
-          const txt = (el.innerText || '').trim();
-          if (count === '100' || id === '6002' || hasCount1 || txt.includes('100') || el.classList.contains('multi')) {
-            btn100 = el;
-            break;
-          }
-        }
-      }
-
-      // Text search fallback if still not found
-      if (!btn100) {
-        const candidates = Array.from(document.querySelectorAll('.btn-draw, [class*="btn"], div, a')) as HTMLElement[];
-        for (const c of candidates) {
-          const t = (c.innerText || '').trim();
-          if (
-            t.includes('100回引く') ||
-            t.includes('100連') ||
-            t.includes('100回') ||
-            t.includes('まとめて引く') ||
-            t.includes('Draw 100') ||
-            t.includes('100 Draws') ||
-            t.includes('Draw Max')
-          ) {
-            btn100 = c;
-            break;
-          }
-        }
-      }
-
-      // 2. If 100-Draw button is present:
-      if (btn100) {
-        const classes = btn100.className || '';
-        const count = btn100.getAttribute('data-count');
-        const countZeroEl = btn100.querySelector('.txt-gacha-count .count-0');
-        const countOneEl = btn100.querySelector('.txt-gacha-count .count-1');
-        const btnText = btn100.innerText || '';
-
-        const isDisabled =
-          classes.includes('disable') ||
-          classes.includes('is-completed') ||
-          classes.includes('btn-disable') ||
-          (btn100 as HTMLButtonElement).disabled ||
-          count === '0' ||
-          (countZeroEl && !countOneEl && count !== '100') ||
-          btnText.includes('本日分終了') ||
-          btnText.includes("can't draw") ||
-          btnText.includes('0 more times');
-
-        if (isDisabled) {
-          return { status: 'already_drawn', reason: 'button_disabled_or_zero_count' };
-        }
-
-        // Scroll into view & click
-        btn100.scrollIntoView({ behavior: 'instant', block: 'center' });
-        if ($) {
-          $(btn100).trigger('touchstart');
-          $(btn100).trigger('touchend');
-          $(btn100).trigger('tap');
-        }
-        btn100.click();
-        return { status: 'clicked', label: btnText || '100-Draw Rupie (.btn-lupi)' };
-      }
-
-      // 3. Button not found: check if already completed within the rupie gacha section
-      const rupieSection = document.querySelector('.prt-rupie-gacha, #gacha-rupie, .cnt-gacha-normal, .prt-gacha-normal, .cnt-gacha, #gacha') as HTMLElement;
-      const rupieText = rupieSection ? (rupieSection.innerText || '') : '';
-      if (
-        rupieText.includes("0 more times today") ||
-        rupieText.includes("can't draw any more") ||
-        rupieText.includes("cannot draw any more") ||
-        rupieText.includes("本日分終了") ||
-        rupieText.includes("上限に達しました") ||
-        rupieText.includes("0/100回") ||
-        rupieText.includes("0/100") ||
-        rupieText.includes("Daily limit reached") ||
-        rupieText.includes("Limit reached")
-      ) {
-        return { status: 'already_drawn', reason: 'rupie_gacha_daily_limit_reached' };
-      }
-
-      return { status: 'not_found', reason: 'btn_lupi_missing' };
-    }, selector);
-
-    console.log(`[Workflow] Rupie Draw evaluation: ${JSON.stringify(drawState)}`);
-
-    if (drawState.status === 'already_drawn') {
-      console.log(`[Workflow] ✅ Rupie Gacha already drawn today (${drawState.reason}).`);
-      return true;
-    }
-
-    if (drawState.status === 'not_found') {
-      console.warn(`[Workflow] ⚠️ Could not find .btn-lupi on #gacha/normal. Retrying on next loop...`);
-      return false;
-    }
-
-    if (drawState.status === 'clicked') {
-      console.log(`[Workflow] Clicked Rupie 100-Draw. Confirming modal...`);
-      await logNormalDelay(600, 0.15);
-
-      // Confirm modal (e.g. pop-usual, pop-show)
-      let confirmOk = await this.page.waitForSelector(
-        '.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, #pop .btn-usual-ok, .prt-popup-footer .btn-usual-ok, .btn-usual-ok, .btn-settle, .btn-ok',
-        { visible: true, timeout: 3000 }
-      ).catch(() => null);
-
-      // Fallback: If modal didn't appear yet, try direct Puppeteer click on the button
-      if (!confirmOk) {
-        const btnHandle = await this.page.$(
-          'div.btn-lupi.multi.free[data-id="6002"][data-count="100"], .btn-lupi[data-id="6002"], .btn-lupi.multi.free, .btn-lupi[data-count="100"], .btn-lupi.multi'
-        ).catch(() => null);
-        if (btnHandle) {
-          console.log('[Workflow] Retrying click on .btn-lupi via humanizedClick...');
-          await humanizedClick(this.page, btnHandle).catch(() => null);
-          confirmOk = await this.page.waitForSelector(
-            '.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, #pop .btn-usual-ok, .prt-popup-footer .btn-usual-ok, .btn-usual-ok, .btn-settle, .btn-ok',
-            { visible: true, timeout: 4000 }
-          ).catch(() => null);
-        }
-      }
-
-      if (confirmOk) {
-        console.log('[Workflow] Confirming Rupie 100-Draw modal (.btn-usual-ok)...');
-        await logNormalDelay(300, 0.15);
-        await humanizedClick(this.page, confirmOk).catch(() => null);
-        await this.page.evaluate(() => {
-          const okBtn = document.querySelector(
-            '.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, #pop .btn-usual-ok, .prt-popup-footer .btn-usual-ok, .btn-usual-ok, .btn-settle, .btn-ok'
-          ) as HTMLElement;
-          if (okBtn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) {
-              $(okBtn).trigger('touchstart');
-              $(okBtn).trigger('touchend');
-              $(okBtn).trigger('tap');
-            }
-            okBtn.click();
-          }
-        }).catch(() => null);
-      } else {
-        console.warn('[Workflow] ⚠️ No confirmation modal appeared after clicking 100-Draw Rupie button.');
-      }
-
-      // Wait for gacha result screen or animation
-      await logNormalDelay(1500, 0.2);
-
-      // Fast-forward / skip animation by clicking on the canvas/stage if present
-      await this.page.evaluate(() => {
-        const stage = document.querySelector('#stage, canvas, .cnt-gacha') as HTMLElement;
-        if (stage) stage.click();
-      }).catch(() => null);
-
-      await logNormalDelay(1000, 0.2);
-
-      // Wait for gacha result screen / close button
-      await this.page.waitForFunction(() => {
-        const hash = window.location.hash || '';
-        return (
-          hash.includes('result') ||
-          !!document.querySelector('.prt-result, .pop-gacha-result, .btn-result-close, .btn-usual-ok, .prt-popup-footer .btn-usual-ok')
-        );
-      }, { timeout: 12000 }).catch(() => null);
-
-      console.log('[Workflow] 🎉 Rupie 100-Draw successfully completed!');
-      await logNormalDelay(800, 0.2);
-
-      // Dismiss result screen / popups
-      await this.page.evaluate(() => {
-        const closeBtn = document.querySelector('.btn-result-close, .pop-gacha-result .btn-usual-ok, .cnt-result .btn-usual-ok, .btn-usual-close') as HTMLElement;
-        if (closeBtn) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(closeBtn).trigger('tap');
-          closeBtn.click();
-        }
-      }).catch(() => null);
-
-      await this.handleDismissPopups();
-      return true;
-    }
-
-    return false;
+  public async resolveLingeringState(): Promise<void> {
+    return await this.combatResolution.resolveLingeringState();
   }
 
-  /**
-   * Automated Skyscope Daily Missions claim execution.
-   */
-  private async executeAutomatedSkyscopeMission(task: any, selector?: string): Promise<boolean> {
-    console.log('[Workflow] 🎯 Checking Skyscope Daily Missions...');
-    await logNormalDelay(600, 0.15);
-
-    const claimSelector = selector || '.btn-claim-all, .btn-receive-all, .prt-mission-complete .btn-receive-all, [data-action="claim-all"], .btn-all-receive';
-    const claimState = await this.page.evaluate((sel: string) => {
-      const btn = document.querySelector(sel) as HTMLElement;
-      if (!btn || btn.offsetParent === null) return 'none_claimable';
-      const classes = btn.className || '';
-      if (classes.includes('disable')) return 'none_claimable';
-      const $ = (window as any).$ || (window as any).Zepto;
-      if ($) $(btn).trigger('tap');
-      btn.click();
-      return 'claimed';
-    }, claimSelector).catch(() => 'error');
-
-    if (claimState === 'none_claimable' || claimState === 'error') {
-      console.log('[Workflow] ✅ No unclaimed Skyscope missions pending.');
-      return true;
-    }
-
-    if (claimState === 'claimed') {
-      console.log('[Workflow] Claimed pending Skyscope missions. Dismissing rewards...');
-      await logNormalDelay(600, 0.2);
-      await this.handleDismissPopups();
-      return true;
-    }
-
-    return true;
+  public async waitForCombatTurnResolution(targetNet: string | null, totalTimeoutMs = 15000): Promise<boolean> {
+    return await this.combatResolution.waitForCombatTurnResolution(targetNet, totalTimeoutMs);
   }
 
-  /**
-   * Automated Casino daily item exchange execution.
-   * Exchanges Half-Elixirs and Soul Berries up to daily cap.
-   */
-  private async executeAutomatedCasinoExchange(task: any, selector?: string): Promise<boolean> {
-    console.log('[Workflow] 🎰 Checking Casino Daily Recovery Items Exchange...');
-
-    // 1. Ensure navigation to #casino/exchange
-    const currentUrl = this.page.url();
-    if (!currentUrl.includes('casino/exchange')) {
-      await this.navigateIfNeeded('https://game.granbluefantasy.jp/#casino/exchange');
-      await logNormalDelay(1500, 0.2);
-    }
-
-    // 2. Check and exchange available daily items (Half-Elixir, Soul Berry)
-    const exchangeResult = await this.page.evaluate(() => {
-      const $ = (window as any).$ || (window as any).Zepto;
-      const items = Array.from(document.querySelectorAll('.prt-item, .prt-exchange-item, .prt-trade-item, .lis-item'));
-
-      for (const item of items) {
-        const text = (item.textContent || '').trim();
-        const isTarget = text.includes('Half Elixir') || text.includes('Soul Berry') ||
-                         text.includes('エリクシールハーフ') || text.includes('ソウルシード');
-        if (!isTarget) continue;
-
-        const btn = item.querySelector('.btn-exchange, .btn-trade, [data-action="exchange"]') as HTMLElement;
-        if (!btn || btn.offsetParent === null) continue;
-
-        const isDisabled = btn.classList.contains('disable') || text.includes('0 left') || text.includes('残り0') || text.includes('0/100');
-        if (!isDisabled) {
-          if ($) $(btn).trigger('tap');
-          btn.click();
-          return { itemFound: true, itemName: text.includes('Elixir') || text.includes('エリクシール') ? 'Half-Elixir' : 'Soul Berry' };
-        }
-      }
-
-      return { itemFound: false, itemName: '' };
-    }).catch(() => ({ itemFound: false, itemName: '' }));
-
-    if (!exchangeResult.itemFound) {
-      console.log('[Workflow] ✅ Casino daily exchanges already completed (0 stock remaining).');
-      return true; // All items fully exchanged
-    }
-
-    console.log(`[Workflow] Exchanging daily stock for "${exchangeResult.itemName}"...`);
-    await logNormalDelay(600, 0.15);
-
-    // Max quantity slider / button
-    await this.page.evaluate(() => {
-      const maxBtn = document.querySelector('.btn-max, .btn-use-max, .btn-trade-max') as HTMLElement;
-      if (maxBtn) maxBtn.click();
-    }).catch(() => null);
-    await logNormalDelay(400, 0.1);
-
-    // Click confirm / OK
-    await this.page.evaluate(() => {
-      const okBtn = document.querySelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-settle') as HTMLElement;
-      if (okBtn) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(okBtn).trigger('tap');
-        okBtn.click();
-      }
-    }).catch(() => null);
-    await logNormalDelay(800, 0.2);
-
-    // Dismiss any success popups
-    await this.handleDismissPopups();
-
-    // Return false so next loop cycle exchanges remaining item (e.g. Soul Berry after Half-Elixir)
-    return false;
+  public async waitForNetworkResponse(targetSubstring: string, timeoutMs: number): Promise<boolean> {
+    return await this.combatResolution.waitForNetworkResponse(targetSubstring, timeoutMs);
   }
 
-  /**
-   * Generic fallback click and modal dismissal.
-   */
-  private async executeGenericClickUntilFinish(selector?: string): Promise<boolean> {
-    if (!selector) return true;
-    const clicked = await this.page.evaluate((sel: string) => {
-      const el = document.querySelector(sel) as HTMLElement;
-      if (el && el.offsetParent !== null) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(el).trigger('tap');
-        el.click();
-        return true;
-      }
-      return false;
-    }, selector).catch(() => false);
-
-    if (clicked) {
-      await logNormalDelay(400, 0.15);
-      await this.handleDismissPopups();
-      return true;
-    }
-    return false;
+  public async waitForCombatActionResponse(targetNet: string | null, timeoutMs: number): Promise<boolean> {
+    return await this.combatResolution.waitForCombatActionResponse(targetNet, timeoutMs);
   }
 
-  /**
-   * Universal Daily & Workflow Handler:
-   * Executes a task or sequence of subSteps repeatedly until completion criteria are fulfilled.
-   * Can resolve predefined data tags from data/index.json (e.g. daily_magna_pro, daily_rupie, daily_skyscope)
-   * or navigate to arbitrary pages and interact with selectors until finished (data-limited_count="0", .is-completed, disabled).
-   */
-  private async handleDoUntilFinish(step: WorkflowStep, runNumber: number): Promise<boolean> {
-    const tag = step.tag || step.target;
-    const task = tag ? this.getDailyCatalogTask(tag) : null;
-
-    const taskName = task?.name || step.name || tag || step.target || 'Custom Daily Target';
-    const targetUrl = step.page || task?.pageUrl;
-    const targetSelector = step.target && step.target !== tag ? step.target : (task?.selector || step.target);
-    const maxLoops = step.maxLoops || 20;
-
-    console.log(`[Workflow] 🔄 Starting do_until_finish: "${taskName}" (max loops: ${maxLoops})...`);
-
-    // 1. Navigation if page specified and not already on it
-    if (targetUrl) {
-      await this.navigateIfNeeded(targetUrl);
-    }
-
-    // 2. Loop until finished
-    for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
-      if (this.stopRequested) return false;
-      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
-
-      // Check if target is completed (skip for automated routines as their handlers manage inspection internally)
-      const isAutomatedRoutine = task && ['pro_skip', 'gacha', 'mission', 'shop', 'casino'].includes(task.category);
-      if (targetSelector && !isAutomatedRoutine) {
-        const isFinished = await this.evaluateTargetFinished(targetSelector);
-        if (isFinished) {
-          console.log(`[Workflow] 🏁 do_until_finish: "${taskName}" is completed! (cycle ${loopIdx + 1})`);
-          await this.handleDismissPopups();
-          return true;
-        }
-      }
-
-      // If user provided explicit subSteps, execute them
-      if (step.subSteps && step.subSteps.length > 0) {
-        console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Executing ${step.subSteps.length} sub-steps for "${taskName}"...`);
-        for (let s = 0; s < step.subSteps.length; s++) {
-          const sub = step.subSteps[s];
-          const ok = await this.executeSingleStep(sub, s + 1, runNumber);
-          if (!ok && !sub.optional) {
-            console.warn(`[Workflow] Sub-step ${s + 1} (${sub.code}) failed inside do_until_finish.`);
-            return false;
-          }
-        }
-        await logNormalDelay(400, 0.15);
-        continue;
-      }
-
-      // If no subSteps provided, execute automated category routine
-      const category = task?.category || 'custom';
-      console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Executing built-in routine for category "${category}"...`);
-
-      let cycleSuccess = false;
-      if (category === 'pro_skip') {
-        cycleSuccess = await this.executeAutomatedProSkip(task, targetSelector);
-      } else if (category === 'gacha') {
-        cycleSuccess = await this.executeAutomatedRupieGacha(task, targetSelector);
-      } else if (category === 'mission') {
-        cycleSuccess = await this.executeAutomatedSkyscopeMission(task, targetSelector);
-      } else if (category === 'shop' || category === 'casino') {
-        cycleSuccess = await this.executeAutomatedCasinoExchange(task, targetSelector);
-      } else {
-        cycleSuccess = await this.executeGenericClickUntilFinish(targetSelector);
-      }
-
-      if (cycleSuccess) {
-        console.log(`[Workflow] 🏁 do_until_finish: "${taskName}" verified complete.`);
-        return true;
-      }
-
-      await logNormalDelay(500, 0.15);
-    }
-
-    console.log(`[Workflow] ⏹️ do_until_finish reached max loops (${maxLoops}) for "${taskName}".`);
-    await this.handleDismissPopups();
-    return true;
-  }
-
-  /**
-   * Executes a repeat block of subSteps.
-   */
-  private async handleRepeat(step: WorkflowStep, runNumber: number): Promise<boolean> {
-    if (!step.subSteps || step.subSteps.length === 0) return true;
-    const count = step.repeatCount || 1;
-
-    for (let r = 0; r < count; r++) {
-      if (this.stopRequested) return false;
-      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
-
-      await this.syncCurrentHonors();
-
-      if (this.template.targetScore && this.currentScore >= this.template.targetScore) {
-        console.log(`[Repeat Block] Target score reached (${this.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Exiting repeat block.`);
-        return true;
-      }
-
-      if (await this.isBattleEnded()) {
-        console.log('[Repeat Block] Battle concluded during repeat loop. Exiting block.');
-        return true;
-      }
-
-      for (let s = 0; s < step.subSteps.length; s++) {
-        const sub = step.subSteps[s];
-
-        // Check explicit exit_if_score inside repeat block
-        if (sub.code === 'exit_if_score' || sub.action === 'exit_if_score') {
-          await this.syncCurrentHonors();
-          const threshold = sub.targetScore || this.template.targetScore || 1480000;
-          if (this.currentScore >= threshold) {
-            console.log(`[Repeat Block] Honor threshold met (${this.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting repeat block early.`);
-            return true;
-          }
-          console.log(`[Repeat Block] Current honors (${this.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing loop...`);
-          continue;
-        }
-
-        if (this.template.targetScore) {
-          await this.syncCurrentHonors();
-          if (this.currentScore >= this.template.targetScore) {
-            console.log(`[Repeat Block] Target score reached (${this.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Exiting repeat block early.`);
-            return true;
-          }
-        }
-
-        const ok = await this.executeSingleStep(sub, s + 1, runNumber);
-        if (!ok && !sub.optional) return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Evaluates early exit condition based on current honors.
-   */
-  private async handleExitIfScore(step: WorkflowStep): Promise<boolean> {
-    await this.syncCurrentHonors();
-    const threshold = step.targetScore || this.template.targetScore || 1480000;
-    if (this.currentScore >= threshold) {
-      console.log(`[Combat] Honor threshold met (${this.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat.`);
-      return true;
-    }
-    return true;
-  }
-
-  /**
-   * Waits until the combat turn counter reaches targetTurn.
-   */
-  private async handleWaitTurn(step: WorkflowStep): Promise<boolean> {
-    const targetTurn = step.condition?.value || 2;
-    const start = Date.now();
-    while (Date.now() - start < (step.timeoutMs || 10000)) {
-      if (this.stopRequested) return false;
-      if (await this.isBattleEnded()) return true;
-      if (this.currentTurn >= targetTurn) return true;
-      await new Promise(r => setTimeout(r, 200));
-    }
-    return false;
-  }
-
-  /**
-   * Selects an enemy target index (1, 2, or 3).
-   */
-  private async handleTargetEnemy(step: WorkflowStep): Promise<boolean> {
-    const enemyIdx = step.enemyIndex || 1;
-    const selector = `.lis-enemy[pos="${enemyIdx - 1}"], .btn-enemy-${enemyIdx}, .prt-targeting[pos="${enemyIdx - 1}"]`;
-
-    const enemyEl = await this.page.waitForSelector(selector, { visible: true, timeout: 3000 }).catch(() => null);
-    if (enemyEl) {
-      await humanizedClick(this.page, enemyEl);
-      await logNormalDelay(150, 0.1);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Uses temporary potion (Green, Blue, or Elixir).
-   */
-  private async handleHeal(step: WorkflowStep): Promise<boolean> {
-    const pType = step.potionType || 'green';
-
-    // 1. Open temporary item tray
-    const tempTrayBtn = await this.page.$('.btn-temporary, .btn-item');
-    if (tempTrayBtn) {
-      await humanizedClick(this.page, tempTrayBtn);
-      await humanReactionDelay(120, 0.1);
-    }
-
-    // 2. Click potion item
-    const itemSelector = pType === 'green'
-      ? '.lis-item[item-id="1"], .btn-item-small'
-      : pType === 'blue'
-      ? '.lis-item[item-id="2"], .btn-item-all'
-      : '.lis-item[item-id="3"], .btn-item-elixir';
-
-    const potionBtn = await this.page.waitForSelector(itemSelector, { visible: true, timeout: 2500 }).catch(() => null);
-    if (potionBtn) {
-      await humanizedClick(this.page, potionBtn);
-      // 3. Confirm usage OK if present
-      const okBtn = await this.page.waitForSelector('.btn-usual-ok.btn-item-use, .btn-usual-ok.se-use', { visible: true, timeout: 1500 }).catch(() => null);
-      if (okBtn) await humanizedClick(this.page, okBtn);
-      await logNormalDelay(250, 0.1);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Sends a backup request to everyone in multi-raids.
-   */
-  private async handleBackupRequest(): Promise<boolean> {
-    const assistBtn = await this.page.$('.btn-assist, .btn-request');
-    if (assistBtn) {
-      await humanizedClick(this.page, assistBtn);
-      await humanReactionDelay(150, 0.1);
-
-      const requestAllBtn = await this.page.waitForSelector('.btn-assist-all, .btn-usual-ok', { visible: true, timeout: 2000 }).catch(() => null);
-      if (requestAllBtn) {
-        await humanizedClick(this.page, requestAllBtn);
-        await logNormalDelay(200, 0.1);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Closes any open character ability drawer, skill details popup, target selection, or lingering modals.
-   */
-  private async dismissCombatDrawersAndPopups(): Promise<boolean> {
-    try {
-      const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-      const isManual = this.isManualWorkflow();
-      const dismissed = await this.page.evaluate((manual: boolean) => {
-        let acted = false;
-
-        // Fast-forward active tweens and release visual/button locks immediately
-        const cjs = (window as any).createjs;
-        if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(2000, false);
-        }
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
-        }
-
-        // In manual workflows, ensure Auto remains OFF
-        if (manual) {
-          const autoBtn = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-          if (autoBtn && (autoBtn.classList.contains('display-on') || autoBtn.classList.contains('active') || autoBtn.classList.contains('full'))) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(autoBtn).trigger('tap');
-            autoBtn.click();
-          }
-        }
-
-        // 1. Dismiss any open modal / popup dialog (.pop-usual, .prt-popup-header .btn-close, etc.)
-        const popBtns = Array.from(document.querySelectorAll(
-          '.pop-usual .btn-close, .pop-usual .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close, .btn-usual-close, .prt-popup-footer .btn-usual-ok'
-        )) as HTMLElement[];
-        for (const btn of popBtns) {
-          if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(btn).trigger('tap');
-            btn.click();
-            acted = true;
-          }
-        }
-
-        // 2. Close character ability drawer if open (Back button)
-        const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (backBtn && backBtn.offsetParent !== null && window.getComputedStyle(backBtn).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(backBtn).trigger('tap');
-          backBtn.click();
-          acted = true;
-        }
-
-        // 2b. Close summon tray if open
-        const summonClose = document.querySelector('.btn-summon-back, .btn-command-back.summon-back, .btn-command-summon.summon-on, .prt-list-top.btn-command-summon.summon-on') as HTMLElement;
-        if (summonClose && summonClose.offsetParent !== null && window.getComputedStyle(summonClose).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(summonClose).trigger('tap');
-          summonClose.click();
-          acted = true;
-        }
-
-        // 3. Clear READY screen if present (ONLY for automated/tap_ready workflows)
-        if (!manual) {
-          const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready') as HTMLElement;
-          if (readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none') {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(readyEl).trigger('tap');
-            readyEl.click();
-            acted = true;
-          }
-        }
-
-        return acted;
-      }, isManual);
-
-      // If NOT manual, canvas READY overlay can be dismissed with tap
-      if (!isManual) {
-        const hasReady = await this.page.evaluate(() => {
-          const ready = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
-          return !!ready && (ready as HTMLElement).offsetWidth > 0;
-        }).catch(() => false);
-
-        if (hasReady) {
-          const vp = this.page.viewport() || { width: 480, height: 960 };
-          const cx = Math.round(vp.width * 0.5);
-          const cy = Math.round(vp.height * 0.35);
-          await this.page.touchscreen.tap(cx, cy).catch(() => null);
-          await this.page.mouse.click(cx, cy).catch(() => null);
-          if (!isTurbo) await logNormalDelay(100, 0.1);
-        }
-      }
-
-      if (dismissed && !isTurbo) {
-        await logNormalDelay(150, 0.12);
-      }
-      return dismissed;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Waits for combat input readiness (verifies that stage locks and animation flags have cleared).
-   * Accurately recognizes readiness whether on the main combat HUD, inside an open ability drawer,
-   * or during character command mode without false display-off timeouts.
-   */
-  private async waitForCombatInputReady(timeoutMs = 6000): Promise<boolean> {
-    // Respect authoritative Cygames server-side lockout timer (from normal attacks or attack-without-turn abilities)
-    const remainingLockout = this.lastAttackLockoutExpires - Date.now();
-    if (remainingLockout > 0) {
-      const waitTime = Math.min(remainingLockout, timeoutMs);
-      await new Promise(r => setTimeout(r, waitTime));
-    }
-
-    const start = Date.now();
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    const pollInterval = isTurbo ? 35 : (this.template?.speedProfile === 'fast' ? 50 : 80);
-
-    while (Date.now() - start < timeoutMs) {
-      if (this.stopRequested) return false;
-      if (await this.isBattleEnded()) return true;
-
-      const isReady = await this.page.evaluate(() => {
-        // 1. Must not have turn processing popup blocking input
-        const pop = document.querySelector('.pop-usual, .prt-popup-header');
-        if (pop && (pop as HTMLElement).offsetParent !== null) {
-          const text = (pop as HTMLElement).innerText || '';
-          if (text.includes('Processing') || text.includes('処理中') || text.includes('Wait') || text.includes('wait')) {
-            return false;
-          }
-        }
-
-        const stage = (window as any).stage;
-        const lock = stage?.gGameStatus?.lock === true;
-        const btnLock = stage?.gGameStatus?.btn_lock === true;
-        const attacking = stage?.gGameStatus?.attacking === true;
-        // In GBF, stage.gGameStatus.animation is purely visual canvas rendering and does NOT block player input.
-        // Input is strictly gated by engine lock, button lock, or attacking state.
-        if (lock || btnLock || attacking) return false;
-
-        // 2. Ready if attack button is on and visible
-        const atkBtn = document.querySelector('.btn-attack-start.display-on') as HTMLElement;
-        if (atkBtn && atkBtn.offsetWidth > 0) return true;
-
-        // 3. Ready if character ability drawer is open and Back button is active
-        const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (backBtn && backBtn.offsetWidth > 0 && window.getComputedStyle(backBtn).display !== 'none') return true;
-
-        // 4. Ready if character portraits are initialized, stage status exists, and ready screen is gone
-        const chara = document.querySelector('.lis-character0.btn-command-character, .lis-character0') as HTMLElement;
-        const readyEl = document.querySelector('.prt-ready, #ready') as HTMLElement;
-        const hasReady = readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none';
-        if (chara && chara.offsetWidth > 0 && !hasReady && stage?.gGameStatus) return true;
-
-        // 5. Ready if Quick Summon is ready
-        const qsBtn = document.querySelector('.btn-quick-summon.qs-ready') as HTMLElement;
-        if (qsBtn && qsBtn.offsetWidth > 0) return true;
-
-        return false;
-      }).catch(() => false);
-
-      if (isReady) return true;
-      await new Promise(r => setTimeout(r, pollInterval));
-    }
-    return false;
-  }
-
-  /**
-   * Triggers a character skill (Character 1-4, Skill 1-4) with state-aware tray handling.
-   */
-  private async handleSkill(step: WorkflowStep): Promise<boolean> {
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    const isManual = this.isManualWorkflow();
-    const char = step.character || 1;
-    const skill = step.skill || 1;
-    const skillSelector = `.ability-character-num-${char}-${skill}, .prt-ability-list .lis-ability:nth-child(${skill}) .btn-ability-available, div[ability-id="${skill}"].btn-ability-available, .btn-ability[data-ability-id="${skill}"]`;
-
-    if (isManual) {
-      await this.cancelFullAutoAndActionQueue();
-    }
-
-    // 1. Check if the target skill button is already visible in the open drawer
-    let isVisible = await this.page.evaluate((sel: string) => {
-      const el = document.querySelector(sel) as HTMLElement;
-      return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
-    }, skillSelector).catch(() => false);
-
-    // If not visible, dismiss open drawers/popups to switch character or clear overlays
-    if (!isVisible) {
-      await this.dismissCombatDrawersAndPopups();
-    }
-
-    // 2. Wait for combat state to be ready (lock === false and not attacking)
-    await this.waitForCombatInputReady(isTurbo ? 1500 : 5000);
-    if (await this.isBattleEnded()) return true;
-
-    // 3. Re-verify visibility after HUD ready
-    if (!isVisible) {
-      isVisible = await this.page.evaluate((sel: string) => {
-        const el = document.querySelector(sel) as HTMLElement;
-        return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
-      }, skillSelector).catch(() => false);
-    }
-
-    // 4. If skill button is not visible, switch or open this character's ability drawer
-    if (!isVisible) {
-      const charIdx = char - 1;
-      // Target clickable character portrait across pos attribute and class variations
-      const charSelector = `.prt-command-chara[pos="${charIdx}"] .btn-command-character, .lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, div[pos="${charIdx}"].btn-command-character, .btn-command-character[pos="${charIdx}"], .lis-character${char}`;
-
-      // Find character portrait (in GBF, clicking the portrait directly switches drawer without needing Back first)
-      let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 1800 : 3500 }).catch(() => null);
-      if (!charBtn) {
-        // Clear drawers/summon trays if portrait was obscured
-        await this.dismissCombatDrawersAndPopups();
-        if (!isTurbo) await logNormalDelay(100, 0.15);
-        charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 1500 : 2500 }).catch(() => null);
-      }
-
-      if (charBtn) {
-        // Physical click + Zepto tap event trigger on character portrait
-        await humanizedClick(this.page, charBtn);
-        await charBtn.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) {
-            $(el).trigger('tap');
-            $(el).trigger('click');
-          }
-          el.click();
-        }).catch(() => null);
-
-        if (!isTurbo) await logNormalDelay(150, 0.12);
-      } else {
-        console.warn(`[Combat] Character portrait for C${char} not found!`);
-        if (!step.optional) return false;
-      }
-
-      // Wait for the skill button to become visible inside the opened drawer
-      isVisible = await this.page.waitForFunction((sel: string) => {
-        const el = document.querySelector(sel) as HTMLElement;
-        return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
-      }, { timeout: isTurbo ? 1500 : 2500 }, skillSelector).then(() => true).catch(() => false);
-
-      if (!isVisible) {
-        // Secondary attempt: dismiss any drawers/overlays, re-tap character portrait
-        console.log(`[Combat] Skill C${char}S${skill} not visible on first tap, re-tapping character portrait...`);
-        await this.dismissCombatDrawersAndPopups();
-        if (!isTurbo) await logNormalDelay(100, 0.1);
-
-        const retryCharBtn = await this.page.$(charSelector);
-        if (retryCharBtn) {
-          await humanizedClick(this.page, retryCharBtn);
-          await retryCharBtn.evaluate((el: any) => {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) {
-              $(el).trigger('tap');
-              $(el).trigger('click');
-            }
-            el.click();
-          }).catch(() => null);
-          if (!isTurbo) await logNormalDelay(150, 0.15);
-        }
-
-        isVisible = await this.page.waitForFunction((sel: string) => {
-          const el = document.querySelector(sel) as HTMLElement;
-          return !!el && el.offsetWidth > 0 && window.getComputedStyle(el).display !== 'none';
-        }, { timeout: isTurbo ? 1500 : 3000 }, skillSelector).then(() => true).catch(() => false);
-      }
-    }
-
-    // 5. Retrieve visible skill button handle
-    const skillBtn = await this.page.waitForSelector(skillSelector, { visible: true, timeout: isTurbo ? 1500 : 3000 }).catch(() => null);
-    if (!skillBtn) {
-      console.warn(`[Combat] Skill C${char}S${skill} could not be made visible!`);
-      return step.optional ? true : false;
-    }
-
-    // 6. Check if skill is on cooldown / disabled / empty
-    const isUnavailable = await this.page.evaluate((el: any) => {
-      return el.classList.contains('btn-ability-unavailable') ||
-             el.classList.contains('disabled') ||
-             el.classList.contains('empty');
-    }, skillBtn).catch(() => false);
-
-    if (isUnavailable) {
-      if (step.optional) {
-        console.log(`[Combat] Skill C${char}S${skill} is on cooldown or unavailable (optional: skipped).`);
-        return true;
-      }
-      console.warn(`[Combat] Skill C${char}S${skill} is on cooldown!`);
-      return true;
-    }
-
-    // Natural human reaction hesitation between opening drawer and tapping skill
-    if (!isTurbo) {
-      await logNormalDelay(180, 0.12);
-    }
-
-    // 7. Arm network response promise for ability_result.json
-    const netTimeoutMs = isTurbo ? 2500 : 5000;
-    const netPromise = this.waitForNetworkResponse('ability_result.json', netTimeoutMs);
-
-    // 8. Click the skill button (both physical CDP click + Zepto tap event on icon and container)
-    const skillBox = await skillBtn.boundingBox();
-    if (skillBox && skillBox.width > 0 && skillBox.height > 0) {
-      await this.page.touchscreen.tap(skillBox.x + skillBox.width / 2, skillBox.y + skillBox.height / 2).catch(() => null);
-    }
-    await humanizedClick(this.page, skillBtn);
-    await skillBtn.evaluate((el: any) => {
-      const item = el.closest('.lis-ability') || el;
-      const $ = (window as any).$ || (window as any).Zepto;
-      if ($) {
-        $(item).trigger('tap');
-        $(item).trigger('click');
-        $(el).trigger('tap');
-        $(el).trigger('click');
-      }
-      item.click();
-      el.click();
-    }).catch(() => null);
-
-    // If ability confirmation modal appears (for accounts with ability confirmation enabled in GBF settings)
-    const confirmBtn = await this.page.waitForSelector('.btn-usual-ok.btn-ability-use, .pop-usual .btn-usual-ok, .btn-usual-ok.se-ability-use', {
-      visible: true,
-      timeout: 600
-    }).catch(() => null);
-    if (confirmBtn) {
-      await humanizedClick(this.page, confirmBtn);
-      await confirmBtn.evaluate((el: any) => {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(el).trigger('tap');
-      }).catch(() => null);
-      if (!isTurbo) await logNormalDelay(100, 0.1);
-    }
-
-    // 9. Handle targeted skill (e.g. single-target ally buff like Florence S1 on MC)
-    if (step.targetCharacter) {
-      const targetIdx = step.targetCharacter - 1;
-      const targetSelector = `.pop-usual .lis-character${targetIdx}.btn-command-character, .lis-character${targetIdx}.btn-command-character.front-member, .prt-popup-body .lis-character${targetIdx}, .pop-usual .lis-character${targetIdx}`;
-
-      const targetEl = await this.page.waitForSelector(targetSelector, { visible: true, timeout: 5000 }).catch(() => null);
-      if (targetEl) {
-        if (!isTurbo) await logNormalDelay(100, 0.12);
-        await humanizedClick(this.page, targetEl);
-        await targetEl.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(el).trigger('tap');
-        }).catch(() => null);
-        if (!isTurbo) await logNormalDelay(150, 0.15);
-      } else {
-        console.warn(`[Combat] Target selection modal for Char ${step.targetCharacter} not found!`);
-      }
-    }
-
-    // 10. Wait for ability_result.json from the server
-    const networkConfirmed = await netPromise;
-    if (!networkConfirmed) {
-      // Check if skill was actually consumed on client (e.g. cooldown classes applied)
-      const isNowUnavailable = await this.page.evaluate((sel: string) => {
-        const el = document.querySelector(sel);
-        const item = el?.closest('.lis-ability');
-        return (el && (el.classList.contains('btn-ability-unavailable') || el.classList.contains('disabled'))) ||
-               (item && (item.classList.contains('btn-ability-unavailable') || item.classList.contains('disabled')));
-      }, skillSelector).catch(() => false);
-
-      if (!isNowUnavailable && !(await this.isBattleEnded())) {
-        console.warn(`[Combat] Skill C${char}S${skill} unacknowledged by server (likely server lockout or dropped click). Checking popups and retrying once...`);
-        await this.checkAndDismissProcessingTurnPopup();
-        
-        // Fast settle in turbo
-        const settleDelay = isTurbo ? 100 : 800;
-        await new Promise(r => setTimeout(r, settleDelay));
-        if (await this.isBattleEnded()) return true;
-
-        // Re-arm network listener and re-click (tighter timeout in turbo)
-        const retryTimeout = isTurbo ? 1500 : 3500;
-        const retryNetPromise = this.waitForNetworkResponse('ability_result.json', retryTimeout);
-        const retrySkillBox = await skillBtn.boundingBox();
-        if (retrySkillBox && retrySkillBox.width > 0 && retrySkillBox.height > 0) {
-          await this.page.touchscreen.tap(retrySkillBox.x + retrySkillBox.width / 2, retrySkillBox.y + retrySkillBox.height / 2).catch(() => null);
-        }
-        await humanizedClick(this.page, skillBtn);
-        await skillBtn.evaluate((el: any) => {
-          const item = el.closest('.lis-ability') || el;
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) {
-            $(item).trigger('tap');
-            $(item).trigger('click');
-            $(el).trigger('tap');
-            $(el).trigger('click');
-          }
-          item.click();
-          el.click();
-        }).catch(() => null);
-
-        const retryConfirm = await this.page.waitForSelector('.btn-usual-ok.btn-ability-use, .pop-usual .btn-usual-ok, .btn-usual-ok.se-ability-use', {
-          visible: true,
-          timeout: 400
-        }).catch(() => null);
-        if (retryConfirm) {
-          await humanizedClick(this.page, retryConfirm);
-          await retryConfirm.evaluate((el: any) => {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(el).trigger('tap');
-          }).catch(() => null);
-        }
-
-        const retryConfirmed = await retryNetPromise;
-        if (!retryConfirmed && !(await this.isBattleEnded())) {
-          const finalUnavailable = await this.page.evaluate((sel: string) => {
-            const el = document.querySelector(sel);
-            const item = el?.closest('.lis-ability');
-            return (el && (el.classList.contains('btn-ability-unavailable') || el.classList.contains('disabled'))) ||
-                   (item && (item.classList.contains('btn-ability-unavailable') || item.classList.contains('disabled')));
-          }, skillSelector).catch(() => false);
-
-          if (!finalUnavailable) {
-            if (step.optional) {
-              console.log(`[Combat] Skill C${char}S${skill} optional - continuing pipeline after retry unacknowledged.`);
-              return true;
-            }
-            console.error(`[Combat] ❌ Skill C${char}S${skill} failed server acknowledgment after retry.`);
-            return false;
-          }
-        }
-      }
-    }
-
-    // Fast-bypass skill cut-in and particle animation, and immediately close ability drawer
-    await this.page.evaluate(() => {
-      const cjs = (window as any).createjs;
-      if (cjs?.Tween?.tick) {
-        cjs.Tween.tick(3000, false);
-      }
-      const stage = (window as any).stage;
-      if (stage?.gGameStatus) {
-        stage.gGameStatus.lock = false;
-        stage.gGameStatus.btn_lock = false;
-        stage.gGameStatus.animation = false;
-      }
-      // Force close character ability drawer to immediately expose Attack button
-      const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-      if (back && back.offsetParent !== null) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(back).trigger('tap');
-        back.click();
-      }
-    }).catch(() => null);
-
-    // 11. Snappy wait for input readiness (max 500ms in turbo)
-    await this.waitForCombatInputReady(isTurbo ? 500 : 3000);
-    if (!isTurbo) await logNormalDelay(60, 0.15);
-
-    // Proactively dismiss any remaining modal backdrop/popups and ensure drawer closed
-    await this.dismissCombatDrawersAndPopups();
-
-    return true;
-  }
-
-  /**
-   * Invokes a specific summon slot.
-   */
-  private async handleSummon(step: WorkflowStep): Promise<boolean> {
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    await this.waitForCombatInputReady(isTurbo ? 2000 : 4000);
-    if (await this.isBattleEnded()) return true;
-
-    const targetName = (step.target || '').toLowerCase().trim();
-    let slot = step.slot || (targetName === 'hades' ? 6 : 1);
-
-    if (targetName) {
-      const dynamicSlot = await this.page.evaluate((target: string) => {
-        const stage = (window as any).stage;
-        const rawSummons = stage?.pJsnData?.summon || stage?.gGameStatus?.summon;
-        if (rawSummons) {
-          const summonsList = Array.isArray(rawSummons) ? rawSummons : Object.values(rawSummons);
-          for (let idx = 0; idx < summonsList.length; idx++) {
-            const s: any = summonsList[idx];
-            if (!s) continue;
-            const name = String(s.name || '').toLowerCase();
-            const id = String(s.id || '');
-            const isReady = s.available_flag === 1 || s.available_flag === true || s.recast === '0' || s.recast === 0;
-            if (target === 'agni' || target === 'agnis') {
-              if (name.includes('agni') || name.includes('アグニス') || id.startsWith('2040023') || id.startsWith('2040094') || id.startsWith('2040417')) {
-                if (isReady) return idx + 1;
-              }
-            } else if (target === 'hades') {
-              if (name.includes('hades') || name.includes('ハデス') || id.startsWith('2040065') || id.startsWith('2040090') || id.startsWith('2040416') || id.startsWith('2040411')) {
-                if (isReady) return idx + 1;
-              }
-            } else if (target === 'bahamut' || target === 'baha') {
-              if (name.includes('bahamut') || name.includes('バハムート') || id.startsWith('2040003') || id.startsWith('2040056') || id.startsWith('2040412')) {
-                if (isReady) return idx + 1;
-              }
-            } else if (name.includes(target) || id.includes(target)) {
-              if (isReady) return idx + 1;
-            }
-          }
-          // Secondary pass if no ready summon was found
-          for (let idx = 0; idx < summonsList.length; idx++) {
-            const s: any = summonsList[idx];
-            if (!s) continue;
-            const name = String(s.name || '').toLowerCase();
-            const id = String(s.id || '');
-            if (target === 'hades' && (name.includes('hades') || name.includes('ハデス') || id.startsWith('2040065') || id.startsWith('2040090') || id.startsWith('2040416') || id.startsWith('2040411'))) {
-              return idx + 1;
-            }
-            if ((target === 'agni' || target === 'agnis') && (name.includes('agni') || name.includes('アグニス') || id.startsWith('2040023') || id.startsWith('2040094') || id.startsWith('2040417'))) {
-              return idx + 1;
-            }
-            if (name.includes(target) || id.includes(target)) {
-              return idx + 1;
-            }
-          }
-        }
-
-        // Also inspect DOM elements
-        const summonEls = document.querySelectorAll('.lis-summon');
-        for (let idx = 0; idx < summonEls.length; idx++) {
-          const el = summonEls[idx];
-          const imgSrc = el.querySelector('img')?.getAttribute('src') || '';
-          const posAttr = el.getAttribute('pos');
-          const posNum = posAttr ? parseInt(posAttr, 10) : (idx + 1);
-          if (target === 'agni' || target === 'agnis') {
-            if (imgSrc.includes('2040023') || imgSrc.includes('2040094') || imgSrc.includes('2040417')) {
-              return posNum;
-            }
-          } else if (target === 'hades') {
-            if (imgSrc.includes('2040065') || imgSrc.includes('2040090') || imgSrc.includes('2040416') || imgSrc.includes('2040411')) {
-              return posNum;
-            }
-          }
-        }
-        return null;
-      }, targetName).catch(() => null);
-
-      if (dynamicSlot && dynamicSlot >= 1 && dynamicSlot <= 6) {
-        slot = dynamicSlot;
-        console.log(`[Workflow] Resolved summon "${targetName}" to slot ${slot}`);
-      } else {
-        console.log(`[Workflow] Summon "${targetName}" dynamic search deferred, using slot ${slot}`);
-      }
-    }
-
-    // Open summon tray if not already open
-    const isSummonOpen = await this.page.evaluate(() => {
-      const slotEl = document.querySelector('.lis-summon');
-      return !!slotEl && (slotEl as HTMLElement).offsetWidth > 0;
-    }).catch(() => false);
-
-    if (!isSummonOpen) {
-      const summonTrayBtn = await this.page.$('.btn-summon-available, .btn-command-summon');
-      if (summonTrayBtn) {
-        await humanizedClick(this.page, summonTrayBtn);
-        if (!isTurbo) await humanReactionDelay(180, 0.1);
-      }
-    }
-
-    // Click summon slot strictly matching target slot (pos="1" is Main, pos="2" is Sub 1, etc.)
-    let summonSlot = await this.page.waitForSelector(
-      `.lis-summon[pos="${slot}"], .btn-summon-use[pos="${slot}"], #canv-summon-pos-${slot}, .lis-summon.summon-${slot}, div[pos="${slot}"].lis-summon`,
-      { visible: true, timeout: 3500 }
-    ).catch(() => null);
-
-    // Fallback: query all summon cards and pick exact index (slot - 1)
-    if (!summonSlot) {
-      const allSummons = await this.page.$$('.lis-summon');
-      if (allSummons && allSummons.length >= slot) {
-        summonSlot = allSummons[slot - 1];
-      }
-    }
-
-    if (summonSlot) {
-      const netPromise = step.waitForNetwork ? this.waitForNetworkResponse(step.waitForNetwork, 4000) : Promise.resolve(true);
-      await humanizedClick(this.page, summonSlot);
-      if (!isTurbo) await logNormalDelay(150, 0.1);
-
-      // Click confirm summon OK if present
-      const okBtn = await this.page.waitForSelector(
-        '.btn-usual-ok.btn-summon-use, .pop-summon-detail .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, .btn-summon-use, .btn-call, .se-summon-call',
-        { visible: true, timeout: 1800 }
-      ).catch(() => null);
-      if (okBtn) {
-        await humanizedClick(this.page, okBtn);
-      }
-
-      await netPromise;
-      // Proactively dismiss any lingering summon detail modal, fast-forward summon animation, and clear locks
-      await this.page.evaluate(() => {
-        const cjs = (window as any).createjs;
-        if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(3000, false);
-        }
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
-        }
-        const pop = document.querySelector('.pop-summon-detail, .pop-usual.pop-show, .prt-popup-header .btn-close') as HTMLElement;
-        if (pop && pop.offsetParent !== null) {
-          const close = pop.querySelector('.btn-close, .btn-usual-ok, .btn-usual-cancel') as HTMLElement;
-          if (close) close.click();
-        }
-      }).catch(() => null);
-      await this.waitForCombatInputReady(isTurbo ? 400 : 3000);
-      return true;
-    }
-
-    return step.optional ? true : false;
-  }
-
-  /**
-   * Toggles Full Auto / Semi Auto.
-   */
-  private async handleAuto(step: WorkflowStep): Promise<boolean> {
-    const autoBtn = await this.page.waitForSelector('.btn-auto', { visible: true, timeout: 3000 }).catch(() => null);
-    if (autoBtn) {
-      await humanizedClick(this.page, autoBtn);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Toggles guard (V2).
-   */
-  private async handleGuard(step: WorkflowStep): Promise<boolean> {
-    const target = step.target || 'all';
-    if (target === 'all') {
-      const guardAllBtn = await this.page.$('.btn-guard-all');
-      if (guardAllBtn) {
-        await humanizedClick(this.page, guardAllBtn);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * High-speed optimized Full Auto ("The Full Auto Version of Us"):
-   * - Eliminates built-in Full Auto UI latency.
-   * - Optimally uses frontline character abilities with humanized reaction times.
-   * - Detects plain damage omen (calls Beelzebub summon if available).
-   * - Dispatches normal attack.
-   * - Waits for server confirmation ('normal_attack_result.json') + calibrated delay (e.g. step.delayAfterMs || 350ms).
-   * - Immediately reloads (F5) to cancel normal attack & charge attack animations, advancing turns instantly.
-   * - Repeats turn-by-turn until the boss is defeated or safety turn limit reached.
-   */
-  private async handleSmartFullAuto(step: WorkflowStep, runNumber: number): Promise<boolean> {
-    const maxTurns = step.maxLoops || 25;
-    const delayAfterAttack = step.delayAfterMs !== undefined ? step.delayAfterMs : 350;
-    const targetChars = step.characters; // Optional character filter (e.g. [1] for MC only)
-    const healHpThreshold = step.healHpThreshold ?? 0.75;
-    const minHealHpThreshold = step.minHealHpThreshold ?? 0.60;
-    const tacticalMode = step.tacticalSkillsMode ?? (step.skillsTurn1Only === true ? 'turn1_only' : 'smart');
-
-    console.log(`[Workflow] ⚡ [Run ${runNumber}] Initiating Methodological Tactical Auto (max turns: ${maxTurns}, mode: ${tacticalMode}, post-attack wait: ${delayAfterAttack}ms)...`);
-
-    for (let turn = 1; turn <= maxTurns; turn++) {
-      if (this.stopRequested) return false;
-      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
-
-      // Check if battle already concluded
-      if (await this.isBattleEnded()) {
-        console.log(`[Workflow] [Run ${runNumber}] Battle concluded at Turn ${turn}.`);
-        return true;
-      }
-
-      // Check combat HUD readiness
-      await this.waitForCombatInputReady(6000);
-      if (await this.isBattleEnded()) return true;
-
-      // 1. Check for Plain Damage Omen ("Deal 1,000,000 plain damage")
-      const omenActive = await this.isPlainDamageOmenActive();
-      if (omenActive) {
-        console.log(`[Workflow] ⚠️ Omen detected: [Deal 1,000,000 Plain Damage]! Checking Beelzebub summon...`);
-        const bubsCalled = await this.executeBeelzebubSummonIfAvailable();
-        if (bubsCalled) {
-          console.log(`[Workflow] 🎉 Beelzebub summon cast! Plain Damage omen canceled.`);
-          await this.waitForCombatInputReady(5000);
-          if (await this.isBattleEnded()) return true;
-        }
-      }
-
-      // 2. Quick summon call on Turn 1 if available
-      if (turn === 1 && step.quickSummon !== false) {
-        const qsReady = await this.page.evaluate(() => {
-          const btn = document.querySelector('.btn-quick-summon.qs-ready') as HTMLElement;
-          return !!(btn && btn.offsetParent !== null && !btn.classList.contains('disabled'));
-        }).catch(() => false);
-        if (qsReady) {
-          console.log(`[Workflow] [Turn ${turn}] Invoking Quick Summon...`);
-          await this.handleQuickCall({ code: 'quick_call', waitForNetwork: 'summon_result.json' });
-          await logNormalDelay(150, 0.1);
-        }
-      }
-
-      // 3. Methodological tactical skills execution across frontline characters
-      // High-level GBF doctrine: Field (5) -> Debuff (4) -> Buff (3) -> Nuke (1) -> Needed Heal (2)
-      // Evaluates readiness in < 1ms via stage.pJsnData; skips opening trays if no actionable skills are ready.
-      const shouldCastSkills = tacticalMode === 'smart' || (tacticalMode === 'turn1_only' && turn === 1);
-      if (shouldCastSkills) {
-        await this.executeTacticalReadySkills(targetChars, healHpThreshold, minHealHpThreshold, turn);
-      }
-
-      if (await this.isBattleEnded()) return true;
-
-      // 4. Attack dispatch
-      console.log(`[Workflow] [Turn ${turn}] Dispatching Attack command...`);
-      const attackDispatched = await this.handleAttack({
-        code: 'attack',
-        waitForNetwork: 'normal_attack_result.json'
-      });
-
-      if (!attackDispatched && !(await this.isBattleEnded())) {
-        console.warn(`[Workflow] [Turn ${turn}] Attack dispatch failed or unconfirmed.`);
-      }
-
-      // 5. User requirement: "wait a bit then do reload so it cancels animation and a bit faster"
-      if (delayAfterAttack > 0) {
-        await new Promise(r => setTimeout(r, delayAfterAttack));
-      }
-
-      // 6. Fast animation cancel via reload (F5)
-      console.log(`[Workflow] [Turn ${turn}] Reloading (F5) to cancel attack animation...`);
-      await this.handleReload({ code: 'reload' });
-
-      await logNormalDelay(150, 0.1);
-
-      if (await this.isBattleEnded()) {
-        console.log(`[Workflow] [Run ${runNumber}] Boss defeated after Turn ${turn}!`);
-        return true;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Methodological Tactical Skill Engine for Granblue Fantasy:
-   * 
-   * Grounded in GBF game theory and competitive combat mechanics:
-   * 1. Evaluates frontline combat state & cooldowns in < 1ms via `stage.pJsnData.ability` and DOM.
-   * 2. Categorizes skills into the 5 Granblue battle roles:
-   *    - Purple (Type 5): Field / Special auras (amplifies damage, raises caps).
-   *    - Blue (Type 4): Debuffs & Dispels (strips buffs, caps enemy DEF down to -50% to double outgoing damage).
-   *    - Yellow (Type 3): Offensive Buffs (ATK, Echoes, Guaranteed TA, Skill Specs Up, Limit Burst).
-   *    - Red (Type 1): Damage Nukes (unleashed ONLY after Debuffs & Buffs are active for maximum payload).
-   *    - Green (Type 2): Recovery / Heals (STRICTLY CONDITIONAL: evaluated against frontline HP & lethal debuffs).
-   * 
-   * Zero-Latency Optimization:
-   * - If NO actionable skills are ready on any turn, opens 0 drawers (takes 0ms) and advances directly to Attack.
-   * - Traversal minimization: groups prep skills (Field + Debuff + Buff) per character, then groups nukes per character.
-   */
-  private async executeTacticalReadySkills(
-    targetCharacters?: number[],
-    healHpThreshold = 0.75,
-    minHealHpThreshold = 0.60,
-    turn = 1
-  ): Promise<void> {
-    if (this.stopRequested) return;
-    if (await this.isBattleEnded()) return;
-
-    // 1. Zero-latency telemetry scan (< 1ms)
-    const scan = await this.page.evaluate(
-      (healThresh: number, minHealThresh: number, targetChars?: number[]) => {
-        const stage = (window as any).stage;
-        const pJsn = stage?.pJsnData;
-        const gStatus = stage?.gGameStatus;
-
-        // Triage frontline HP & conditions
-        const players = pJsn?.player?.param || gStatus?.player?.param || [];
-        let totalHp = 0;
-        let totalMaxHp = 0;
-        let minHpRatio = 1.0;
-        let hasDebuffedAlly = false;
-
-        const frontline = players.slice(0, 4);
-        for (const p of frontline) {
-          if (p && p.alive !== 0) {
-            const cur = Number(p.hp) || 0;
-            const max = Number(p.hpmax) || 1;
-            const ratio = cur / max;
-            totalHp += cur;
-            totalMaxHp += max;
-            if (ratio < minHpRatio) minHpRatio = ratio;
-            if (p.condition?.debuff && Array.isArray(p.condition.debuff) && p.condition.debuff.length > 0) {
-              hasDebuffedAlly = true;
-            }
-          }
-        }
-        const avgHpRatio = totalMaxHp > 0 ? (totalHp / totalMaxHp) : 1.0;
-        const needsHealing = (avgHpRatio < healThresh) || (minHpRatio < minHealThresh) || hasDebuffedAlly;
-
-        interface ScannedTacticalSkill {
-          charIndex: number; // 0..3
-          charNum: number;   // 1..4
-          slot: number;      // 1..4
-          abilityId: string;
-          abilityName: string;
-          iconType: number;  // 1: Red, 2: Green, 3: Yellow, 4: Blue, 5: Purple
-          category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal';
-          requiresPick: boolean;
-        }
-
-        const scanned: ScannedTacticalSkill[] = [];
-        const targetSet = (targetChars && targetChars.length > 0)
-          ? new Set(targetChars.map(c => Number(c)))
-          : null;
-
-        // A. Primary extraction via stage.pJsnData.ability (server ground truth)
-        const abilityMap = pJsn?.ability || {};
-        const charKeys = Object.keys(abilityMap);
-
-        if (charKeys.length > 0) {
-          for (const charKey of charKeys) {
-            const charObj = abilityMap[charKey];
-            if (!charObj || charObj.alive === 0) continue;
-            const charPos = charObj.pos !== undefined ? Number(charObj.pos) : (Number(charKey) - 1);
-            const charNum = charPos + 1;
-
-            if (charNum < 1 || charNum > 4) continue;
-            if (targetSet && !targetSet.has(charNum)) continue;
-
-            const list = charObj.list || {};
-            for (const [slotKey, abilityArray] of Object.entries(list) as [string, any][]) {
-              const slotNum = Number(slotKey);
-              if (slotNum < 1 || slotNum > 4) continue;
-              const ab = Array.isArray(abilityArray) ? abilityArray[0] : abilityArray;
-              if (!ab) continue;
-
-              const recast = String(ab['ability-recast'] ?? '');
-              const reqMet = ab['requirement_result_flag'] !== false;
-              const isReady = (recast === '0' || recast === '') && reqMet;
-              if (!isReady) continue;
-
-              const iconType = Number(ab['icon-type'] || '1');
-              let category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal' = 'damage';
-              if (iconType === 5) category = 'field';
-              else if (iconType === 4) category = 'debuff';
-              else if (iconType === 3) category = 'buff';
-              else if (iconType === 2) category = 'heal';
-              else if (iconType === 1) category = 'damage';
-
-              // TACTICAL FILTER: If green healing skill and party is healthy, do NOT waste it!
-              if (category === 'heal' && !needsHealing) {
-                continue;
-              }
-
-              scanned.push({
-                charIndex: charPos,
-                charNum,
-                slot: slotNum,
-                abilityId: String(ab['ability-id'] || ''),
-                abilityName: String(ab['ability-name'] || ''),
-                iconType,
-                category,
-                requiresPick: ab['ability-pick'] === '1' || ab['ability-pick'] === 1
-              });
-            }
-          }
-        } else {
-          // B. DOM Fallback
-          for (let c = 1; c <= 4; c++) {
-            if (targetSet && !targetSet.has(c)) continue;
-            for (let s = 1; s <= 4; s++) {
-              const sel = `.ability-character-num-${c}-${s}`;
-              const el = document.querySelector(sel) as HTMLElement;
-              if (!el) continue;
-
-              const isUnavail = el.classList.contains('btn-ability-unavailable') ||
-                                el.classList.contains('empty');
-              if (isUnavail) continue;
-
-              let iconType = 1;
-              const match = el.className.match(/ico-ability\d+_([1-5])/);
-              if (match) {
-                iconType = Number(match[1]);
-              }
-
-              let category: 'field' | 'debuff' | 'buff' | 'damage' | 'heal' = 'damage';
-              if (iconType === 5) category = 'field';
-              else if (iconType === 4) category = 'debuff';
-              else if (iconType === 3) category = 'buff';
-              else if (iconType === 2) category = 'heal';
-              else if (iconType === 1) category = 'damage';
-
-              if (category === 'heal' && !needsHealing) continue;
-
-              scanned.push({
-                charIndex: c - 1,
-                charNum: c,
-                slot: s,
-                abilityId: el.getAttribute('ability-id') || '',
-                abilityName: '',
-                iconType,
-                category,
-                requiresPick: false
-              });
-            }
-          }
-        }
-
-        return {
-          avgHpRatio,
-          minHpRatio,
-          needsHealing,
-          scanned
-        };
-      },
-      healHpThreshold,
-      minHealHpThreshold,
-      targetCharacters
-    ).catch(() => null);
-
-    if (!scan || scan.scanned.length === 0) {
-      console.log(`[Workflow] [Turn ${turn}] ⚡ Zero actionable skills ready (all on cooldown or heals unneeded). Instant pass to attack (0ms drawer overhead).`);
-      return;
-    }
-
-    const fieldSkills = scan.scanned.filter(s => s.category === 'field');
-    const debuffSkills = scan.scanned.filter(s => s.category === 'debuff');
-    const buffSkills = scan.scanned.filter(s => s.category === 'buff');
-    const damageSkills = scan.scanned.filter(s => s.category === 'damage');
-    const healSkills = scan.scanned.filter(s => s.category === 'heal');
-
-    console.log(
-      `[Workflow] 🎯 [Turn ${turn}] Tactical Skill Execution Plan (${scan.scanned.length} skills | Party HP: ${(scan.avgHpRatio * 100).toFixed(0)}%): ` +
-      `[Field: ${fieldSkills.length}, Debuff: ${debuffSkills.length}, Buff: ${buffSkills.length}, Damage: ${damageSkills.length}, Heal: ${healSkills.length}]`
-    );
-
-    let currentOpenChar: number | null = null;
-
-    const openCharDrawer = async (charNum: number) => {
-      if (currentOpenChar === charNum) return true;
-      const charIndex = charNum - 1;
-      const charSelector = `.lis-character${charIndex}.btn-command-character, .lis-character${charIndex}`;
-      const charEl = await this.page.$(charSelector).catch(() => null);
-      if (!charEl) return false;
-
-      await humanReactionDelay(130, 0.1);
-      await humanizedClick(this.page, charEl);
-      await randomDelay(160, 240);
-      currentOpenChar = charNum;
-      return true;
-    };
-
-    const castSkill = async (skill: { charNum: number; slot: number; abilityName: string; category: string; requiresPick: boolean }) => {
-      if (this.stopRequested) return false;
-      if (await this.isBattleEnded()) return false;
-
-      const opened = await openCharDrawer(skill.charNum);
-      if (!opened) return false;
-
-      const abilitySelector = `.ability-character-num-${skill.charNum}-${skill.slot}:not(.btn-ability-unavailable):not(.empty), .ability-character-num-${skill.charNum}-${skill.slot}`;
-      const skillEl = await this.page.$(abilitySelector).catch(() => null);
-      if (!skillEl) return false;
-
-      // Verify button is actually clickable
-      const canClick = await this.page.evaluate((sel: string) => {
-        const el = document.querySelector(sel) as HTMLElement;
-        return el && el.offsetParent !== null && !el.classList.contains('btn-ability-unavailable') && !el.classList.contains('empty');
-      }, abilitySelector).catch(() => false);
-
-      if (!canClick) return false;
-
-      await humanReactionDelay(100, 0.1);
-      await humanizedClick(this.page, skillEl);
-      // Snappy skill queue pacing (180ms - 260ms)
-      await randomDelay(180, 260);
-
-      // Handle single-target ally popup if it appeared
-      const targetPopup = await this.page.$('.pop-usual .lis-character0, .pop-usual .btn-command-character, .pop-usual .btn-usual-ok').catch(() => null);
-      if (targetPopup) {
-        await humanReactionDelay(110, 0.1);
-        await humanizedClick(this.page, targetPopup);
-        await randomDelay(180, 260);
-      }
-
-      return true;
-    };
-
-    // Phase 1: Field Effects (Purple / Type 5)
-    for (const skill of fieldSkills) {
-      if (this.stopRequested || await this.isBattleEnded()) break;
-      await castSkill(skill);
-    }
-
-    // Phase 2: Team Preparation (Debuffs & Buffs grouped per character to minimize drawer flips)
-    // Debuff first, then Buff for that character
-    const prepSkills = [...debuffSkills, ...buffSkills];
-    const prepCharNums = Array.from(new Set(prepSkills.map(s => s.charNum))).sort((a, b) => a - b);
-    for (const charNum of prepCharNums) {
-      if (this.stopRequested || await this.isBattleEnded()) break;
-      const charPrep = prepSkills.filter(s => s.charNum === charNum);
-      // Sort: debuff (4) before buff (3)
-      charPrep.sort((a, b) => (b.iconType - a.iconType));
-      for (const skill of charPrep) {
-        if (this.stopRequested || await this.isBattleEnded()) break;
-        await castSkill(skill);
-      }
-    }
-
-    // Phase 3: Damage Nukes (Red / Type 1)
-    // Now all debuffs are capped on boss and buffs active on team!
-    const nukeCharNums = Array.from(new Set(damageSkills.map(s => s.charNum))).sort((a, b) => a - b);
-    for (const charNum of nukeCharNums) {
-      if (this.stopRequested || await this.isBattleEnded()) break;
-      const charNukes = damageSkills.filter(s => s.charNum === charNum);
-      for (const skill of charNukes) {
-        if (this.stopRequested || await this.isBattleEnded()) break;
-        await castSkill(skill);
-      }
-    }
-
-    // Phase 4: Conditional Recovery / Clears (Green / Type 2)
-    for (const skill of healSkills) {
-      if (this.stopRequested || await this.isBattleEnded()) break;
-      await castSkill(skill);
-    }
-
-    // Final Step: Ensure character ability drawer is closed and Attack button is exposed
-    try {
-      const isBackVisible = await this.page.evaluate(() => {
-        const el = document.querySelector('.btn-command-back, .ico-back') as HTMLElement;
-        return !!(el && el.offsetParent !== null && window.getComputedStyle(el).display !== 'none');
-      }).catch(() => false);
-      if (isBackVisible) {
-        const backBtn = await this.page.$('.btn-command-back, .ico-back');
-        if (backBtn) {
-          await humanizedClick(this.page, backBtn);
-          await randomDelay(180, 280);
-        }
-      }
-    } catch {}
-  }
-
-  /**
-   * Fast-executes available abilities across frontline characters (1 to 4).
-   * Backwards-compatible alias for executeTacticalReadySkills.
-   */
-  private async executeOptimalReadySkills(targetCharacters?: number[]): Promise<void> {
-    await this.executeTacticalReadySkills(targetCharacters);
-  }
-
-  /**
-   * Scans DOM and combat telemetry for the "Deal 1,000,000 plain damage" omen.
-   */
-  private async isPlainDamageOmenActive(): Promise<boolean> {
-    try {
-      return await this.page.evaluate(() => {
-        const omenContainers = document.querySelectorAll(
-          '.prt-cancel-condition, .prt-condition-detail, .txt-condition, .prt-condition, .prt-special-motion, .pop-target-detail, .prt-boss-condition'
-        );
-
-        for (const el of Array.from(omenContainers)) {
-          const text = (el as HTMLElement).innerText || '';
-          const has1M = text.includes('1,000,000') || text.includes('1000000');
-          const hasPlain = text.includes('plain') || text.includes('Plain') || text.includes('無属性');
-          if (has1M && hasPlain) return true;
-        }
-
-        const bodyText = document.body ? document.body.innerText || '' : '';
-        const regex1MPlain = /(?:1,?000,?000[\s\S]{0,40}(?:plain|無属性))|(?:(?:plain|無属性)[\s\S]{0,40}1,?000,?000)/i;
-        if (regex1MPlain.test(bodyText)) return true;
-
-        const stage = (window as any).stage;
-        const boss = stage?.gGameStatus?.boss?.param?.[0] || stage?.pJsnData?.boss?.param?.[0];
-        if (boss?.special_skill) {
-          const specStr = JSON.stringify(boss.special_skill);
-          if (regex1MPlain.test(specStr)) return true;
-        }
-
-        return false;
-      });
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Locates and calls Beelzebub summon if available in deck, then reloads to skip summon animation.
-   */
-  private async executeBeelzebubSummonIfAvailable(): Promise<boolean> {
-    try {
-      const bubsInfo = await this.page.evaluate(() => {
-        const stage = (window as any).stage;
-        const rawSummons = stage?.pJsnData?.summon || stage?.gGameStatus?.summon || {};
-        const summonsList = Array.isArray(rawSummons) ? rawSummons : Object.values(rawSummons);
-
-        let bubsIndex = -1;
-        let isAvailable = false;
-
-        summonsList.forEach((s: any, idx: number) => {
-          const idStr = String(s?.id || '');
-          const nameStr = String(s?.name || '');
-          if (idStr === '2040408000' || nameStr.toLowerCase().includes('beelzebub') || nameStr.includes('ベルゼバブ')) {
-            bubsIndex = idx;
-            isAvailable = s?.available_flag === 1 || s?.available_flag === true || s?.recast === '0' || s?.recast === 0;
-          }
-        });
-
-        const summonEls = document.querySelectorAll('.lis-summon');
-        summonEls.forEach((el, idx) => {
-          const img = el.querySelector('img')?.getAttribute('src') || '';
-          if (img.includes('2040408000')) {
-            bubsIndex = idx;
-            if (el.classList.contains('btn-summon-available') || el.classList.contains('on')) {
-              isAvailable = true;
-            }
-          }
-        });
-
-        return { bubsIndex, isAvailable };
-      });
-
-      if (bubsInfo.bubsIndex === -1 || !bubsInfo.isAvailable) {
-        return false;
-      }
-
-      console.log(`[Workflow] Calling Beelzebub (Summon Slot ${bubsInfo.bubsIndex})...`);
-      const summonTab = await this.page.$('.prt-list-top.btn-command-summon:not(.summon-on)');
-      if (summonTab) {
-        await humanizedClick(this.page, summonTab);
-        await randomDelay(250, 400);
-      }
-
-      const summonCards = await this.page.$$('.lis-summon');
-      const bubsCard = summonCards[bubsInfo.bubsIndex];
-      if (!bubsCard) return false;
-
-      await humanReactionDelay(220, 0.15);
-      await humanizedClick(this.page, bubsCard);
-      await randomDelay(450, 700);
-
-      const callBtn = await this.page.$('.pop-usual .btn-usual-ok, .btn-call, .btn-summon-start, #pop .btn-usual-ok');
-      if (callBtn) {
-        await humanReactionDelay(220, 0.15);
-        await humanizedClick(this.page, callBtn);
-        await randomDelay(600, 900);
-      }
-
-      await this.page.evaluate(() => location.reload()).catch(() => null);
-      await randomDelay(600, 900);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Taps the READY screen overlay / Auto button to trigger Full Auto, Turn action, or Attack.
-   * Strictly dispatches attack / turn action and awaits server acknowledgment
-   * (normal_attack_result.json, ability_result.json, summon_result.json)
-   * before allowing subsequent reload.
-   */
-  private async handleTapReady(step: WorkflowStep): Promise<boolean> {
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    const targetNet = step.waitForNetwork || 'normal_attack_result.json';
-    const initialTurn = this.currentTurn;
-    const initialHonors = this.currentScore;
-    const maxRetries = 3;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      if (this.stopRequested) return false;
-
-      // 1. Ensure battle stage is mounted
-      await this.waitForBattleToMount(8000);
-
-      // 2. Check if battle concluded
-      if (await this.isBattleEnded()) return true;
-
-      // 3. Proactively clear turn processing popups & open character drawers
-      await this.page.evaluate(() => {
-        const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(back).trigger('tap');
-          back.click();
-        }
-      }).catch(() => null);
-      await this.checkAndDismissProcessingTurnPopup();
-      await this.dismissCombatDrawersAndPopups();
-
-      // 4. Wait for combat input readiness (button unlocked, animations settled)
-      await this.waitForCombatInputReady(isTurbo ? 500 : 2500);
-      if (await this.isBattleEnded()) return true;
-
-      // Check if turn already resolved (e.g. from Auto or previous attack)
-      if (this.currentTurn > initialTurn || (this.currentScore > initialHonors && initialHonors > 0)) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] [tap_ready] Turn already resolved (${this.currentScore.toLocaleString()} pt).`);
-        return true;
-      }
-
-      // 5. Dismiss READY screen overlay if present
-      await this.page.evaluate(() => {
-        const cjs = (window as any).createjs;
-        if (cjs?.Ticker) {
-          cjs.Ticker.framerate = 120;
-          if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / 120);
-        }
-        if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(2000, false);
-        }
-        const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
-        if (readyEl) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(readyEl).trigger('tap');
-          (readyEl as HTMLElement).click();
-        }
-      }).catch(() => null);
-
-      // 6. Arm network listener: waits until normal_attack_result.json arrives from server
-      const combatPromise = this.waitForCombatTurnResolution(targetNet, isTurbo ? 6000 : 12000);
-
-      // 7. Locate active Attack button (.btn-attack-start) or engage Auto
-      let attackDispatched = false;
-
-      // Fast check for active Attack button
-      const atkBtn = await this.page.waitForFunction(() => {
-        const back = document.querySelector('.btn-command-back.display-on') as HTMLElement;
-        if (back && back.offsetWidth > 0 && window.getComputedStyle(back).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(back).trigger('tap');
-          back.click();
-          return false;
-        }
-        const el = document.querySelector('.btn-attack-start') as HTMLElement;
-        if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') return false;
-        const isLocked = el.classList.contains('display-off') || el.classList.contains('lock');
-        return !isLocked;
-      }, { timeout: isTurbo ? 800 : 2500 }).then(() => this.page.$('.btn-attack-start')).catch(() => null);
-
-      if (atkBtn) {
-        const box = await atkBtn.boundingBox();
-        if (box && box.width > 0 && box.height > 0) {
-          const tapX = Math.round(box.x + box.width / 2 + (isTurbo ? 0 : sampleGaussian(0, 3)));
-          const tapY = Math.round(box.y + box.height / 2 + (isTurbo ? 0 : sampleGaussian(0, 2)));
-          await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
-          await this.page.mouse.click(tapX, tapY).catch(() => null);
-        } else {
-          await humanizedClick(this.page, atkBtn);
-        }
-
-        await atkBtn.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) {
-            $(el).trigger('tap');
-            $(el).trigger('click');
-          }
-          el.click();
-        }).catch(() => null);
-        attackDispatched = true;
-      } else {
-        // Fallback: Tap standard Attack viewport location in mobile GBF layout
-        const vp = this.page.viewport() || { width: 480, height: 960 };
-        const atkX = Math.round(vp.width * 0.75);
-        const atkY = Math.round(vp.height * 0.46);
-        await this.page.touchscreen.tap(atkX, atkY).catch(() => null);
-        await this.page.mouse.click(atkX, atkY).catch(() => null);
-
-        // Also engage Auto button if present and not active
-        await this.page.evaluate(() => {
-          const auto = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-          if (auto && auto.offsetParent !== null) {
-            const isActive = auto.classList.contains('display-on') || auto.classList.contains('active') || auto.classList.contains('full');
-            if (!isActive) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(auto).trigger('tap');
-              auto.click();
-            }
-          }
-        }).catch(() => null);
-        attackDispatched = true;
-      }
-
-      // 8. STRICTLY Await server action response
-      const confirmed = await combatPromise;
-
-      // Check if turn advanced or honors increased from the server response
-      const serverTurnAdvanced = this.currentTurn > initialTurn;
-      const serverHonorsIncreased = this.currentScore > initialHonors;
-
-      if (confirmed || serverTurnAdvanced || serverHonorsIncreased) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] [tap_ready] Attack action completed. Honors: ${this.currentScore.toLocaleString()} pt`);
-        return true;
-      }
-
-      if (await this.isBattleEnded()) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] [tap_ready] Battle concluded during attack attempt. Final Honors: ${this.currentScore.toLocaleString()} pt`);
-        return true;
-      }
-
-      // Retry if unacknowledged
-      if (attempt < maxRetries) {
-        console.warn(`[Combat] [tap_ready] Attack unacknowledged on attempt ${attempt}/${maxRetries}. Retrying...`);
-        await this.checkAndDismissProcessingTurnPopup();
-        if (!isTurbo) await logNormalDelay(150, 0.1);
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Executes Quick Call button directly.
-   */
-  private async handleQuickCall(step: WorkflowStep): Promise<boolean> {
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    await this.waitForCombatInputReady(isTurbo ? 600 : 4000);
-    const qBtn = await this.page.waitForSelector('.btn-quick-summon, #js-btn-quick-summon', { visible: true, timeout: 2500 }).catch(() => null);
-    if (qBtn) {
-      const isUnavailable = await qBtn.evaluate((el: any) => {
-        return el.classList.contains('btn-summon-unavailable') ||
-               el.classList.contains('off') ||
-               el.classList.contains('disabled') ||
-               el.getAttribute('aria-disabled') === 'true' ||
-               el.style.opacity === '0.5';
-      }).catch(() => false);
-
-      if (isUnavailable) {
-        console.log('[Workflow] Quick Summon button disabled or already invoked this turn. Continuing...');
-        return true;
-      }
-
-      const netPromise = this.waitForNetworkResponse(step.waitForNetwork || 'summon_result.json', 3500);
-      await humanizedClick(this.page, qBtn);
-      await qBtn.evaluate((el: any) => {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(el).trigger('tap');
-      }).catch(() => null);
-      await netPromise;
-
-      // Fast-forward summon cut-in animation and clear UI locks
-      await this.page.evaluate(() => {
-        const cjs = (window as any).createjs;
-        if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(3000, false);
-        }
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
-        }
-      }).catch(() => null);
-
-      await this.waitForCombatInputReady(isTurbo ? 400 : 3000);
-      return true;
-    }
-    return step.optional ? true : false;
-  }
-
-  /**
-   * Executes Attack action with ability drawer dismissal, dynamic coordinate targeting,
-   * network confirmation (normal_attack_result.json), and an automated retry loop.
-   */
-  private async handleAttack(step: WorkflowStep): Promise<boolean> {
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    const targetNet = step.waitForNetwork || 'normal_attack_result.json';
-    const maxAttempts = 3;
-    const initialTurn = this.currentTurn;
-    const initialHonors = this.currentScore;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      if (this.stopRequested) return false;
-      if (await this.isBattleEnded()) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] Battle concluded before attack attempt ${attempt}. Final Honors: ${this.currentScore.toLocaleString()} pt`);
-        return true;
-      }
-
-      // 1. Proactively dismiss any open character ability drawers, skill modals, or popups
-      await this.dismissCombatDrawersAndPopups();
-
-      // 2. Wait for combat input readiness (fast 500ms cap in turbo)
-      await this.waitForCombatInputReady(isTurbo ? 500 : 3000);
-      if (await this.isBattleEnded()) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] Battle concluded before attack dispatch. Final Honors: ${this.currentScore.toLocaleString()} pt`);
-        return true;
-      }
-
-      // 3. Locate active Attack button (.btn-attack-start)
-      // Active closing: while polling for attack button, trigger tap on Back button immediately if visible
-      let atkBtn = await this.page.waitForFunction(() => {
-        const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(back).trigger('tap');
-          back.click();
-        }
-        const el = document.querySelector('.btn-attack-start') as HTMLElement;
-        if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') return false;
-        const isLocked = el.classList.contains('display-off') || el.classList.contains('lock');
-        return !isLocked;
-      }, { timeout: isTurbo ? 1000 : 2500 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
-
-      if (!atkBtn) {
-        await this.dismissCombatDrawersAndPopups();
-        atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start');
-      }
-
-      // 4. Arm network promise for attack resolution BEFORE clicking
-      const netPromise = this.waitForNetworkResponse(targetNet, isTurbo ? 3500 : 5000);
-
-      // 5. Trigger attack via native touch/mouse at bounding box + Zepto tap
-      let tapped = false;
-      if (atkBtn) {
-        const box = await atkBtn.boundingBox();
-        if (box && box.width > 0 && box.height > 0) {
-          const tapX = Math.round(box.x + box.width / 2 + (isTurbo ? 0 : sampleGaussian(0, 3)));
-          const tapY = Math.round(box.y + box.height / 2 + (isTurbo ? 0 : sampleGaussian(0, 2)));
-          await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
-          await this.page.mouse.click(tapX, tapY).catch(() => null);
-          tapped = true;
-        } else {
-          await humanizedClick(this.page, atkBtn);
-          tapped = true;
-        }
-
-        // Zepto tap event trigger on attack button directly
-        await atkBtn.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) {
-            $(el).trigger('tap');
-            $(el).trigger('click');
-          }
-          el.click();
-        }).catch(() => null);
-        tapped = true;
-      }
-
-      if (!tapped) {
-        // Direct tap on standard Attack button viewport location in GBF mobile layout
-        const vp = this.page.viewport() || { width: 480, height: 960 };
-        const atkX = Math.round(vp.width * 0.75);
-        const atkY = Math.round(vp.height * 0.46);
-        await this.page.touchscreen.tap(atkX, atkY).catch(() => null);
-        await this.page.mouse.click(atkX, atkY).catch(() => null);
-      }
-
-      // 6. Await network resolution
-      const resolved = await netPromise;
-
-      // Check client-side state in case response was already consumed or turn advanced
-      const clientState = await this.page.evaluate((prevTurn) => {
-        const stage = (window as any).stage;
-        const gStatus = stage?.gGameStatus;
-        const currentTurn = Number(stage?.pJsnData?.turn || gStatus?.turn || 0);
-        return { turnAdvanced: currentTurn > prevTurn };
-      }, this.currentTurn).catch(() => ({ turnAdvanced: false }));
-
-      const serverTurnAdvanced = clientState.turnAdvanced || this.currentTurn > initialTurn;
-      const serverHonorsIncreased = this.currentScore > initialHonors;
-
-      if (resolved || serverTurnAdvanced || serverHonorsIncreased) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] Attack registered successfully (attempt ${attempt}). Honors: ${this.currentScore.toLocaleString()} pt`);
-        return true;
-      }
-
-      if (await this.isBattleEnded()) {
-        await this.syncCurrentHonors();
-        console.log(`[Combat] Battle concluded during attack attempt. Final Honors: ${this.currentScore.toLocaleString()} pt`);
-        return true;
-      }
-
-      console.warn(`[Combat] Attack unacknowledged on attempt ${attempt}/${maxAttempts}. Retrying immediately...`);
-      if (!isTurbo) await logNormalDelay(200, 0.12);
-    }
-
-    return false;
-  }
-
-  /**
-   * Instant reload (F5) to skip animation frames.
-   */
-  private async handleReload(step: WorkflowStep): Promise<boolean> {
-    const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    await Promise.all([
-      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
-      this.page.evaluate(() => location.reload()).catch(() => null)
-    ]);
-    if (!isTurbo) await logNormalDelay(100, 0.1);
-    await this.checkAndDismissProcessingTurnPopup();
-    await this.waitForBattleToMount(isTurbo ? 5000 : 8000);
-    await this.checkAndDismissProcessingTurnPopup();
-
-    // Accelerate CreateJS Ticker to 120 FPS, and tick tweens
-    const isManual = this.isManualWorkflow();
-    await this.page.evaluate((manual: boolean) => {
-      const cjs = (window as any).createjs;
-      if (cjs?.Ticker) {
-        cjs.Ticker.framerate = 120;
-        if (typeof cjs.Ticker.setInterval === 'function') {
-          cjs.Ticker.setInterval(1000 / 120);
-        }
-      }
-      if (cjs?.Tween?.tick) {
-        cjs.Tween.tick(2000, false);
-      }
-      if (manual) {
-        // Enforce Auto is OFF in manual workflows
-        const auto = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-        if (auto && (auto.classList.contains('display-on') || auto.classList.contains('active') || auto.classList.contains('full'))) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(auto).trigger('tap');
-          auto.click();
-        }
-      } else {
-        const ready = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready') as HTMLElement;
-        if (ready) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(ready).trigger('tap');
-          ready.click();
-        }
-      }
-    }, isManual).catch(() => null);
-
-    if (!isManual) {
-      await this.page.touchscreen.tap(240, 260).catch(() => null);
-      await this.page.mouse.click(240, 260).catch(() => null);
-      if (!isTurbo) await logNormalDelay(100, 0.1);
-    }
-
-    // Sync authoritative ground-truth honors from stage/DOM
-    await this.syncCurrentHonors();
-    const updatedTurn = await this.page.evaluate(() => {
-      const stage = (window as any).stage;
-      return Number(stage?.pJsnData?.turn || stage?.gGameStatus?.turn || 0);
-    }).catch(() => 0);
-    if (updatedTurn > 0) {
-      this.currentTurn = updatedTurn;
-    }
-
-    return true;
-  }
-
-  /**
-   * Clicks an arbitrary selector with intelligent child-element unwrapping and dual-dispatch.
-   */
-  private async handleClick(step: WorkflowStep): Promise<boolean> {
-    if (!step.target) return false;
-    const el = await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 3000 }).catch(() => null);
-    if (el) {
-      const dispatched = await this.page.evaluate((sel: string) => {
-        const item = document.querySelector(sel) as HTMLElement;
-        if (!item) return false;
-        // If selected item is a wrapper div containing an actionable button/card child, select the actionable child
-        const childBtn = item.querySelector('.btn-quest-list, .btn, button, [class*="btn"]') as HTMLElement;
-        const target = childBtn || item;
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(target).trigger('tap');
-        target.click();
-        return true;
-      }, step.target).catch(() => false);
-
-      if (dispatched) {
-        await logNormalDelay(250, 0.15);
-        return true;
-      }
-      await humanizedClick(this.page, el);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Confirms result, dismisses processing popups, syncs final honors,
-   * and cleanly transitions out of combat to quest/assist URL.
-   */
-  private async handleConfirmResult(): Promise<boolean> {
-    await this.checkAndDismissProcessingTurnPopup();
-
-    // 1. Sync honors from active battle before result screen
-    await this.syncCurrentHonors();
-
-    // 2. Wait up to 3500ms for reload to settle into result screen, supporter, or quest
-    const tStart = Date.now();
-    while (Date.now() - tStart < 3500) {
-      if (await this.isBattleEnded()) break;
-      await new Promise(r => setTimeout(r, 150));
-    }
-
-    // Inspect DOM on result screen for Gold Bar and Blue Chest before dismissing
-    const domCheck = await this.inspectDomForGoldBar();
-    if (domCheck.hasGoldBar && !this.currentBattleHadGoldBar) {
-      this.currentBattleHadGoldBar = true;
-      this.currentBattleHadBlueChest = true;
-      this.totalGoldBarsAccumulated++;
-      this.totalBlueChestsAccumulated++;
-      await this.broadcastGoldBarFound(domCheck.raidId || this.currentRaidId);
-    }
-
-    if (!this.currentBattleHadBlueChest) {
-      const blueChestDom = await this.inspectDomForBlueChest();
-      if (blueChestDom) {
-        this.currentBattleHadBlueChest = true;
-        this.totalBlueChestsAccumulated++;
-      }
-    }
-
-    // 3. Dismiss result screen OK buttons
-    await this.page.evaluate(() => {
-      const okBtns = Array.from(document.querySelectorAll('.btn-usual-ok, .btn-settle, .btn-usual-close, .pop-raid-result .btn-usual-ok, .btn-result-close, .btn-control.location-href, .prt-popup-body .btn-usual-ok')) as HTMLElement[];
-      for (const btn of okBtns) {
-        if (btn.offsetParent !== null) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(btn).trigger('tap');
-          btn.click();
-        }
-      }
-    }).catch(() => null);
-
-    // 4. Final honor sync from settled result screen if present
-    await this.syncCurrentHonors();
-
-    // 5. In assist raid mode (e.g. multi-raid rotator / gb-farm), if the raid is still ongoing (#raid_multi),
-    // cleanly retreat back to #quest/assist so the slot is freed and we don't linger on #raid_multi
-    const isAssistRaid = this.template.questUrl.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
-    if (isAssistRaid) {
-      const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(curHash)) {
-        console.log('[Workflow] Multi-raid rotation burst completed. Returning to #quest/assist for next raid...');
-        await this.page.evaluate(() => { window.location.hash = '#quest/assist'; }).catch(() => null);
-        await logNormalDelay(800, 0.15);
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Claims ALL pending/unclaimed battles at #quest/assist/unclaimed/0/0 until none remain,
-   * checks for Gold Bar drops, and cleanly returns to returnUrl (or assist/quest URL).
-   */
-  public async claimPendingBattles(logPath: string, currentRuns: number, returnUrl?: string): Promise<number> {
-    let claimedCount = 0;
-    const maxClaims = 50; // Safety cap to avoid infinite loops
-
-    try {
-      console.log('[Workflow] Checking and clearing ALL unclaimed battles (#quest/assist/unclaimed/0/0)...');
-
-      // Navigate to #quest/assist/unclaimed/0/0
-      await this.page.goto('https://game.granbluefantasy.jp/#quest/assist/unclaimed/0/0', { waitUntil: 'domcontentloaded' }).catch(() => null);
-      await logNormalDelay(1200, 0.15);
-
-      while (claimedCount < maxClaims && !this.stopRequested) {
-        // Ensure we are on the unclaimed battles page
-        const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-        if (!curHash.includes('unclaimed')) {
-          await this.page.goto('https://game.granbluefantasy.jp/#quest/assist/unclaimed/0/0', { waitUntil: 'domcontentloaded' }).catch(() => null);
-          await logNormalDelay(1200, 0.15);
-        }
-
-        // Wait for page to settle: either cards exist OR confirmed empty text is present
-        const tWaitCards = Date.now();
-        let status = { hasNone: false, hasVisibleCards: false, cardCount: 0 };
-        let pageSettled = false;
-
-        while (Date.now() - tWaitCards < 7000 && !this.stopRequested) {
-          status = await this.page.evaluate(() => {
-            const bodyText = document.body.innerText || '';
-            const noListEl = document.querySelector('.txt-no-list');
-            const hasNoneText = (
-              bodyText.includes("aren't any pending") ||
-              bodyText.includes("aren't any pending battles") ||
-              bodyText.includes('未確認バトルはありません') ||
-              bodyText.includes('未確認のバトル結果はありません') ||
-              bodyText.includes('No pending battles')
-            );
-            const cards = document.querySelectorAll(
-              '#prt-unclaimed-list .btn-multi-raid, #prt-unclaimed-list [data-href*="result_multi"], .cnt-quest-unclaimed .btn-multi-raid, .cnt-quest-unclaimed .lis-raid, .prt-raid-list .btn-multi-raid'
-            );
-            const hasVisibleCards = Array.from(cards).some(c => (c as HTMLElement).offsetParent !== null);
-            return {
-              hasNone: (noListEl !== null && hasNoneText) || (hasNoneText && cards.length === 0),
-              hasVisibleCards,
-              cardCount: cards.length
-            };
-          }).catch(() => ({ hasNone: false, hasVisibleCards: false, cardCount: 0 }));
-
-          if (status.hasVisibleCards && status.cardCount > 0) {
-            pageSettled = true;
-            break;
-          }
-          if (status.hasNone) {
-            pageSettled = true;
-            break;
-          }
-          await new Promise(r => setTimeout(r, 200));
-        }
-
-        if (status.hasNone || (pageSettled && status.cardCount === 0)) {
-          if (claimedCount > 0) {
-            console.log(`[Workflow] 🎉 All unclaimed battles successfully cleared! Total claimed: ${claimedCount}.`);
-          } else {
-            console.log('[Workflow] No unclaimed battles found. Account clean.');
-          }
-          break;
-        }
-
-        console.log(`[Workflow] Found unclaimed battle(s) (${status.cardCount} remaining). Claiming battle #${claimedCount + 1}...`);
-        this.latestRewardData = null;
-        this.currentScore = 0;
-        this.currentTurn = 0;
-
-        // Click the first available unclaimed battle card
-        const clicked = await this.page.evaluate(() => {
-          const card = document.querySelector(
-            '#prt-unclaimed-list .btn-multi-raid, #prt-unclaimed-list [data-href*="result_multi"], .cnt-quest-unclaimed .btn-multi-raid, .cnt-quest-unclaimed .lis-raid, .prt-raid-list .btn-multi-raid'
-          ) as HTMLElement;
-          if (card && card.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(card).trigger('tap');
-            card.click();
-            return true;
-          }
-          return false;
-        }).catch(() => false);
-
-        if (!clicked) {
-          // Fallback: look for any element with data-href containing result_multi
-          const hrefClicked = await this.page.evaluate(() => {
-            const el = document.querySelector('[data-href*="result_multi"]') as HTMLElement;
-            if (el) {
-              const href = el.getAttribute('data-href');
-              if (href) {
-                window.location.hash = href;
-                return true;
-              }
-            }
-            return false;
-          }).catch(() => false);
-
-          if (!hrefClicked) {
-            console.log('[Workflow] No clickable unclaimed card found. Finishing claim loop.');
-            break;
-          }
-        }
-
-        // Wait for result screen container or data to arrive (up to 6000ms)
-        const tWait = Date.now();
-        let resultLoaded = false;
-        while (Date.now() - tWait < 6000) {
-          if (this.stopRequested) break;
-          const isResult = await this.page.evaluate(() => {
-            return !!document.querySelector('.pop-raid-result, .prt-result-head, .cnt-result, #cnt-result, .prt-reward-item, .prt-item-list, .prt-module, .pop-usual, .btn-usual-ok');
-          }).catch(() => false);
-
-          if (isResult || this.latestRewardData !== null) {
-            resultLoaded = true;
-            break;
-          }
-          await new Promise(r => setTimeout(r, 200));
-        }
-
-        // Dismiss any blocking EXP/RP modals to reveal the underlying reward chests
-        await this.page.evaluate(() => {
-          const ok = document.querySelector('.pop-usual .btn-usual-ok, .pop-usual .btn-usual-close') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(ok).trigger('tap');
-            ok.click();
-          }
-        }).catch(() => null);
-
-        // Allow loot cards and chest opening animations to render
-        await logNormalDelay(1200, 0.15);
-
-        // Tap Blue Chest if present to reveal drop
-        await this.page.evaluate(() => {
-          const blueChest = document.querySelector('.prt-box-special, .prt-special-reward-box, [data-box-type="11"]') as HTMLElement;
-          if (blueChest && blueChest.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(blueChest).trigger('tap');
-            blueChest.click();
-          }
-        }).catch(() => null);
-        await logNormalDelay(600, 0.1);
-
-        // 1. Resolve claimed raid ID from location hash
-        const urlRaidMatch = await this.page.evaluate(() => {
-          const m = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
-          return m ? m[1] : '';
-        }).catch(() => '');
-        const activeClaimedRaidId = urlRaidMatch || this.currentRaidId;
-
-        // 2. Perform deep inspection (DOM + Intercepted Payload)
-        const domCheck = await this.inspectDomForGoldBar();
-        const payloadCheck = this.latestRewardData ? this.checkForGoldBarDrop(this.latestRewardData) : false;
-        const dropDetected = domCheck.hasGoldBar || payloadCheck;
-
-        if (dropDetected) {
-          const finalRaidId = domCheck.raidId || activeClaimedRaidId || 'Pending Claim';
-          console.log(`\n========================================================================`);
-          console.log(`  🌟🌟🌟 [GOLD BAR CONFIRMED IN CLAIMED BATTLE!] Raid: ${finalRaidId} 🌟🌟🌟`);
-          console.log(`========================================================================\n`);
-
-          const { buffer: shotBuf, path: proofPath } = await this.captureCleanLootProof(finalRaidId);
-
-          // Record in modular GoldBarTrackerService (JST Server Day Ledger)
-          await goldBarTracker.recordDrop({
-            raidId: finalRaidId,
-            questName: this.template.name,
-            honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
-            turns: this.currentTurn || '-',
-            screenshotPath: proofPath,
-            screenshotBuffer: shotBuf,
-            source: 'pending_claim',
-            accountId: this.accountId,
-            skipAlert: true
-          }).catch(() => null);
-
-          if (this.dropLogger) {
-            const stats = this.dropLogger.recordPendingGoldBar(finalRaidId, proofPath);
-            discordPresence.updateStatus({
-              raidName: this.template.name,
-              goldBars: stats.goldBars,
-              blueChests: stats.blueChests,
-              dryStreak: stats.currentDryStreak,
-              dryStreakMode: stats.dryStreakMode,
-              status: 'Claiming Pending'
-            }, true);
-            await this.dropLogger.notifyGoldBarDrop({
-              raidId: finalRaidId,
-              honors: this.currentScore > 0 ? this.currentScore.toLocaleString() + ' pt' : '-',
-              turns: this.currentTurn || '-',
-              screenshotBuffer: shotBuf,
-              screenshotPath: proofPath,
-              accountId: this.accountId
-            });
-          } else {
-            const playerName = this.accountId || 'acc1';
-            const battleUrl = finalRaidId && /^\d+$/.test(finalRaidId)
-              ? `https://game.granbluefantasy.jp/#result_multi/detail/${finalRaidId}/1/0/0`
-              : 'https://game.granbluefantasy.jp/#quest/assist';
-            await this.alertRelay.sendEmergencyAlert(
-              `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle ID: ${finalRaidId}\n• Log URL: ${battleUrl}`,
-              shotBuf
-            );
-
-            if (discordDmRelay.isConfigured()) {
-              try {
-                await discordDmRelay.sendMessage(
-                  `🌟 **Gold Brick Drop Confirmed (Claimed Battle)** 🌟\n• **Raid**: ${this.template.name}\n• **Raid ID**: \`${finalRaidId}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}`,
-                  shotBuf,
-                  `gold-bar-${finalRaidId}.png`,
-                  undefined,
-                  true // force = true
-                );
-              } catch (dmErr: any) {
-                console.error('[Workflow] Direct Discord DM dispatch error in claim:', dmErr.message);
-              }
-            }
-          }
-        }
-
-        // Reset latest reward data to avoid state leakage into next claimed battle
-        this.latestRewardData = null;
-
-        // Sync and log settled honors for the claimed raid
-        const claimedHonors = await this.syncCurrentHonors();
-        if (claimedHonors > 0) {
-          console.log(`[Workflow] Claimed Battle #${claimedCount + 1} settled with ${claimedHonors.toLocaleString()} honors.`);
-        }
-
-        // Dismiss result popups / modals
-        await this.page.evaluate(() => {
-          const ok = document.querySelector(
-            '.pop-usual .btn-usual-ok, .btn-usual-ok, .btn-settle, .btn-result-close, .btn-control.location-href'
-          ) as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(ok).trigger('tap');
-            ok.click();
-          }
-        }).catch(() => null);
-
-        claimedCount++;
-        await logNormalDelay(500, 0.12);
-
-        // Re-navigate to unclaimed battles list to check/claim next
-        await this.page.goto('https://game.granbluefantasy.jp/#quest/assist/unclaimed/0/0', { waitUntil: 'domcontentloaded' }).catch(() => null);
-        await logNormalDelay(1000, 0.15);
-      }
-
-      // Determine return navigation URL
-      const finalReturnUrl = returnUrl || (this.template.questUrl.includes('assist') ? 'https://game.granbluefantasy.jp/#quest/assist' : this.template.questUrl);
-      if (finalReturnUrl) {
-        console.log(`[Workflow] Clean return to: ${finalReturnUrl}`);
-        const returnHash = finalReturnUrl.split('#')[1] || '';
-        const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-        // If target is quest/assist, ensure we are NOT lingering on 'unclaimed'
-        const isTargetAssist = returnHash === 'quest/assist';
-        const alreadyThere = isTargetAssist
-          ? ((currentHash === '#quest/assist' || currentHash === '#quest/assist/index') && !currentHash.includes('unclaimed'))
-          : currentHash.includes(returnHash);
-
-        if (!alreadyThere) {
-          await Promise.all([
-            this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
-            this.page.evaluate((url: string) => {
-              window.location.href = url;
-              window.location.reload();
-            }, finalReturnUrl).catch(() => null)
-          ]);
-          await logNormalDelay(800, 0.15);
-        }
-
-        // Secondary verification: if returning to assist screen, verify pending battles badge is gone
-        if (finalReturnUrl.includes('assist')) {
-          const hasUnclaimedBadge = await this.page.evaluate(() => {
-            const badge = document.querySelector(
-              '.btn-unclaimed .prt-badge, .btn-unclaimed .ico-badge, .tab-unclaimed .ico-badge, [data-href*="unclaimed"] .ico-badge, [data-href*="unclaimed"] .prt-badge, .btn-has-unclaimed'
-            );
-            return badge !== null && (badge as HTMLElement).offsetParent !== null;
-          }).catch(() => false);
-
-          if (hasUnclaimedBadge && claimedCount < maxClaims && !this.stopRequested) {
-            console.warn('[Workflow] ⚠️ Pending battles badge still visible on assist screen. Performing secondary sweep...');
-            await logNormalDelay(800, 0.15);
-            const secondaryClaims = await this.claimPendingBattles(logPath, currentRuns, finalReturnUrl);
-            claimedCount += secondaryClaims;
-          }
-        }
-      }
-
-    } catch (err: any) {
-      console.warn('[Workflow] Notice claiming pending battles:', err.message);
-    }
-
-    return claimedCount;
-  }
-
-  /**
-   * Detects if a "pending battle" or "unclaimed battle" popup modal is currently displayed
-   * (e.g. in Guild Wars or assist raid joining), dismisses it, clears ALL unclaimed battles,
-   * and returns to the target quest URL.
-   * Returns true if a pending battle modal was detected and handled.
-   */
-  private async detectAndHandlePendingBattleModal(logPath: string, currentRuns: number): Promise<boolean> {
-    const modalType = await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-      if (!modal || (modal as HTMLElement).offsetParent === null) return null;
-      const text = ((modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '').toLowerCase();
-      const rawText = (modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '';
-
-      const isThreeRaidLimit = (
-        text.includes('three raid') ||
-        text.includes('up to three') ||
-        text.includes('provide backup in up to') ||
-        text.includes('only provide backup') ||
-        text.includes('3 battles') ||
-        text.includes('3 raid') ||
-        text.includes('participating in 3') ||
-        text.includes('more than 3') ||
-        text.includes('up to 3') ||
-        rawText.includes('3件まで') ||
-        rawText.includes('同時に参戦できる') ||
-        rawText.includes('参戦中') ||
-        rawText.includes('3件')
-      );
-      if (isThreeRaidLimit) return 'ACTIVE_RAID_LIMIT_3';
-
-      const isPending = (
-        text.includes('pending') ||
-        text.includes('unclaimed') ||
-        rawText.includes('未確認') ||
-        text.includes('five or more') ||
-        rawText.includes('5件')
-      );
-      if (isPending) return 'PENDING_MODAL';
-
-      return null;
-    }).catch(() => null);
-
-    if (!modalType) {
-      return false;
-    }
-
-    // Dismiss the popup
-    await this.dismissPopupModal();
-    await logNormalDelay(400, 0.1);
-
-    if (modalType === 'ACTIVE_RAID_LIMIT_3') {
-      console.warn('[Workflow] ⚠️ Active backup limit popup detected! Resolving lingering raids...');
-      this.lastStartFailureWasRaidLimit = true;
-      await this.resolveLingeringRaidLimit(logPath, currentRuns);
-      return true;
-    }
-
-    console.warn('[Workflow] ⚠️ Pending/Unclaimed battle popup detected! Clearing all unclaimed battles...');
-    this.lastStartFailureWasMaintenance = true;
-    // Clear ALL unclaimed battles and return cleanly to target quest URL
-    const returnUrl = this.template.questUrl.includes('assist') ? 'https://game.granbluefantasy.jp/#quest/assist' : this.template.questUrl;
-    await this.claimPendingBattles(logPath, currentRuns, returnUrl);
-
-    return true;
-  }
-
-  /**
-   * Waits until the battle HUD and canvas are fully mounted after quest start or reload.
-   * Fast-fails early if a pending battle popup is detected.
-   */
-  private async waitForBattleToMount(timeoutMs = 12000): Promise<boolean> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      if (this.stopRequested) return false;
-      try {
-        const check = await this.page.evaluate(() => {
-          const hash = window.location.hash;
-          const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash) || hash.includes('replicard/battle') || (/^#stage\/\d+/.test(hash) && !hash.includes('replicard'));
-          const stage = (window as any).stage;
-          const hasGameStatus = !!stage?.gGameStatus;
-          const isRes = hash.includes('result') || !!document.querySelector('.pop-raid-result, .prt-result-head');
-          const hasReadyStage = (isCombatHash || !!document.querySelector('.lis-character0')) && (hasGameStatus || !!document.querySelector('.lis-character0, .btn-attack-start.display-on, .btn-quick-summon.qs-ready'));
-          if (hasReadyStage || isRes) {
-            return 'MOUNTED';
-          }
-
-          // Check if pending/unclaimed battle popup or raid limit popup appeared
-          const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-          if (modal && (modal as HTMLElement).offsetParent !== null) {
-            const text = ((modal as HTMLElement).innerText || '').toLowerCase();
-            const rawText = (modal as HTMLElement).innerText || '';
-            if (
-              text.includes('three raid') ||
-              text.includes('up to three') ||
-              text.includes('provide backup in up to') ||
-              text.includes('only provide backup') ||
-              text.includes('pending') ||
-              text.includes('unclaimed') ||
-              rawText.includes('未確認') ||
-              rawText.includes('参戦中') ||
-              rawText.includes('同時に参戦できる') ||
-              rawText.includes('3件') ||
-              text.includes('3 battles')
-            ) {
-              return 'PENDING_MODAL';
-            }
-          }
-
-          return null;
-        });
-
-        if (check === 'MOUNTED') {
-          // Accelerate CreateJS animation ticker to 120 FPS
-          await this.page.evaluate(() => {
-            const cjs = (window as any).createjs;
-            if (cjs?.Ticker) {
-              cjs.Ticker.framerate = 120;
-              if (typeof cjs.Ticker.setInterval === 'function') {
-                cjs.Ticker.setInterval(1000 / 120);
-              }
-            }
-          }).catch(() => null);
-          const isTurbo = this.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-          if (!isTurbo) await logNormalDelay(150, 0.1);
-          return true;
-        }
-        if (check === 'PENDING_MODAL') {
-          return false;
-        }
-      } catch {
-        // Safe navigation context handling
-      }
-      await new Promise(r => setTimeout(r, 120));
-    }
-    return false;
-  }
-
-  /**
-   * Deeply analyzes the current screen, modals, error dialogs, badges, and DOM state.
-   */
-  public async deepAnalyzeScreenState(): Promise<{
-    condition:
-      | 'NONE'
-      | 'SOUL_BERRY_DEPLETED'
-      | 'AP_DEPLETED'
-      | 'ACTIVE_RAID_LIMIT_3'
-      | 'PENDING_BATTLES_LIMIT'
-      | 'RAID_FULL_OR_ENDED'
-      | 'SUSPENDED_QUEST'
-      | 'DAILY_HOST_LIMIT'
-      | 'COMMUNICATION_ERROR'
-      | 'CAPTCHA_CHALLENGE'
-      | 'UNKNOWN_MODAL';
-    title: string;
-    message: string;
-    hasPopup: boolean;
-    canAutoRecover: boolean;
-    rawText: string;
-  }> {
-    try {
-      // 1. Check CAPTCHA / Access Verification
-      const isCaptcha = await this.sentinel.inspectForVerification().catch(() => false);
-      if (isCaptcha) {
-        return {
-          condition: 'CAPTCHA_CHALLENGE',
-          title: 'Access Verification',
-          message: 'Access Verification / CAPTCHA challenge is blocking the screen',
-          hasPopup: true,
-          canAutoRecover: true,
-          rawText: 'Access Verification'
-        };
-      }
-
-      // 2. Extract DOM modal info
-      const screenInfo = await this.page.evaluate(() => {
-        const pop = document.querySelector('.pop-usual, .common-pop-error, .prt-popup-body, .cnt-error, #pop, .pop-show, .popRestartQuest, .prt-dialog-content');
-        const popEl = pop as HTMLElement | null;
-        const isPopVisible = popEl !== null && popEl.offsetParent !== null;
-
-        const titleEl = document.querySelector('.pop-usual .prt-title, .prt-popup-header, .txt-popup-title, .common-pop-error .prt-title');
-        const title = (titleEl as HTMLElement)?.innerText?.trim() || '';
-
-        const text = isPopVisible ? (popEl.innerText?.trim() || '') : '';
-        const bodyText = document.body.innerText || '';
-
-        return {
-          hasPopup: isPopVisible,
-          title,
-          text,
-          bodyText
-        };
-      }).catch(() => ({ hasPopup: false, title: '', text: '', bodyText: '' }));
-
-      const combined = (screenInfo.title + ' ' + screenInfo.text + ' ' + screenInfo.bodyText).toLowerCase();
-      const rawText = screenInfo.title + ' ' + screenInfo.text + ' ' + screenInfo.bodyText;
-
-      // 3. Classify condition
-      if (
-        combined.includes('access verification') ||
-        combined.includes('verify access') ||
-        combined.includes('verification challenge') ||
-        rawText.includes('画像認証') ||
-        rawText.includes('アクセス認証') ||
-        rawText.includes('セキュリティ認証') ||
-        rawText.includes('歪んでいる文字') ||
-        rawText.includes('表示されている画像')
-      ) {
-        return {
-          condition: 'CAPTCHA_CHALLENGE',
-          title: screenInfo.title || 'Access Verification',
-          message: screenInfo.text || 'Access Verification / CAPTCHA challenge detected',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        combined.includes('three raid') ||
-        combined.includes('up to three') ||
-        combined.includes('provide backup in up to') ||
-        combined.includes('only provide backup') ||
-        combined.includes('3 battles') ||
-        combined.includes('3 raid') ||
-        combined.includes('participating in 3') ||
-        combined.includes('more than 3') ||
-        combined.includes('up to 3') ||
-        rawText.includes('3件まで') ||
-        rawText.includes('同時に参戦できる') ||
-        rawText.includes('参戦中') ||
-        rawText.includes('3件')
-      ) {
-        return {
-          condition: 'ACTIVE_RAID_LIMIT_3',
-          title: screenInfo.title || 'Active Raid Limit',
-          message: screenInfo.text || 'Participating in maximum 3 simultaneous raid battles',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        combined.includes('pending') ||
-        combined.includes('unclaimed') ||
-        combined.includes('too many unclaimed') ||
-        combined.includes('five or more') ||
-        rawText.includes('未確認バトル') ||
-        rawText.includes('未確認') ||
-        rawText.includes('5件')
-      ) {
-        return {
-          condition: 'PENDING_BATTLES_LIMIT',
-          title: screenInfo.title || 'Pending Battle Limit',
-          message: screenInfo.text || 'Pending / unclaimed battles limit reached (max 5)',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        (combined.includes('ep') && (combined.includes('not enough') || combined.includes('depleted') || combined.includes('insufficient'))) ||
-        combined.includes('soul berry') ||
-        combined.includes('soul powder') ||
-        rawText.includes('EPが足りません') ||
-        rawText.includes('EPが不足') ||
-        rawText.includes('ソウルシード') ||
-        rawText.includes('ソウルパウダー')
-      ) {
-        return {
-          condition: 'SOUL_BERRY_DEPLETED',
-          title: screenInfo.title || 'EP Depleted',
-          message: screenInfo.text || 'Insufficient EP / Soul Berries needed to join raid',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        (combined.includes('ap') && (combined.includes('not enough') || combined.includes('depleted') || combined.includes('insufficient'))) ||
-        combined.includes('half elixir') ||
-        combined.includes('elixir') ||
-        combined.includes('aap') ||
-        rawText.includes('APが足りません') ||
-        rawText.includes('APが不足') ||
-        rawText.includes('エリクシールハーフ') ||
-        rawText.includes('エリクシール')
-      ) {
-        return {
-          condition: 'AP_DEPLETED',
-          title: screenInfo.title || 'AP Depleted',
-          message: screenInfo.text || 'Insufficient AP / Half-Elixirs depleted',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        combined.includes('already ended') ||
-        combined.includes('already full') ||
-        combined.includes('battle has already ended') ||
-        combined.includes('cannot participate') ||
-        rawText.includes('定員に達している') ||
-        rawText.includes('定員に達しました') ||
-        rawText.includes('参加人数が上限') ||
-        rawText.includes('このバトルは既に終了しています') ||
-        rawText.includes('このバトルは終了しています') ||
-        rawText.includes('終了') ||
-        rawText.includes('このマルチバトルには参加できません')
-      ) {
-        return {
-          condition: 'RAID_FULL_OR_ENDED',
-          title: screenInfo.title || 'Raid Full / Ended',
-          message: screenInfo.text || 'Raid is full or has already ended',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        combined.includes('quest is already in progress') ||
-        combined.includes('poprestartquest') ||
-        rawText.includes('挑戦中のクエストがあります') ||
-        rawText.includes('中断されたクエスト')
-      ) {
-        return {
-          condition: 'SUSPENDED_QUEST',
-          title: screenInfo.title || 'Quest In Progress',
-          message: screenInfo.text || 'A previous quest is in progress (suspended)',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (
-        combined.includes('daily limit') ||
-        combined.includes('reached daily limit') ||
-        rawText.includes('本日の挑戦回数制限') ||
-        rawText.includes('本日の自発回数') ||
-        rawText.includes('1日の挑戦可能回数を超えています')
-      ) {
-        return {
-          condition: 'DAILY_HOST_LIMIT',
-          title: screenInfo.title || 'Daily Limit',
-          message: screenInfo.text || 'Daily host limit reached for this quest',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: false,
-          rawText
-        };
-      }
-
-      if (
-        combined.includes('communication error') ||
-        combined.includes('network error') ||
-        rawText.includes('通信エラー') ||
-        rawText.includes('エラーが発生しました')
-      ) {
-        return {
-          condition: 'COMMUNICATION_ERROR',
-          title: screenInfo.title || 'Communication Error',
-          message: screenInfo.text || 'Network or communication error occurred',
-          hasPopup: screenInfo.hasPopup,
-          canAutoRecover: true,
-          rawText
-        };
-      }
-
-      if (screenInfo.hasPopup && screenInfo.text.length > 0) {
-        return {
-          condition: 'UNKNOWN_MODAL',
-          title: screenInfo.title || 'In-Game Modal',
-          message: screenInfo.text.substring(0, 120),
-          hasPopup: true,
-          canAutoRecover: false,
-          rawText
-        };
-      }
-
-      return {
-        condition: 'NONE',
-        title: '',
-        message: 'No blocking modal or condition detected',
-        hasPopup: false,
-        canAutoRecover: false,
-        rawText
-      };
-    } catch (err: any) {
-      return {
-        condition: 'NONE',
-        title: 'Diagnostic Error',
-        message: err.message,
-        hasPopup: false,
-        canAutoRecover: false,
-        rawText: ''
-      };
-    }
-  }
-
-  /**
-   * Performs deep on-screen failure diagnosis and autonomous self-healing.
-   * Examines every modal/popup (Berries/EP, AP, 3-Raid limit, 5-Pending limit, Full/Ended, CAPTCHA, etc.)
-   * and auto-recovers on the spot when possible.
-   */
-  private async diagnoseAndRecoverQuestStart(
-    runNumber: number,
-    autoReplenishAp: boolean,
-    autoReplenishEp: boolean,
-    logPath = this.currentLogPath,
-    currentRuns = this.totalCompletedRuns
-  ): Promise<{
-    recovered: boolean;
-    condition: string;
-    reason: string;
-    isFatal: boolean;
-    capturePath?: string;
-  }> {
-    const analysis = await this.deepAnalyzeScreenState();
-    console.log(`[Deep Analysis] Screen Condition: ${analysis.condition} | Details: "${analysis.message.replace(/\s+/g, ' ').substring(0, 90)}"`);
-
-    let recovered = false;
-    let reason = analysis.message || analysis.condition;
-    let isFatal = false;
-    let capturePath: string | undefined;
-
-    switch (analysis.condition) {
-      case 'SOUL_BERRY_DEPLETED': {
-        if (autoReplenishEp) {
-          console.log('[Deep Analysis] 🍇 Auto-replenishing Soul Berries / EP...');
-          const clicked = await this.page.evaluate(() => {
-            const btn = document.querySelector('.btn-use-item.btn-usual-use, .btn-usual-ok.se-use, .pop-usual .btn-usual-ok') as HTMLElement;
-            if (btn && btn.offsetParent !== null) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(btn).trigger('tap');
-              btn.click();
-              return true;
-            }
-            return false;
-          }).catch(() => false);
-
-          if (clicked) {
-            await logNormalDelay(400, 0.1);
-            const confirmBtn = await this.page.waitForSelector('.pop-usual .btn-usual-ok', { visible: true, timeout: 3000 }).catch(() => null);
-            if (confirmBtn) {
-              await humanizedClick(this.page, confirmBtn);
-              await logNormalDelay(500, 0.12);
-            }
-            recovered = true;
-            reason = 'Auto-replenished Soul Berries / EP';
-          } else {
-            reason = 'Soul Berry replenishment modal found but use button unclickable';
-            isFatal = true;
-          }
-        } else {
-          reason = 'Soul Berries / EP depleted and autoReplenishEp is disabled';
-          isFatal = true;
-        }
-        break;
-      }
-
-      case 'AP_DEPLETED': {
-        if (autoReplenishAp) {
-          console.log('[Deep Analysis] 🧪 Auto-replenishing AP with Half-Elixir...');
-          const clicked = await this.page.evaluate(() => {
-            const btn = document.querySelector('.btn-use-item.btn-usual-use, .btn-usual-ok.se-use, .pop-usual .btn-usual-ok') as HTMLElement;
-            if (btn && btn.offsetParent !== null) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(btn).trigger('tap');
-              btn.click();
-              return true;
-            }
-            return false;
-          }).catch(() => false);
-
-          if (clicked) {
-            await logNormalDelay(400, 0.1);
-            const confirmBtn = await this.page.waitForSelector('.pop-usual .btn-usual-ok', { visible: true, timeout: 3000 }).catch(() => null);
-            if (confirmBtn) {
-              await humanizedClick(this.page, confirmBtn);
-              await logNormalDelay(500, 0.12);
-            }
-            recovered = true;
-            reason = 'Auto-replenished AP with Half-Elixir';
-          } else {
-            reason = 'AP replenishment modal found but elixir button unclickable';
-            isFatal = true;
-          }
-        } else {
-          reason = 'AP depleted and autoReplenishAp is disabled';
-          isFatal = true;
-        }
-        break;
-      }
-
-      case 'ACTIVE_RAID_LIMIT_3': {
-        console.log('[Deep Analysis] 🛡️ 3-Raid Backup Limit intercepted! Resolving lingering raids...');
-        await this.dismissPopupModal();
-        await this.resolveLingeringRaidLimit(logPath, currentRuns);
-        recovered = true;
-        reason = '3-Raid Backup Limit resolved';
-        break;
-      }
-
-      case 'PENDING_BATTLES_LIMIT': {
-        console.log('[Deep Analysis] 🧹 5-Pending Battles Limit intercepted! Clearing all unclaimed battles...');
-        await this.dismissPopupModal();
-        await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-        recovered = true;
-        reason = 'Pending battles thoroughly cleared';
-        break;
-      }
-
-      case 'RAID_FULL_OR_ENDED': {
-        console.log('[Deep Analysis] ⚠️ Raid full or ended. Dismissing modal and refreshing finder...');
-        await this.dismissFullOrEndedRaidPopup();
-        const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
-        if (refreshBtn) {
-          await humanizedClick(this.page, refreshBtn);
-          await logNormalDelay(600, 0.1);
-        }
-        recovered = true;
-        reason = 'Raid full/ended dismissed; finder refreshed';
-        break;
-      }
-
-      case 'SUSPENDED_QUEST': {
-        console.log('[Deep Analysis] 🔄 Suspended quest in progress detected. Resuming...');
-        const resumed = await this.page.evaluate(() => {
-          const ok = document.querySelector('.popRestartQuest .btn-usual-ok, .pop-usual .btn-usual-ok') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            ok.click();
-            return true;
-          }
-          return false;
-        }).catch(() => false);
-        if (resumed) {
-          await this.waitForBattleToMount(12000);
-          await this.resolveLingeringState();
-          recovered = true;
-          reason = 'Suspended quest resumed and resolved';
-        }
-        break;
-      }
-
-      case 'COMMUNICATION_ERROR': {
-        console.log('[Deep Analysis] 🌐 Communication error detected. Reloading page...');
-        await this.page.evaluate(() => {
-          const ok = document.querySelector('.pop-usual .btn-usual-ok, .btn-usual-ok') as HTMLElement;
-          if (ok) ok.click();
-          else window.location.reload();
-        }).catch(() => null);
-        await logNormalDelay(1500, 0.15);
-        recovered = true;
-        reason = 'Reloaded page after communication error';
-        break;
-      }
-
-      case 'CAPTCHA_CHALLENGE': {
-        console.log('[Deep Analysis] 🚨 Access Verification / CAPTCHA challenge detected! Handing to sentinel...');
-        const solved = await this.sentinel.handleVerificationChallenge();
-        if (solved) {
-          recovered = true;
-          reason = 'Access Verification challenge solved';
-        } else {
-          isFatal = true;
-          reason = 'Access Verification challenge requires operator attention';
-        }
-        break;
-      }
-
-      case 'DAILY_HOST_LIMIT': {
-        reason = 'Daily hosting limit reached for this quest';
-        isFatal = true;
-        await this.dismissPopupModal();
-        break;
-      }
-
-      case 'UNKNOWN_MODAL':
-      case 'NONE':
-      default: {
-        // Attempt safe dismissal of any generic blocking popup
-        if (analysis.hasPopup) {
-          const dismissed = await this.dismissPopupModal();
-          if (dismissed) {
-            console.log('[Deep Analysis] Dismissed generic modal dialog.');
-            await logNormalDelay(500, 0.1);
-          }
-        }
-
-        // Capture emergency diagnostic screenshot
-        const capDir = path.resolve(process.cwd(), 'artifacts/captures');
-        if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-        capturePath = path.resolve(capDir, `quest-start-failed-run${runNumber}-${Date.now()}.png`);
-        await this.page.screenshot({ path: capturePath, fullPage: false }).catch(() => null);
-        break;
-      }
-    }
-
-    return {
-      recovered,
-      condition: analysis.condition,
-      reason,
-      isFatal,
-      capturePath
-    };
-  }
-
-  /**
-   * Backwards-compatible diagnosis method. Delegates to deepAnalyzeScreenState.
-   */
-  private async diagnoseQuestStartFailure(runNumber: number): Promise<{
-    reason: string;
-    popupText?: string;
-    isCaptcha: boolean;
-    isOutOfMeat: boolean;
-    isOutOfAp: boolean;
-    isRaidBackupLimit: boolean;
-    capturePath?: string;
-  }> {
-    const analysis = await this.deepAnalyzeScreenState();
-    let capturePath: string | undefined;
-
-    const capDir = path.resolve(process.cwd(), 'artifacts/captures');
-    if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-    capturePath = path.resolve(capDir, `quest-start-failed-run${runNumber}-${Date.now()}.png`);
-    await this.page.screenshot({ path: capturePath, fullPage: false }).catch(() => null);
-
-    return {
-      reason: analysis.message || 'Unknown quest start obstruction',
-      popupText: analysis.message,
-      isCaptcha: analysis.condition === 'CAPTCHA_CHALLENGE',
-      isOutOfMeat: analysis.rawText.includes('chunky meat') || analysis.rawText.includes('お肉'),
-      isOutOfAp: analysis.condition === 'AP_DEPLETED',
-      isRaidBackupLimit: analysis.condition === 'ACTIVE_RAID_LIMIT_3',
-      capturePath
-    };
-  }
-
-  /**
-   * Navigates to quest supporter URL, selects supporter, and ensures battle HUD is mounted.
-   */
-  private async selectSupporterAndStartQuest(
-    autoReplenishAp: boolean,
-    autoReplenishEp: boolean,
-    logPath = this.currentLogPath,
-    currentRuns = this.totalCompletedRuns
-  ): Promise<boolean> {
-    const targetUrl = this.template.questUrl;
-
-    if (this.template.stopOnCaptcha !== false) {
-      await this.sentinel.assertSafe();
-    }
-
-    // Check if lingering in an actual unfinished battle (e.g. #raid/12345 or #battle/12345)
-    // Note: Do NOT match #quest/supporter_raid or #quest/assist as active combat!
-    const initHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-    const isReplicard = targetUrl.includes('replicard') || targetUrl.includes('819131') || targetUrl.includes('815091') || targetUrl.includes('816091') || targetUrl.includes('819141') || targetUrl.includes('819151') || targetUrl.includes('819161') || targetUrl.includes('819171');
-    if (isReplicard && (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash) || initHash.includes('replicard/battle'))) {
-      console.log(`[${this.accountId}] [Replicard] Active combat detected (${initHash}). Resuming combat directly...`);
-      return true;
-    }
-
-    const isActualBattle = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash);
-    if (isActualBattle) {
-      console.log(`[Workflow] Existing battle detected (${initHash}). Resolving prior battle...`);
-      await this.resolveLingeringState();
-    }
-
-    // If targetUrl is an assist / raid finder URL
-    if (targetUrl.includes('assist')) {
-      const targetSlots = this.template.raidSlots || (this.template.raidSlot ? [this.template.raidSlot] : [4, 3, 2]);
-      return await this.joinAssistRaidAndStartQuest(targetSlots, autoReplenishEp, logPath, currentRuns);
-    }
-
-    // Standard quest navigation
-    const targetHash = targetUrl.split('#')[1] || '';
-    const currentUrl = this.page.url();
-    if (!currentUrl.includes(targetHash)) {
-      await this.page.evaluate((hash: string) => {
-        if (window.location.hash === '#' + hash) {
-          window.location.reload();
-        } else {
-          window.location.hash = '#' + hash;
-        }
-      }, targetHash).catch(() => null);
-      await logNormalDelay(350, 0.1);
-    }
-
-    const start = Date.now();
-    while (Date.now() - start < 12000) {
-      if (this.stopRequested) return false;
-
-      if (this.template.stopOnCaptcha !== false) {
-        await this.sentinel.assertSafe();
-      }
-
-      // Check if pending battle popup modal is currently displayed
-      if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
-        continue;
-      }
-
-      // Check Replicard AAP recovery modal before clicking start
-      if (isReplicard && autoReplenishAp) {
-        const aapHandled = await this.handleAapRecoveryModal(true);
-        if (aapHandled) {
-          await logNormalDelay(400, 0.1);
-          continue;
-        }
-      }
-
-      // 0. If on a Replicard stage map (e.g. #replicard/stage/10), find and click the target quest/defender!
-      if (isReplicard) {
-        const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-        if (curHash.includes('replicard/stage')) {
-          const clickedQuest = await this.page.evaluate((targetQuestId?: string | number) => {
-            // Priority 1: Exact questId match
-            if (targetQuestId) {
-              const btn = document.querySelector(`.btn-quest-list[data-quest-id="${targetQuestId}"], .prt-quest-list[data-quest-id="${targetQuestId}"]`) as HTMLElement;
-              if (btn && btn.offsetParent !== null) {
-                const $ = (window as any).$ || (window as any).Zepto;
-                if ($) $(btn).trigger('tap');
-                btn.click();
-                return true;
-              }
-            }
-
-            // Priority 2: Defender quest (data-is-hell="1" or text containing Militis)
-            const defenderBtn = document.querySelector('.btn-quest-list[data-is-hell="1"], .prt-quest-list[data-is-hell="1"]') as HTMLElement;
-            if (defenderBtn && defenderBtn.offsetParent !== null) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(defenderBtn).trigger('tap');
-              defenderBtn.click();
-              return true;
-            }
-
-            // Priority 3: First available quest in division frame
-            const anyQuest = document.querySelector('.prt-division-frame .btn-quest-list, .prt-division-frame .prt-quest-list') as HTMLElement;
-            if (anyQuest && anyQuest.offsetParent !== null) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(anyQuest).trigger('tap');
-              anyQuest.click();
-              return true;
-            }
-
-            return false;
-          }, this.template.questId).catch(() => false);
-
-          if (clickedQuest) {
-            console.log(`[${this.accountId}] [Replicard] Clicked quest on stage map (target: ${this.template.questId || 'Defender'}). Transitioning to deck supporter...`);
-            await logNormalDelay(600, 0.15);
-            continue;
-          }
-        }
-      }
-
-      // 1. Deck confirmation / Quest Start OK button (.btn-usual-ok.se-quest-start)
-      const autoOk = await this.page.evaluate(() => {
-        const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
-        if (ok && ok.offsetParent !== null) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(ok).trigger('tap');
-          ok.click();
-          return true;
-        }
-        return false;
-      }).catch(() => false);
-
-      if (autoOk) {
-        if (isReplicard && autoReplenishAp) {
-          await this.handleAapRecoveryModal(true);
-        }
-        const mounted = await this.waitForBattleToMount(12000);
-        if (mounted) return true;
-        if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
-          continue;
-        }
-        if (isReplicard && autoReplenishAp) {
-          const aapAfter = await this.handleAapRecoveryModal(true);
-          if (aapAfter) continue;
-        }
-        return false;
-      }
-
-      // 2. AP replenishment popup
-      if (autoReplenishAp) {
-        const apHandled = await this.page.evaluate(() => {
-          const elixirBtn = document.querySelector('.btn-use-item.btn-usual-use, .btn-usual-ok.se-use') as HTMLElement;
-          if (elixirBtn && elixirBtn.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(elixirBtn).trigger('tap');
-            elixirBtn.click();
-            return true;
-          }
-          return false;
-        }).catch(() => false);
-
-        if (apHandled) {
-          await logNormalDelay(400, 0.1);
-          continue;
-        }
-      }
-
-      // 3. Supporter card selection
-      const cardClicked = await this.page.evaluate((priorities: string[]) => {
-        const cards = Array.from(document.querySelectorAll(
-          '.prt-supporter-attribute.selected .lis-supporter, .prt-supporter-attribute .lis-supporter, .lis-supporter, .btn-supporter, .prt-supporter-detail'
-        )) as HTMLElement[];
-        const visibleCards = cards.filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 0);
-        
-        for (const p of priorities) {
-          const match = visibleCards.find(c => (c.innerText || c.textContent || '').toLowerCase().includes(p.toLowerCase()));
-          if (match) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(match).trigger('tap');
-            match.click();
-            return true;
-          }
-        }
-        if (visibleCards.length > 0) {
-          const first = visibleCards[0];
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(first).trigger('tap');
-          first.click();
-          return true;
-        }
-        return false;
-      }, this.template.supporterPriority || ['Hades', 'Bahamut', 'Zeus', 'Lucifer', 'Kaguya']).catch(() => false);
-
-      if (cardClicked) {
-        await logNormalDelay(300, 0.1);
-        const okClicked = await this.page.evaluate(() => {
-          const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(ok).trigger('tap');
-            ok.click();
-            return true;
-          }
-          return false;
-        }).catch(() => false);
-
-        if (okClicked) {
-          const mounted = await this.waitForBattleToMount(12000);
-          if (mounted) return true;
-        }
-
-        if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
-          continue;
-        }
-        continue;
-      }
-
-      await new Promise(r => setTimeout(r, 150));
-    }
-
-    return false;
-  }
-
-  /**
-   * Finds, joins, and starts a Backup Request raid from #quest/assist with multi-slot rotation.
-   */
-  private async joinAssistRaidAndStartQuest(
-    slots: number | number[],
-    autoReplenishEp: boolean,
-    logPath = this.currentLogPath,
-    currentRuns = this.totalCompletedRuns
-  ): Promise<boolean> {
-    const slotList = Array.isArray(slots) ? slots : [slots];
-
-    // Check if pending battles limit modal is shown
-    await this.checkAndClearPendingBattles(logPath, currentRuns);
-
-    // Navigate to #quest/assist if not already there (or if left on unclaimed/supporter_raid/other)
-    const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-    const isOnAssistFinder = (currentHash === '#quest/assist' || currentHash === '#quest/assist/index') && !currentHash.includes('unclaimed');
-    if (!isOnAssistFinder) {
-      console.log('[Workflow] Navigating to Backup Requests (#quest/assist)...');
-      await Promise.all([
-        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
-        this.page.evaluate(() => {
-          window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
-          window.location.reload();
-        }).catch(() => null)
-      ]);
-      await logNormalDelay(1000, 0.15);
-    }
-
-    // Check lingering active raids badge prior to searching
-    const lingeringCount = await this.getLingeringJoinedRaidCount();
-    if (lingeringCount >= 3) {
-      console.warn(`[Workflow] ⚠️ Active backup limit detected prior to search (${lingeringCount}/3 raids in progress).`);
-      this.lastStartFailureWasRaidLimit = true;
-      await this.resolveLingeringRaidLimit(logPath, currentRuns);
-      return false;
-    }
-
-    // Switch to Finder tab (#tab-search)
-    const finderTab = await this.page.waitForSelector('#tab-search, .btn-tabs#tab-search', { visible: true, timeout: 5000 }).catch(() => null);
-    if (finderTab) {
-      const isActive = await this.page.evaluate((el: any) => el.classList.contains('active'), finderTab);
-      if (!isActive) {
-        await humanizedClick(this.page, finderTab);
-        await logNormalDelay(600, 0.15);
-      }
-    }
-
-    // Scan slots for eligible candidate
-    const t0 = Date.now();
-    const maxSearchMs = 45000;
-    let raidClicked = false;
-    let slotCycleIndex = 0;
-
-    while (Date.now() - t0 < maxSearchMs && !raidClicked && !this.stopRequested) {
-      const currentSlot = slotList[slotCycleIndex % slotList.length];
-      slotCycleIndex++;
-
-      // 1. Activate the slot button (.btn-search-switch.slot${currentSlot})
-      const slotBtn = await this.page.waitForSelector(`.btn-search-switch.slot${currentSlot}, [data-slot="${currentSlot}"].btn-search-switch`, { visible: true, timeout: 2500 }).catch(() => null);
-      if (slotBtn) {
-        const isSlotActive = await this.page.evaluate((el: any) => el.classList.contains('active'), slotBtn).catch(() => false);
-        if (!isSlotActive) {
-          console.log(`[Workflow] Switching to Slot ${currentSlot}...`);
-          await humanizedClick(this.page, slotBtn);
-          await logNormalDelay(500, 0.12);
-        }
-      }
-
-      // Check full/ended raid popup
-      await this.dismissFullOrEndedRaidPopup();
-
-      // 2. Scan cards in #prt-search-list
-      const rawCandidates: RaidCandidate[] = await this.page.evaluate(() => {
-        const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search'));
-        return cards.map((c, i) => {
-          const el = c as HTMLElement;
-          if (el.offsetParent === null) return null;
-
-          const gauge = el.querySelector('.prt-raid-gauge-inner') as HTMLElement;
-          const hpWidth = gauge?.style?.width || '0%';
-          const hpPct = parseFloat(hpWidth) || 0;
-
-          const playerEl = el.querySelector('.prt-flees-in') as HTMLElement;
-          const playerText = playerEl ? (playerEl.innerText || '') : '';
-          const match = playerText.match(/(\d+)\s*\/\s*(\d+)/);
-          const players = match ? parseInt(match[1], 10) : 0;
-          const maxPlayers = match ? parseInt(match[2], 10) : 30;
-
-          const raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || '';
-          const rect = el.getBoundingClientRect();
-
-          return {
-            index: i,
-            raidId,
-            hpPct,
-            players,
-            maxPlayers,
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2
-          };
-        }).filter(Boolean) as any[];
-      }).catch(() => []);
-
-      // Prune dead raid IDs older than 2 minutes
-      const now = Date.now();
-      for (const [id, ts] of this.deadRaidIds.entries()) {
-        if (now - ts > 120000) this.deadRaidIds.delete(id);
-      }
-
-      const isOtk = this.template.evaluatorStrategy === 'otk_burst' || this.template.evaluatorStrategy === 'leech';
-      const evalOptions: RaidEvaluationOptions = {
-        strategy: this.template.evaluatorStrategy || 'honor',
-        minScore: this.template.minRaidScore ?? RaidEvaluator.DEFAULT_MIN_SCORE,
-        minHpPct: this.template.minHpPct ?? (isOtk ? 1 : RaidEvaluator.DEFAULT_MIN_HP),
-        maxHpPct: this.template.maxHpPct ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MAX_HP : undefined),
-        minPlayers: this.template.minPlayers ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MIN_PLAYERS : 1),
-        maxPlayers: this.template.maxPlayers ?? (isOtk ? 29 : RaidEvaluator.DEFAULT_MAX_PLAYERS),
-        deadRaidIds: this.deadRaidIds,
-        useCache: true
-      };
-
-      const selection = RaidEvaluator.selectBestCandidate(rawCandidates, evalOptions);
-      const candidate = selection.best;
-
-      if (candidate) {
-        this.consecutiveEmptyRaidSearches = 0;
-        this.currentRaidId = candidate.raidId || 'pending';
-        this.sentinel?.setSessionContext?.({
-          raidId: candidate.raidId,
-          hpPct: candidate.hpPct,
-          players: `${candidate.players}/${candidate.maxPlayers || 30}`
-        });
-
-        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, Score: ${candidate.score} pt [Grade ${candidate.grade}], HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30}). Joining...`);
-
-        const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search');
-        const targetCard = cardElements[candidate.index];
-        if (targetCard) {
-          await humanizedClick(this.page, targetCard);
-        } else if (candidate.x && candidate.y) {
-          await this.page.touchscreen.tap(candidate.x, candidate.y).catch(() => null);
-        }
-
-        // Await transition: either #quest/supporter_raid mounts OR a popup modal appears
-        const transitionState = await this.waitForSupporterOrModal(10000);
-
-        if (transitionState === 'FULL_OR_ENDED') {
-          console.warn(`[Workflow] Raid ${candidate.raidId || ''} was already full or ended. Blacklisting and continuing search...`);
-          if (candidate.raidId) {
-            this.deadRaidIds.set(candidate.raidId, Date.now());
-          }
-          await this.dismissFullOrEndedRaidPopup();
-          const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
-          if (refreshBtn) {
-            await humanizedClick(this.page, refreshBtn);
-            await logNormalDelay(800, 0.12);
-          }
-          if (Date.now() - t0 < maxSearchMs) {
-            continue;
-          }
-          this.lastStartFailureWasRaidWait = true;
-          return false;
-        }
-
-        if (transitionState === 'ACTIVE_RAID_LIMIT_3') {
-          console.warn('[Workflow] ⚠️ Active raid limit reached (3 simultaneous battles in progress).');
-          this.lastStartFailureWasRaidLimit = true;
-          await this.resolveLingeringRaidLimit(logPath, currentRuns);
-          return false;
-        }
-
-        if (transitionState === 'PENDING_LIMIT') {
-          console.warn('[Workflow] Pending battle limit reached. Clearing all unclaimed battles...');
-          this.lastStartFailureWasMaintenance = true;
-          await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-          if (Date.now() - t0 < maxSearchMs && !this.stopRequested) {
-            console.log('[Workflow] Returning directly to raid search after clearing pending battles...');
-            continue;
-          }
-          return false;
-        }
-
-        if (transitionState === 'DIRECT_COMBAT') {
-          return await this.waitForBattleToMount(12000);
-        }
-
-        if (transitionState === 'TIMEOUT') {
-          console.warn('[Workflow] Supporter screen navigation timed out.');
-          this.lastStartFailureWasRaidWait = true;
-          return false;
-        }
-
-        raidClicked = true;
-        break;
-      } else {
-        if (selection.nonViableCandidates.length > 0) {
-          const top = selection.nonViableCandidates[0];
-          console.log(`[Workflow] Slot ${currentSlot}: ${rawCandidates.length} raid(s) scanned, none meet viability score (Top: ${top.score || 0} pt [Grade ${top.grade || 'F'}, HP ${top.hpPct}%, ${top.players}/${top.maxPlayers} players] - ${top.reason}). Skipping...`);
-        }
-
-        // If all slots checked in this pass, click search refresh if available
-        if (slotCycleIndex % slotList.length === 0) {
-          const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
-          if (refreshBtn) {
-            await humanizedClick(this.page, refreshBtn);
-            await logNormalDelay(1000, 0.15);
-          } else {
-            await new Promise(r => setTimeout(r, 1000));
-          }
-        } else {
-          await logNormalDelay(350, 0.1);
-        }
-      }
-    }
-
-    if (!raidClicked) {
-      this.consecutiveEmptyRaidSearches++;
-      this.lastStartFailureWasRaidWait = true;
-
-      // Progressive patience standby:
-      // Round 1: 60s (1m)
-      // Round 2: 180s (3m)
-      // Round 3+: 300s (5m), repeating every 5 minutes
-      const waitSeconds = this.consecutiveEmptyRaidSearches === 1
-        ? 60
-        : this.consecutiveEmptyRaidSearches === 2
-          ? 180
-          : 300;
-
+  public async checkFiveBattleMilestone(logPath: string, currentRuns: number): Promise<void> {
+    if (this.ctx.state.totalJoinedAndClearedBattles > 0 && this.ctx.state.totalJoinedAndClearedBattles % 5 === 0) {
       console.log(`\n========================================================================`);
-      console.log(`  ⏳ PATIENCE STANDBY MODE (Round #${this.consecutiveEmptyRaidSearches})`);
-      console.log(`  No eligible raids found across slot(s) [${slotList.join(', ')}]`);
-      console.log(`  Standby duration: ${waitSeconds}s (${Math.round(waitSeconds / 60)} min)`);
-      console.log(`  Checking periodically every 5 minutes (will resume immediately if raids appear)`);
-      console.log(`========================================================================\n`);
-
-      const tStandbyStart = Date.now();
-      const waitMs = waitSeconds * 1000;
-      let lastCheckSec = 0;
-
-      while (Date.now() - tStandbyStart < waitMs && !this.stopRequested) {
-        const elapsedSec = Math.floor((Date.now() - tStandbyStart) / 1000);
-        const remainingSec = Math.max(0, waitSeconds - elapsedSec);
-
-        // Update Discord Rich Presence
-        discordPresence.updateStatus({
-          raidName: this.template.name,
-          goldBars: this.totalGoldBarsAccumulated,
-          blueChests: this.totalBlueChestsAccumulated,
-          status: `Standby (${remainingSec}s)`
-        }, true);
-
-        // Check for early raid arrival or pending battle completion every 20 seconds
-        if (elapsedSec > 0 && elapsedSec % 20 === 0 && elapsedSec !== lastCheckSec) {
-          lastCheckSec = elapsedSec;
-          console.log(`[Patience Standby] Standby active (${remainingSec}s remaining). Checking finder...`);
-          const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
-          if (refreshBtn) {
-            await humanizedClick(this.page, refreshBtn);
-            await logNormalDelay(600, 0.1);
-          }
-
-          const hasCards = await this.page.evaluate(() => {
-            const cards = document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search');
-            return Array.from(cards).some(c => (c as HTMLElement).offsetParent !== null);
-          }).catch(() => false);
-
-          if (hasCards) {
-            console.log('[Patience Standby] 🌟 Fresh raids detected! Ending standby early and entering search...');
-            break;
-          }
-
-          // Check if lingering raids cleared
-          const lingering = await this.getLingeringJoinedRaidCount();
-          if (lingering === 0) {
-            const hasPending = await this.page.evaluate(() => {
-              const badge = document.querySelector('.btn-unclaimed .prt-badge, .btn-unclaimed .ico-badge, .tab-unclaimed .ico-badge, [data-href*="unclaimed"] .ico-badge');
-              return badge !== null && (badge as HTMLElement).offsetParent !== null;
-            }).catch(() => false);
-            if (hasPending) {
-              console.log('[Patience Standby] Unclaimed battle results detected during standby. Claiming...');
-              await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-            }
-          }
-        }
-
-        await new Promise(r => setTimeout(r, 2000));
-      }
-
-      return false;
-    }
-
-    // 2. Select Supporter Summon by priority
-    const suppSelected = await this.selectSupporterCard(this.template.supporterPriority || ['Hades', 'Bahamut', 'Zeus', 'Lucifer', 'Kaguya']);
-    if (!suppSelected) {
-      console.warn('[Workflow] Could not select supporter summon.');
-      return false;
-    }
-
-    // 3. Confirm Party & Start Quest (handling Soul Berry EP replenishment if needed)
-    return await this.confirmPartyAndStartRaid(autoReplenishEp, logPath, currentRuns);
-  }
-
-  /**
-   * Intelligently waits for at least one active raid slot to free up when the 3-raid limit is hit.
-   * Backwards-compatible method that delegates to performPassiveWaitCycle.
-   */
-  private async waitForActiveRaidSlot(maxWaitSec = 90): Promise<boolean> {
-    return await this.performPassiveWaitCycle(this.template.logPath || 'logs/workflow.md', 0);
-  }
-
-  /**
-   * Reads the current number of joined/in-progress raids from the Recent/Joined tab badge (#tab-multi).
-   * Returns 0-3 (or -1 if unable to read).
-   */
-  public async getLingeringJoinedRaidCount(): Promise<number> {
-    try {
-      return await this.page.evaluate(() => {
-        const multiTab = document.querySelector('#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"]');
-        if (multiTab) {
-          const badge = multiTab.querySelector('.prt-badge, .ico-badge, .cnt-badge');
-          if (badge) {
-            const num = parseInt(badge.textContent || '0', 10);
-            return isNaN(num) ? 0 : num;
-          }
-          return 0;
-        }
-        return -1;
-      });
-    } catch {
-      return -1;
-    }
-  }
-
-  /**
-   * Intelligently resolves the 3-raid backup limit when hit:
-   * 1. Checks/clears any already completed pending battles.
-   * 2. High chance (~80%): Navigates to #quest/assist -> Recent/Joined tab, selects raid with
-   *    highest HP / fewer players, rejoins, uses random buff skills + attack + reload,
-   *    helps for 5s - 20s (or until clear), and rechecks lingering count.
-   * 3. Low chance (~20%): Passive wait for 0.5 - 15 minutes, polling every 12-15s to claim
-   *    completed battles until a slot frees up.
-   * 4. Enforces pending battle check every 5 joined and cleared battles.
-   */
-  public async resolveLingeringRaidLimit(logPath = this.currentLogPath, currentRuns = this.totalCompletedRuns): Promise<boolean> {
-    console.log(`\n========================================================================`);
-    console.log(`[Workflow] 🛡️ Resolving 3-Raid Backup Limit on Account [${this.accountId}]`);
-    console.log(`========================================================================`);
-
-    // 1. Proactively dismiss any open modal
-    await this.dismissPopupModal();
-
-    // 2. Check and claim any pending battles that may have already finished
-    const initialClaimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-    if (initialClaimed > 0) {
-      this.totalJoinedAndClearedBattles += initialClaimed;
-      console.log(`[Workflow] 🎉 Initial sweep claimed ${initialClaimed} pending battle(s).`);
-      await this.checkFiveBattleMilestone(logPath, currentRuns);
-    }
-
-    // 3. Check lingering count
-    let lingeringCount = await this.getLingeringJoinedRaidCount();
-    if (lingeringCount >= 0 && lingeringCount < 3) {
-      console.log(`[Workflow] ✅ Active raids in progress dropped to ${lingeringCount}/3. Slot freed up!`);
-      this.joinedInCurrentBatch = lingeringCount;
-      return true;
-    }
-
-    // 4. Decide strategy: In otk_burst / leech mode, 100% active assist cycle to clear fast; otherwise ~80% Active Assist Helper, ~20% Passive Wait
-    const isOtk = this.template?.evaluatorStrategy === 'otk_burst' || this.template?.evaluatorStrategy === 'leech';
-    const shouldActivelyHelp = isOtk || (Math.random() < 0.80);
-
-    if (shouldActivelyHelp) {
-      console.log(`[Workflow] ⚔️ Strategy chosen: ACTIVE ASSIST (${isOtk ? '100% OTK burst clearing' : '~80% probability'}).`);
-      const assisted = await this.performActiveAssistCycle(logPath, currentRuns);
-      if (assisted) return true;
-      // If active assist didn't free a slot (e.g. raid was still bulky), fall back to passive wait
-    } else {
-      console.log(`[Workflow] ⏳ Strategy chosen: PASSIVE WAIT (~20% probability).`);
-    }
-
-    // Passive Wait (also fallback if active assist didn't free slot)
-    return await this.performPassiveWaitCycle(logPath, currentRuns);
-  }
-
-  /**
-   * Performs an active assist on a lingering raid:
-   * - Navigates to #quest/assist -> Recent/Joined tab
-   * - Scans joined raids, picks the one with most HP / fewer players
-   * - Rejoins raid, uses random buff skills + attack + reload for 5s - 20s
-   * - If clear detected, records settlement and checks 5-battle milestone
-   * - Rechecks lingering count at #quest/assist
-   */
-  private async performActiveAssistCycle(logPath: string, currentRuns: number): Promise<boolean> {
-    try {
-      // 1. Ensure we are on #quest/assist
-      const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      if (!curHash.includes('quest/assist') || curHash.includes('unclaimed')) {
-        await Promise.all([
-          this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
-          this.page.evaluate(() => {
-            window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
-          }).catch(() => null)
-        ]);
-        await logNormalDelay(1000, 0.15);
-      }
-
-      // 2. Switch to Recent / Joined tab (#tab-multi)
-      await this.switchToRecentJoinedTab();
-      await logNormalDelay(600, 0.15);
-
-      // 3. Scan joined raid cards
-      const candidates = await this.scanJoinedRaidCards();
-      if (candidates.length === 0) {
-        console.log('[Workflow] No active joined raids found on Recent tab. Checking pending claims...');
-        await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-        return true;
-      }
-
-      // 4. Sort joined raids:
-      // Prioritize raids that are closest to clearing (lower HP) to quickly free up an active slot!
-      candidates.sort((a, b) => {
-        const aLow = a.hpPct <= 40;
-        const bLow = b.hpPct <= 40;
-        if (aLow && !bLow) return -1;
-        if (!aLow && bLow) return 1;
-        if (aLow && bLow) return a.hpPct - b.hpPct;
-
-        const hpDiff = a.hpPct - b.hpPct;
-        if (Math.abs(hpDiff) > 5) return hpDiff;
-        return b.players - a.players;
-      });
-
-      const selected = candidates[0];
-      console.log(`[Workflow] ⚔️ Selected lingering raid to help: "${selected.questName || 'Unknown'}" (HP: ${selected.hpPct}%, Players: ${selected.players}/${selected.maxPlayers}, ID: ${selected.raidId})`);
-
-      // 5. Join the raid! Direct GBF router navigation with card click fallback
-      if (selected.raidId && /^\d+$/.test(selected.raidId)) {
-        console.log(`[Workflow] 🚀 Joining lingering battle via direct hash: #raid_multi/${selected.raidId}...`);
-        await this.page.evaluate((id: string) => {
-          const Game = (window as any).Game;
-          if (Game?.Router?.navigate) {
-            Game.Router.navigate('raid_multi/' + id, { trigger: true });
-          } else {
-            window.location.hash = '#raid_multi/' + id;
-          }
-        }, selected.raidId).catch(() => null);
-      } else {
-        await this.clickJoinedRaidCard(selected);
-      }
-
-      // 6. Wait for battle HUD or result
-      const mountState = await this.waitForBattleToMountOrResult(12000);
-
-      if (mountState === 'RESULT') {
-        console.log('[Workflow] 🎉 Lingering raid was already completed! Resolving result...');
-        await this.handleConfirmResult();
-        this.totalJoinedAndClearedBattles++;
-        await this.checkFiveBattleMilestone(logPath, currentRuns);
-      } else if (mountState === 'MOUNTED') {
-        console.log('[Workflow] ⚔️ Active combat mounted! Assisting participants with optimal skills and attack...');
-
-        // Step 0: Broadcast backup request if available
-        const hasAssist = await this.page.evaluate(() => {
-          const btn = document.querySelector('.btn-assist, .btn-request, .btn-backup') as HTMLElement;
-          return !!btn && btn.offsetParent !== null && !btn.classList.contains('disabled');
-        }).catch(() => false);
-        if (hasAssist) {
-          console.log('[Workflow] 📢 Broadcasting backup request to invite active helpers...');
-          await this.handleBackupRequest().catch(() => null);
-          await logNormalDelay(250, 0.1);
-        }
-
-        // Step A: Optimal Skills & Summons Execution
-        // Extract the user's template offensive skills / quick call
-        const skillSteps = (this.template.steps || []).filter(s => 
-          s.code === 'quick_call' || s.code === 'skill' || (s.code === 'summon' && s.slot)
-        );
-
-        let skillsExecuted = 0;
-        if (skillSteps.length > 0) {
-          console.log(`[Workflow] ⚡ Executing template burst skills (${Math.min(skillSteps.length, 5)} optimal actions)...`);
-          for (let sIdx = 0; sIdx < Math.min(skillSteps.length, 5); sIdx++) {
-            if (this.stopRequested || await this.isBattleEnded()) break;
-            const step = skillSteps[sIdx];
-            if (step.code === 'quick_call') {
-              console.log('[Workflow] Calling Quick Summon...');
-              await this.handleQuickCall({ ...step, optional: true });
-            } else if (step.code === 'skill') {
-              console.log(`[Workflow] Casting optimal skill: C${step.character || 1}S${step.skill || 1}...`);
-              await this.handleSkill({ ...step, optional: true });
-            } else if (step.code === 'summon') {
-              console.log(`[Workflow] Invoking summon slot ${step.slot}...`);
-              await this.handleSummon({ ...step, optional: true });
-            }
-            skillsExecuted++;
-            await logNormalDelay(200, 0.1);
-          }
-        }
-
-        // Fallback if template has no configured skills
-        if (skillsExecuted === 0 && !await this.isBattleEnded()) {
-          const qsReady = await this.page.$('.btn-quick-summon.qs-ready').catch(() => null);
-          if (qsReady) {
-            console.log('[Workflow] Calling Quick Summon...');
-            await this.handleQuickCall({ code: 'quick_call', optional: true });
-            await logNormalDelay(200, 0.1);
-          }
-          if (!await this.isBattleEnded()) {
-            console.log('[Workflow] Triggering frontline offensive abilities...');
-            await this.handleSkill({ code: 'skill', character: 1, skill: 1, optional: true });
-            await this.handleSkill({ code: 'skill', character: 2, skill: 1, optional: true });
-          }
-        }
-
-        // Step B: Trigger Attack Turn 1
-        if (!await this.isBattleEnded()) {
-          console.log('[Workflow] 💥 Dispatched high-damage attack in lingering raid...');
-          await this.handleAttack({
-            code: 'attack',
-            waitForNetwork: 'normal_attack_result.json'
-          });
-          await logNormalDelay(250, 0.1);
-        }
-
-        // Step C: Reload to advance turn & skip animation
-        if (!await this.isBattleEnded()) {
-          console.log('[Workflow] Reloading after attack to advance battle state...');
-          await this.handleReload({ code: 'reload' });
-          await this.waitForCombatInputReady(3000).catch(() => null);
-        }
-
-        // Step D: Check boss HP: If boss is low HP (<= 25%) and alive, deliver a 2nd finishing turn!
-        const bossHpPct = await this.page.evaluate(() => {
-          const stage = (window as any).stage;
-          const boss = stage?.gGameStatus?.boss?.param?.[0] || stage?.pJsnData?.boss?.param?.[0];
-          if (boss?.hp !== undefined && boss?.hpmax !== undefined) {
-            return (Number(boss.hp) / Number(boss.hpmax)) * 100;
-          }
-          const gauge = document.querySelector('.prt-enemy-percent') as HTMLElement;
-          if (gauge?.textContent) {
-            const num = parseFloat(gauge.textContent.replace('%', ''));
-            if (!isNaN(num)) return num;
-          }
-          return 100;
-        }).catch(() => 100);
-
-        if (bossHpPct <= 25 && bossHpPct > 0 && !await this.isBattleEnded()) {
-          console.log(`[Workflow] 🎯 Boss HP low (${bossHpPct.toFixed(1)}%). Executing secondary finishing attack turn...`);
-          await this.handleAttack({
-            code: 'attack',
-            waitForNetwork: 'normal_attack_result.json'
-          });
-          await this.handleReload({ code: 'reload' });
-          await this.waitForCombatInputReady(2500).catch(() => null);
-        }
-
-        // Step E: Brief monitoring window (4s) in case other players finish it off right now
-        const tStart = Date.now();
-        const monitorMs = 4000;
-        while (Date.now() - tStart < monitorMs && !this.stopRequested) {
-          if (await this.isBattleEnded()) break;
-          await new Promise(r => setTimeout(r, 600));
-        }
-
-        // Check if battle cleared
-        if (await this.isBattleEnded()) {
-          console.log('[Workflow] 🎉 Lingering raid cleared while assisting!');
-          await this.handleConfirmResult();
-          this.totalJoinedAndClearedBattles++;
-          await this.checkFiveBattleMilestone(logPath, currentRuns);
-        } else {
-          console.log('[Workflow] 🏁 Assist contributions complete (damage delivered & backup alerted). Exiting to check lingering queue...');
-        }
-      }
-
-      // 7. Return to #quest/assist and check lingering count accurately
-      console.log('[Workflow] Returning to Backup Requests (#quest/assist) to recheck lingering slots...');
-      await Promise.all([
-        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
-        this.page.evaluate(() => {
-          window.location.href = 'https://game.granbluefantasy.jp/#quest/assist';
-        }).catch(() => null)
-      ]);
-      await logNormalDelay(1000, 0.15);
-
-      await this.page.waitForSelector('#tab-multi, #tab-search, .cnt-quest-assist', { visible: true, timeout: 6000 }).catch(() => null);
-
-      // Switch to Recent / Joined tab to count physical cards accurately
-      await this.switchToRecentJoinedTab();
-      await logNormalDelay(800, 0.15);
-
-      const remainingJoined = await this.scanJoinedRaidCards();
-      const badgeCount = await this.getLingeringJoinedRaidCount();
-      
-      const lingeringRemaining = remainingJoined.length > 0 
-        ? remainingJoined.length 
-        : (badgeCount >= 0 ? badgeCount : 0);
-
-      if (lingeringRemaining < 3) {
-        console.log(`[Workflow] ✅ Lingering raids reduced to ${lingeringRemaining}/3. Slot freed up! Resuming primary GB farm...`);
-        this.joinedInCurrentBatch = lingeringRemaining;
-        return true;
-      }
-
-      console.log(`[Workflow] Lingering raids still at ${lingeringRemaining}/3.`);
-      return false;
-    } catch (err: any) {
-      console.warn('[Workflow] Notice during active assist cycle:', err.message);
-      return false;
-    }
-  }
-
-  /**
-   * Performs passive wait for lingering raids to clear:
-   * - Random duration between 0.5 min (30s) and up to 15 min (900s)
-   * - Periodically checks and claims pending battles every 12-15s
-   * - Early exits as soon as any battle is claimed or lingering badge < 3
-   */
-  private async performPassiveWaitCycle(logPath: string, currentRuns: number): Promise<boolean> {
-    // Random wait between 30s and up to 15m (typically 45s-180s, occasional longer wait)
-    const isLongWait = Math.random() < 0.12;
-    const waitSeconds = isLongWait
-      ? Math.floor(Math.random() * (900 - 180 + 1)) + 180
-      : Math.floor(Math.random() * (180 - 30 + 1)) + 30;
-
-    const t0 = Date.now();
-    const maxWaitMs = waitSeconds * 1000;
-    let pollCount = 0;
-
-    console.log(`[Workflow] ⏳ Waiting up to ${(waitSeconds / 60).toFixed(1)}m (${waitSeconds}s) for participants to clear active raids...`);
-
-    while (Date.now() - t0 < maxWaitMs && !this.stopRequested) {
-      pollCount++;
-      const pollDelay = Math.floor(Math.random() * 3000) + 12000; // 12-15s poll interval
-      await new Promise(r => setTimeout(r, pollDelay));
-      if (this.stopRequested) return false;
-
-      console.log(`[Workflow] [Wait Poll #${pollCount}] Checking if any lingering battle concluded...`);
-      const claimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-      if (claimed > 0) {
-        this.totalJoinedAndClearedBattles += claimed;
-        console.log(`[Workflow] 🎉 Raid concluded and claimed (${claimed} claimed)! Active slot freed up.`);
-        await this.checkFiveBattleMilestone(logPath, currentRuns);
-        return true;
-      }
-
-      const activeCount = await this.getLingeringJoinedRaidCount();
-      if (activeCount >= 0 && activeCount < 3) {
-        console.log(`[Workflow] ✅ Active battles in progress dropped to ${activeCount}/3. Slot freed up!`);
-        this.joinedInCurrentBatch = activeCount;
-        return true;
-      }
-    }
-
-    console.log(`[Workflow] Passive wait interval (${waitSeconds}s) finished. Rechecking state...`);
-    return true;
-  }
-
-  /**
-   * Switches to the Recent / Joined raids tab (#tab-multi) on #quest/assist.
-   */
-  private async switchToRecentJoinedTab(): Promise<void> {
-    try {
-      // 1. Locate the Recent / Joined tab element (ID: tab-multi, class, or data-tab)
-      let recentTab = await this.page.$('#tab-multi, .tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"]');
-
-      if (!recentTab) {
-        // Query all tab buttons inside the assist tab container
-        const allTabs = await this.page.$$('.btn-tabs, .tab, .tab-item, .prt-tabs > div, .cnt-tabs > div, #tab-multi');
-        for (const tab of allTabs) {
-          const isMatch = await tab.evaluate((el: any) => {
-            const text = (el.innerText || el.textContent || '').toLowerCase();
-            const id = el.id || '';
-            const dataTab = el.getAttribute('data-tab') || '';
-            return (
-              id === 'tab-multi' ||
-              dataTab === 'multi' ||
-              dataTab === 'recent' ||
-              dataTab === 'joined' ||
-              text.includes('recent') ||
-              text.includes('joined') ||
-              text.includes('参戦中') ||
-              text.includes('救援中')
-            ) && !text.includes('search') && id !== 'tab-search';
-          }).catch(() => false);
-
-          if (isMatch) {
-            recentTab = tab;
-            break;
-          }
-        }
-      }
-
-      if (recentTab) {
-        const isAlreadyActive = await recentTab.evaluate((el: any) => el.classList.contains('active') || el.classList.contains('selected')).catch(() => false);
-        if (!isAlreadyActive) {
-          console.log('[Workflow] Switching to Recent / Joined tab (#tab-multi)...');
-          await humanizedClick(this.page, recentTab);
-          await recentTab.evaluate((el: any) => {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(el).trigger('tap');
-            el.click();
-          }).catch(() => null);
-          await logNormalDelay(800, 0.15);
-        }
-      } else {
-        // Fallback: evaluate trigger directly
-        await this.page.evaluate(() => {
-          const tabs = Array.from(document.querySelectorAll(
-            '#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"], .tab-multi, .tab-recent, .tab-joined, .btn-tabs'
-          )) as HTMLElement[];
-          for (const t of tabs) {
-            const text = (t.innerText || t.textContent || '').toLowerCase();
-            const id = t.id || '';
-            const dataTab = t.getAttribute('data-tab') || '';
-            if (
-              (id === 'tab-multi' || dataTab === 'multi' || dataTab === 'recent' || dataTab === 'joined' || text.includes('joined') || text.includes('recent') || text.includes('参戦中')) &&
-              !text.includes('search') && id !== 'tab-search'
-            ) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(t).trigger('tap');
-              t.click();
-              return true;
-            }
-          }
-          return false;
-        }).catch(() => false);
-        await logNormalDelay(600, 0.15);
-      }
-
-      // 2. Wait for the Recent / Joined list container (#prt-multi-list or .cnt-quest-multi) to mount
-      await this.page.waitForFunction(() => {
-        const multiContainer = document.querySelector('#prt-multi-list, .cnt-quest-multi, .prt-multi-list') as HTMLElement;
-        if (!multiContainer) return false;
-        const isVisible = multiContainer.offsetParent !== null && window.getComputedStyle(multiContainer).display !== 'none';
-        const hasContent = multiContainer.querySelectorAll('.btn-multi-raid, .lis-raid, .txt-no-list').length > 0;
-        return isVisible || hasContent;
-      }, { timeout: 3500 }).catch(() => null);
-    } catch {
-      // Best-effort switch
-    }
-  }
-
-  /**
-   * Scans joined raid cards inside the Recent / Joined tab panel.
-   * Guarantees that cards from the Search/Finder list are NEVER matched.
-   */
-  private async scanJoinedRaidCards(): Promise<Array<{
-    index: number;
-    raidId: string;
-    questName: string;
-    hpPct: number;
-    players: number;
-    maxPlayers: number;
-    x: number;
-    y: number;
-  }>> {
-    return await this.page.evaluate(() => {
-      // Strictly target cards inside the Joined/Recent raid list container (#prt-multi-list or .cnt-quest-multi)
-      // NEVER select cards from #prt-search-list or .cnt-search!
-      const rawCards = Array.from(document.querySelectorAll(
-        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .prt-multi-list .btn-multi-raid, .prt-multi-list .lis-raid'
-      )) as HTMLElement[];
-
-      const filteredCards = rawCards.filter((el: any) => {
-        const isSearch = typeof el.closest === 'function' ? (el.closest('#prt-search-list') || el.closest('.cnt-search') || el.closest('#prt-search')) : false;
-        if (isSearch) return false;
-        if (el.offsetParent === null) return false;
-        const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
-        if (style && style.display === 'none') return false;
-        return true;
-      });
-
-      // Fallback only if rawCards was empty AND we are confirmed inside a multi/recent tab container
-      let targetCards = filteredCards;
-      if (targetCards.length === 0) {
-        const multiBox = document.querySelector('#prt-multi-list, .cnt-quest-multi, .prt-multi-list');
-        if (multiBox) {
-          targetCards = (Array.from(multiBox.querySelectorAll('.btn-multi-raid, .lis-raid')) as HTMLElement[])
-            .filter((c: any) => {
-              if (c.offsetParent === null) return false;
-              const style = window.getComputedStyle ? window.getComputedStyle(c) : null;
-              if (style && style.display === 'none') return false;
-              return true;
-            });
-        }
-      }
-
-      return targetCards.map((el, i) => {
-        const gauge = el.querySelector('.prt-raid-gauge-inner, .prt-gauge-inner, .prt-hp-gauge-inner') as HTMLElement;
-        const hpWidth = gauge?.style?.width || '100%';
-        const hpPct = parseFloat(hpWidth) || 100;
-
-        const playerEl = el.querySelector('.prt-flees-in, .prt-member, .txt-member, .prt-raid-gauge') as HTMLElement;
-        const playerText = playerEl ? (playerEl.innerText || '') : '';
-        const match = playerText.match(/(\d+)\s*\/\s*(\d+)/);
-        const players = match ? parseInt(match[1], 10) : 1;
-        const maxPlayers = match ? parseInt(match[2], 10) : 30;
-
-        const nameEl = el.querySelector('.txt-quest-name, .prt-quest-name, .txt-name, .txt-title, .prt-raid-name') as HTMLElement;
-        const questName = nameEl ? (nameEl.innerText?.trim() || '') : '';
-
-        let raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || '';
-        if (!raidId) {
-          const href = el.getAttribute('data-href') || el.getAttribute('href') || '';
-          const m = href.match(/\d{8,}/);
-          if (m) raidId = m[0];
-        }
-
-        const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
-
-        return {
-          index: i,
-          raidId,
-          questName,
-          hpPct,
-          players,
-          maxPlayers,
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2
-        };
-      });
-    }).catch(() => []);
-  }
-
-  /**
-   * Clicks a joined raid card from the Recent / Joined list to rejoin combat.
-   */
-  private async clickJoinedRaidCard(candidate: { index: number; x: number; y: number; raidId?: string }): Promise<void> {
-    if (candidate.raidId && /^\d+$/.test(candidate.raidId)) {
-      await this.page.evaluate((id: string) => {
-        const Game = (window as any).Game;
-        if (Game?.Router?.navigate) {
-          Game.Router.navigate('raid_multi/' + id, { trigger: true });
-        } else {
-          window.location.hash = '#raid_multi/' + id;
-        }
-      }, candidate.raidId).catch(() => null);
-      return;
-    }
-
-    const clicked = await this.page.evaluate((idx: number) => {
-      const cards = Array.from(document.querySelectorAll(
-        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid'
-      )).filter((c: any) => {
-        const isSearch = typeof c.closest === 'function' ? (c.closest('#prt-search-list') || c.closest('.cnt-search')) : false;
-        return !isSearch && (c as HTMLElement).offsetParent !== null;
-      }) as HTMLElement[];
-      const card = cards[idx];
-      if (card) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(card).trigger('tap');
-        card.click();
-        return true;
-      }
-      return false;
-    }, candidate.index).catch(() => false);
-
-    if (!clicked && candidate.x > 0 && candidate.y > 0) {
-      await this.page.touchscreen.tap(candidate.x, candidate.y).catch(() => null);
-    }
-  }
-
-  /**
-   * Waits for battle HUD to mount or result screen/modal to appear upon rejoining.
-   */
-  private async waitForBattleToMountOrResult(timeoutMs = 12000): Promise<'MOUNTED' | 'RESULT' | 'TIMEOUT'> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      if (this.stopRequested) return 'TIMEOUT';
-      const state = await this.page.evaluate(() => {
-        const hash = window.location.hash;
-        if (hash.includes('result') || document.querySelector('.pop-raid-result, .prt-result-head')) {
-          return 'RESULT';
-        }
-        const modal = document.querySelector('.pop-usual, #pop');
-        if (modal && (modal as HTMLElement).offsetParent !== null) {
-          const text = (modal as HTMLElement).innerText || '';
-          if (text.includes('ended') || text.includes('終了')) {
-            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-            if (ok) ok.click();
-            return 'RESULT';
-          }
-        }
-        const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
-        const stage = (window as any).stage;
-        if (isCombat && stage?.gGameStatus) {
-          return 'MOUNTED';
-        }
-        if (document.querySelector('.lis-character0, .btn-attack-start.display-on')) {
-          return 'MOUNTED';
-        }
-        return null;
-      }).catch(() => null);
-
-      if (state) return state as any;
-      await new Promise(r => setTimeout(r, 150));
-    }
-    return 'TIMEOUT';
-  }
-
-  /**
-   * Proactively dismisses any popup modal visible on page.
-   */
-  private async dismissPopupModal(): Promise<boolean> {
-    return await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-      if (modal && (modal as HTMLElement).offsetParent !== null) {
-        const ok = modal.querySelector('.btn-usual-ok, #pop .btn-usual-ok, .btn-usual-close') as HTMLElement;
-        if (ok) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(ok).trigger('tap');
-          ok.click();
-          return true;
-        }
-      }
-      return false;
-    }).catch(() => false);
-  }
-
-  /**
-   * Guarantees that every 5 battles joined & cleared (primary or assist),
-   * pending battles are checked and swept.
-   */
-  private async checkFiveBattleMilestone(logPath: string, currentRuns: number): Promise<void> {
-    if (this.totalJoinedAndClearedBattles > 0 && this.totalJoinedAndClearedBattles % 5 === 0) {
-      console.log(`\n========================================================================`);
-      console.log(`[Workflow] 🛡️ 5-Battle Milestone Reached (${this.totalJoinedAndClearedBattles} battles joined & cleared)`);
+      console.log(`[Workflow] 🛡️ 5-Battle Milestone Reached (${this.ctx.state.totalJoinedAndClearedBattles} battles joined & cleared)`);
       console.log(`[Workflow] Checking and sweeping pending battles to avoid GBF 5-battle hard lock...`);
       console.log(`========================================================================\n`);
       await this.claimPendingBattles(logPath, currentRuns);
+      return;
     }
+    return await this.milestoneSweeper.checkFiveBattleMilestone(logPath, currentRuns);
   }
 
-  /**
-   * Waits for supporter screen to mount or detects early modal dismissal (room full, ended, limit).
-   */
-  private async waitForSupporterOrModal(timeoutMs = 10000): Promise<'SUPPORTER_READY' | 'FULL_OR_ENDED' | 'PENDING_LIMIT' | 'ACTIVE_RAID_LIMIT_3' | 'DIRECT_COMBAT' | 'TIMEOUT'> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      if (this.stopRequested) return 'TIMEOUT';
-
-      const state = await this.page.evaluate(() => {
-        const hash = window.location.hash;
-
-        // 1. Direct combat hash
-        if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash)) {
-          return 'DIRECT_COMBAT';
-        }
-
-        // 2. Check for popups/modals
-        const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-        if (modal && (modal as HTMLElement).offsetParent !== null) {
-          const text = (modal as HTMLElement).innerText || '';
-          if (text.includes('already full') || text.includes('already ended') || text.includes('参加人数') || text.includes('終了')) {
-            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-            if (ok) ok.click();
-            return 'FULL_OR_ENDED';
-          }
-          const rawText = (modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '';
-          const lowerText = text.toLowerCase();
-          const isThreeRaidLimit = (
-            lowerText.includes('three raid') ||
-            lowerText.includes('up to three') ||
-            lowerText.includes('provide backup in up to') ||
-            lowerText.includes('only provide backup') ||
-            lowerText.includes('3 battles') ||
-            lowerText.includes('3 raid') ||
-            lowerText.includes('participating in 3') ||
-            lowerText.includes('more than 3') ||
-            lowerText.includes('up to 3') ||
-            rawText.includes('3件まで') ||
-            rawText.includes('同時に参戦できる') ||
-            rawText.includes('参戦中') ||
-            rawText.includes('3件')
-          );
-          if (isThreeRaidLimit) {
-            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-            if (ok) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(ok).trigger('tap');
-              ok.click();
-            }
-            return 'ACTIVE_RAID_LIMIT_3';
-          }
-          if (
-            lowerText.includes('pending') ||
-            lowerText.includes('unclaimed') ||
-            rawText.includes('未確認') ||
-            lowerText.includes('five or more') ||
-            rawText.includes('5件')
-          ) {
-            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-            if (ok) ok.click();
-            return 'PENDING_LIMIT';
-          }
-        }
-
-        // 3. Supporter raid screen with cards mounted
-        if (hash.includes('supporter_raid') || hash.includes('supporter')) {
-          const suppCards = document.querySelectorAll('.btn-supporter, .lis-supporter, .prt-supporter-attribute .lis-supporter, .prt-supporter-detail');
-          const hasVisibleCards = Array.from(suppCards).some(c => (c as HTMLElement).offsetParent !== null);
-          if (hasVisibleCards) {
-            return 'SUPPORTER_READY';
-          }
-        }
-
-        return null;
-      }).catch(() => null);
-
-      if (state) return state as any;
-      await new Promise(r => setTimeout(r, 150));
-    }
-    return 'TIMEOUT';
+  public async claimPendingBattles(logPath: string, currentRuns: number, returnUrl?: string): Promise<number> {
+    return await this.milestoneSweeper.claimPendingBattles(logPath, currentRuns, returnUrl);
   }
 
-  /**
-   * Scans and selects supporter summon card on #quest/supporter_raid by priority.
-   */
-  private async selectSupporterCard(priorities: string[]): Promise<boolean> {
-    const cardSelected = await this.page.evaluate((priors: string[]) => {
-      const cards = Array.from(document.querySelectorAll(
-        '.btn-supporter, .lis-supporter, .prt-supporter-attribute .lis-supporter, .prt-supporter-detail'
-      )) as HTMLElement[];
-
-      const visibleCards = cards.filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 0);
-      if (visibleCards.length === 0) return false;
-
-      // 1. Match priorities
-      for (const p of priors) {
-        const match = visibleCards.find(c => (c.innerText || c.textContent || '').toLowerCase().includes(p.toLowerCase()));
-        if (match) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(match).trigger('tap');
-          match.click();
-          return true;
-        }
-      }
-
-      // 2. Fallback to first available supporter
-      const first = visibleCards[0];
-      const $ = (window as any).$ || (window as any).Zepto;
-      if ($) $(first).trigger('tap');
-      first.click();
-      return true;
-    }, priorities).catch(() => false);
-
-    if (cardSelected) {
-      await logNormalDelay(400, 0.12);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Confirms party and clicks Quest Start OK button, handling Soul Berry EP replenishment if needed.
-   */
-  private async confirmPartyAndStartRaid(
-    autoReplenishEp: boolean,
-    logPath = this.currentLogPath,
-    currentRuns = this.totalCompletedRuns
-  ): Promise<boolean> {
-    const start = Date.now();
-    while (Date.now() - start < 10000) {
-      if (this.stopRequested) return false;
-
-      // Check if pending battle popup modal appeared during party confirmation
-      if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
-        this.lastStartFailureWasMaintenance = true;
-        return false;
-      }
-
-      // 1. Check if direct combat already mounted
-      const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      if (/^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash)) {
-        return await this.waitForBattleToMount(12000);
-      }
-
-      // 2. Handle EP replenishment (Soul Berry) if modal appears
-      const berryModal = await this.page.evaluate((replenish: boolean) => {
-        const berryBtn = document.querySelector('.btn-use-item.btn-usual-use, .btn-usual-ok.se-use') as HTMLElement;
-        if (berryBtn && berryBtn.offsetParent !== null) {
-          if (!replenish) return 'EP_DENIED';
-          berryBtn.click();
-          return 'BERRY_CLICKED';
-        }
-        return null;
-      }, autoReplenishEp).catch(() => null);
-
-      if (berryModal === 'EP_DENIED') {
-        console.warn('[Workflow] EP depleted and autoReplenishEp is disabled.');
-        return false;
-      }
-      if (berryModal === 'BERRY_CLICKED') {
-        await logNormalDelay(350, 0.1);
-        // Confirm Soul Berry usage in confirmation popup
-        const confirmBerry = await this.page.waitForSelector('.pop-usual .btn-usual-ok', { visible: true, timeout: 3000 }).catch(() => null);
-        if (confirmBerry) {
-          await humanizedClick(this.page, confirmBerry);
-          await logNormalDelay(400, 0.1);
-        }
-        continue;
-      }
-
-      // 3. Click Quest Start OK button (.btn-usual-ok.se-quest-start)
-      const startBtn = await this.page.waitForSelector(
-        '.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle',
-        { visible: true, timeout: 1500 }
-      ).catch(() => null);
-
-      if (startBtn) {
-        await humanizedClick(this.page, startBtn);
-        await startBtn.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(el).trigger('tap');
-          el.click();
-        }).catch(() => null);
-
-        const mounted = await this.waitForBattleToMount(12000);
-        if (mounted) return true;
-        if (await this.detectAndHandlePendingBattleModal(logPath, currentRuns)) {
-          this.lastStartFailureWasMaintenance = true;
-          return false;
-        }
-        return false;
-      }
-
-      // Check full/ended raid modal
-      if (await this.dismissFullOrEndedRaidPopup()) {
-        console.warn('[Workflow] Raid was full or ended during party confirmation.');
-        this.lastStartFailureWasMaintenance = true;
-        return false;
-      }
-
-      await new Promise(r => setTimeout(r, 200));
-    }
-
-    return false;
-  }
-
-  private async dismissFullOrEndedRaidPopup(): Promise<boolean> {
-    try {
-      return await this.page.evaluate(() => {
-        const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-        if (!modal) return false;
-        const text = (modal as HTMLElement).innerText || '';
-        if (text.includes('already ended') || text.includes('already full') || text.includes('参加人数') || text.includes('終了')) {
-          const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-          if (ok) ok.click();
-          return true;
-        }
-        return false;
-      });
-    } catch {
-      return false;
-    }
-  }
-
-  private async checkAndClearPendingBattles(logPath = this.currentLogPath, currentRuns = this.totalCompletedRuns): Promise<void> {
-    const isLimit = await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-      if (!modal || (modal as HTMLElement).offsetParent === null) return false;
-      const text = ((modal as HTMLElement).innerText || '').toLowerCase();
-      const rawText = (modal as HTMLElement).innerText || '';
-      return (
-        text.includes('three raid') ||
-        text.includes('up to three') ||
-        text.includes('provide backup in up to') ||
-        text.includes('only provide backup') ||
-        text.includes('pending') ||
-        text.includes('unclaimed') ||
-        rawText.includes('未確認') ||
-        text.includes('five or more') ||
-        text.includes('3 battles') ||
-        text.includes('3 raid') ||
-        text.includes('participating in 3') ||
-        text.includes('more than 3') ||
-        text.includes('up to 3') ||
-        rawText.includes('3件まで') ||
-        rawText.includes('同時に参戦できる') ||
-        rawText.includes('参戦中') ||
-        rawText.includes('3件') ||
-        rawText.includes('5件')
-      );
-    }).catch(() => false);
-
-    if (isLimit) {
-      console.log('[Workflow] Raid limit / pending battles modal detected. Clearing all unclaimed battles...');
-      await this.page.evaluate(() => {
-        const ok = document.querySelector('.pop-usual .btn-usual-ok, #pop .btn-usual-ok, .btn-usual-close') as HTMLElement;
-        if (ok) ok.click();
-      }).catch(() => null);
-      await logNormalDelay(400, 0.1);
-      const returnUrl = this.template.questUrl.includes('assist') ? 'https://game.granbluefantasy.jp/#quest/assist' : this.template.questUrl;
-      await this.claimPendingBattles(logPath, currentRuns, returnUrl);
-    }
-  }
-
-  private async resolveLingeringState(): Promise<void> {
-    try {
-      if (await this.sentinel.inspectForVerification()) {
-        console.warn('[Workflow] 🛑 CAPTCHA detected. resolveLingeringState aborted to preserve puzzle for operator.');
-        return;
-      }
-
-      const hasRestartPop = await this.page.evaluate(() => {
-        const pop = document.querySelector('.popRestartQuest, .pop-usual');
-        if (pop && pop.textContent?.includes('in progress')) {
-          const ok = pop.querySelector('.btn-usual-ok') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(ok).trigger('tap');
-            ok.click();
-            return true;
-          }
-        }
-        return false;
-      }).catch(() => false);
-
-      if (hasRestartPop) {
-        await this.waitForBattleToMount(10000);
-      } else {
-        await this.dismissOpenModals();
-      }
-
-      let attempts = 0;
-      while (attempts < 6) {
-        if (await this.isBattleEnded()) break;
-        const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-        const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
-        if (!isCombat) break;
-
-        // If in multi-raid assist mode, do NOT attack 6 times in a completed burst raid!
-        const isAssistRaid = this.template.questUrl.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
-        if (isAssistRaid) {
-          console.log(`[Workflow] In multi-raid assist mode. Exiting lingering raid (${hash}) to #quest/assist...`);
-          await this.syncCurrentHonors();
-          await this.page.evaluate(() => { window.location.hash = '#quest/assist'; }).catch(() => null);
-          await logNormalDelay(800, 0.15);
-          break;
-        }
-
-        console.log(`[Workflow] Lingering raid detected (${hash}). Resolving battle turn...`);
-        await new Promise(r => setTimeout(r, 200));
-        await this.dismissOpenModals();
-
-        const atkBtn = await this.page.waitForSelector('.btn-attack-start.display-on, .btn-attack-start', { visible: true, timeout: 5000 }).catch(() => null);
-        if (atkBtn) {
-          await humanizedClick(this.page, atkBtn);
-          await this.waitForNetworkResponse('normal_attack_result.json', 3500);
-          await logNormalDelay(400, 0.1);
-        } else {
-          await this.page.touchscreen.tap(260, 380).catch(() => null);
-          await new Promise(r => setTimeout(r, 1000));
-        }
-
-        if (await this.isBattleEnded()) break;
-
-        await Promise.all([
-          this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
-          this.page.evaluate(() => location.reload()).catch(() => null)
-        ]);
-
-        await this.waitForBattleToMount(6000);
-        await this.dismissOpenModals();
-        attempts++;
-      }
-
-      const endHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      const isStillCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(endHash);
-      if (endHash.includes('result') || isStillCombat) {
-        await this.page.evaluate(() => {
-          const ok = document.querySelector('.btn-usual-ok, .btn-settle') as HTMLElement;
-          if (ok && ok.offsetParent !== null) ok.click();
-          window.location.href = 'https://game.granbluefantasy.jp/#quest/index';
-        }).catch(() => null);
-        await new Promise(r => setTimeout(r, 1500));
-      }
-    } catch {}
-  }
-
-  private async dismissOpenModals(): Promise<boolean> {
-    try {
-      return await this.page.evaluate(() => {
-        let dismissed = false;
-        const btns = Array.from(document.querySelectorAll('.btn-usual-close, .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close')) as HTMLElement[];
-        for (const b of btns) {
-          if (b.offsetParent !== null && window.getComputedStyle(b).display !== 'none') {
-            b.click();
-            dismissed = true;
-          }
-        }
-        return dismissed;
-      });
-    } catch {
-      return false;
-    }
-  }
-
-  private async checkAndDismissProcessingTurnPopup(): Promise<boolean> {
-    try {
-      return await this.page.evaluate(() => {
-        const pop = document.querySelector('.pop-usual, .prt-popup-header');
-        if (pop) {
-          const ok = pop.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            ok.click();
-            return true;
-          }
-        }
-        return false;
-      });
-    } catch {
-      return false;
-    }
-  }
-
-  private async isBattleEnded(): Promise<boolean> {
-    try {
-      const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      if (
-        hash.includes('result') ||
-        hash.includes('supporter') ||
-        hash.includes('mypage') ||
-        hash.includes('quest/index') ||
-        hash.includes('quest/assist') ||
-        hash.includes('quest/extra')
-      ) {
-        return true;
-      }
-
-      return await this.page.evaluate(() => {
-        if (document.querySelector('.pop-raid-result')) {
-          return true;
-        }
-
-        const stage = (window as any).stage;
-        const gStatus = stage?.gGameStatus;
-        const pJsn = stage?.pJsnData;
-
-        if (gStatus?.finish || gStatus?.win || gStatus?.lose || pJsn?.finish || pJsn?.is_clear) {
-          return true;
-        }
-
-        const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
-        if (boss?.hp !== undefined && Number(boss.hp) <= 0) {
-          return true;
-        }
-
-        return false;
-      }).catch(() => false);
-    } catch {
-      return false;
-    }
-  }
-
-  private async waitForNetworkResponse(targetSubstring: string, timeoutMs: number): Promise<boolean> {
-    return new Promise<boolean>(resolve => {
-      let resolved = false;
-      const timer = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          this.page.off('response', responseHandler);
-          resolve(false);
-        }
-      }, timeoutMs);
-
-      const responseHandler = (res: HTTPResponse) => {
-        if (res.url().includes(targetSubstring)) {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timer);
-            this.page.off('response', responseHandler);
-            resolve(true);
-          }
-        }
-      };
-
-      this.page.on('response', responseHandler);
+  public async detectAndHandlePendingBattleModal(logPath: string, currentRuns: number): Promise<boolean> {
+    return await this.milestoneSweeper.detectAndHandlePendingBattleModal(logPath, currentRuns, {
+      onRaidLimit: () => this.resolveLingeringRaidLimit(logPath, currentRuns),
+      onPendingLimit: (returnUrl) => this.claimPendingBattles(logPath, currentRuns, returnUrl)
     });
   }
 
-  /**
-   * Waits for a combat turn action to resolve.
-   * If Full Auto is active and casting skills, waits through the skill chain
-   * until normal_attack_result.json arrives (or until skill queue settles).
-   */
-  private async waitForCombatTurnResolution(targetNet: string | null, totalTimeoutMs = 15000): Promise<boolean> {
-    const prevTurn = this.currentTurn;
-    return new Promise<boolean>(resolve => {
-      let resolved = false;
-      let lastActionTime = Date.now();
-      let hasSeenSkill = false;
-
-      const finish = (result: boolean) => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(hardTimeout);
-          clearInterval(pollInterval);
-          this.page.off('response', responseHandler);
-          resolve(result);
-        }
-      };
-
-      const hardTimeout = setTimeout(() => {
-        finish(hasSeenSkill);
-      }, totalTimeoutMs);
-
-      const responseHandler = (res: HTTPResponse) => {
-        const url = res.url();
-
-        // 1. Explicit target network requested (e.g. summon_result.json)
-        if (targetNet && url.includes(targetNet)) {
-          finish(true);
-          return;
-        }
-
-        // 2. Normal attack: the ultimate conclusion of any Full Auto or normal attack turn
-        if (url.includes('normal_attack_result.json')) {
-          console.log('[Combat] Normal attack registered by server.');
-          finish(true);
-          return;
-        }
-
-        // 3. Summon result
-        if (url.includes('summon_result.json')) {
-          console.log('[Combat] Summon action registered by server.');
-          finish(true);
-          return;
-        }
-
-        // 4. Ability result: Full Auto is actively casting skills!
-        if (url.includes('ability_result.json')) {
-          hasSeenSkill = true;
-          lastActionTime = Date.now();
-          console.log('[Combat] Full Auto skill cast registered. Awaiting next skill or normal attack...');
-        }
-      };
-
-      this.page.on('response', responseHandler);
-
-      // Fast settle poll (every 80ms)
-      const pollInterval = setInterval(async () => {
-        if (resolved) return;
-
-        // If at least one skill was cast, and no new action occurred for 2500ms, consider skill chain settled
-        if (hasSeenSkill && (Date.now() - lastActionTime > 2500)) {
-          console.log('[Combat] Full Auto skill sequence completed and settled.');
-          finish(true);
-          return;
-        }
-
-        try {
-          const state = await this.page.evaluate((prev) => {
-            const stage = (window as any).stage;
-            const gStatus = stage?.gGameStatus;
-            const pJsn = stage?.pJsnData;
-            const currTurn = Number(pJsn?.turn || gStatus?.turn || 0);
-            const turnAdvanced = currTurn > prev;
-            const isEnded = gStatus?.finish === true || gStatus?.win === true || gStatus?.lose === true || pJsn?.finish === true || pJsn?.is_clear === true;
-            return {
-              turnAdvanced,
-              isEnded
-            };
-          }, prevTurn).catch(() => null);
-
-          if (state?.turnAdvanced) {
-            finish(true);
-          } else if (state?.isEnded) {
-            finish(false);
-          }
-        } catch {
-          // ignore
-        }
-      }, 80);
-    });
+  public async resolveLingeringRaidLimit(logPath = this.ctx.state.currentLogPath, currentRuns = this.ctx.state.totalCompletedRuns): Promise<boolean> {
+    return await this.milestoneSweeper.resolveLingeringRaidLimit(logPath, currentRuns);
   }
 
-  /**
-   * Backward-compatible combat action waiter.
-   */
-  private async waitForCombatActionResponse(targetNet: string | null, timeoutMs: number): Promise<boolean> {
-    return this.waitForCombatTurnResolution(targetNet, timeoutMs);
+  public async getLingeringJoinedRaidCount(): Promise<number> {
+    return await this.milestoneSweeper.getLingeringJoinedRaidCount();
   }
 
-  /**
-   * Enforces minimum honor threshold before leaving battle.
-   * If honors are still below targetScore (default 1,500,000 pt), continues attacking until met or raid ends.
-   */
-  private async ensureMinimumHonors(minHonors = 1500000, maxExtraTurns = 25): Promise<void> {
-    if (this.template.honorGuard === false) return;
-    await this.syncCurrentHonors();
-    if (this.currentScore >= minHonors) {
-      console.log(`[Honors Guard] Minimum honor met (${this.currentScore.toLocaleString()} >= ${minHonors.toLocaleString()} pt).`);
-      return;
-    }
+  public async performActiveAssistCycle(logPath: string, currentRuns: number): Promise<boolean> {
+    return await this.milestoneSweeper.performActiveAssistCycle(logPath, currentRuns);
+  }
 
-    if (await this.isBattleEnded()) {
-      console.log(`[Honors Guard] Battle concluded with ${this.currentScore.toLocaleString()} pt.`);
-      return;
-    }
+  public async performPassiveWaitCycle(logPath: string, currentRuns: number): Promise<boolean> {
+    return await this.milestoneSweeper.performPassiveWaitCycle(logPath, currentRuns);
+  }
 
-    console.log(`[Honors Guard] Current honors (${this.currentScore.toLocaleString()} pt) below minimum threshold (${minHonors.toLocaleString()} pt). Continuing attack loop...`);
+  public async checkAndClearPendingBattles(logPath = this.ctx.state.currentLogPath, currentRuns = this.ctx.state.totalCompletedRuns): Promise<void> {
+    return await this.milestoneSweeper.checkAndClearPendingBattles(logPath, currentRuns);
+  }
 
-    const usesTapReady = this.template.steps.some(s => s.code === 'tap_ready' || s.action === 'tap_ready');
-    let consecutiveUnchangedTurns = 0;
-    let lastObservedHonors = this.currentScore;
+  public async deepAnalyzeScreenState() {
+    return await this.screenDiagnostic.deepAnalyzeScreenState();
+  }
 
-    for (let extra = 1; extra <= maxExtraTurns; extra++) {
-      if (this.stopRequested) break;
-      if (await this.isBattleEnded()) {
-        console.log('[Honors Guard] Battle concluded during extra turns.');
-        break;
-      }
+  public async diagnoseQuestStartFailure(runNumber: number) {
+    return await this.screenDiagnostic.diagnoseQuestStartFailure(runNumber);
+  }
 
-      await this.syncCurrentHonors();
-      if (this.currentScore >= minHonors) {
-        console.log(`[Honors Guard] Target honors reached on extra turn ${extra} (${this.currentScore.toLocaleString()} >= ${minHonors.toLocaleString()} pt).`);
-        break;
-      }
+  public async diagnoseAndRecoverQuestStart(runNumber: number, autoReplenishAp = true, autoReplenishEp = true, logPath = this.ctx.state.currentLogPath, currentRuns = this.ctx.state.totalCompletedRuns) {
+    return await this.screenDiagnostic.diagnoseAndRecoverQuestStart(runNumber, autoReplenishAp, autoReplenishEp, logPath, currentRuns);
+  }
 
-      if (extra > 1 && this.currentScore === lastObservedHonors) {
-        consecutiveUnchangedTurns++;
-        if (consecutiveUnchangedTurns >= 3) {
-          console.log('[Honors Guard] Honors unchanged for 3 consecutive turns. Battle concluded or stalled; exiting guard loop.');
-          break;
-        }
-      } else {
-        consecutiveUnchangedTurns = 0;
-      }
-      lastObservedHonors = this.currentScore;
+  public async dismissPopupModal(): Promise<boolean> {
+    return await this.screenDiagnostic.dismissPopupModal();
+  }
 
-      const pct = ((this.currentScore / minHonors) * 100).toFixed(1);
-      console.log(`[Honors Guard] Extra attack turn ${extra}/${maxExtraTurns} (Honors: ${this.currentScore.toLocaleString()} / ${minHonors.toLocaleString()} pt - ${pct}%)...`);
+  public async dismissFullOrEndedRaidPopup(): Promise<boolean> {
+    return await this.screenDiagnostic.dismissFullOrEndedRaidPopup();
+  }
 
-      if (usesTapReady) {
-        const ok = await this.handleTapReady({ code: 'tap_ready' });
-        if (ok) {
-          await this.handleReload({ code: 'reload' });
-        } else {
-          await this.handleAttack({ code: 'attack', waitForNetwork: 'normal_attack_result.json' });
-          await this.handleReload({ code: 'reload' });
-        }
-      } else {
-        await this.handleAttack({ code: 'attack', waitForNetwork: 'normal_attack_result.json' });
-        await this.handleReload({ code: 'reload' });
-      }
+  public async selectSupporterAndStartQuest(autoReplenishAp: boolean, autoReplenishEp: boolean, logPath = this.ctx.state.currentLogPath, currentRuns = this.ctx.state.totalCompletedRuns): Promise<boolean> {
+    return await this.questNavigation.selectSupporterAndStartQuest(autoReplenishAp, autoReplenishEp, logPath, currentRuns);
+  }
 
-      await this.syncCurrentHonors();
-    }
+  public async joinAssistRaidAndStartQuest(slots: number | number[], autoReplenishEp: boolean, logPath = this.ctx.state.currentLogPath, currentRuns = this.ctx.state.totalCompletedRuns): Promise<boolean> {
+    return await this.questNavigation.joinAssistRaidAndStartQuest(slots, autoReplenishEp, logPath, currentRuns);
+  }
+
+  public async waitForSupporterOrModal(timeoutMs = 10000) {
+    return await this.questNavigation.waitForSupporterOrModal(timeoutMs);
+  }
+
+  public async selectSupporterCard(priorities: string[]): Promise<boolean> {
+    return await this.questNavigation.selectSupporterCard(priorities);
+  }
+
+  public async confirmPartyAndStartRaid(autoReplenishEp: boolean, logPath = this.ctx.state.currentLogPath, currentRuns = this.ctx.state.totalCompletedRuns): Promise<boolean> {
+    return await this.questNavigation.confirmPartyAndStartRaid(autoReplenishEp, logPath, currentRuns);
+  }
+
+  public async waitForActiveRaidSlot(maxWaitSec = 90): Promise<boolean> {
+    return await this.questNavigation.waitForActiveRaidSlot(maxWaitSec);
+  }
+
+  public async handleProSkipFavorites(step?: WorkflowStep): Promise<boolean> {
+    return await this.routineExecution.handleProSkipFavorites(step);
+  }
+
+  public async handleDismissPopups(step?: WorkflowStep): Promise<boolean> {
+    return await this.routineExecution.handleDismissPopups(step);
+  }
+
+  public getDailyCatalogTask(tagOrId: string): any | null {
+    return this.routineExecution.getDailyCatalogTask(tagOrId);
+  }
+
+  public async navigateIfNeeded(targetUrl: string): Promise<void> {
+    return await this.routineExecution.navigateIfNeeded(targetUrl);
+  }
+
+  public async evaluateTargetFinished(selector: string): Promise<boolean> {
+    return await this.routineExecution.evaluateTargetFinished(selector);
+  }
+
+  public async handleApRecoveryModal(): Promise<boolean> {
+    return await this.routineExecution.handleApRecoveryModal();
+  }
+
+  public async handleAapRecoveryModal(autoReplenishAap = true): Promise<boolean> {
+    return await this.routineExecution.handleAapRecoveryModal(autoReplenishAap);
+  }
+
+  public async ensureProListModalOpen(): Promise<boolean> {
+    return await this.routineExecution.ensureProListModalOpen();
+  }
+
+  public async closeProListModalIfOpen(): Promise<void> {
+    return await this.routineExecution.closeProListModalIfOpen();
+  }
+
+  public async executeAutomatedProSkip(task: any, selector?: string): Promise<boolean> {
+    return await this.routineExecution.executeAutomatedProSkip(task, selector);
+  }
+
+  public async executeAutomatedRupieGacha(task: any, selector?: string): Promise<boolean> {
+    return await this.routineExecution.executeAutomatedRupieGacha(task, selector);
+  }
+
+  public async executeAutomatedSkyscopeMission(task: any, selector?: string): Promise<boolean> {
+    return await this.routineExecution.executeAutomatedSkyscopeMission(task, selector);
+  }
+
+  public async executeAutomatedCasinoExchange(task: any, selector?: string): Promise<boolean> {
+    return await this.routineExecution.executeAutomatedCasinoExchange(task, selector);
+  }
+
+  public async executeGenericClickUntilFinish(selector?: string): Promise<boolean> {
+    return await this.routineExecution.executeGenericClickUntilFinish(selector);
+  }
+
+  public async handleDoUntilFinish(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    return await this.routineExecution.handleDoUntilFinish(step, runNumber);
+  }
+
+  public async handleSkipStoryScene(step: WorkflowStep): Promise<boolean> {
+    return await this.routineExecution.handleSkipStoryScene(step);
+  }
+
+  public async handleFateEpisode(step?: WorkflowStep): Promise<boolean> {
+    return await this.routineExecution.handleFateEpisode(step);
+  }
+
+  public async handleRepeat(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    return await this.combatExecution.handleRepeat(step, runNumber);
+  }
+
+  public async handleExitIfScore(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleExitIfScore(step);
+  }
+
+  public async handleWaitTurn(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleWaitTurn(step);
+  }
+
+  public async handleTargetEnemy(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleTargetEnemy(step);
+  }
+
+  public async handleHeal(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleHeal(step);
+  }
+
+  public async handleBackupRequest(): Promise<boolean> {
+    return await this.combatExecution.handleBackupRequest();
+  }
+
+  public async handleSkill(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleSkill(step);
+  }
+
+  public async handleSummon(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleSummon(step);
+  }
+
+  public async handleAuto(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleAuto(step);
+  }
+
+  public async handleGuard(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleGuard(step);
+  }
+
+  public async handleSmartFullAuto(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    return await this.combatExecution.handleSmartFullAuto(step, runNumber);
+  }
+
+  public async executeTacticalReadySkills(targetCharacters?: number[], healHpThreshold = 0.75, minHealHpThreshold = 0.60, turn = 1): Promise<void> {
+    return await this.combatExecution.executeTacticalReadySkills(targetCharacters, healHpThreshold, minHealHpThreshold, turn);
+  }
+
+  public async executeOptimalReadySkills(targetCharacters?: number[]): Promise<void> {
+    return await this.combatExecution.executeOptimalReadySkills(targetCharacters);
+  }
+
+  public async isPlainDamageOmenActive(): Promise<boolean> {
+    return await this.combatExecution.isPlainDamageOmenActive();
+  }
+
+  public async executeBeelzebubSummonIfAvailable(): Promise<boolean> {
+    return await this.combatExecution.executeBeelzebubSummonIfAvailable();
+  }
+
+  public async handleTapReady(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleTapReady(step);
+  }
+
+  public async handleQuickCall(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleQuickCall(step);
+  }
+
+  public async handleAttack(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleAttack(step);
+  }
+
+  public async handleReload(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleReload(step);
+  }
+
+  public async handleClick(step: WorkflowStep): Promise<boolean> {
+    return await this.combatExecution.handleClick(step);
+  }
+
+  public async ensureMinimumHonors(minHonors = 1500000, maxExtraTurns = 25): Promise<void> {
+    return await this.combatExecution.ensureMinimumHonors(minHonors, maxExtraTurns);
   }
 
   private ensureLogDirExists(logPath: string): void {
@@ -7547,7 +1725,6 @@ export class UniversalWorkflowEngine {
     const line = `| ${result.runNumber} | ${timestamp} | ${(result.durationMs / 1000).toFixed(1)}s | ${result.status} | ${result.honors?.toLocaleString() || '0'} | ${result.message} |\n`;
     fs.appendFileSync(fullPath, line, 'utf-8');
 
-    // Dual structured logging (Gold Industry Standard JSONL event stream)
     try {
       const jsonlPath = fullPath.replace(/\.md$/i, '.jsonl');
       const event = {

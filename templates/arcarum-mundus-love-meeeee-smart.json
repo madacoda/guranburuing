@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Love Meeee (Smart Full Auto)",
+  "description": "Zone Mundus Dark 5-gauge farming loop: Smart Full Auto battle routine for Love Meeee (Western Great Wastes, Division 8). Fills Dark Sephira Box points and Earth Defender gauge",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/8/819061/25",
+  "questId": "819061",
+  "divisionId": 8,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

@@ -11,20 +11,23 @@
   "speedProfile": "fast",
   "steps": [
     {
+      "code": "skill",
+      "character": 4,
+      "skill": 1,
+      "optional": true
+    },
+    {
       "code": "quick_call",
       "waitForNetwork": "summon_result.json",
       "optional": true
     },
     {
-      "code": "skill",
-      "character": 1,
-      "skill": 1,
-      "optional": true
+      "code": "reload"
     },
     {
       "code": "skill",
-      "character": 1,
-      "skill": 2,
+      "character": 3,
+      "skill": 1,
       "optional": true
     },
     {
@@ -35,14 +38,20 @@
     },
     {
       "code": "skill",
-      "character": 3,
+      "character": 2,
+      "skill": 2,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
       "skill": 1,
       "optional": true
     },
     {
       "code": "skill",
-      "character": 4,
-      "skill": 1,
+      "character": 1,
+      "skill": 3,
       "optional": true
     },
     {
@@ -54,19 +63,21 @@
       "code": "reload"
     },
     {
-      "code": "repeat",
-      "repeatCount": 15,
-      "subSteps": [
-        {
-          "code": "attack",
-          "optional": true,
-          "waitForNetwork": "normal_attack_result.json",
-          "delayAfterMs": 350
-        },
-        {
-          "code": "reload"
-        }
-      ]
+      "code": "summon",
+      "slot": 4,
+      "waitForNetwork": "summon_result.json",
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 3,
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
     },
     {
       "code": "confirm_result"

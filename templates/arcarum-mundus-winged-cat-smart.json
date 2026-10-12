@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Winged Demon Cat (Smart Full Auto)",
+  "description": "Zone Mundus Wind 3-gauge fast burst farming loop: Smart Full Auto routine for Winged Demon Cat (Desolate Ravine: The Toes, Division 13). Low HP, rapid clears for quick Sephira treasure farming",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/10/10/13/819101/25",
+  "questId": "819101",
+  "divisionId": 13,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}
