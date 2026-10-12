@@ -76,7 +76,7 @@ export class CdpConnectionManager {
 
         this.browser = await Promise.race([
           connectPromise,
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('puppeteer.connect timed out after 8000ms')), 8000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('puppeteer.connect timed out after 25000ms')), 25000))
         ]);
 
         this.browser.on('disconnected', () => {
@@ -154,14 +154,22 @@ export class CdpConnectionManager {
       } catch (err: any) {
         console.warn(`[CDP] Connection failed: ${err.message}.`);
 
-        // Auto-launch Chrome on first failed attempt if enabled
-        if (attempt === 1 && config.AUTO_LAUNCH_CHROME) {
-          console.log(`[CDP] Auto-launching Chrome (Headless: ${isHeadless})...`);
-          try {
-            this.launchChromeProcess(isHeadless, port, profileDir, proxy);
-            continue;
-          } catch (spawnErr: any) {
-            console.warn('[CDP] Auto-launch attempt warning:', spawnErr.message);
+        // Auto-launch or force-restart Chrome on failed attempts if enabled
+        if (config.AUTO_LAUNCH_CHROME) {
+          if (attempt === 1) {
+            console.log(`[CDP] Attempt 1 failed. Re-verifying Chrome process (Headless: ${isHeadless})...`);
+            try {
+              this.launchChromeProcess(isHeadless, port, profileDir, proxy, false);
+            } catch (spawnErr: any) {
+              console.warn('[CDP] Auto-launch attempt warning:', spawnErr.message);
+            }
+          } else if (attempt === 2) {
+            console.log(`[CDP] Multiple connection failures. Force-restarting Chrome on port ${port}...`);
+            try {
+              this.launchChromeProcess(isHeadless, port, profileDir, proxy, true);
+            } catch (spawnErr: any) {
+              console.warn('[CDP] Force restart warning:', spawnErr.message);
+            }
           }
         }
 
@@ -208,7 +216,7 @@ export class CdpConnectionManager {
     return this.browser;
   }
 
-  private launchChromeProcess(isHeadless: boolean, port: number, profileDir: string, proxy: string): void {
+  private launchChromeProcess(isHeadless: boolean, port: number, profileDir: string, proxy: string, forceRestart = false): void {
     const isWin = process.platform === 'win32';
     if (isWin) {
       const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
@@ -218,6 +226,7 @@ export class CdpConnectionManager {
       if (port) cmd += ` -Port ${port}`;
       if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
       if (proxy) cmd += ` -Proxy "${proxy}"`;
+      if (forceRestart) cmd += ' -Force';
       execSync(cmd, { stdio: 'inherit' });
     } else {
       const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.sh');
@@ -227,6 +236,7 @@ export class CdpConnectionManager {
       if (port) cmd += ` --port ${port}`;
       if (profileDir) cmd += ` --user-data-dir "${profileDir}"`;
       if (proxy) cmd += ` --proxy "${proxy}"`;
+      if (forceRestart) cmd += ' --force';
       execSync(cmd, { stdio: 'inherit' });
     }
   }

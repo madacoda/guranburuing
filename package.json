@@ -207,6 +207,8 @@
     "import:midship": "bun src/cli/import-cookies.ts acc1 --midship",
     "session:sync": "bun scripts/sync-session.ts",
     "sync": "bun scripts/sync-session.ts",
+    "vps:login": "powershell -ExecutionPolicy Bypass -File ./scripts/vps-browser.ps1",
+    "vps:browser": "powershell -ExecutionPolicy Bypass -File ./scripts/vps-browser.ps1",
     "acc1": "bun src/cli/run-workflow.ts acc1",
     "acc1:windowed": "bun src/cli/run-workflow.ts acc1 --windowed",
     "acc2": "bun src/cli/run-workflow.ts acc2",

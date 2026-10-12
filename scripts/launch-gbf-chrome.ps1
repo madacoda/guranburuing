@@ -2,6 +2,7 @@
 param(
     [switch]$Headless = $false,
     [switch]$Windowed = $false,
+    [switch]$Force = $false,
     [int]$Port = 0,
     [string]$CustomUserDataDir = "",
     [string]$Proxy = "",
@@ -81,8 +82,15 @@ function Test-PortFast([int]$port, [int]$timeoutMs = 250) {
     }
 }
 
-# Check if CDP port is already listening
-if (Test-PortFast $cdpPort) {
+# Check if CDP port is already listening or force restart requested
+if ($Force.IsPresent) {
+    Write-Host "[Launcher] Force restart requested (-Force). Resetting port $cdpPort processes..." -ForegroundColor Yellow
+    $procsToKill = Get-CimInstance Win32_Process -Filter "name = 'chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*remote-debugging-port=$cdpPort*" }
+    foreach ($p in $procsToKill) {
+        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 600
+} elseif (Test-PortFast $cdpPort) {
     $runningProcs = Get-CimInstance Win32_Process -Filter "name = 'chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*remote-debugging-port=$cdpPort*" }
     if ($runningProcs) {
         $firstProc = $runningProcs | Select-Object -First 1

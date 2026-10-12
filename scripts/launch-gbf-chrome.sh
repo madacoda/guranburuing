@@ -11,9 +11,15 @@ USER_DATA_DIR="$HOME/.gbf-chrome-profile"
 PROXY=""
 TARGET_URL="https://game.granbluefantasy.jp/#mypage"
 
+FORCE_RESTART=false
+
 # Parse CLI arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --force|--restart|-Force|-Restart)
+      FORCE_RESTART=true
+      shift
+      ;;
     --headless|-Headless)
       HEADLESS=true
       shift
@@ -83,12 +89,12 @@ if [[ -n "$VERSION_RESP" && "$VERSION_RESP" == *"webSocketDebuggerUrl"* ]]; then
   PORT_ACTIVE=true
 fi
 
-if [[ "$PORT_ACTIVE" == "true" ]]; then
+if [[ "$PORT_ACTIVE" == "true" && "$FORCE_RESTART" != "true" ]]; then
   echo "✅ [Launcher] Chrome is ALREADY running and responsive on port $PORT. Reusing session."
   exit 0
 else
-  # If port was bound by something else or a dead/frozen Chrome zombie, clean it up!
-  echo "🧹 [Launcher] Port $PORT is not responsive to CDP. Purging stale sockets and zombie processes..."
+  # If port was bound by something else or a dead/frozen Chrome zombie or force-restart requested, clean it up!
+  echo "🧹 [Launcher] Resetting port $PORT sockets and processes (Force: $FORCE_RESTART)..."
   if command -v fuser &> /dev/null; then
     fuser -k -n tcp "$PORT" 2>/dev/null || true
   fi
