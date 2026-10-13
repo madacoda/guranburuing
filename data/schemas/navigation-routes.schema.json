@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/navigation-routes.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/navigation-routes.schema.json",
   "title": "GBFNavigationRoutesSchema",
   "description": "Authoritative schema for Granblue Fantasy Backbone.js client-side router navigation paths, hash patterns, and allowed state transitions.",
   "type": "object",

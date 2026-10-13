@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/anti-detection.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/anti-detection.schema.json",
   "title": "GBFAntiDetectionSchema",
   "description": "Authoritative schema for human motor distributions, Bézier kinematics, safety watchdog thresholds, and anti-cheat telemetry defenses.",
   "type": "object",

@@ -14,7 +14,7 @@ const AccountConfigSchema = z.object({
   credentials: z.object({
     email: z.string().optional().default(''),
     password: z.string().optional().default('')
-  }).optional(),
+  }).nullable().optional(),
   proxy: z.string().nullable().optional()
 });
 

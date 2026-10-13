@@ -13,18 +13,19 @@ Fast, categorized terminal reference for all operational commands, workflows, da
 - [4. Daily Raid Hosting Suite](#4-daily-raid-hosting-suite)
 - [5. Autonomous Daily Reset Scheduler (05:00 JST)](#5-autonomous-daily-reset-scheduler-0500-jst)
 - [6. Replicard Sandbox: Zone Mundus (Stage 10) Militis Bosses](#6-replicard-sandbox-zone-mundus-stage-10-militis-bosses)
-- [7. Replicard Sandbox: Zone Eletio / Fayum Militis & World](#7-replicard-sandbox-zone-eletio--fayum-militis--world)
-- [8. Gold Bar (GB) Hunting & High-Difficulty Raids](#8-gold-bar-gb-hunting--high-difficulty-raids)
-- [9. Magna 3 (Omega Rebirth) Fast Leeching](#9-magna-3-omega-rebirth-fast-leeching)
-- [10. Guild Wars (Unite & Fight)](#10-guild-wars-unite--fight)
-- [11. Story, Scenario & Collaboration Events](#11-story-scenario--collaboration-events)
-- [12. Fate Episodes Auto-Farmer](#12-fate-episodes-auto-farmer)
-- [13. Rise of the Beasts (ROTB)](#13-rise-of-the-beasts-rotb)
-- [14. Interactive Selector & Generic Workflow Runner](#14-interactive-selector--generic-workflow-runner)
-- [15. Gateway Server, Web Cockpit & Mobile PWA](#15-gateway-server-web-cockpit--mobile-pwa)
-- [16. Discord Remote Controller & Two-Way CAPTCHA Relay](#16-discord-remote-controller--two-way-captcha-relay)
-- [17. Discord Rich Presence (RPC)](#17-discord-rich-presence-rpc)
-- [18. Quality Assurance, Testing & Pre-Flight Verification](#18-quality-assurance-testing--pre-flight-verification)
+- [7. Replicard Sandbox: Zone Goliath (Stage 3) Bosses & Defenders](#7-replicard-sandbox-zone-goliath-stage-3-bosses--defenders)
+- [8. Replicard Sandbox: Zone Eletio / Fayum Militis & World](#8-replicard-sandbox-zone-eletio--fayum-militis--world)
+- [9. Gold Bar (GB) Hunting & High-Difficulty Raids](#9-gold-bar-gb-hunting--high-difficulty-raids)
+- [10. Magna 3 (Omega Rebirth) Fast Leeching](#10-magna-3-omega-rebirth-fast-leeching)
+- [11. Guild Wars (Unite & Fight)](#11-guild-wars-unite--fight)
+- [12. Story, Scenario & Collaboration Events](#12-story-scenario--collaboration-events)
+- [13. Fate Episodes Auto-Farmer](#13-fate-episodes-auto-farmer)
+- [14. Rise of the Beasts (ROTB)](#14-rise-of-the-beasts-rotb)
+- [15. Interactive Selector & Generic Workflow Runner](#15-interactive-selector--generic-workflow-runner)
+- [16. Gateway Server, Web Cockpit & Mobile PWA](#16-gateway-server-web-cockpit--mobile-pwa)
+- [17. Discord Remote Controller & Two-Way CAPTCHA Relay](#17-discord-remote-controller--two-way-captcha-relay)
+- [18. Discord Rich Presence (RPC)](#18-discord-rich-presence-rpc)
+- [19. Quality Assurance, Testing & Pre-Flight Verification](#19-quality-assurance-testing--pre-flight-verification)
 
 ---
 
@@ -62,6 +63,9 @@ Zero-cold-login session initialization, full cookie jar export/import across des
 | `bun run import:clipboard` | `[account]` | Imports cookies directly from clipboard JSON |
 | `bun run import:midship` | `[account]` | Quick-imports single `midship` cookie value |
 | `bun run session:sync` | `[account]` | Verifies cookie freshness and syncs IndexedDB stores |
+
+> [!TIP]
+> **Session Immunity Shield**: All session setups, daily runs, and workflow runners automatically mount the Mobage session immunity shield (`src/auth/session-immunity.ts`), preventing client-side kickouts from `session_state_change_response`. For the complete technical post-mortem on auth failures and solutions, see [Root Cause Analysis: Authentication Failures vs. Success Blueprint](file:///c:/laragon/www/guranburuing/strategies/AUTH_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md) and [Principle 13](file:///c:/laragon/www/guranburuing/strategies/principles/13_authentication_and_session_immunity.md).
 
 ---
 
@@ -167,7 +171,35 @@ bun src/cli/run-arcarum.ts acc1 stage10 500        # Universal Stage 10 Map Scan
 
 ---
 
-## 7. Replicard Sandbox: Zone Eletio / Fayum Militis & World
+## 7. Replicard Sandbox: Stage 3 (Zone Goliath & Zone Faym) Bosses & Defenders
+
+Optimized Smart Full Auto workflows for all Stage 3 (`#replicard/stage/3`) encounters (Here Be Staves).
+
+### ⚔️ Stage 3 Bosses & Defenders (30 AAP)
+| Command | Target | Role / Sector | Drops |
+| :--- | :--- | :---: | :--- |
+| `bun run redemption` / `arcarum:redemption` | **Lady of Redemption** | Defender (Justice / Stage 7 / Div 7 / Quest 816071) | Joculator materials, Justice Idean, Aquaborne Astra, Justice Veritas, Sephira weapons |
+| `bun run paragon` / `arcarum:paragon` | **Lilywhite Paragon** | Defender (The Moon / Div 10 / Quest 812111) | **Faym Rib**, Moon Idean, Aquaborne Astra, Moon Veritas, Sephira Emerald weapons |
+| `bun run arcarum:triune` | **Goliath Triune** | Zone Boss (Earth) | Tower/Hanged Man/Death Ideans, Earth Astra, Quartz |
+| `bun run arcarum:avarice` | **Avatar of Avarice** | Defender (Pink / Hanged Man) | **Goliath Organ**, Earthborne Astra, Hanged Man Idean |
+| `bun run arcarum:keeper` | **Goliath Keeper** | Defender (Green / Tower) | **Goliath Rib**, Earthborne Astra, Tower Idean |
+| `bun run arcarum:howler` | **Frenzied Howler** | Defender (Yellow / Death) | **Goliath Core**, Darkborne Astra, Death Idean |
+| `bun run arcarum:stage3` | **Stage 3 Universal Map** | Universal Map Scanner | Auto-detects and targets active Defenders or quests |
+| `bun run arcarum:stage7` | **Stage 7 Universal Map** | Universal Map Scanner | Auto-detects and targets Lady of Redemption or Maiden of the Depths |
+
+### 🌾 5-Gauge Fast Farming & Heralds (20 AAP)
+| Command | Target | Element | Purpose |
+| :--- | :--- | :---: | :--- |
+| `bun run fortress` / `arcarum:fortress` | **Faymian Fortress** | Water | The Moon 5-Gauge, breaks 10-hit Earth Barrier, spawns Lilywhite Paragon |
+| `bun run arcarum:maiden` | **Maiden of the Depths** | Water | Arctic Plains 5-Gauge (Stage 7), spawns Lady of Redemption |
+| `bun run arcarum:goliath-herald` | **Goliath Heralds** | All | **+100% Sephira Gauge Boost for 60 Minutes** |
+| `bun run arcarum:panther` | Earthshaking Panther | Earth | Green 5-Gauge, spawns Goliath Keeper |
+| `bun run arcarum:barbarian` | Bloodstained Barbarian | Earth | Pink 5-Gauge, spawns Avatar of Avarice |
+| `bun run arcarum:despair` | Writhing Despair | Dark | Yellow 5-Gauge, spawns Frenzied Howler |
+
+---
+
+## 8. Replicard Sandbox: Zone Eletio / Fayum Militis & World
 
 Workflows for Zone Eletio/Fayum defenders and Zone Mundus boss.
 

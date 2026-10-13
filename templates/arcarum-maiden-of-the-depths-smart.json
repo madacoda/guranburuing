@@ -1,0 +1,32 @@
+{
+  "name": "Arcarum Sandbox - Maiden of the Depths (Stage 7 5-Gauge Fast Farm)",
+  "description": "Fast 5-gauge burst farm for Maiden of the Depths (Water 5-Gauge, Zone Joculator Stage 7 / Div 7 / Quest 816031): Fast 0-button Quick Summon or 1-turn burst to spawn Lady of Redemption",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/7/7/7/816031/25",
+  "questId": "816031",
+  "divisionId": 7,
+  "element": "Earth",
+  "isSolo": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 200,
+  "speedProfile": "fast",
+  "supporterPriority": ["Yggdrasil", "Titan", "Caim", "Kaguya", "Bahamut", "Lucifer", "Uriel"],
+  "steps": [
+    {
+      "code": "quick_call",
+      "name": "Quick Summon Call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Turn 1 Attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Result & Rerun"
+    }
+  ]
+}

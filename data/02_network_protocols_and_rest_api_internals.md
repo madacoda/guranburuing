@@ -14,6 +14,29 @@ Granblue Fantasy’s backend infrastructure is hosted on AWS (Tokyo region `ap-n
   - Raw `curl` or non-browser HTTP clients triggering combat endpoints will instantly present an anomalous JA3 signature and get flagged.
   - Automation engines MUST either run directly inside real Chromium (Puppeteer/CDP) or use a TLS-impersonating HTTP client (such as `curl-impersonate` or `tls-client`) mimicking Chrome's exact ClientHello and ALPN.
 
+### 1.1 Why GBF Strictly Requires Third-Party Cookies
+
+Granblue Fantasy's web architecture is split across multiple separate domains:
+- **Game Origin:** `https://game.granbluefantasy.jp` (where the HTML, game scripts, CreateJS stage, and battle UI run).
+- **Identity Provider Origin:** `https://sp.mbga.jp` / `connect.mobage.jp` (DeNA Mobage), or `dmm.com` (DMM).
+
+Because you play on `game.granbluefantasy.jp`, that origin is the **first-party** context. However, your actual login account tokens and session cookies belong to the identity provider domain (`.mbga.jp` or `.dmm.com`). When `game.granbluefantasy.jp` performs login handshakes, verifies sessions, communicates with Mobage APIs, or opens payment/MobaCoin dialogs, the browser is asked to send `.mbga.jp` cookies from inside `game.granbluefantasy.jp`. In browser security terms, these are **Third-Party Cookies**.
+
+#### What Breaks When Third-Party Cookies Are Blocked:
+1. **The Infinite OAuth Login Loop**: Clicking "Mobage Login" redirects you to Mobage, you log in successfully, and Mobage sends you back to `game.granbluefantasy.jp/#authentication`. But because third-party cookies are blocked, the game client cannot read or send the Mobage session cookies. The game thinks you are still logged out and immediately kicks you back to the login screen in an endless loop.
+2. **Infinite Loading / Blue Sky / Black Screen**: The game engine fails to retrieve your player ID (`window.Game.userId`) from the unauthenticated session, causing `/start.json` or `#mypage` to halt indefinitely.
+3. **Session Drops on Reload**: Even if a temporary token is stored in memory, refreshing the page (`F5`) or navigating between raids drops the session.
+
+#### What is `--test-third-party-cookie-phaseout=disabled`?
+Google Chrome rolled out an initiative called **Privacy Sandbox / 3PCD (Third-Party Cookie Deprecation)** to phase out and block third-party cookies by default.
+- Modern Chromium versions include an internal command-line flag: `--test-third-party-cookie-phaseout`.
+- When Chrome enables this trial (either on test cohorts, new profiles, or headless automation), it aggressively **blocks** cross-site cookies.
+- Passing `--test-third-party-cookie-phaseout=disabled` explicitly tells Chrome:
+  > *"Disable the third-party cookie phaseout test for this browser instance. Keep third-party cookies allowed and working."*
+- **Required Browser Configuration**:
+  - In automation / CDP launch scripts: Pass `--test-third-party-cookie-phaseout=disabled`.
+  - In manual browser settings: Open `chrome://settings/cookies` and ensure **"Allow third-party cookies"** is selected (or add an exception for `[*.]granbluefantasy.jp` and `[*.]mbga.jp`).
+
 ---
 
 ## 2. Mandatory HTTP Request Headers

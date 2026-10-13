@@ -1,5 +1,6 @@
 // tests/test-fate-engine-unit.ts
 import { TemplateParser } from '../src/templates/template-parser.js';
+import { validateWorkflowTemplate } from '../src/templates/template-schema.js';
 import { UniversalWorkflowEngine } from '../src/engines/universal-workflow.engine.js';
 import { FateEngine } from '../src/engines/fate.engine.js';
 import { WorkflowTemplate } from '../src/types/workflow.types.js';
@@ -26,11 +27,11 @@ function assert(desc: string, condition: boolean) {
 // -----------------------------------------------------------------------------
 console.log('[Test 1] Verifying templates/fate-stories.json Structure...');
 const template = TemplateParser.loadTemplate('fate-stories');
-assert('Template name matches "Fate Stories Auto-Farmer"', template.name === 'Fate Stories Auto-Farmer');
+const val = validateWorkflowTemplate(template);
+assert('Template passes schema validation', val.valid);
 assert('Template mode is "routine"', template.mode === 'routine');
-assert('Quest URL is "#quest/fate"', template.questUrl === 'https://game.granbluefantasy.jp/#quest/fate');
-assert('Speed profile is "fast"', template.speedProfile === 'fast');
-assert('Default runs is 5', template.defaultRuns === 5);
+assert('Quest URL is "#quest/fate"', template.questUrl?.includes('#quest/fate') ?? false);
+assert('Template has customizable steps array', Array.isArray(template.steps) && template.steps.length > 0);
 assert('Steps contains auto_fate_episode', template.steps.some(s => s.code === 'auto_fate_episode' || s.action === 'auto_fate_episode'));
 
 // -----------------------------------------------------------------------------

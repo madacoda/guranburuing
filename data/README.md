@@ -47,18 +47,25 @@ data/
 │   ├── event-detail.schema.json        # Schema: Detailed Collaboration & Scenario Events
 │   ├── event-farming-optimizer.schema.json # Schema: Event Farming Decision Trees
 │   ├── side-stories.schema.json        # Schema: Permanent Side Story Vault & Spark Calculations
-│   └── side-story-optimizer.schema.json # Schema: Side Story Farming Priorities & Pacing
+│   ├── side-story-optimizer.schema.json # Schema: Side Story Farming Priorities & Pacing
+│   ├── weapon-grids.schema.json        # Schema: Weapon Grids, M1-M3 & Primal
+│   ├── character-tiering.schema.json   # Schema: Character Roles, Burst & FA Tiers
+│   ├── summon-hierarchies.schema.json  # Schema: Providence & Sub-Aura Summon Tiers
+│   ├── revans-and-apex.schema.json     # Schema: Revans, M3 & Apex Raid Walkthroughs
+│   └── unf-guild-wars.schema.json      # Schema: Guild Wars Stages, Meat & Nightmares
 ├── raids/                              # Raid Data & Mechanics Subsystem
 │   ├── raids.catalog.json              # Complete catalog (Stage IDs, Quest IDs, HP, Blue Chests)
 │   ├── categories.json                 # Raid category hierarchy (HL, Magna 3, Six Dragons, etc.)
 │   ├── drop-tables.json                # Blue Chest, Gold Brick (1.5%/1.2%), Eternity Sand math
-│   └── raid-join-decision.json         # Dynamic Leech vs Racing decision engine & TTD
+│   ├── raid-join-decision.json         # Dynamic Leech vs Racing decision engine & TTD
+│   └── revans-and-apex-walkthroughs.catalog.json # Magna 3, 6 Revans & Apex Raid Mechanics
 ├── events/                             # Events Subsystem (Master & Detailed Event Catalogs)
 │   ├── events.catalog.json             # Master Registry of All Events
 │   ├── biography045-gintama.catalog.json # Authoritative Gintama Collaboration Catalog
 │   ├── event-farming-optimizer.json    # Algorithmic Event Farming Decision Tree
 │   ├── side-stories.catalog.json       # Permanent Side Story Vault (56 Stories, 8 Sagas)
-│   └── side-story-optimizer.json       # Side Story Speed-Clearing & Spark Acceleration Tree
+│   ├── side-story-optimizer.json       # Side Story Speed-Clearing & Spark Acceleration Tree
+│   └── unf-guild-wars.catalog.json     # Guild Wars Meat Farming & Nightmare Strategies
 ├── ui/                                 # UI, DOM & Routing Subsystem
 │   ├── selectors.catalog.json          # Exhaustive DOM query selectors by screen & component
 │   ├── modals.catalog.json             # Modal definitions, dismiss/confirm buttons, overlays
@@ -76,7 +83,10 @@ data/
 │   ├── plain-damage-counter-engine.json# Decision tree & pipeline for solving Plain DMG omens
 │   ├── status-effects.catalog.json     # Boss buffs (dispel) & party debuffs (cleanse) taxonomy
 │   ├── supporter-summons.catalog.json  # Grid archetypes, attribute tabs (1-7), uncap scoring
-│   └── tactical-action-priority.json   # Lockout-optimized combat action priority & safety
+│   ├── tactical-action-priority.json   # Lockout-optimized combat action priority & safety
+│   ├── weapon-grids.catalog.json       # Authoritative M1-M3 & Primal Weapon Grids for 6 Elements
+│   ├── character-tiering.catalog.json  # Tactical Character Roles, Burst, FA & Omen Solvers
+│   └── summon-hierarchies.catalog.json # Providence, Archangel & Six Dragon Sub-Aura Hierarchies
 ├── elements/                           # Elemental Wheel & Party Synergy Subsystem
 │   ├── elements.catalog.json           # 6 Elements + Plain, internal IDs, hex colors, summons, skills
 │   ├── elemental-matrix.json           # 7x7 Pairwise damage multipliers, crit/seraphic eligibility
@@ -115,7 +125,13 @@ The directory includes fifteen exhaustive technical volumes analyzing the game's
 | **Vol. 12** | [`12_supporter_summon_grid_archetypes_and_selection_engine.md`](file:///c:/laragon/www/gbf/data/12_supporter_summon_grid_archetypes_and_selection_engine.md) | Grid archetypes (Magna vs Primal vs Elemental vs Burst vs Farming), 7-tab attribute routing, uncap tier scoring (Lv 250 > 200), and Friend Turn-1 call logic. |
 | **Vol. 13** | [`13_raid_evaluation_leech_racing_and_ep_economy_kms.md`](file:///c:/laragon/www/gbf/data/13_raid_evaluation_leech_racing_and_ep_economy_kms.md) | Raid Finder evaluation, Time-to-Death ($TTD$) velocity math, Blue Chest ROI, and policies (`SKIP_DYING`, `RAPID_LEECH`, `BLUE_CHEST_RACE`, `SKIP_STALLED`). |
 | **Vol. 14** | [`14_automation_engine_architecture_and_operational_resilience_kms.md`](file:///c:/laragon/www/gbf/data/14_automation_engine_architecture_and_operational_resilience_kms.md) | Automation architecture, AP/EP replenishment economics, CreateJS acceleration, Scenario & drawbox farming, 180s pub cooldown, multi-account CDP topologies, state machine self-healing, and security tripwires. |
-| **Vol. 15** | [`15_event_architecture_and_collab_kms.md`](file:///c:/laragon/www/gbf/data/15_event_architecture_and_collab_kms.md) | Event taxonomy, Collaboration (`biography`) vs Scenario (`treasureraid`) architecture, Gintama collab case study, Akamai CDN media paths, zero-waste treasure trade economics, and 0-button burst OTK pipelines. |
+| **Vol. 15** | [`15_event_architecture_and_collab_kms.md`](file:///c:/laragon/www/guranburuing/data/15_event_architecture_and_collab_kms.md) | Event taxonomy, Collaboration (`biography`) vs Scenario (`treasureraid`) architecture, Gintama collab case study, Akamai CDN media paths, zero-waste treasure trade economics, and 0-button burst OTK pipelines. |
+| **Vol. 16** | [`16_side_stories_and_permanent_vault_kms.md`](file:///c:/laragon/www/guranburuing/data/16_side_stories_and_permanent_vault_kms.md) | Permanent side stories catalog (56 stories), fast-skip mechanics, premium ticket and draw crystal yields, free SSR weapons and summons. |
+| **Vol. 17** | [`17_replicard_sandbox_zone_mundus_and_militis_architecture_kms.md`](file:///c:/laragon/www/guranburuing/data/17_replicard_sandbox_zone_mundus_and_militis_architecture_kms.md) | Replicard Sandbox Zone Mundus, Defender spawn triggers, AAP optimization, Sephira gauge stacking, and Militis weapon farming. |
+| **Vol. 18** | [`18_weapon_grids_and_progression_archetypes_kms.md`](file:///c:/laragon/www/guranburuing/data/18_weapon_grids_and_progression_archetypes_kms.md) | Weapon grid mathematics, Rank 1-200+ progression milestones, Magna 1/2/3 vs Primal architectures, Dark Opus pendulums, Ultima Gauph keys, and complete 6-element grid catalogs. |
+| **Vol. 19** | [`19_character_roles_synergies_and_summon_sub_auras_kms.md`](file:///c:/laragon/www/guranburuing/data/19_character_roles_synergies_and_summon_sub_auras_kms.md) | Tactical character roles (Burst OTK, Full Auto Sustain, Omen Solvers), Providence summon hierarchy (Beelzebub, Belial, Lucifer 250, Bahamut 250, Yatima, Triple Zero), and Archangel/Six Dragon sub-auras. |
+| **Vol. 20** | [`20_high_difficulty_raids_revans_and_apex_walkthroughs_kms.md`](file:///c:/laragon/www/guranburuing/data/20_high_difficulty_raids_revans_and_apex_walkthroughs_kms.md) | Magna 3 (Omega Rebirth) mechanics, 6 Revans raids (Diaspora, Seofon, Siegfried, Mugen, Cosmos, Agastia) detailed phases/triggers/omens, and Apex endgame (Faa-0, Hexa, SUBHL). |
+| **Vol. 21** | [`21_unite_and_fight_guild_wars_optimization_and_tactics_kms.md`](file:///c:/laragon/www/guranburuing/data/21_unite_and_fight_guild_wars_optimization_and_tactics_kms.md) | Guild Wars tournament progression, 0-button EX+ meat farming mechanics (0B0C, 0B1C, 1B Quick Summon), NM90-NM250 boss triggers, survival interlocks, and honor pacing. |
 
 ---
 

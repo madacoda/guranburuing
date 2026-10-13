@@ -4,7 +4,7 @@
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript%205.8-3178c6?style=flat&logo=typescript&logoColor=fff)](https://www.typescriptlang.org/)
 [![CI](https://github.com/madacoda/guranburuing/actions/workflows/ci.yml/badge.svg)](https://github.com/madacoda/guranburuing/actions/workflows/ci.yml)
 [![Security & Hygiene](https://github.com/madacoda/guranburuing/actions/workflows/security.yml/badge.svg)](https://github.com/madacoda/guranburuing/actions/workflows/security.yml)
-[![Tests](https://img.shields.io/badge/Tests-33%2F33%20Passing-brightgreen?style=flat&logo=checkmarx)](./tests)
+[![Tests](https://img.shields.io/badge/Tests-39%2F39%20Passing-brightgreen?style=flat&logo=checkmarx)](./tests)
 [![Protocol: CDP](https://img.shields.io/badge/Protocol-Chrome%20DevTools-4285f4?style=flat&logo=googlechrome&logoColor=fff)](https://chromedevtools.github.io/devtools-protocol/)
 [![Architecture: WebSocket + PWA](https://img.shields.io/badge/Gateway-WebSocket%20%2B%20PWA-00d1b2?style=flat)](./public)
 [![Remote: Discord 2-Way Relay](https://img.shields.io/badge/Relay-Discord%202--Way%20CAPTCHA-5865f2?style=flat&logo=discord&logoColor=fff)](./src/relay)
@@ -215,11 +215,12 @@ Comprehensive high-difficulty raid farming suite with honor tracking:
 3. **1-Time Assisted Browser Setup**:
    Launch the browser in visible GUI window mode to establish your authenticated session:
    ```bash
-   bun run account:setup acc1
+   bun run account:setup acc1 --windowed
    ```
    - Log into your Granblue Fantasy account once (Mobage / DMM / Google) and reach `#mypage`.
-   - Your session cookies and IndexedDB storage are permanently stored in an isolated profile directory (`~/.gbf-profiles/acc1`).
-   - All subsequent runs can execute 100% headlessly in the background (`Zero Cold Logins`).
+   - The setup engine validates player profile, mounts the **Mobage Session Immunity Shield**, and exports a sanitized 14+ cookie jar to `data/acc1-cookies.json`.
+   - All subsequent runs execute 100% autonomously in silent background headless mode (`Zero Cold Logins`).
+   - For an exhaustive architectural breakdown of kickout prevention, CHIPS cookie partitioning, and FuelPHP REST negotiation, see [Root Cause Analysis: Authentication Failures vs. Success Blueprint](file:///c:/laragon/www/guranburuing/strategies/AUTH_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md).
 
 ---
 
@@ -464,7 +465,7 @@ The suite includes dedicated, battle-tested automation engines for every sector 
 
 | Command | Description |
 | :--- | :--- |
-| `bun run test` | Executes unified test runner (33/33 suites passing) |
+| `bun run test` | Executes unified test runner (39/39 suites passing) |
 | `bun run verify` | Full pre-flight gate: Security audit + DSL check + Build + Tests |
 | `bun run hygiene` | Scans git index for secret leaks, credentials, or personal paths |
 | `bun run workflow:validate` | Validates all JSON & DSL templates against Zod schemas |
@@ -477,14 +478,14 @@ The suite includes dedicated, battle-tested automation engines for every sector 
 The codebase features an exhaustive, senior-grade test suite covering every core subsystem:
 
 ```bash
-# Run complete test suite (33 suites)
+# Run complete test suite (39 suites)
 bun run test
 
 # Run full pre-flight verification gate
 bun run verify
 ```
 
-### Verified Test Gates (33/33 Passing):
+### Verified Test Gates (39/39 Passing):
 1. **Workflow Template Schema & Boundary Tests**: Schema guarantees, edge case checking, and structural validation.
 2. **Advanced DSL Compiler & Round-Trip Serializer**: Bidirectional compiler fidelity between text DSL and AST JSON.
 3. **Universal Engine Unit & Telemetry Mock Tests**: State machines, Gold Bar drop listeners, and input lock handling.

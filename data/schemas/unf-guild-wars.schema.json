@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/unf-guild-wars.schema.json",
+  "title": "GBFGuildWarsTacticsAndOptimizationSchema",
+  "description": "Authoritative schema for Guild Wars (Unite and Fight) raid stages, meat farming optimization, Nightmare thresholds, and honor pacing.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "stages", "meatOptimization", "nightmareStrategies"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stageId", "name", "bossHp", "meatCostOrYield", "honorYield", "defenseMultiplier"],
+        "properties": {
+          "stageId": { "type": "string" },
+          "name": { "type": "string" },
+          "bossHp": { "type": "string" },
+          "meatCostOrYield": { "type": "string" },
+          "honorYield": { "type": "string" },
+          "defenseMultiplier": { "type": "number" },
+          "targetClearTime": { "type": "string" }
+        }
+      }
+    },
+    "meatOptimization": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["archetype", "buttonCount", "chargeAttackCount", "mcClass", "coreRequirements", "tacticalActionSequence"],
+        "properties": {
+          "archetype": { "type": "string" },
+          "buttonCount": { "type": "number" },
+          "chargeAttackCount": { "type": "number" },
+          "mcClass": { "type": "string" },
+          "coreRequirements": { "type": "array", "items": { "type": "string" } },
+          "tacticalActionSequence": { "type": "string" }
+        }
+      }
+    },
+    "nightmareStrategies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["difficulty", "bossTriggers", "recommendedFullAutoRoster", "survivalInterlocks"],
+        "properties": {
+          "difficulty": { "type": "string", "enum": ["NM90", "NM95", "NM100", "NM150", "NM200", "NM250"] },
+          "bossTriggers": { "type": "array", "items": { "type": "string" } },
+          "recommendedFullAutoRoster": { "type": "array", "items": { "type": "string" } },
+          "survivalInterlocks": { "type": "array", "items": { "type": "string" } },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

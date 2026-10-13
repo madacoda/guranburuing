@@ -38,6 +38,9 @@ export type WorkflowActionType =
   | 'pro_skip_favorites'
   | 'dismiss_popups'
   | 'smart_full_auto'
+  | 'log_enemy_hp'
+  | 'exit_if_dead'
+  | 'exit_if_hp'
   | 'custom';
 
 export interface WorkflowStepCondition {
@@ -61,6 +64,8 @@ export interface WorkflowStep {
   enemyIndex?: number;      // 1-indexed enemy index (1 to 3)
   potionType?: 'green' | 'blue' | 'elixir'; // Healing potion type
   targetScore?: number;     // Target score threshold for early exit
+  targetHp?: number;        // Target boss HP threshold for early exit / condition
+  targetHpPct?: number;     // Target boss HP percentage threshold for exit_if_hp
   condition?: WorkflowStepCondition; // Conditional evaluation
   repeatCount?: number;     // Number of times to loop subSteps
   subSteps?: WorkflowStep[]; // Nested steps for repeat blocks
@@ -82,6 +87,7 @@ export interface WorkflowStep {
   characters?: number[];    // For smart_full_auto: specific character slots to cast skills for (e.g. [1] for MC only)
   quickSummon?: boolean;    // For smart_full_auto: whether to cast quick summon on turn 1 (default: true)
   optional?: boolean;       // If true, step failure does not abort the run
+  ensureCast?: boolean;     // If true, retries drawer opening and click verification to ensure skill was casted
   retries?: number;         // Step-level retries on failure (default: 1)
   label?: string;           // Step label for jump targets
   jumpTo?: string;          // Target label to jump to if condition is met
@@ -94,6 +100,7 @@ export interface WorkflowTemplate {
   mode?: 'combat' | 'routine' | 'assist'; // Execution mode: 'combat' (default quest run), 'routine' (page/dialog/loop automation), 'assist' (raid finder)
   questId?: string | number; // Specific quest ID for stage maps (e.g. 819141 for Prometheus Militis)
   divisionId?: number;      // Replicard division ID (e.g. 3 for Serenity Ridge: Slopes)
+  element?: string;         // Target or player element (e.g. 'Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark')
   supporterPriority?: string[];
   steps: WorkflowStep[];
   humanMotor?: boolean;     // Enable human motor variance (default: true)
@@ -107,6 +114,7 @@ export interface WorkflowTemplate {
   defaultRuns?: number;
   speedProfile?: 'stealth' | 'fast' | 'turbo';
   targetScore?: number;     // Default score to exit raid (e.g. 1480000 for Blue Chest)
+  isSolo?: boolean;         // Mark quest as solo (Arcarum, Replicard, Fate Story). Automatically bypasses honorGuard and enables enemy HP tracking.
   honorGuard?: boolean;     // Enable/disable extra attack turns after combat pipeline if targetScore not reached (default: true)
   minBatchClaim?: number;   // Min raids before checking pending battles (default: 3)
   maxBatchClaim?: number;   // Max raids before checking pending battles (default: 5)

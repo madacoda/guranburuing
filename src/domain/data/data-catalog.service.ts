@@ -40,7 +40,19 @@ import {
   EventCurrencyDefinition,
   SideStoryMasterItem,
   SideStoryCategory,
-  SideStoryGlobalTotals
+  SideStoryGlobalTotals,
+  ElementalWeaponGrids,
+  WeaponGridDefinition,
+  CharacterTierDefinition,
+  ProvidenceSummonDefinition,
+  ArchangelSubAuraDefinition,
+  SixDragonSubAuraDefinition,
+  ArcarumSubAuraDefinition,
+  RevansApexCategoryDefinition,
+  RevansApexRaidDefinition,
+  GuildWarsStageDefinition,
+  GuildWarsMeatOptimizationDefinition,
+  GuildWarsNightmareStrategyDefinition
 } from './data-catalog.types.js';
 
 /**
@@ -109,6 +121,21 @@ export class DataCatalogService {
   private sideStoriesByNumericId = new Map<number, SideStoryMasterItem>();
   private sideStoriesByCategory = new Map<string, SideStoryMasterItem[]>();
   private sideStoriesGlobalTotals: SideStoryGlobalTotals | null = null;
+
+  // KMS Extensions: Weapon Grids, Character Tiering, Summon Hierarchies, Revans & Guild Wars (Vols. 18-21)
+  private weaponGridsByElement = new Map<string, ElementalWeaponGrids>();
+  private weaponGridsById = new Map<string, WeaponGridDefinition>();
+  private characterTiersByElement = new Map<string, CharacterTierDefinition[]>();
+  private characterTiersById = new Map<string, CharacterTierDefinition>();
+  private providenceSummons: ProvidenceSummonDefinition[] = [];
+  private archangelSubAuras: ArchangelSubAuraDefinition[] = [];
+  private sixDragonSubAuras: SixDragonSubAuraDefinition[] = [];
+  private arcarumSubAuras: ArcarumSubAuraDefinition[] = [];
+  private revansApexRaidsById = new Map<string, RevansApexRaidDefinition>();
+  private revansApexCategories: RevansApexCategoryDefinition[] = [];
+  private guildWarsStages: GuildWarsStageDefinition[] = [];
+  private guildWarsMeat: GuildWarsMeatOptimizationDefinition[] = [];
+  private guildWarsNightmares: GuildWarsNightmareStrategyDefinition[] = [];
 
   private rawSelectors: Record<string, any> = {};
 
@@ -393,6 +420,61 @@ export class DataCatalogService {
           list.push(story);
           this.sideStoriesByCategory.set(cat, list);
         }
+      }
+
+      // 22. Load Weapon Grids Catalog (Vol. 18)
+      const weaponGridsPath = path.join(this.dataBasePath, 'combat', 'weapon-grids.catalog.json');
+      if (fs.existsSync(weaponGridsPath)) {
+        const data = JSON.parse(fs.readFileSync(weaponGridsPath, 'utf-8'));
+        for (const el of data.elements || []) {
+          this.weaponGridsByElement.set(el.elementId.toLowerCase(), el);
+          for (const g of [...(el.magnaGrids || []), ...(el.primalGrids || [])]) {
+            this.weaponGridsById.set(g.gridId.toLowerCase(), g);
+          }
+        }
+      }
+
+      // 23. Load Character Tiering Catalog (Vol. 19)
+      const charTieringPath = path.join(this.dataBasePath, 'combat', 'character-tiering.catalog.json');
+      if (fs.existsSync(charTieringPath)) {
+        const data = JSON.parse(fs.readFileSync(charTieringPath, 'utf-8'));
+        for (const el of data.elements || []) {
+          this.characterTiersByElement.set(el.elementId.toLowerCase(), el.characters || []);
+          for (const c of el.characters || []) {
+            this.characterTiersById.set(c.id.toLowerCase(), c);
+          }
+        }
+      }
+
+      // 24. Load Summon Hierarchies Catalog (Vol. 19)
+      const summonPath = path.join(this.dataBasePath, 'combat', 'summon-hierarchies.catalog.json');
+      if (fs.existsSync(summonPath)) {
+        const data = JSON.parse(fs.readFileSync(summonPath, 'utf-8'));
+        this.providenceSummons = data.providenceSummons || [];
+        this.archangelSubAuras = data.archangelSubAuras || [];
+        this.sixDragonSubAuras = data.sixDragonSubAuras || [];
+        this.arcarumSubAuras = data.arcarumSummons || [];
+      }
+
+      // 25. Load Revans & Apex Walkthroughs Catalog (Vol. 20)
+      const revansPath = path.join(this.dataBasePath, 'raids', 'revans-and-apex-walkthroughs.catalog.json');
+      if (fs.existsSync(revansPath)) {
+        const data = JSON.parse(fs.readFileSync(revansPath, 'utf-8'));
+        this.revansApexCategories = data.categories || [];
+        for (const cat of data.categories || []) {
+          for (const r of cat.raids || []) {
+            this.revansApexRaidsById.set(r.raidId.toLowerCase(), r);
+          }
+        }
+      }
+
+      // 26. Load Guild Wars Tactics Catalog (Vol. 21)
+      const unfPath = path.join(this.dataBasePath, 'events', 'unf-guild-wars.catalog.json');
+      if (fs.existsSync(unfPath)) {
+        const data = JSON.parse(fs.readFileSync(unfPath, 'utf-8'));
+        this.guildWarsStages = data.stages || [];
+        this.guildWarsMeat = data.meatOptimization || [];
+        this.guildWarsNightmares = data.nightmareStrategies || [];
       }
 
       this.initialized = true;
@@ -685,4 +767,74 @@ export class DataCatalogService {
   public getSideStoriesGlobalTotals(): SideStoryGlobalTotals | null {
     return this.sideStoriesGlobalTotals;
   }
+
+  // KMS Queries: Weapon Grids & Progression (Vol. 18)
+  public getWeaponGrids(elementId: string): ElementalWeaponGrids | undefined {
+    return this.weaponGridsByElement.get(elementId.toLowerCase());
+  }
+
+  public getWeaponGridById(gridId: string): WeaponGridDefinition | undefined {
+    return this.weaponGridsById.get(gridId.toLowerCase());
+  }
+
+  public getAllElementalWeaponGrids(): ElementalWeaponGrids[] {
+    return Array.from(this.weaponGridsByElement.values());
+  }
+
+  // KMS Queries: Character Tiering & Roles (Vol. 19)
+  public getCharacterTiers(elementId: string): CharacterTierDefinition[] {
+    return this.characterTiersByElement.get(elementId.toLowerCase()) || [];
+  }
+
+  public getCharacterTierById(characterId: string): CharacterTierDefinition | undefined {
+    return this.characterTiersById.get(characterId.toLowerCase());
+  }
+
+  // KMS Queries: Summon Hierarchies & Sub-Auras (Vol. 19)
+  public getProvidenceSummons(): ProvidenceSummonDefinition[] {
+    return this.providenceSummons;
+  }
+
+  public getArchangelSubAuras(): ArchangelSubAuraDefinition[] {
+    return this.archangelSubAuras;
+  }
+
+  public getSixDragonSubAuras(): SixDragonSubAuraDefinition[] {
+    return this.sixDragonSubAuras;
+  }
+
+  public getArcarumSubAuras(): ArcarumSubAuraDefinition[] {
+    return this.arcarumSubAuras;
+  }
+
+  // KMS Queries: Revans & Apex Raids (Vol. 20)
+  public getRevansApexRaid(raidId: string): RevansApexRaidDefinition | undefined {
+    return this.revansApexRaidsById.get(raidId.toLowerCase());
+  }
+
+  public getRevansApexCategories(): RevansApexCategoryDefinition[] {
+    return this.revansApexCategories;
+  }
+
+  public getAllRevansApexRaids(): RevansApexRaidDefinition[] {
+    return Array.from(this.revansApexRaidsById.values());
+  }
+
+  // KMS Queries: Guild Wars Tactics (Vol. 21)
+  public getGuildWarsStages(): GuildWarsStageDefinition[] {
+    return this.guildWarsStages;
+  }
+
+  public getGuildWarsStage(stageId: string): GuildWarsStageDefinition | undefined {
+    return this.guildWarsStages.find(s => s.stageId.toLowerCase() === stageId.toLowerCase());
+  }
+
+  public getGuildWarsMeatOptimizations(): GuildWarsMeatOptimizationDefinition[] {
+    return this.guildWarsMeat;
+  }
+
+  public getGuildWarsNightmareStrategies(): GuildWarsNightmareStrategyDefinition[] {
+    return this.guildWarsNightmares;
+  }
 }
+

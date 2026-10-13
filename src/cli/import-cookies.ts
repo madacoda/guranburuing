@@ -93,24 +93,6 @@ async function loadCookies(): Promise<any[]> {
         secure: false,
         httpOnly: false,
         expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
-      },
-      {
-        name: 'midship',
-        value: cleanMidship,
-        domain: '.game.granbluefantasy.jp',
-        path: '/',
-        secure: false,
-        httpOnly: false,
-        expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
-      },
-      {
-        name: 'midship',
-        value: cleanMidship,
-        domain: '.granbluefantasy.jp',
-        path: '/',
-        secure: false,
-        httpOnly: false,
-        expires: Math.floor(Date.now() / 1000) + 365 * 24 * 3600
       }
     ];
   }
@@ -168,23 +150,7 @@ async function main() {
   console.log(`[Import] Loaded ${cookies.length} cookie definitions to import.`);
 
   // Sanitize cookies for CDP Network.setCookies
-  const sanitizedCookies = cookies.map(c => {
-    const item: any = {
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path || '/'
-    };
-    if (typeof c.secure === 'boolean') item.secure = c.secure;
-    if (typeof c.httpOnly === 'boolean') item.httpOnly = c.httpOnly;
-    if (c.sameSite && ['Strict', 'Lax', 'None'].includes(c.sameSite)) {
-      item.sameSite = c.sameSite;
-    }
-    if (typeof c.expires === 'number' && c.expires > 0) {
-      item.expires = c.expires;
-    }
-    return item;
-  });
+  const sanitizedCookies = AccountAuthManager.sanitizeCookiesForCDP(cookies);
 
   // Cache to disk
   try {

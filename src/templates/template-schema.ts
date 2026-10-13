@@ -85,7 +85,14 @@ export const ACTION_ALIASES: Record<string, WorkflowActionType> = {
   smart_full_auto: 'smart_full_auto',
   fast_full_auto: 'smart_full_auto',
   smart_auto: 'smart_full_auto',
-  fast_auto: 'smart_full_auto'
+  fast_auto: 'smart_full_auto',
+  log_enemy_hp: 'log_enemy_hp',
+  log_hp: 'log_enemy_hp',
+  enemy_hp: 'log_enemy_hp',
+  exit_if_dead: 'exit_if_dead',
+  exit_dead: 'exit_if_dead',
+  exit_if_hp: 'exit_if_hp',
+  exit_hp: 'exit_if_hp'
 };
 
 export function normalizeActionCode(raw: string): WorkflowActionType {
@@ -131,6 +138,9 @@ export const WorkflowActionTypeSchema = z.enum([
   'pro_skip_favorites',
   'dismiss_popups',
   'smart_full_auto',
+  'log_enemy_hp',
+  'exit_if_dead',
+  'exit_if_hp',
   'custom'
 ]);
 
@@ -156,6 +166,8 @@ export const WorkflowStepCoreSchema = z.object({
   enemyIndex: z.number().int().min(1, 'Enemy index must be 1 to 3').max(3, 'Enemy index must be 1 to 3').optional(),
   potionType: z.enum(['green', 'blue', 'elixir']).optional(),
   targetScore: z.number().positive('targetScore must be a positive number').optional(),
+  targetHp: z.number().nonnegative('targetHp must be non-negative').optional(),
+  targetHpPct: z.number().min(0).max(100, 'targetHpPct must be between 0 and 100').optional(),
   condition: WorkflowStepConditionSchema.optional(),
   repeatCount: z.number().int().min(1, 'repeatCount must be at least 1').optional(),
   maxLoops: z.number().int().min(1, 'maxLoops must be at least 1').optional(),
@@ -175,6 +187,7 @@ export const WorkflowStepCoreSchema = z.object({
   characters: z.array(z.number().int().min(1).max(4)).optional(),
   quickSummon: z.boolean().optional(),
   optional: z.boolean().optional(),
+  ensureCast: z.boolean().optional(),
   retries: z.number().int().min(0).max(5).optional(),
   label: z.string().optional(),
   jumpTo: z.string().optional()
@@ -305,6 +318,7 @@ export const WorkflowTemplateSchema = z.object({
   ),
   questId: z.union([z.string(), z.number()]).optional(),
   divisionId: z.number().int().optional(),
+  element: z.string().optional(),
   supporterPriority: z.array(z.string()).optional().default(['Zeus', 'Lucifer', 'Hades', 'Bahamut']),
   raidSlot: z.number().int().min(1, 'raidSlot must be 1 to 4').max(4, 'raidSlot must be 1 to 4').optional(),
   raidSlots: z.array(z.number().int().min(1).max(4)).optional(),
@@ -317,6 +331,7 @@ export const WorkflowTemplateSchema = z.object({
   defaultRuns: z.number().min(1, 'defaultRuns must be at least 1').optional().default(100),
   speedProfile: z.enum(['stealth', 'fast', 'turbo']).optional().default('fast'),
   targetScore: z.number().positive().optional(),
+  isSolo: z.boolean().optional(),
   minBatchClaim: z.number().int().min(1).max(5).optional().default(3),
   maxBatchClaim: z.number().int().min(1).max(5).optional().default(5),
   batchClaimSize: z.number().int().min(1).max(5).optional(),

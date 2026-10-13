@@ -721,6 +721,164 @@ export interface SideStoryGlobalTotals {
   totalSsrCharacters: number;
 }
 
+// ============================================================================
+// OFFICIAL COMBAT & PROGRESSION KMS EXTENSIONS (Volumes 18 - 21)
+// ============================================================================
+
+export interface WeaponSlotDefinition {
+  slotType: 'Mainhand' | 'GridSlot' | 'Additional_SubSlot';
+  weaponName: string;
+  series: string;
+  recommendedCopies: number;
+  skillTypes?: string[];
+  awakeningType?: string;
+  pendulumOrKey?: string;
+  notes?: string;
+}
+
+export interface WeaponGridDefinition {
+  gridId: string;
+  tier?: 'M1' | 'M2' | 'M3_LateGame';
+  name: string;
+  archetype: string;
+  mainSummon: string;
+  supporterSummon: string;
+  hpModifierEstimated?: string;
+  criticalHitRatePercent?: number;
+  slots: WeaponSlotDefinition[];
+}
+
+export interface UniversalGridComponent {
+  weaponName: string;
+  series: string;
+  priority: 'Mandatory' | 'High' | 'Situational';
+  description: string;
+}
+
+export interface ElementalWeaponGrids {
+  elementId: string;
+  elementName: string;
+  magnaGrids: WeaponGridDefinition[];
+  primalGrids: WeaponGridDefinition[];
+  universalComponents: UniversalGridComponent[];
+}
+
+export interface CharacterTierDefinition {
+  id: string;
+  name: string;
+  role: 'Burst_OTK' | 'Full_Auto_Sustain' | 'High_Difficulty_Omen_Solver' | 'Guild_Wars_Specialist' | 'Support_Buffer';
+  priorityTier: 'SS_Core' | 'S_HighPriority' | 'A_Situational' | 'B_Niche' | 'F2P_Accessible';
+  tacticalTags: string[];
+  keyAbilities: string;
+  bestContent: string[];
+  substitutes?: string[];
+}
+
+export interface ElementalCharacterTiers {
+  elementId: string;
+  elementName: string;
+  characters: CharacterTierDefinition[];
+}
+
+export interface ProvidenceSummonDefinition {
+  id: string;
+  name: string;
+  priorityTier: 'SSS_Universal' | 'SS_Essential' | 'S_HighPriority';
+  transcendenceMax: number;
+  mainAura: string;
+  subAura: string;
+  callEffect: string;
+  usageContext: string[];
+  operationalNotes?: string;
+}
+
+export interface ArchangelSubAuraDefinition {
+  element: string;
+  summonName: string;
+  damageCapBoostPercent: number;
+  callEffect: string;
+}
+
+export interface SixDragonSubAuraDefinition {
+  element: string;
+  summonName: string;
+  statBoost: string;
+  callEffect: string;
+}
+
+export interface ArcarumSubAuraDefinition {
+  element: string;
+  summonName: string;
+  subAuraType: 'Damage_Cap_Seraphic' | 'Max_HP_Boost';
+  bonusPercent: number;
+}
+
+export interface RevansApexOmenDefinition {
+  triggerType: 'HP_Trigger' | 'Turn_Trigger' | 'Charge_Diamond' | 'Special';
+  name: string;
+  cancelCondition: string;
+  penaltyIfUncanceled: string;
+  mitigationNotes?: string;
+}
+
+export interface RevansApexHpPhase {
+  phaseName: string;
+  hpRange: string;
+  omensAndTriggers: RevansApexOmenDefinition[];
+}
+
+export interface RevansApexRaidDefinition {
+  raidId: string;
+  name: string;
+  element: string;
+  battleSystem: 'V1' | 'V2';
+  maxPlayers: number;
+  totalHp: string;
+  mechanicsSummary: string;
+  hpPhases: RevansApexHpPhase[];
+  recommendedClasses: string[];
+  teamTemplates?: {
+    templateName: string;
+    mcClass: string;
+    keyCharacters: string[];
+    strategySummary: string;
+  }[];
+}
+
+export interface RevansApexCategoryDefinition {
+  categoryId: string;
+  categoryName: string;
+  raids: RevansApexRaidDefinition[];
+}
+
+export interface GuildWarsStageDefinition {
+  stageId: string;
+  name: string;
+  bossHp: string;
+  meatCostOrYield: string;
+  honorYield: string;
+  defenseMultiplier: number;
+  targetClearTime: string;
+}
+
+export interface GuildWarsMeatOptimizationDefinition {
+  archetype: string;
+  buttonCount: number;
+  chargeAttackCount: number;
+  mcClass: string;
+  coreRequirements: string[];
+  tacticalActionSequence: string;
+}
+
+export interface GuildWarsNightmareStrategyDefinition {
+  difficulty: 'NM90' | 'NM95' | 'NM100' | 'NM150' | 'NM200' | 'NM250';
+  bossTriggers: string[];
+  recommendedFullAutoRoster: string[];
+  survivalInterlocks: string[];
+  notes?: string;
+}
+
+
 
 
 

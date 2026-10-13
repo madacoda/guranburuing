@@ -175,6 +175,11 @@ const TEST_SUITES: TestSuite[] = [
     description: 'Verify Prometheus, Morrigna, Ca Ong, and Gilgamesh Militis templates, URLs, DSL round-trip, and Stage 10 quest selection'
   },
   {
+    name: 'Arcarum Zone Goliath (Stage 3) Bosses & Workflows Tests',
+    file: 'tests/test-arcarum-stage-3-goliath.ts',
+    description: 'Verify Goliath Triune, Avatar of Avarice, Goliath Keeper, Frenzied Howler templates, Stage 3 map routing, and presets'
+  },
+  {
     name: 'Fate Stories Engine & Routine Unit Tests',
     file: 'tests/test-fate-engine-unit.ts',
     description: 'Verify fate episode template schema, card filtering, quest skip uncheck, caution modal, cutscene skip, and routine loop integration'
@@ -183,6 +188,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Production vs Local Environment & Performance Architecture Tests',
     file: 'tests/test-production-environment.ts',
     description: 'Verify APP_ENV detection, SwiftShader 30fps cap, V8 1024MB heap, 512MB disk cache, 360x720 viewport, and audio auto-mute'
+  },
+  {
+    name: 'Mobage OAuth Redirect & Cookie Replacement Tests',
+    file: 'tests/test-mobage-redirect-sync.ts',
+    description: 'Verify OAuth redirect URL detection, midship server sync wait, SP_GUEST purging, and multi-domain cookie replacement'
+  },
+  {
+    name: 'Suspended Quest & Combat Resume Engine Tests',
+    file: 'tests/test-resume-and-suspended-quest.ts',
+    description: 'Verify popRestartQuest detection, multilingual suspended quest analysis, turn-aware combat resume, and boss name formatting'
+  },
+  {
+    name: 'Arcarum Zone Joculator (Stage 7) Lady of Redemption Tests',
+    file: 'tests/test-arcarum-stage-7-joculator.ts',
+    description: 'Verify Lady of Redemption, Maiden of the Depths, Stage 7 templates, Paragon step equivalence, and Joculator presets'
   }
 ];
 

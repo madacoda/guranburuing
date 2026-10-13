@@ -20,8 +20,13 @@ In-depth engineering documents explaining the underlying theory, mathematical mo
 - **[09. Companion UI Specification](file:///c:/laragon/www/gbf/strategies/principles/09_companion_ui_spec.md)**: Mobile PWA ergonomics, live screencasting card, and emergency alert modals.
 - **[10. Reference Implementation](file:///c:/laragon/www/gbf/strategies/principles/10_reference_implementation.md)**: Complete TypeScript modular reference implementation.
 - **[11. Senior Engineering & Management Architecture](file:///c:/laragon/www/gbf/strategies/principles/11_senior_management_architecture.md)**: Executive topology, Clean Architecture tiering, DDD bounded contexts, 7-state FSM, and risk governance matrix.
+- **[12. Discord Presence Architecture](file:///c:/laragon/www/gbf/strategies/principles/12_discord_presence_architecture.md)**: Dual-Channel Live Rich Presence, WebSocket v10 bot gateway + local IPC named pipe telemetry.
+- **[13. Authentication & Session Immunity](file:///c:/laragon/www/gbf/strategies/principles/13_authentication_and_session_immunity.md)**: Mobage JSSDK cross-origin architecture, session immunity shield, CHIPS partitioning, FuelPHP REST content negotiation, and 0ms profile verification.
 
 ---
+
+### ⭐ [Root Cause Analysis: Authentication Failures vs. Success Blueprint](file:///c:/laragon/www/guranburuing/strategies/AUTH_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md)
+Exhaustive post-mortem and technical breakdown of the 6 root causes behind local Chrome session kickouts, setup verification hangs, and headless cookie failures, along with the 5 architectural fixes that made local automation 100% stable.
 
 ### 2. [Workflows & Strategy Guides](file:///c:/laragon/www/gbf/strategies/workflows)
 Step-by-step guides for specific in-game farming and quest routines:
@@ -45,6 +50,11 @@ Step-by-step guides for specific in-game farming and quest routines:
 - **[Rise of the Beasts (`rotb.md`)](file:///c:/laragon/www/gbf/strategies/workflows/rotb.md)**:
   - Baihu repeat farming (`rotb:baihu`).
   - Automatic Shenxian / Titan Extreme+ unlock check and execution (`rotb:earth`).
+- **[Replicard Sandbox: Zone Goliath Stage 3 (`replicard-stage-3-goliath.md`)](file:///c:/laragon/www/guranburuing/strategies/workflows/replicard-stage-3-goliath.md)**:
+  - Universal Stage 3 map controller (`#replicard/stage/3`), Goliath Triune (Zone Boss, Earth), Avatar of Avarice (The Hanged Man), Goliath Keeper (The Tower), and Frenzied Howler (Death).
+  - Smart Full Auto with 350ms wait & reload animation skip, AAP replenishment, and host material farming.
+- **[Replicard Sandbox: The World (`theworld.md`)](file:///c:/laragon/www/guranburuing/strategies/workflows/theworld.md)**:
+  - Final core boss in Zone Mundus (Stage 10), plain damage omen cancellation via Beelzebub call, and New World Quartz farming.
 
 ---
 

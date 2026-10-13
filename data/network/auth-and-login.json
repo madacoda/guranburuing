@@ -65,5 +65,15 @@
       "cookiesJsonFile": "data/accounts/{accountId}/cookies.json",
       "environmentVariable": "GBF_SESSION_COOKIE"
     }
+  },
+  "browserRequirements": {
+    "thirdPartyCookiesRequired": true,
+    "reason": "GBF runs on game.granbluefantasy.jp while authentication tokens live on .mbga.jp (Mobage) or .dmm.com (DMM). When game.granbluefantasy.jp queries authentication endpoints or opens Mobage dialogs, the browser treats Mobage session cookies as 3rd-party cookies. Blocking them triggers infinite login loops and session drops.",
+    "chromeFlags": [
+      "--test-third-party-cookie-phaseout=disabled"
+    ],
+    "troubleshooting": {
+      "oauthLoop": "If clicking Mobage login repeatedly reloads back to the login screen, Chrome is blocking third-party cookies. Launch Chrome with --test-third-party-cookie-phaseout=disabled or set chrome://settings/cookies to 'Allow third-party cookies'."
+    }
   }
 }

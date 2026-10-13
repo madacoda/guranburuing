@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Avatar of Avarice (Pink Defender / Smart Full Auto)",
+  "description": "Optimal Smart Full Auto battle loop for Avatar of Avarice (Earth Pink Defender, The Hanged Man path, Zone Goliath Stage 3): Spawns from Bloodstained Barbarian / Vestige of Truth gauge clears. Turn 1 Quick Call + Wind Burst Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Confirm Result. Drops: Goliath Organ, Earthborne Astra, Hanged Man Idean",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
+  "element": "Wind",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 200,
+  "speedProfile": "fast",
+  "supporterPriority": ["Zephyrus", "Tiamat", "Kaguya", "Bahamut", "Lucifer"],
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

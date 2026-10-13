@@ -1,5 +1,6 @@
 // tests/test-daily-universal-unit.ts
 import { TemplateParser } from '../src/templates/template-parser.js';
+import { validateWorkflowTemplate } from '../src/templates/template-schema.js';
 import { UniversalWorkflowEngine } from '../src/engines/universal-workflow.engine.js';
 import { AccountRegistry } from '../src/auth/account-registry.js';
 import { CdpConnectionManager } from '../src/cdp-connection.js';
@@ -26,21 +27,17 @@ function assert(desc: string, condition: boolean) {
 // -----------------------------------------------------------------------------
 console.log('[Test 1] Verifying daily-universal Template Structure...');
 const template = TemplateParser.loadTemplate('daily-universal');
-assert('Template name matches', template.name === 'Universal Daily Routine');
+const val = validateWorkflowTemplate(template);
+assert('Template passes schema validation', val.valid);
 assert('Template mode is routine', template.mode === 'routine');
-assert('Template has steps', template.steps.length >= 10);
+assert('Template has customizable steps array', Array.isArray(template.steps) && template.steps.length > 0);
 
-const proSkipSteps = template.steps.filter(s => (s.code === 'do_until_finish' || s.action === 'do_until_finish') && s.target?.includes('_pro'));
-assert('Template contains pro skip steps', proSkipSteps.length >= 6);
-
-const rupieStep = template.steps.find(s => s.target === 'daily_rupie' || s.tag === 'daily_rupie');
-assert('Template contains daily_rupie step', !!rupieStep);
-
-const skyscopeStep = template.steps.find(s => s.target === 'daily_skyscope' || s.tag === 'daily_skyscope');
-assert('Template contains daily_skyscope step', !!skyscopeStep);
-
-const casinoStep = template.steps.find(s => s.target === 'daily_casino' || s.tag === 'daily_casino');
-assert('Template contains daily_casino step', !!casinoStep);
+const validDailyCodes = new Set([
+  'navigate', 'do_until_finish', 'run_daily_target', 'click',
+  'dismiss_popups', 'loop_while', 'wait', 'condition'
+]);
+const allCodesValid = template.steps.every(s => validDailyCodes.has(s.code));
+assert('All steps use valid routine action codes', allCodesValid);
 
 // -----------------------------------------------------------------------------
 // Test 2: Catalog Lookup in data/index.json

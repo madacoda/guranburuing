@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/character-tiering.schema.json",
+  "title": "GBFCharacterTieringAndTacticalRolesSchema",
+  "description": "Authoritative schema for character tiering, role classifications, V2 omen solvers, Full Auto anchors, and burst synergies.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "elements"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["elementId", "elementName", "characters"],
+        "properties": {
+          "elementId": { "type": "string" },
+          "elementName": { "type": "string" },
+          "characters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "role", "priorityTier", "tacticalTags", "keyAbilities", "bestContent"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "role": { "type": "string", "enum": ["Burst_OTK", "Full_Auto_Sustain", "High_Difficulty_Omen_Solver", "Guild_Wars_Specialist", "Support_Buffer"] },
+                "priorityTier": { "type": "string", "enum": ["SS_Core", "S_HighPriority", "A_Situational", "B_Niche", "F2P_Accessible"] },
+                "tacticalTags": { "type": "array", "items": { "type": "string" } },
+                "keyAbilities": { "type": "string" },
+                "bestContent": { "type": "array", "items": { "type": "string" } },
+                "substitutes": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

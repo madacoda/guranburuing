@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/weapon-grids.schema.json",
+  "title": "GBFWeaponGridsCatalogSchema",
+  "description": "Authoritative schema for Granblue Fantasy weapon grids, progression archetypes, damage modifiers, and awakening specifications across all 6 elements.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "elements"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["elementId", "elementName", "magnaGrids", "primalGrids", "universalComponents"],
+        "properties": {
+          "elementId": { "type": "string" },
+          "elementName": { "type": "string" },
+          "magnaGrids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["gridId", "tier", "name", "archetype", "mainSummon", "supporterSummon", "slots"],
+              "properties": {
+                "gridId": { "type": "string" },
+                "tier": { "type": "string", "enum": ["M1", "M2", "M3_LateGame"] },
+                "name": { "type": "string" },
+                "archetype": { "type": "string", "enum": ["Burst_OTK", "Full_Auto", "High_Difficulty", "Critical_100", "Stamina", "Enmity", "Ougi_CA"] },
+                "mainSummon": { "type": "string" },
+                "supporterSummon": { "type": "string" },
+                "hpModifierEstimated": { "type": "string" },
+                "criticalHitRatePercent": { "type": "number" },
+                "slots": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["slotType", "weaponName", "series", "recommendedCopies"],
+                    "properties": {
+                      "slotType": { "type": "string", "enum": ["Mainhand", "GridSlot", "Additional_SubSlot"] },
+                      "weaponName": { "type": "string" },
+                      "series": { "type": "string" },
+                      "recommendedCopies": { "type": "number", "minimum": 1, "maximum": 5 },
+                      "skillTypes": { "type": "array", "items": { "type": "string" } },
+                      "awakeningType": { "type": "string" },
+                      "pendulumOrKey": { "type": "string" },
+                      "notes": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "primalGrids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["gridId", "name", "archetype", "mainSummon", "supporterSummon", "slots"],
+              "properties": {
+                "gridId": { "type": "string" },
+                "name": { "type": "string" },
+                "archetype": { "type": "string" },
+                "mainSummon": { "type": "string" },
+                "supporterSummon": { "type": "string" },
+                "criticalHitRatePercent": { "type": "number" },
+                "slots": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["slotType", "weaponName", "series", "recommendedCopies"],
+                    "properties": {
+                      "slotType": { "type": "string" },
+                      "weaponName": { "type": "string" },
+                      "series": { "type": "string" },
+                      "recommendedCopies": { "type": "number" },
+                      "skillTypes": { "type": "array", "items": { "type": "string" } },
+                      "awakeningType": { "type": "string" },
+                      "pendulumOrKey": { "type": "string" },
+                      "notes": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "universalComponents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["weaponName", "series", "priority", "description"],
+              "properties": {
+                "weaponName": { "type": "string" },
+                "series": { "type": "string" },
+                "priority": { "type": "string", "enum": ["Mandatory", "High", "Situational"] },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

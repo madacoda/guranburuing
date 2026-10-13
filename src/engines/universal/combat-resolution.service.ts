@@ -167,6 +167,86 @@ export class CombatResolutionService {
     }
   }
 
+  /**
+   * Authoritative Enemy HP & Remaining HP extractor and telemetry logger.
+   * Extracts real-time boss data from JS state (pJsnData / gGameStatus) or DOM gauges,
+   * calculates percentage, tracks delta damage since previous check, and logs to console.
+   */
+  public async getAndLogEnemyHp(contextNote?: string): Promise<{ name: string; currentHp: number; maxHp: number; hpPct: number; isDefeated: boolean } | null> {
+    try {
+      const info = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        const pJsn = stage?.pJsnData;
+        const gStatus = stage?.gGameStatus;
+        const rawBoss = pJsn?.boss?.param || pJsn?.boss || stage?.gEnemyStatus || gStatus?.boss?.param || gStatus?.boss;
+        const bosses = Array.isArray(rawBoss) ? rawBoss : (rawBoss?.param && Array.isArray(rawBoss.param) ? rawBoss.param : Object.values(rawBoss || {}));
+
+        if (bosses.length > 0) {
+          const b = bosses[0];
+          if (b) {
+            const rawName = typeof b.name === 'object' && b.name ? (b.name.en || b.name.ja || '') : b.name;
+            const name = String(rawName || b.monster || b.cjs || 'Enemy');
+            const maxHp = parseInt(String(b.hpmax || 0), 10);
+            const curHp = parseInt(String(b.hp || 0), 10);
+            const gauge = document.querySelector('.prt-boss-gauge .prt-hp-gauge-inner, .prt-gauge-hp-inner') as HTMLElement;
+            const gaugePct = gauge ? parseFloat(gauge.style.width || '100') : 100;
+
+            let hpPct = 100;
+            if (!isNaN(maxHp) && maxHp > 0 && !isNaN(curHp)) {
+              hpPct = (Math.max(curHp, 0) / maxHp) * 100;
+            } else if (!isNaN(gaugePct)) {
+              hpPct = gaugePct;
+            }
+
+            return {
+              name,
+              currentHp: !isNaN(curHp) ? Math.max(curHp, 0) : 0,
+              maxHp: !isNaN(maxHp) ? maxHp : 0,
+              hpPct,
+              isDefeated: curHp <= 0 || hpPct <= 0 || b.alive === 0
+            };
+          }
+        }
+
+        // DOM Fallback
+        const gauge = document.querySelector('.prt-boss-gauge .prt-hp-gauge-inner, .prt-gauge-hp-inner') as HTMLElement;
+        if (gauge) {
+          const widthStr = gauge.style.width || '100%';
+          const hpPct = parseFloat(widthStr) || 100;
+          const nameEl = document.querySelector('.prt-enemy-name, .txt-enemy-name, .txt-boss-name');
+          const name = nameEl?.textContent?.trim() || 'Enemy';
+          return {
+            name,
+            currentHp: Math.round(hpPct),
+            maxHp: 100,
+            hpPct,
+            isDefeated: hpPct <= 0
+          };
+        }
+
+        return null;
+      }).catch(() => null);
+
+      if (info) {
+        const lastHp = (this.ctx.state as any).lastLoggedEnemyHp ?? info.currentHp;
+        const deltaDmg = lastHp > info.currentHp ? lastHp - info.currentHp : 0;
+        (this.ctx.state as any).lastLoggedEnemyHp = info.currentHp;
+
+        const hpStr = info.maxHp > 0 ? `${info.currentHp.toLocaleString()} / ${info.maxHp.toLocaleString()}` : `${info.hpPct.toFixed(1)}%`;
+        const pctStr = `${info.hpPct.toFixed(1)}%`;
+        const deltaStr = deltaDmg > 0 ? ` [-${deltaDmg.toLocaleString()} DMG]` : '';
+        const noteStr = contextNote ? ` [${contextNote}]` : '';
+        const statusStr = info.isDefeated ? ' [DEFEATED]' : '';
+
+        console.log(`[Combat:Enemy] 👾 Enemy: ${info.name} | Remaining HP: ${hpStr} (${pctStr})${deltaStr}${statusStr}${noteStr}`);
+        return info;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   public async ensureInitialCombatReady(timeoutMs = 8000): Promise<void> {
     const isCombatHash = await this.page.evaluate(() => {
       const hash = window.location.hash;
@@ -247,6 +327,7 @@ export class CombatResolutionService {
           await this.page.mouse.click(240, 260).catch(() => null);
           await logNormalDelay(250, 0.12);
         }
+        await this.getAndLogEnemyHp('Battle Start');
         return;
       }
 

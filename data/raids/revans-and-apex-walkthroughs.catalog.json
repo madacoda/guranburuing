@@ -1,0 +1,454 @@
+{
+  "$schema": "../schemas/revans-and-apex.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-13T08:34:00.000Z",
+  "description": "High-difficulty raid mechanics, HP triggers, and omen cancel conditions for Magna 3, Revans, and Apex raids.",
+  "categories": [
+    {
+      "categoryId": "magna_3_omega_rebirth",
+      "categoryName": "Magna 3 (Omega Rebirth) Series",
+      "raids": [
+        {
+          "raidId": "colossus_ira",
+          "name": "Colossus Ira Omega",
+          "element": "Fire",
+          "battleSystem": "V2",
+          "maxPlayers": 18,
+          "totalHp": "850,000,000",
+          "mechanicsSummary": "High defense with heat dissipation phases. Omens demand high hit-counts and water multi-hit skills. Guarding reduces heat vents.",
+          "hpPhases": [
+            {
+              "phaseName": "Thermal Core Phase 1 (100%-50%)",
+              "hpRange": "100%-50%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Magma Core Overdrive (75%)",
+                  "cancelCondition": "Deal 30,000,000 damage or 35 hits",
+                  "penaltyIfUncanceled": "Deals massive fire plain damage and inflicts Burn (5000/turn)",
+                  "mitigationNotes": "Clear with Payila 4-hit normal attacks or Haaselia skill spam."
+                }
+              ]
+            },
+            {
+              "phaseName": "Meltdown Phase 2 (50%-0%)",
+              "hpRange": "50%-0%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Dimensional Cleave: Ira (25%)",
+                  "cancelCondition": "Deal 4 Charge Attacks or 40 hits",
+                  "penaltyIfUncanceled": "Instantly defeats targeted ally (ignores normal defense)",
+                  "mitigationNotes": "Use Vajra double Ougi or Poseidon substitute."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Manadiver",
+            "Kengo",
+            "Paladin"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Water Kengo Ougi Loop",
+              "mcClass": "Kengo (Kaneshige)",
+              "keyCharacters": [
+                "Vajra",
+                "Haaselia (FLB)",
+                "Poseidon"
+              ],
+              "strategySummary": "Maintain 200% charge bar chains to clear damage and Ougi omens effortlessly on Full Auto."
+            }
+          ]
+        },
+        {
+          "raidId": "tiamat_aura",
+          "name": "Tiamat Aura Omega",
+          "element": "Wind",
+          "battleSystem": "V2",
+          "maxPlayers": 18,
+          "totalHp": "850,000,000",
+          "mechanicsSummary": "Spawns storm barriers that nullify non-critical damage. Relies on 100% crit grids and fire burst rotations to shred barriers.",
+          "hpPhases": [
+            {
+              "phaseName": "Tempest Barrier Phase (100%-50%)",
+              "hpRange": "100%-50%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Aerial Jail (80%)",
+                  "cancelCondition": "Deal 25,000,000 damage with critical hits",
+                  "penaltyIfUncanceled": "Imprisons frontline allies in Aerial Jail (unable to act for 2 turns)",
+                  "mitigationNotes": "Ensure 100% critical grid active before pushing 80%."
+                }
+              ]
+            },
+            {
+              "phaseName": "Vortex Hurricane (50%-0%)",
+              "hpRange": "50%-0%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Supercell Burst (20%)",
+                  "cancelCondition": "Cast 4 Skills or 36 hits",
+                  "penaltyIfUncanceled": "Teamwide 30,000 plain damage and buff wipe",
+                  "mitigationNotes": "Save Percival Sk2 and Zeta nukes to cancel instantly."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Berserker",
+            "Sumaibito",
+            "Relic Buster"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Fire Percival Burst",
+              "mcClass": "Sumaibito",
+              "keyCharacters": [
+                "Percival (Grand)",
+                "Michael",
+                "Zeta (Grand)"
+              ],
+              "strategySummary": "Turn 1 Percival 3 Tri-Strike obliterates boss HP; cancels all initial omens with massive raw burst."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "categoryId": "revans_series",
+      "categoryName": "Revans Impossible Series (6-Man)",
+      "raids": [
+        {
+          "raidId": "revans_diaspora",
+          "name": "Diaspora",
+          "element": "Water",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "2,000,000,000",
+          "mechanicsSummary": "Two distinct phases: Phase 1 (Activation sequence: α-hit count, β-skill damage, or γ-charge attack damage). Raid groups universally run '100% γ' to ensure smooth Phase 2 transitions. Phase 2 (Emergency Repair / Cell Death) triggers relentless 36-hit or 99-hit omens.",
+          "hpPhases": [
+            {
+              "phaseName": "Phase 1: Activation Analysis (100%-State 100)",
+              "hpRange": "100%-100%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Turn_Trigger",
+                  "name": "Gamma Absorption Protocol",
+                  "cancelCondition": "Deal 30,000,000 CA damage in a single turn",
+                  "penaltyIfUncanceled": "Ramps α or β counter if non-CA damage is dealt",
+                  "mitigationNotes": "Earth Kengo Ougi setup exclusively attacks with charge attacks until γ reaches 100."
+                }
+              ]
+            },
+            {
+              "phaseName": "Phase 2: Cell Death Overdrive",
+              "hpRange": "100%-0%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Annihilation Ray (30%)",
+                  "cancelCondition": "Deal 36 hits or 3,000,000 plain damage",
+                  "penaltyIfUncanceled": "Instant team wipe",
+                  "mitigationNotes": "Hrunting plain nuke or Caim 3-turn skill copy cancels this instantly."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Kengo (Phase 1 Host)",
+            "Robin Hood / Berserker (Phase 2 Leech/Race)"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Earth Kengo 100% Gamma Host",
+              "mcClass": "Kengo (Kaneshige)",
+              "keyCharacters": [
+                "Satyr (Earth)",
+                "Okuninushi",
+                "Arulumaya"
+              ],
+              "strategySummary": "Charge attack every turn to charge γ to 100, then open raid backup for Robin Hood bursters to clear Phase 2 in seconds."
+            }
+          ]
+        },
+        {
+          "raidId": "revans_seofon",
+          "name": "Seofon",
+          "element": "Wind",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "2,000,000,000",
+          "mechanicsSummary": "Inflicts Spirit Sword stacks with every uncanceled trigger. At 5 stacks, boss gains permanent elemental cut and multi-nukes the party. Demands continuous 40M damage or 6-charge-attack cancels.",
+          "hpPhases": [
+            {
+              "phaseName": "Sword Mastery (100%-75%)",
+              "hpRange": "100%-75%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Turn_Trigger",
+                  "name": "Infinite Creacion (Every 3 Turns)",
+                  "cancelCondition": "Deal 40,000,000 damage or 6 Charge Attacks",
+                  "penaltyIfUncanceled": "Gains 1 Spirit Sword stack; deals 40,000 teamwide damage",
+                  "mitigationNotes": "Must cancel or guard all 4 frontline units."
+                }
+              ]
+            },
+            {
+              "phaseName": "Grand Strike (10%-0%)",
+              "hpRange": "10%-0%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Cuatro Mil Espadas (10%)",
+                  "cancelCondition": "Deal 77 hits or 77,777,777 damage",
+                  "penaltyIfUncanceled": "99,999 plain damage to all allies",
+                  "mitigationNotes": "Use Triple Zero Phase 2 or full burst chain."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Berserker",
+            "Kengo",
+            "Paladin"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Fire Kengo Infinite Sustain",
+              "mcClass": "Kengo",
+              "keyCharacters": [
+                "Satyr",
+                "Silva (Yukata)",
+                "Michael"
+              ],
+              "strategySummary": "Satyr auto-cleanse and auto-heal counteracts Seofon's chip damage while Kengo Ougi chains satisfy CA cancel thresholds."
+            }
+          ]
+        },
+        {
+          "raidId": "revans_siegfried",
+          "name": "Siegfried",
+          "element": "Earth",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "2,000,000,000",
+          "mechanicsSummary": "Applies Uyuni status: all non-water healing damages allies, and normal defense is sharply lowered. Requires Wind teams with high natural defense (Sette di Spade grids) and multi-hit skill nukes.",
+          "hpPhases": [
+            {
+              "phaseName": "Dragon Slayer Stance (100%-50%)",
+              "hpRange": "100%-50%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Turn_Trigger",
+                  "name": "Manigance (Every 3 Turns)",
+                  "cancelCondition": "Cast 5 skills or deal 30,000,000 damage",
+                  "penaltyIfUncanceled": "Boss gains 50% DEF and ATK up",
+                  "mitigationNotes": "Charlotta and Catura skill resets easily clear skill count omens."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Paladin",
+            "Manadiver"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Wind Skill Spam & Defense Stack",
+              "mcClass": "Paladin",
+              "keyCharacters": [
+                "Charlotta (Grand)",
+                "Catura",
+                "Vira (Wind)"
+              ],
+              "strategySummary": "Layer Sette di Spade Defense awakenings with Charlotta's permanent TA and skill cuts to achieve 100% full auto safety."
+            }
+          ]
+        },
+        {
+          "raidId": "revans_mugen",
+          "name": "Mugen",
+          "element": "Fire",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "2,000,000,000",
+          "mechanicsSummary": "Phase 1 requires pushing to 70% without allowing Rampage gauge to hit 100. Phase 2 (Rampage) continuously hits for lethal normal attacks that must be redirected to undying tanks (Haaselia/Anne/Paladin).",
+          "hpPhases": [
+            {
+              "phaseName": "Phase 1: Calm Stance (100%-70%)",
+              "hpRange": "100%-70%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Ballistic Rampage Transition (70%)",
+                  "cancelCondition": "Uncancelable (Transforms)",
+                  "penaltyIfUncanceled": "Resets all debuffs, transforms into Rampage Mugen",
+                  "mitigationNotes": "Re-apply all debuffs immediately with Shalem/Gabriel."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Paladin",
+            "Yamato"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Water Haaselia Invulnerability Loop",
+              "mcClass": "Paladin",
+              "keyCharacters": [
+                "Haaselia (FLB)",
+                "Poseidon",
+                "Anne"
+              ],
+              "strategySummary": "Poseidon redirects multi-hit attacks while Haaselia double-casts barrier and ATK cuts, completely neutralizing Rampage."
+            }
+          ]
+        },
+        {
+          "raidId": "revans_cosmos",
+          "name": "Cosmos",
+          "element": "Light",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "2,000,000,000",
+          "mechanicsSummary": "Balance Gauge mechanic: party actions shift the scale toward Order (CA damage) or Chaos (Normal Attack/Skill damage). If the gauge hits 100% in either direction, boss triggers an instant team wipe (Equilibrium Fall).",
+          "hpPhases": [
+            {
+              "phaseName": "Dynamic Balance Phase (100%-25%)",
+              "hpRange": "100%-25%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Special",
+                  "name": "Extreme Shift Imbalance Omen",
+                  "cancelCondition": "Perform counter-action (Ougi if skewed toward Chaos, Normal Attack if skewed toward Order)",
+                  "penaltyIfUncanceled": "Instant 100,000 plain damage team wipe",
+                  "mitigationNotes": "Monitor gauge every single turn; alternate attack types strictly."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Kengo",
+            "Berserker"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Dark Balance Control",
+              "mcClass": "Kengo",
+              "keyCharacters": [
+                "Fediel",
+                "Lich",
+                "Helel ben Shalem"
+              ],
+              "strategySummary": "Fediel field and Lich auto-nukes supply Chaos points while MC Ougis supply Order points to lock the scale at 50% neutral."
+            }
+          ]
+        },
+        {
+          "raidId": "revans_agastia",
+          "name": "Agastia",
+          "element": "Dark",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "2,000,000,000",
+          "mechanicsSummary": "Spawns 6 Satellite nodes. Dealing 6 Charge Attacks per turn disables satellites. Boss applies extreme skill seal and continuous plain damage ticks unless delayed.",
+          "hpPhases": [
+            {
+              "phaseName": "Orbital Satellites (100%-50%)",
+              "hpRange": "100%-50%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Turn_Trigger",
+                  "name": "Satellite Cannon (Every 2 Turns)",
+                  "cancelCondition": "Deal 6 Charge Attacks in a single turn",
+                  "penaltyIfUncanceled": "Inflicts permanent Skill Seal to 2 allies",
+                  "mitigationNotes": "Light Kengo with Horus double Ougi effortlessly cancels this trigger."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Kengo"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Light Kengo 6-Ougi Loop",
+              "mcClass": "Kengo",
+              "keyCharacters": [
+                "Horus",
+                "Cosmos",
+                "Yuni"
+              ],
+              "strategySummary": "Horus and Cosmos double Ougi every turn, satisfying the 6 CA cancel condition with 100% consistency."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "categoryId": "apex_endgame",
+      "categoryName": "Apex & Super Endgame Raids (6-Man)",
+      "raids": [
+        {
+          "raidId": "dark_rapture_zero",
+          "name": "Dark Rapture Zero (Faa-0)",
+          "element": "Dark",
+          "battleSystem": "V2",
+          "maxPlayers": 6,
+          "totalHp": "3,500,000,000",
+          "mechanicsSummary": "The ultimate challenge in Granblue Fantasy. Features 12 Labors 2.0, extreme plain damage entry cuts, and Phase 3 (20%-0%) where the boss takes 6 actions per turn and must be executed in 4-5 turns flat.",
+          "hpPhases": [
+            {
+              "phaseName": "Phase 1: Twelve Ordeals (100%-80%)",
+              "hpRange": "100%-80%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Paradise Lost (80%)",
+                  "cancelCondition": "Deal 60,000,000 damage or 66 hits",
+                  "penaltyIfUncanceled": "Absolute wipe (bypasses Guts and undying)",
+                  "mitigationNotes": "Use Triple Zero Phase 2 or coordinate full team burst."
+                }
+              ]
+            },
+            {
+              "phaseName": "Phase 3: Final Countdown (20%-0%)",
+              "hpRange": "20%-0%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Turn_Trigger",
+                  "name": "Axion Apocalypse (Every Turn)",
+                  "cancelCondition": "Deal 99 hits or 40M Skill Damage",
+                  "penaltyIfUncanceled": "Kills 1 party member permanently per turn",
+                  "mitigationNotes": "Full burst with all cooldown resets and assassin turns."
+                }
+              ]
+            }
+          ],
+          "recommendedClasses": [
+            "Paladin",
+            "Yamato",
+            "Kengo"
+          ],
+          "teamTemplates": [
+            {
+              "templateName": "Light Faa0 Coordinate Anchor",
+              "mcClass": "Yamato",
+              "keyCharacters": [
+                "Yuni",
+                "Horus",
+                "Cosmos"
+              ],
+              "strategySummary": "Yamato Sk1 doubles omen cancel progression while Yuni resets all skills on turn 10+ to survive the 20% execute phase."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

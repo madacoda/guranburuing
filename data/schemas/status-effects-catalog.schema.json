@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/status-effects-catalog.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/status-effects-catalog.schema.json",
   "title": "GBFStatusEffectsAndDispelCleanseCatalog",
   "description": "Gold Industry Standard schema for Granblue Fantasy status effects, boss buffs, party debuffs, dispel/cleanse taxonomy, and autonomous survival decision trees.",
   "type": "object",

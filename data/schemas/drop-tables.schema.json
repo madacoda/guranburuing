@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/drop-tables.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/drop-tables.schema.json",
   "title": "GBFDropTablesSchema",
   "description": "Authoritative schema for Granblue Fantasy drop mechanics, Blue Chest formulas, Gold Brick probability rates, and Eternity Sand drop pools.",
   "type": "object",

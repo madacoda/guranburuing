@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/summon-hierarchies.schema.json",
+  "title": "GBFSummonHierarchiesAndSubAurasSchema",
+  "description": "Authoritative schema for Providence, Archangel, Six Dragons, and Arcarum summon hierarchies, sub-auras, and tactical call priority.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "providenceSummons", "archangelSubAuras", "sixDragonSubAuras", "arcarumSummons", "generalSlottingRules"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "providenceSummons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "priorityTier", "mainAura", "subAura", "callEffect", "usageContext"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "priorityTier": { "type": "string", "enum": ["SSS_Universal", "SS_Essential", "S_HighPriority"] },
+          "transcendenceMax": { "type": "number" },
+          "mainAura": { "type": "string" },
+          "subAura": { "type": "string" },
+          "callEffect": { "type": "string" },
+          "usageContext": { "type": "array", "items": { "type": "string" } },
+          "operationalNotes": { "type": "string" }
+        }
+      }
+    },
+    "archangelSubAuras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["element", "summonName", "damageCapBoostPercent", "callEffect"],
+        "properties": {
+          "element": { "type": "string" },
+          "summonName": { "type": "string" },
+          "damageCapBoostPercent": { "type": "number" },
+          "callEffect": { "type": "string" }
+        }
+      }
+    },
+    "sixDragonSubAuras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["element", "summonName", "statBoost", "callEffect"],
+        "properties": {
+          "element": { "type": "string" },
+          "summonName": { "type": "string" },
+          "statBoost": { "type": "string" },
+          "callEffect": { "type": "string" }
+        }
+      }
+    },
+    "arcarumSummons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["element", "summonName", "subAuraType", "bonusPercent"],
+        "properties": {
+          "element": { "type": "string" },
+          "summonName": { "type": "string" },
+          "subAuraType": { "type": "string", "enum": ["Damage_Cap_Seraphic", "Max_HP_Boost"] },
+          "bonusPercent": { "type": "number" }
+        }
+      }
+    },
+    "generalSlottingRules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["setupType", "recommendedSubSummons", "rationale"],
+        "properties": {
+          "setupType": { "type": "string" },
+          "recommendedSubSummons": { "type": "array", "items": { "type": "string" } },
+          "rationale": { "type": "string" }
+        }
+      }
+    }
+  }
+}

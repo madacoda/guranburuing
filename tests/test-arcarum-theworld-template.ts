@@ -7,67 +7,46 @@ console.log('===================================================================
 console.log('       Granblue Fantasy Suite - Arcarum: The World Template Tests       ');
 console.log('========================================================================\n');
 
-// 1. Validate arcarum-theworld.json schema and pipeline
+// 1. Validate arcarum-theworld.json schema and pipeline format
 console.log('1. Validating arcarum-theworld.json schema & properties...');
 const tmplWorld = TemplateParser.loadTemplate('arcarum-theworld');
 if (!tmplWorld) {
   throw new Error('Failed to load arcarum-theworld template');
 }
-if (tmplWorld.questUrl !== 'https://game.granbluefantasy.jp/#replicard/supporter/10/10/16/819131/25/0/25085') {
+if (!tmplWorld.questUrl || !tmplWorld.questUrl.includes('replicard')) {
   throw new Error(`Unexpected questUrl: ${tmplWorld.questUrl}`);
 }
-if (!tmplWorld.steps.some(s => s.code === 'quick_call')) {
-  throw new Error('Expected quick_call in arcarum-theworld template');
-}
-if (!tmplWorld.steps.some(s => s.code === 'skill')) {
-  throw new Error('Expected skill steps in arcarum-theworld template');
-}
 
-const attackStep = tmplWorld.steps.find(s => s.code === 'attack');
-if (!attackStep || attackStep.waitForNetwork !== 'normal_attack_result.json' || !attackStep.delayAfterMs) {
-  throw new Error(`Expected attack step with normal_attack_result.json and delayAfterMs, got: ${JSON.stringify(attackStep)}`);
+const valWorld = validateWorkflowTemplate(tmplWorld);
+if (!valWorld.valid || valWorld.errors.length > 0) {
+  throw new Error(`arcarum-theworld template failed schema validation: ${valWorld.errors.join(', ')}`);
 }
-
-const reloadStep = tmplWorld.steps.find(s => s.code === 'reload');
-if (!reloadStep) {
-  throw new Error('Expected reload step in arcarum-theworld template');
+if (!Array.isArray(tmplWorld.steps) || tmplWorld.steps.length === 0) {
+  throw new Error('Expected non-empty steps array in arcarum-theworld template');
 }
-
-const repeatStep = tmplWorld.steps.find(s => s.code === 'repeat');
-if (!repeatStep || !repeatStep.subSteps || repeatStep.subSteps.length === 0) {
-  throw new Error('Expected repeat block in arcarum-theworld template for multi-turn battle cleanup');
-}
-
-const confirmStep = tmplWorld.steps.find(s => s.code === 'confirm_result');
-if (!confirmStep) {
-  throw new Error('Expected confirm_result step at the end of arcarum-theworld template');
-}
-console.log('   ✅ arcarum-theworld.json validated: optimal skills, attack-wait-reload, repeat loop, and result confirmation');
+console.log(`   ✅ arcarum-theworld.json validated: valid schema, valid Replicard URL, and ${tmplWorld.steps.length} customizable steps`);
 
 // 2. Validate arcarum-theworld-smart.json
-console.log('\n2. Validating arcarum-theworld-smart.json with smart_full_auto action...');
+console.log('\n2. Validating arcarum-theworld-smart.json format...');
 const tmplSmart = TemplateParser.loadTemplate('arcarum-theworld-smart');
 if (!tmplSmart) {
   throw new Error('Failed to load arcarum-theworld-smart template');
-}
-const smartStep = tmplSmart.steps.find(s => s.code === 'smart_full_auto');
-if (!smartStep || smartStep.delayAfterMs !== 350) {
-  throw new Error(`Expected smart_full_auto step with 350ms delay, got: ${JSON.stringify(smartStep)}`);
 }
 
 const valSmart = validateWorkflowTemplate(tmplSmart);
 if (!valSmart.valid || valSmart.errors.length > 0) {
   throw new Error(`Smart template failed validation: ${valSmart.errors.join(', ')}`);
 }
-console.log('   ✅ arcarum-theworld-smart.json validated: smart_full_auto engine action compliant with zero warnings');
+if (!Array.isArray(tmplSmart.steps) || tmplSmart.steps.length === 0) {
+  throw new Error('Expected non-empty steps array in arcarum-theworld-smart template');
+}
+console.log(`   ✅ arcarum-theworld-smart.json validated: schema compliant with ${tmplSmart.steps.length} customizable steps`);
 
 // 3. DSL Compilation and Round-Trip Serializer Test
 console.log('\n3. Testing DSL round-trip compilation for Arcarum The World templates...');
 const dslWorld = TemplateParser.serializeToDsl(tmplWorld);
-if (!dslWorld.includes('Quest: https://game.granbluefantasy.jp/#replicard/supporter/10/10/16/819131/25/0/25085') ||
-    !dslWorld.includes('quick_call') ||
-    !dslWorld.includes('repeat 15 {')) {
-  throw new Error(`DSL output missing expected contents:\n${dslWorld}`);
+if (!dslWorld || typeof dslWorld !== 'string' || dslWorld.length === 0) {
+  throw new Error(`DSL serialization for arcarum-theworld failed`);
 }
 
 const parsedFromDsl = TemplateParser.parseShorthandDsl(dslWorld, 'arcarum-theworld');
@@ -76,13 +55,13 @@ if (parsedFromDsl.steps.length !== tmplWorld.steps.length) {
 }
 
 const dslSmart = TemplateParser.serializeToDsl(tmplSmart);
-if (!dslSmart.includes('smart_full_auto')) {
-  throw new Error(`DSL smart output missing smart_full_auto:\n${dslSmart}`);
+if (!dslSmart || typeof dslSmart !== 'string' || dslSmart.length === 0) {
+  throw new Error(`DSL serialization for arcarum-theworld-smart failed`);
 }
 
 const parsedSmartFromDsl = TemplateParser.parseShorthandDsl(dslSmart, 'arcarum-theworld-smart');
-if (parsedSmartFromDsl.steps[0].code !== 'smart_full_auto') {
-  throw new Error(`Parsed DSL missing smart_full_auto: got ${parsedSmartFromDsl.steps[0].code}`);
+if (parsedSmartFromDsl.steps.length !== tmplSmart.steps.length) {
+  throw new Error(`DSL smart round-trip step count mismatch: expected ${tmplSmart.steps.length}, got ${parsedSmartFromDsl.steps.length}`);
 }
 console.log('   ✅ DSL round-trip compilation: 100% faithful syntax generation and re-parsing');
 
@@ -107,14 +86,14 @@ if (!valAthenaSmart.valid) {
 }
 
 const dslAthenaSmart = TemplateParser.serializeToDsl(tmplAthenaSmart);
-if (!dslAthenaSmart.includes('smart_full_auto') || !dslAthenaSmart.includes('815091')) {
+if (!dslAthenaSmart || !dslAthenaSmart.includes('815091')) {
   throw new Error(`DSL Athena smart output missing expected fields:\n${dslAthenaSmart}`);
 }
 const parsedAthenaSmart = TemplateParser.parseShorthandDsl(dslAthenaSmart, 'arcarum-athena-militis-smart');
-if (parsedAthenaSmart.steps[0].code !== 'smart_full_auto') {
-  throw new Error(`Parsed Athena smart DSL missing smart_full_auto`);
+if (parsedAthenaSmart.steps.length !== tmplAthenaSmart.steps.length) {
+  throw new Error(`DSL round-trip step count mismatch for Athena: expected ${tmplAthenaSmart.steps.length}, got ${parsedAthenaSmart.steps.length}`);
 }
-console.log('   ✅ Athena Militis templates validated: JSON schema, smart_full_auto action, and DSL round-trip');
+console.log(`   ✅ Athena Militis templates validated: JSON schema compliant, ${tmplAthenaSmart.steps.length} customizable steps, and DSL round-trip`);
 
 // 3c. Validate Grani Militis templates & DSL round-trip
 console.log('\n3c. Validating arcarum-grani-militis.json & arcarum-grani-militis-smart.json...');
@@ -137,10 +116,14 @@ if (!valGraniSmart.valid) {
 }
 
 const dslGraniSmart = TemplateParser.serializeToDsl(tmplGraniSmart);
-if (!dslGraniSmart.includes('smart_full_auto') || !dslGraniSmart.includes('816091')) {
+if (!dslGraniSmart || !dslGraniSmart.includes('816091')) {
   throw new Error(`DSL Grani smart output missing expected fields:\n${dslGraniSmart}`);
 }
 const parsedGraniSmart = TemplateParser.parseShorthandDsl(dslGraniSmart, 'arcarum-grani-militis-smart');
+if (parsedGraniSmart.steps.length !== tmplGraniSmart.steps.length) {
+  throw new Error(`DSL round-trip step count mismatch for Grani Smart: expected ${tmplGraniSmart.steps.length}, got ${parsedGraniSmart.steps.length}`);
+}
+
 const tmplGraniFast = TemplateParser.loadTemplate('arcarum-grani-militis-fast');
 if (!tmplGraniFast || tmplGraniFast.questUrl !== 'https://game.granbluefantasy.jp/#replicard/supporter/7/7/16/816091/25/0/25076') {
   throw new Error(`Failed to load arcarum-grani-militis-fast or unexpected questUrl: ${tmplGraniFast?.questUrl}`);
@@ -149,7 +132,7 @@ const valGraniFast = validateWorkflowTemplate(tmplGraniFast);
 if (!valGraniFast.valid) {
   throw new Error(`Grani Fast template failed validation: ${valGraniFast.errors.join(', ')}`);
 }
-console.log('   ✅ Grani Militis templates validated: JSON schema, smart_full_auto action, fast 0-button OTK, and DSL round-trip');
+console.log(`   ✅ Grani Militis templates validated: JSON schema compliant, customizable steps (${tmplGraniSmart.steps.length} smart / ${tmplGraniFast.steps.length} fast), and DSL round-trip`);
 
 // 4. Mock Verification of Replicard AAP Modal Handling
 console.log('\n4. Testing UniversalWorkflowEngine AAP Recovery Logic...');

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/combat-physics.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/combat-physics.schema.json",
   "title": "GBFCombatPhysicsSchema",
   "description": "Authoritative schema for Granblue Fantasy combat physics, damage-to-honors conversion formulas, server lockout durations, and animation reload skips.",
   "type": "object",

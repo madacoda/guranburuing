@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/supporter-summons.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/supporter-summons.schema.json",
   "title": "GBFSupporterSummonsAndGridDecisionSchema",
   "description": "Gold Industry Standard schema for Granblue Fantasy Supporter Summons, Grid Archetypes, Supporter Tab Routing, and Autonomous Pre-Battle Summon Selection Decision Matrix.",
   "type": "object",

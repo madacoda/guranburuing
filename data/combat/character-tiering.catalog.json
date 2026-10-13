@@ -1,0 +1,661 @@
+{
+  "$schema": "../schemas/character-tiering.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-13T08:32:00.000Z",
+  "description": "Character meta breakdown across all 6 elements, organized by burst, full auto, and endgame battle roles.",
+  "elements": [
+    {
+      "elementId": "fire",
+      "elementName": "Fire",
+      "characters": [
+        {
+          "id": "char_fire_percival_grand",
+          "name": "Percival (Grand)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "tri-strike",
+            "fire_amplification",
+            "burst_enabler",
+            "echoes",
+            "dispel_cancel"
+          ],
+          "keyAbilities": "Skill 3 (Schlacht) grants all Fire allies 1-turn Tri-Strike and massive ATK/Echo buffs; Sk2 provides 5-hit nuke with Dispel and Debuff.",
+          "bestContent": [
+            "Guild Wars NM95/150",
+            "Tiamat Aura Omega",
+            "PBHL Burst",
+            "Grimnir HL"
+          ],
+          "substitutes": [
+            "Zeta (Grand)",
+            "Anderson"
+          ]
+        },
+        {
+          "id": "char_fire_michael",
+          "name": "Michael",
+          "role": "Support_Buffer",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "sub_aura_cap",
+            "dispel",
+            "delay",
+            "cooldown_reduction",
+            "plain_damage"
+          ],
+          "keyAbilities": "Passive provides unconditional 10-20% damage cap from sub-slot; Sk1 provides targeted CD cut + bar; Sk3 dispels, delays, and inflicts Fire DEF down.",
+          "bestContent": [
+            "All Fire Content",
+            "Seofon Revans",
+            "Tiamat Aura",
+            "Guild Wars"
+          ],
+          "substitutes": [
+            "Satyr",
+            "Silva (Yukata)"
+          ]
+        },
+        {
+          "id": "char_fire_satyr",
+          "name": "Satyr",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "auto_heal",
+            "auto_cleanse",
+            "auto_dispel",
+            "substitute",
+            "undying"
+          ],
+          "keyAbilities": "Innocent Heart automatically triggers end of turn when boss uses special attack: casts heal, cleanse, and 2-buff dispel with full charge bar.",
+          "bestContent": [
+            "Seofon Revans",
+            "Guild Wars NM200/250",
+            "High Difficulty Solo"
+          ],
+          "substitutes": [
+            "Athena",
+            "Sylph"
+          ]
+        },
+        {
+          "id": "char_fire_zeta_grand",
+          "name": "Zeta (Grand)",
+          "role": "Burst_OTK",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "assassin",
+            "multi_hit_nuke",
+            "guaranteed_ta",
+            "supplemental"
+          ],
+          "keyAbilities": "Casts endless multi-hit skill nukes with Crimson Spear; sharp boost to ATK on target with Arvess Fermare; excels in 1-turn burst setups.",
+          "bestContent": [
+            "GW EX+ 0-Button",
+            "NM95 Burst",
+            "Grimnir Burst"
+          ],
+          "substitutes": [
+            "Wilnas",
+            "Yuisis"
+          ]
+        },
+        {
+          "id": "char_fire_anderson",
+          "name": "Anderson",
+          "role": "High_Difficulty_Omen_Solver",
+          "priorityTier": "A_Situational",
+          "tacticalTags": [
+            "def_buff_massive",
+            "hit_count_solver",
+            "delay",
+            "substitute_all"
+          ],
+          "keyAbilities": "Provides 300% DEF up and massive plain damage counter-attacks on substitute, easily handling 30+ hit omens and multi-target lethal attacks.",
+          "bestContent": [
+            "Seofon Revans",
+            "Tiamat Aura Omega",
+            "Dark Rapture Zero"
+          ],
+          "substitutes": [
+            "Agielba",
+            "Athena"
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": "water",
+      "elementName": "Water",
+      "characters": [
+        {
+          "id": "char_water_haaselia_flb",
+          "name": "Haaselia (FLB/Transcendence)",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "backline_sub_aura",
+            "dual_skill_cast",
+            "water_atk_ramp",
+            "multi_hit_nuke",
+            "damage_cut"
+          ],
+          "keyAbilities": "Upon swapping to frontline, doubles all skill casts per turn, providing immense teamwide ATK, DEF, water ATK ramp, and auto-nuke every single turn.",
+          "bestContent": [
+            "All Water Raids",
+            "Mugen Revans",
+            "SUBHL",
+            "Faa0",
+            "GW NM150-NM250"
+          ],
+          "substitutes": [
+            "Poseidon",
+            "Gabriel"
+          ]
+        },
+        {
+          "id": "char_water_payila",
+          "name": "Payila (12 Divine General)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "dragon_flute",
+            "guaranteed_ta",
+            "quad_attack",
+            "damage_cap_up",
+            "dispel"
+          ],
+          "keyAbilities": "Grants whole party Dragon Flute for unconditional bonus damage and multiattack; passive allows 4-hit normal attack; immense burst and FA damage.",
+          "bestContent": [
+            "Guild Wars NM95/150",
+            "Wilnas HL",
+            "Mugen Burst",
+            "Colossus Ira"
+          ],
+          "substitutes": [
+            "Zeta (Water)",
+            "Gwynne"
+          ]
+        },
+        {
+          "id": "char_water_poseidon",
+          "name": "Poseidon",
+          "role": "High_Difficulty_Omen_Solver",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "3_split_attack",
+            "substitute_all",
+            "damage_redirection",
+            "water_switch",
+            "auto_charge_bar"
+          ],
+          "keyAbilities": "Passively hits 3 times per attack (solving 30-40 hit omens); Sk2 gives 100% water defense and redirects fatal damage away from allies.",
+          "bestContent": [
+            "Mugen Revans",
+            "SUBHL",
+            "Colossus Ira Omega",
+            "Faa0"
+          ],
+          "substitutes": [
+            "Anne",
+            "Paladin MC"
+          ]
+        },
+        {
+          "id": "char_water_shalem_summer",
+          "name": "Helel ben Shalem (Summer)",
+          "role": "High_Difficulty_Omen_Solver",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "omen_stun",
+            "all_debuff_infliction",
+            "buff_stealer",
+            "delay"
+          ],
+          "keyAbilities": "Sk3 instantly freezes boss diamonds and voids boss special attacks for a full turn; Sk1 inflicts 10 permanent cumulative debuffs.",
+          "bestContent": [
+            "Mugen Revans",
+            "SUBHL",
+            "Beelzebub HL"
+          ],
+          "substitutes": [
+            "Cassius (Valentine)",
+            "Vajra"
+          ]
+        },
+        {
+          "id": "char_water_vajra",
+          "name": "Vajra",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "double_ougi",
+            "dispel_on_ougi",
+            "teamwide_buff_chain",
+            "fear"
+          ],
+          "keyAbilities": "Double charge attacks at 200% bar; dispels on every Ougi; ramps up 5 stages of permanent teamwide buffs (ATK, DEF, Ougi Spec, Damage Cap).",
+          "bestContent": [
+            "Kengo Ougi Setup",
+            "Diaspora Farming",
+            "Guild Wars NM200"
+          ],
+          "substitutes": [
+            "Anne",
+            "Gwynne"
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": "earth",
+      "elementName": "Earth",
+      "characters": [
+        {
+          "id": "char_earth_hrunting_synergy_mc",
+          "name": "Hrunting Berserker MC / Sabrina",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "plain_damage_burst",
+            "double_attack_turn",
+            "high_tension",
+            "guaranteed_ta"
+          ],
+          "keyAbilities": "Hrunting mainhand attacks twice per turn with High Tension and auto-triggers 6M Plain damage upon special attacks; Sabrina multiplies this synergy.",
+          "bestContent": [
+            "Diaspora Revans",
+            "GW NM95/150",
+            "Yggdrasil Arbos",
+            "Akasha HL"
+          ],
+          "substitutes": [
+            "Olivia (Summer)",
+            "Galleon"
+          ]
+        },
+        {
+          "id": "char_earth_galleon",
+          "name": "Galleon",
+          "role": "Support_Buffer",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "single_target_god_buff",
+            "damage_cap_up",
+            "delay",
+            "debuff_immunity"
+          ],
+          "keyAbilities": "Sk1 permanently gives targeted ally 100% DEF, 30% Damage Cap, Guaranteed TA, and Debuff Immunity; Sk2 deals multi-hit nukes; Sk3 delays.",
+          "bestContent": [
+            "All Earth Content",
+            "Diaspora Revans",
+            "SUBHL",
+            "Hexachromatic"
+          ],
+          "substitutes": [
+            "Mahira",
+            "Arulumaya"
+          ]
+        },
+        {
+          "id": "char_earth_caim_flb",
+          "name": "Caim (FLB/Transcendence)",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "highlander_sub_aura",
+            "skill_copy",
+            "end_of_turn_buffs",
+            "damage_cap"
+          ],
+          "keyAbilities": "Backline aura provides 20% ATK, 50% DEF, and 10% Cap if 10 unique weapons are slotted; on frontline, copies skills and provides unmatched utility.",
+          "bestContent": [
+            "All Titan/Magna Highlander Content",
+            "Diaspora",
+            "SUBHL"
+          ],
+          "substitutes": [
+            "Uriel",
+            "Lobelia"
+          ]
+        },
+        {
+          "id": "char_earth_uriel",
+          "name": "Uriel",
+          "role": "Burst_OTK",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "sub_aura_cap",
+            "charge_bar_instant",
+            "multi_hit_nuke",
+            "assassin"
+          ],
+          "keyAbilities": "Passively boosts Earth cap by 10-20% from sub-slot; frontline Sk3 fills all allies' charge bar by 30% and grants massive ATK/DEF.",
+          "bestContent": [
+            "GW EX+ 0-Button",
+            "Diaspora Racing",
+            "Yggdrasil Arbos"
+          ],
+          "substitutes": [
+            "Satyr (Earth)",
+            "Pengy"
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": "wind",
+      "elementName": "Wind",
+      "characters": [
+        {
+          "id": "char_wind_narmaya_grand",
+          "name": "Narmaya (Grand)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "assassin_turn",
+            "guaranteed_ta",
+            "substitute_all",
+            "damage_cap_pierce",
+            "echoes"
+          ],
+          "keyAbilities": "Sk1 gives 1-turn Assassin buff; Sk2 gives Guaranteed TA + Echo; Sk3 gives Substitute All with undying; capable of dealing 150M+ damage in a single turn.",
+          "bestContent": [
+            "Galleon HL",
+            "Siegfried Revans",
+            "PBHL Wind Burst",
+            "GW NM95/150"
+          ],
+          "substitutes": [
+            "Charlotta (Grand)",
+            "Vira (Wind)"
+          ]
+        },
+        {
+          "id": "char_wind_charlotta_grand",
+          "name": "Charlotta (Grand)",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "unconditional_ta",
+            "skill_cd_cut",
+            "auto_nuke_end_of_turn",
+            "invulnerability"
+          ],
+          "keyAbilities": "Noble Execution ramps up to 10 stacks; grants whole party unconditional TA, cuts skill cooldowns by 1 turn every 10 turns, auto-nukes every turn.",
+          "bestContent": [
+            "Siegfried Revans",
+            "Tiamat Aura Omega",
+            "SUBHL",
+            "GW NM200/250"
+          ],
+          "substitutes": [
+            "Ewiyar",
+            "Grimnir (Valentine)"
+          ]
+        },
+        {
+          "id": "char_wind_kaguya",
+          "name": "Kaguya",
+          "role": "Support_Buffer",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "teamwide_double_strike",
+            "ougi_spec_boost",
+            "revive_auto",
+            "dispel"
+          ],
+          "keyAbilities": "Grants targeted Wind ally Double Strike and permanent buff stacks; grants automatic party revival upon wipe; dispels on Ougi.",
+          "bestContent": [
+            "Siegfried Revans",
+            "SUBHL",
+            "GW NM150/200"
+          ],
+          "substitutes": [
+            "Andira",
+            "Elea"
+          ]
+        },
+        {
+          "id": "char_wind_catura",
+          "name": "Catura (12 Divine General)",
+          "role": "High_Difficulty_Omen_Solver",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "double_ougi",
+            "skill_nuke_spam",
+            "charge_bar_battery",
+            "multi_hit"
+          ],
+          "keyAbilities": "Double charge attack on Sk1; rapidly resets skill nukes; generates massive charge bar for whole team; effortlessly clears CA and hit-count omens.",
+          "bestContent": [
+            "Siegfried Revans",
+            "High Difficulty V2",
+            "GW NM200"
+          ],
+          "substitutes": [
+            "Siete (Transcendence)",
+            "Ewiyar"
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": "light",
+      "elementName": "Light",
+      "characters": [
+        {
+          "id": "char_light_nehan",
+          "name": "Nehan",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "double_strike",
+            "guaranteed_ta",
+            "massive_echoes",
+            "bonus_damage"
+          ],
+          "keyAbilities": "Sk1 gives Guaranteed TA + 30% Echo; Sk2 gives 1-turn Double Strike to all allies; Sk3 gives massive critical and cap up; cornerstone of all Light burst.",
+          "bestContent": [
+            "All Light Burst",
+            "GW EX+/NM95/150",
+            "PBHL Light Racing",
+            "Cosmos Revans"
+          ],
+          "substitutes": [
+            "Yuni",
+            "Makura"
+          ]
+        },
+        {
+          "id": "char_light_yuni",
+          "name": "Yuni",
+          "role": "High_Difficulty_Omen_Solver",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "skill_cd_reset_all",
+            "charge_bar_100_all",
+            "permanent_buffs",
+            "cleanse"
+          ],
+          "keyAbilities": "Sk3 instantly resets all skill cooldowns for all allies and refills all charge bars to 100%; Sk1 ramps up permanent teamwide stats; cleanses debuffs.",
+          "bestContent": [
+            "Dark Rapture Zero",
+            "Hexachromatic",
+            "Agastia Revans",
+            "SUBHL"
+          ],
+          "substitutes": [
+            "Tikoh",
+            "Makura"
+          ]
+        },
+        {
+          "id": "char_light_florence_halloween",
+          "name": "Florence (Halloween)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "targeted_assassin",
+            "100_charge_bar",
+            "burst_enabler"
+          ],
+          "keyAbilities": "Sk1 grants targeted Light ally 1-turn Assassin (Targeted Any-Turn Assassin); combined with Relic Buster/Luchador, deals hundreds of millions in 1 turn.",
+          "bestContent": [
+            "PBHL Gold Bar Racing",
+            "GW NM95/150",
+            "Mugen/Agastia Burst"
+          ],
+          "substitutes": [
+            "Mugen (Halloween)",
+            "Nehan"
+          ]
+        },
+        {
+          "id": "char_light_horus",
+          "name": "Horus",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "double_ougi",
+            "auto_delay",
+            "auto_cleanse",
+            "charge_bar_battery"
+          ],
+          "keyAbilities": "Double charge attacks; automatically delays foes and cleanses allies on Ougi; provides incredible Full Auto safety and continuous charge bar supply.",
+          "bestContent": [
+            "Agastia Revans",
+            "Luminiera Credo Omega",
+            "GW NM200"
+          ],
+          "substitutes": [
+            "Cosmos",
+            "Vira (Grand)"
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": "dark",
+      "elementName": "Dark",
+      "characters": [
+        {
+          "id": "char_dark_fediel",
+          "name": "Fediel",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "field_effect",
+            "10000_shield",
+            "double_ougi",
+            "auto_nuke_2_hits",
+            "debuff_immunity"
+          ],
+          "keyAbilities": "Field of Calamity grants 10,000 Shield, 100% DEF, and 50% Ougi Cap to whole team; double Ougis at 100% bar; auto-nukes twice with dispels end of turn.",
+          "bestContent": [
+            "All Dark Content",
+            "Luwad Revans",
+            "Akasha Racing",
+            "GW NM95-250"
+          ],
+          "substitutes": [
+            "Lich",
+            "Helel ben Shalem"
+          ]
+        },
+        {
+          "id": "char_dark_lich",
+          "name": "Lich",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "reverse_healing",
+            "auto_nuke_delay",
+            "water_switch",
+            "dispel"
+          ],
+          "keyAbilities": "Converts all DOT debuffs into healing for all allies; auto-activates 6-hit nuke with Delay and Dispel every single turn on Ougi.",
+          "bestContent": [
+            "All Dark Full Auto",
+            "Agastia HL",
+            "SUBHL",
+            "GW NM150-250"
+          ],
+          "substitutes": [
+            "Fediel",
+            "Seox (150)"
+          ]
+        },
+        {
+          "id": "char_dark_bowman",
+          "name": "Bowman",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "0_button_attacker",
+            "auto_nuke_on_attack",
+            "auto_attack_again",
+            "guaranteed_ta"
+          ],
+          "keyAbilities": "Passively takes 0 button inputs: attacks with guaranteed TA, attacks a second time, and auto-casts 6-hit nuke end of turn; supreme OTK farmer.",
+          "bestContent": [
+            "GW EX+ 0-Button",
+            "Sandbox 0-Button Farming",
+            "Event Raid OTK"
+          ],
+          "substitutes": [
+            "Seox",
+            "Six"
+          ]
+        },
+        {
+          "id": "char_dark_seox_transcendence",
+          "name": "Seox (Transcendence 150)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "heavenly_howl",
+            "damage_cap_unlimited",
+            "dodge_all",
+            "multi_hit"
+          ],
+          "keyAbilities": "Permanent Heavenly Howl stacks grant 100% TA, massive echoes, and damage cap; Sk1 gives 60% echo; Sk2 gives dodge all with 6-hit counter-attack.",
+          "bestContent": [
+            "Akasha Gold Bar Racing",
+            "PBHL",
+            "SUBHL",
+            "GW NM95/150/200"
+          ],
+          "substitutes": [
+            "Bowman",
+            "Ilsa (Yukata)"
+          ]
+        },
+        {
+          "id": "char_dark_ilsa_yukata",
+          "name": "Ilsa (Yukata)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "quad_attack",
+            "gun_damage_cap",
+            "turn_1_burst",
+            "echoes"
+          ],
+          "keyAbilities": "Passively attacks 4 times (Quadruple Attack); grants huge bonus damage with Gun proficiency allies; cornerstone of Ereshkigal 3-turn burst.",
+          "bestContent": [
+            "Ereshkigal Burst",
+            "Akasha Racing",
+            "GW NM95/150",
+            "PBHL"
+          ],
+          "substitutes": [
+            "Meg (Summer)",
+            "Bowman"
+          ]
+        }
+      ]
+    }
+  ]
+}

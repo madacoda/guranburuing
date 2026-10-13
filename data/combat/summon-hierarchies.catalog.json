@@ -1,0 +1,250 @@
+{
+  "$schema": "../schemas/summon-hierarchies.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-13T08:33:00.000Z",
+  "description": "Summon tiering and sub-aura priorities, covering Providence summons, Archangels, and Six Dragons.",
+  "providenceSummons": [
+    {
+      "id": "summon_beelzebub",
+      "name": "Beelzebub",
+      "priorityTier": "SSS_Universal",
+      "transcendenceMax": 0,
+      "mainAura": "At battle start, sets MC Trance level to 3. Grants MC guaranteed DA, 100% TA, 50% unique ATK, and 20% damage cap.",
+      "subAura": "None (strictly main summon or quick summon engine).",
+      "callEffect": "Deals 2000% elemental damage (~2.4M-3.0M cap). Inflicts 40% DEF down, 20% debuff res down, dispels 3 buffs, deals 3M plain damage, and inflicts Bore (50% debuff res down, 100,000 supplemental damage).",
+      "usageContext": [
+        "Main summon for all 0-button and 1-turn burst setups",
+        "Quick summon in high-difficulty raids for instant 3x dispel and 40% DEF down"
+      ],
+      "operationalNotes": "Cornerstone of modern burst farming. Bore allows instant damage cap saturation."
+    },
+    {
+      "id": "summon_belial",
+      "name": "Belial",
+      "priorityTier": "SSS_Universal",
+      "transcendenceMax": 0,
+      "mainAura": "Boost to Dark ATK, caps Dark allies max HP at 20,000 (Situational).",
+      "subAura": "Grants 30,000 supplemental damage to all allies for all damage instances (normal attacks, echoes, multi-hit skill nukes). Reduces max HP by 30% (calculated before weapon skills).",
+      "callEffect": "Random chaotic beneficial or detrimental effect (Cunning Horseplay).",
+      "usageContext": [
+        "Universal sub-slot on 95% of all teams across all elements",
+        "Burst racing",
+        "Full Auto farming"
+      ],
+      "operationalNotes": "Drop only in extreme endgame raids (SUBHL/Faa0/NM250) if HP checks are strictly fatal and Ougi-only tactics are required."
+    },
+    {
+      "id": "summon_lucifer_transcendence",
+      "name": "Lucifer (Transcendence 250)",
+      "priorityTier": "SSS_Universal",
+      "transcendenceMax": 250,
+      "mainAura": "150% boost to all Elemental ATK, 50% boost to max HP. Starting at Lv 230: automatically removes 1 debuff and grants Wings of Pure White (30% normal ATK, 1500/10% revitalize) whenever boss uses special attack.",
+      "subAura": "10% to 30% boost to healing specs for all allies.",
+      "callEffect": "Deals massive damage, heals 4000 HP, grants Wings of Pure White (4T), and grants Dispel Cancel (No Limit, 2T) at Lv 250.",
+      "usageContext": [
+        "Main summon or friend summon for multi-turn racing and high-difficulty raids",
+        "Full Auto survival engine"
+      ],
+      "operationalNotes": "At Lv 250, provides the single best combination of sustain, dispel cancel, and attack amplification in the game."
+    },
+    {
+      "id": "summon_bahamut_transcendence",
+      "name": "Bahamut (Transcendence 250)",
+      "priorityTier": "SS_Essential",
+      "transcendenceMax": 250,
+      "mainAura": "150% boost to all Elemental ATK, 50% boost to CA DMG, 20% boost to CA Cap.",
+      "subAura": "30% boost to CA Specs for all allies.",
+      "callEffect": "Deals massive damage, grants 80% CA DMG up, 20% CA Cap up, and fills all allies' charge bar by 30-50%.",
+      "usageContext": [
+        "Ougi racing setups",
+        "Kengo teams",
+        "EX+ 0-button CA burst setups"
+      ],
+      "operationalNotes": "Premier summon for charge attack optimization and instant party bar replenishment."
+    },
+    {
+      "id": "summon_yatima",
+      "name": "Yatima",
+      "priorityTier": "SS_Essential",
+      "transcendenceMax": 0,
+      "mainAura": "Boost to Water ATK and charge bar gain.",
+      "subAura": "Boost to elemental ATK of sub-summons.",
+      "callEffect": "1-turn cut to all allies' skill cooldowns. Simultaneously calls two other equipped sub-summons at random or based on priority.",
+      "usageContext": [
+        "Skill reset cycling",
+        "Double summon activation in high-difficulty and burst turns"
+      ],
+      "operationalNotes": "Enables rapid turn-1 multi-summon sequences and cuts cooldowns on long-recast tactical abilities."
+    },
+    {
+      "id": "summon_triple_zero",
+      "name": "Triple Zero",
+      "priorityTier": "SSS_Universal",
+      "transcendenceMax": 0,
+      "mainAura": "150% Elemental ATK boost to MC element.",
+      "subAura": "Boost to all allies' stats and multiattack.",
+      "callEffect": "Phase 1: Massive nuke, grants all allies 100% TA and massive echoes. Phase 2: Deals immense plain damage, dispels, and cancels 24-hit or plain damage omens instantly.",
+      "usageContext": [
+        "Endgame V2 omen solving (Faa0, Hexa, SUBHL)",
+        "Burst OTK setups",
+        "Guild Wars NM200/250"
+      ],
+      "operationalNotes": "The definitive omen canceler for Battle System 2.0; voids complex raid triggers with a single button press."
+    }
+  ],
+  "archangelSubAuras": [
+    {
+      "element": "fire",
+      "summonName": "Michael",
+      "damageCapBoostPercent": 15,
+      "callEffect": "Dispels 1 buff, delays all foes, fills all allies' charge bar by 20%."
+    },
+    {
+      "element": "water",
+      "summonName": "Gabriel",
+      "damageCapBoostPercent": 15,
+      "callEffect": "Inflicts Pure Filter (Water DEF down, unable to attack for 1 turn)."
+    },
+    {
+      "element": "earth",
+      "summonName": "Uriel",
+      "damageCapBoostPercent": 15,
+      "callEffect": "All allies gain 30% charge bar, 30% ATK up, and 50% DEF up."
+    },
+    {
+      "element": "wind",
+      "summonName": "Raphael",
+      "damageCapBoostPercent": 15,
+      "callEffect": "Dispels 1 buff, delays, inflicts Ring of Judgment (foils special attack)."
+    },
+    {
+      "element": "light",
+      "summonName": "Metatron",
+      "damageCapBoostPercent": 15,
+      "callEffect": "Dispels 1 buff, inflicts Light DEF down, grants Light allies 1-turn ATK cap up."
+    },
+    {
+      "element": "dark",
+      "summonName": "Sariel",
+      "damageCapBoostPercent": 15,
+      "callEffect": "All allies gain 30% charge bar and 1-turn targeted damage cap up."
+    }
+  ],
+  "sixDragonSubAuras": [
+    {
+      "element": "fire",
+      "summonName": "Wilnas",
+      "statBoost": "Boost to Fire allies' ATK, DEF, and HP by up to 25%",
+      "callEffect": "Deals massive plain damage nuke and inflicts Red-Hot."
+    },
+    {
+      "element": "water",
+      "summonName": "Wamdus",
+      "statBoost": "Boost to Water allies' ATK, DEF, and HP by up to 25%",
+      "callEffect": "Deals massive damage and inflicts Inoculation."
+    },
+    {
+      "element": "earth",
+      "summonName": "Galleon",
+      "statBoost": "Boost to Earth allies' ATK, DEF, and HP by up to 25%",
+      "callEffect": "Deals massive damage and inflicts Swallowed."
+    },
+    {
+      "element": "wind",
+      "summonName": "Ewiyar",
+      "statBoost": "Boost to Wind allies' ATK, DEF, and HP by up to 25%",
+      "callEffect": "Deals multi-hit damage and inflicts Green-Breeze."
+    },
+    {
+      "element": "light",
+      "summonName": "Lu Woh",
+      "statBoost": "Boost to Light allies' ATK, DEF, and HP by up to 25%",
+      "callEffect": "Deals massive damage and restores all allies' HP."
+    },
+    {
+      "element": "dark",
+      "summonName": "Fediel",
+      "statBoost": "Boost to Dark allies' ATK, DEF, and HP by up to 25%",
+      "callEffect": "Deals massive damage and inflicts Cursed Death."
+    }
+  ],
+  "arcarumSummons": [
+    {
+      "element": "fire",
+      "summonName": "The Sun",
+      "subAuraType": "Damage_Cap_Seraphic",
+      "bonusPercent": 10
+    },
+    {
+      "element": "water",
+      "summonName": "The Moon",
+      "subAuraType": "Damage_Cap_Seraphic",
+      "bonusPercent": 10
+    },
+    {
+      "element": "earth",
+      "summonName": "The Hanged Man",
+      "subAuraType": "Damage_Cap_Seraphic",
+      "bonusPercent": 10
+    },
+    {
+      "element": "earth",
+      "summonName": "The Tower",
+      "subAuraType": "Max_HP_Boost",
+      "bonusPercent": 30
+    },
+    {
+      "element": "wind",
+      "summonName": "Judgement",
+      "subAuraType": "Damage_Cap_Seraphic",
+      "bonusPercent": 10
+    },
+    {
+      "element": "light",
+      "summonName": "The Star",
+      "subAuraType": "Damage_Cap_Seraphic",
+      "bonusPercent": 10
+    },
+    {
+      "element": "dark",
+      "summonName": "Death",
+      "subAuraType": "Damage_Cap_Seraphic",
+      "bonusPercent": 10
+    }
+  ],
+  "generalSlottingRules": [
+    {
+      "setupType": "Burst_OTK_Farming",
+      "recommendedSubSummons": [
+        "Belial",
+        "Matching Archangel (Michael/Gabriel/etc.)",
+        "Matching Arcarum Cap (The Sun/The Moon/etc.)",
+        "Beelzebub (if not Main)",
+        "Matching Six Dragon"
+      ],
+      "rationale": "Maximizes flat supplemental damage (Belial 30k) and Seraphic damage cap multipliers (Archangel 15% + Arcarum 10% = 25% total cap increase)."
+    },
+    {
+      "setupType": "Full_Auto_Sustain",
+      "recommendedSubSummons": [
+        "Belial",
+        "Lucifer 250",
+        "Matching Archangel",
+        "Matching Six Dragon",
+        "Arcarum HP/Cap"
+      ],
+      "rationale": "Maintains offensive cap while leveraging Lucifer 250's passive heal specs and automated emergency cleanses on enemy triggers."
+    },
+    {
+      "setupType": "High_Difficulty_V2",
+      "recommendedSubSummons": [
+        "Triple Zero",
+        "Lucifer 250",
+        "Beelzebub",
+        "Yatima",
+        "Arcarum HP (The Tower / The Devil / Justice)"
+      ],
+      "rationale": "Prioritizes omen resolution tools (Triple Zero, Bubs) and maximum raw HP thresholds over purely offensive supplemental damage."
+    }
+  ]
+}

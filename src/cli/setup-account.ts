@@ -60,6 +60,27 @@ async function main(targetAccount: AccountConfig) {
   const page = conn.page;
   const publicIp = await getPublicIp();
 
+  const isClean = args.includes('--clean');
+  if (isClean) {
+    console.log('[Setup] 🧹 --clean flag detected. Thoroughly purging browser cookies, storage, and cache...');
+    try {
+      const client = await page.target().createCDPSession();
+      await client.send('Network.clearBrowserCookies');
+      await client.send('Network.clearBrowserCache');
+      await client.send('Storage.clearDataForStorageKey', {
+        storageKey: 'https://game.granbluefantasy.jp/',
+        storageTypes: 'all'
+      }).catch(() => null);
+      await client.send('Storage.clearDataForStorageKey', {
+        storageKey: 'https://connect.mobage.jp/',
+        storageTypes: 'all'
+      }).catch(() => null);
+      console.log('[Setup] ✅ All stale cookies, partitioned storage, and dummy tokens purged.');
+    } catch (e: any) {
+      console.warn('[Setup] Notice during clean purge:', e.message);
+    }
+  }
+
   let gateway: GatewayServer | null = null;
   const midshipArgIdx = args.indexOf('--midship');
   const rawMidship = midshipArgIdx !== -1 ? args[midshipArgIdx + 1] : null;
@@ -77,9 +98,7 @@ async function main(targetAccount: AccountConfig) {
       const cleanMidship = rawMidship.trim().replace(/^["']|["']$/g, '');
       const expiry = Math.floor(Date.now() / 1000) + 365 * 24 * 3600;
       cookiesToInject = [
-        { name: 'midship', value: cleanMidship, domain: 'game.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry },
-        { name: 'midship', value: cleanMidship, domain: '.game.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry },
-        { name: 'midship', value: cleanMidship, domain: '.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry }
+        { name: 'midship', value: cleanMidship, domain: 'game.granbluefantasy.jp', path: '/', secure: false, httpOnly: false, expires: expiry }
       ];
     } else if (rawJson) {
       try {
@@ -102,10 +121,11 @@ async function main(targetAccount: AccountConfig) {
 
     if (cookiesToInject.length > 0) {
       console.log(`[Setup] Injecting ${cookiesToInject.length} cookies via Chrome DevTools Protocol...`);
+      const sanitized = AccountAuthManager.sanitizeCookiesForCDP(cookiesToInject);
       const client = await page.target().createCDPSession();
       await client.send('Network.clearBrowserCookies');
-      await client.send('Network.setCookies', { cookies: cookiesToInject });
-      await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
+      await client.send('Network.setCookies', { cookies: sanitized });
+      await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
       await new Promise(r => setTimeout(r, 2500));
     }
   }
@@ -147,26 +167,34 @@ async function main(targetAccount: AccountConfig) {
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
 
-  console.log(`Verifying in-game authentication on #profile...`);
-  let profile = await AccountAuthManager.ensureAuthenticated(page, targetAccount);
-
-  if (!profile) {
+  if (forceHeadless) {
     console.log('\n========================================================================');
     console.log(' ⏳ AWAITING 1-TIME LOGIN IN REMOTE COCKPIT');
     console.log('========================================================================');
     console.log(` 👉 Open Cockpit: http://${publicIp}:${config.PORT}/?token=${config.AUTH_TOKEN}`);
     console.log(' 👉 Live browser feed is active. Tap buttons or enter OTP in your browser.');
+    console.log(' 👉 Assistant will handle gray button and in-game continue automatically.');
     console.log(' 👉 Waiting for in-game profile confirmation (Ctrl+C to abort)...');
     console.log('========================================================================\n');
-
-    while (!profile) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const currentUrl = safeUrl(page);
-      if (currentUrl.includes('granbluefantasy.jp') && !currentUrl.includes('mbga.jp') && !currentUrl.includes('mobage.jp')) {
-        profile = await AccountAuthManager.getVerifiedProfile(page).catch(() => null);
-      }
-    }
+  } else {
+    console.log('\n========================================================================');
+    console.log(' ⏳ STARTING ASSISTED LOGIN IN DESKTOP BROWSER WINDOW');
+    console.log('========================================================================');
+    console.log(' 👉 Browser window is open.');
+    console.log(' 👉 Assistant will:');
+    console.log('    1. Select Mobage on authentication screen.');
+    console.log('    2. On redirect screen, truly wait quietly for session to settle.');
+    console.log('    3. Click the gray button (閉じる).');
+    console.log('    4. Switch back to GBF, click in-game Continue (「続ける」).');
+    console.log('    5. Let it transition naturally into #mypage (no reloads or forced URLs).');
+    console.log('    6. Save fresh cookies across all domains to data/' + targetAccount.id + '-cookies.json.');
+    console.log('========================================================================\n');
   }
+
+  const profile = await AccountAuthManager.ensureAuthenticated(page, targetAccount, {
+    interactive: true,
+    timeoutMs: 300000
+  });
 
   if (profile) {
     console.log('\n========================================================================');
@@ -175,35 +203,16 @@ async function main(targetAccount: AccountConfig) {
     console.log(`   Player Rank:      ${profile.rank}`);
     console.log(`   Granblue User ID: ${profile.id}`);
     console.log(`   Profile Storage:  ${targetAccount.profileDir}`);
+    console.log(`   Session Cookies:  data/${targetAccount.id}-cookies.json`);
     console.log('========================================================================\n');
-
-    try {
-      const client = await page.target().createCDPSession();
-      const { cookies } = await client.send('Network.getAllCookies');
-      const relevantCookies = cookies.filter(c => {
-        const domain = (c.domain || '').toLowerCase();
-        return (
-          domain.includes('granbluefantasy.jp') ||
-          domain.includes('mbga.jp') ||
-          domain.includes('mobage.jp') ||
-          domain.includes('dmm.com')
-        );
-      });
-      const dataDir = path.resolve(process.cwd(), 'data');
-      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-      const cookieFile = path.join(dataDir, `${targetAccount.id}-cookies.json`);
-      fs.writeFileSync(cookieFile, JSON.stringify(relevantCookies, null, 2), 'utf-8');
-      console.log(`[Setup] 🎉 Automatically exported ${relevantCookies.length} session cookies to:`);
-      console.log(`        ${cookieFile}`);
-    } catch (exportErr: any) {
-      console.warn('[Setup] Notice exporting cookies:', exportErr.message);
-    }
+  } else {
+    console.error(`\n❌ Failed to authenticate account [${targetAccount.name}] within timeout.`);
   }
 
   if (gateway) {
-    await gateway.stop();
+    await gateway.stop().catch(() => {});
   }
-  await cdp.disconnect();
+  await cdp.disconnect().catch(() => {});
   process.exit(profile ? 0 : 1);
 }
 

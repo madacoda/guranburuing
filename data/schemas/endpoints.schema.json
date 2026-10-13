@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/endpoints.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/endpoints.schema.json",
   "title": "GBFEndpointsCatalogSchema",
   "description": "Authoritative schema for Granblue Fantasy HTTP REST API endpoints, HTTP headers, request payloads, and response structures.",
   "type": "object",

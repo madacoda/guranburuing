@@ -104,8 +104,8 @@ if ($Force.IsPresent) {
                 Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
             }
             Start-Sleep -Milliseconds 800
-        } elseif ($Headless.IsPresent -and -not $currentIsHeadless -and $env:FORCE_HEADLESS_SWITCH -eq "true") {
-            Write-Host "[Launcher] Explicit force headless switch requested. Switching to headless mode..." -ForegroundColor Cyan
+        } elseif ($Headless.IsPresent -and -not $currentIsHeadless) {
+            Write-Host "[Launcher] Explicit -Headless requested. Switching from windowed to headless mode..." -ForegroundColor Cyan
             foreach ($p in $runningProcs) {
                 Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
             }
@@ -182,6 +182,67 @@ if (Test-Path $lockFile1) { Remove-Item $lockFile1 -Force -ErrorAction SilentlyC
 if (Test-Path $lockFile2) { Remove-Item $lockFile2 -Force -ErrorAction SilentlyContinue }
 if (Test-Path $lockFile3) { Remove-Item $lockFile3 -Force -ErrorAction SilentlyContinue }
 
+# Auto-configure Chrome profile preferences to allow third-party cookies for Mobage/DMM
+$targetPrefFile = Join-Path "$userDataDir\$targetProfile" "Preferences"
+if (Test-Path $targetPrefFile) {
+    try {
+        $prefObj = Get-Content $targetPrefFile -Raw | ConvertFrom-Json
+        $prefMod = $false
+        if (-not $prefObj.profile) {
+            $prefObj | Add-Member -MemberType NoteProperty -Name "profile" -Value ([PSCustomObject]@{})
+            $prefMod = $true
+        }
+        if ($prefObj.profile.cookie_controls_mode -ne 0) {
+            $prefObj.profile | Add-Member -MemberType NoteProperty -Name "cookie_controls_mode" -Value 0 -Force
+            $prefMod = $true
+        }
+        if (-not $prefObj.profile.default_content_setting_values) {
+            $prefObj.profile | Add-Member -MemberType NoteProperty -Name "default_content_setting_values" -Value ([PSCustomObject]@{})
+            $prefMod = $true
+        }
+        if ($prefObj.profile.default_content_setting_values.cookies -ne 1) {
+            $prefObj.profile.default_content_setting_values | Add-Member -MemberType NoteProperty -Name "cookies" -Value 1 -Force
+            $prefMod = $true
+        }
+        if (-not $prefObj.profile.content_settings) {
+            $prefObj.profile | Add-Member -MemberType NoteProperty -Name "content_settings" -Value ([PSCustomObject]@{})
+            $prefMod = $true
+        }
+        if (-not $prefObj.profile.content_settings.exceptions) {
+            $prefObj.profile.content_settings | Add-Member -MemberType NoteProperty -Name "exceptions" -Value ([PSCustomObject]@{})
+            $prefMod = $true
+        }
+        if (-not $prefObj.profile.content_settings.exceptions.cookies) {
+            $prefObj.profile.content_settings.exceptions | Add-Member -MemberType NoteProperty -Name "cookies" -Value ([PSCustomObject]@{})
+            $prefMod = $true
+        }
+        $allowedSites = @(
+            "https://game.granbluefantasy.jp,*",
+            "https://connect.mobage.jp,*",
+            "https://sp.mbga.jp,*",
+            "https://www.mbga.jp,*",
+            "https://app.mobage.jp,*",
+            "[*.]granbluefantasy.jp,*",
+            "[*.]mobage.jp,*",
+            "[*.]mbga.jp,*"
+        )
+        $nowMs = [string]([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+        foreach ($site in $allowedSites) {
+            $settingObj = [PSCustomObject]@{
+                expiration = "0"
+                last_modified = $nowMs
+                model = 0
+                setting = 1
+            }
+            $prefObj.profile.content_settings.exceptions.cookies | Add-Member -MemberType NoteProperty -Name $site -Value $settingObj -Force
+            $prefMod = $true
+        }
+        if ($prefMod) {
+            $prefObj | ConvertTo-Json -Depth 32 -Compress | Set-Content $targetPrefFile -NoNewline
+        }
+    } catch {}
+}
+
 Write-Host "[Launcher] Starting $($selectedBrowser.Name) with CDP on port $cdpPort..." -ForegroundColor Cyan
 Write-Host "[Launcher] Mode: $(if ($isHeadless) { 'HEADLESS (--headless=new)' } else { 'HEADFUL (Windowed)' })" -ForegroundColor $(if ($isHeadless) { 'Magenta' } else { 'Cyan' })
 Write-Host "[Launcher] Profile Directory: $targetProfile in $userDataDir" -ForegroundColor DarkGray
@@ -198,6 +259,8 @@ $browserArgs = @(
     "--disable-renderer-backgrounding",
     "--autoplay-policy=no-user-gesture-required",
     "--mute-audio",
+    "--test-third-party-cookie-phaseout=disabled",
+    "--disable-features=Translate,OptimizationHints,MediaRouter,ForceThirdPartyCookieBlockingEnabled,ThirdPartyCookieDeprecationTrial,BlockThirdPartyCookies,ThirdPartyStoragePartitioning,TrackingProtection3pcd,PartitionedCookies",
     "--window-size=480,960",
     "--disk-cache-size=104857600"
 )
@@ -217,11 +280,7 @@ $browserArgs += "`"$targetUrl`""
 
 $cmdLineArgs = $browserArgs -join " "
 $fullCmdLine = "`"$browserExe`" $cmdLineArgs"
-if ($isHeadless) {
-    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $fullCmdLine } | Out-Null
-} else {
-    Start-Process -FilePath $browserExe -ArgumentList $browserArgs -WindowStyle Normal
-}
+Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $fullCmdLine } | Out-Null
 
 # Await port availability
 $retries = 25

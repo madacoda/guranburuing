@@ -1,0 +1,23 @@
+{
+  "name": "Arcarum Sandbox - Writhing Despair (Yellow 5-Gauge / Smart Fast Farm)",
+  "description": "Sub-8s fast farming loop for Writhing Despair (Yellow Sector 5-Gauge mob, Zone Goliath Stage 3): Primary Dark farm to spawn Frenzied Howler (Death Defender). Quick Summon + Light Burst -> Attack -> 350ms Wait & Reload -> Confirm Result",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
+  "element": "Light",
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "supporterPriority": ["Zeus", "Kaguya", "Luminiera", "Bahamut"],
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

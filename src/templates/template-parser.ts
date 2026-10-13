@@ -123,6 +123,13 @@ export class TemplateParser {
   }
 
   /**
+   * Parses human-written shorthand DSL text. Alias for parseShorthandDsl.
+   */
+  public static parseDsl(content: string, defaultName = 'dsl-template'): WorkflowTemplate {
+    return this.parseShorthandDsl(content, defaultName);
+  }
+
+  /**
    * Parses human-written shorthand DSL text supporting metadata directives,
    * compact action abbreviations, repeat blocks, and conditional exits.
    */
@@ -147,6 +154,7 @@ export class TemplateParser {
     let minHpPct: number | undefined;
     let maxPlayers: number | undefined;
     let logPath: string | undefined;
+    let isSolo: boolean | undefined;
 
     const steps: WorkflowStep[] = [];
     let readyScreenOccurrence = 0;
@@ -232,6 +240,10 @@ export class TemplateParser {
       }
       if (/^(?:auto_?)?berry\s*:\s*(true|false)$/i.test(line)) {
         autoBerry = line.match(/true/i) !== null;
+        continue;
+      }
+      if (/^solo\s*:\s*(true|false)$/i.test(line)) {
+        isSolo = line.match(/true/i) !== null;
         continue;
       }
       if (/^batch_?claim\s*:\s*(\d+)\s*[-to\s]+\s*(\d+)$/i.test(line)) {
@@ -399,6 +411,7 @@ export class TemplateParser {
       autoReplenishAp: autoElixir,
       autoReplenishEp: autoBerry,
       targetScore,
+      isSolo,
       minBatchClaim,
       maxBatchClaim,
       minHpPct,
@@ -419,8 +432,18 @@ export class TemplateParser {
   ): WorkflowStep | null {
     const line = rawLine.replace(/^["'`]+|["'`]+$/g, '').trim();
 
+    // Auto Fate Episode Routine
+    if (/^(?:auto[\s_]*fate(?:[\s_]*episode)?|fate[\s_]*(?:stories|episode|auto))/i.test(line)) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Clear Fate Episode (Cutscene Skip & Full Auto Combat)',
+        code: 'auto_fate_episode',
+        action: 'auto_fate_episode'
+      };
+    }
+
     // Skip Story Scene / Fast Skip Dialogue
-    if (/^skip[\s_]*(?:story[\s_]*scene|story|scene|fate)/i.test(line)) {
+    if (/^skip[\s_]*(?:story[\s_]*scene|story|scene)/i.test(line)) {
       return {
         id: `step_${stepIndex}`,
         name: 'Fast-Skip Story Dialogue & Scene',
@@ -520,13 +543,46 @@ export class TemplateParser {
       };
     }
 
-    // 5. Result Confirmation & Loot: "confirm", "loot", "confirm a bit", "result", "done", "finish"
-    if (/^(?:confirm|loot|dismiss|result|done|finish)(?:[\s_]+a[\s_]+bit)?/i.test(line)) {
+    // 5. Result Confirmation & Loot: "confirm", "loot", "confirm a bit", "result", "done", "finish", "rerun", "next"
+    if (/^(?:confirm|loot|dismiss|result|done|finish|rerun|next)(?:[\s_]+a[\s_]+bit)?/i.test(line)) {
       return {
         id: `step_${stepIndex}`,
         name: 'Confirm Battle Result & Dismiss Popups',
         code: 'confirm_result',
         action: 'confirm_result'
+      };
+    }
+
+    // 5b. Log Enemy HP: "log enemy hp", "log hp", "enemy hp", "check enemy hp"
+    if (/^(?:log|check|print)[\s_]*(?:enemy[\s_]*)?hp\b/i.test(line) || /^enemy[\s_]*hp\b/i.test(line)) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Log Enemy HP & Remaining HP',
+        code: 'log_enemy_hp',
+        action: 'log_enemy_hp'
+      };
+    }
+
+    // 5c. Exit If Dead: "exit if dead", "exit_if_dead", "finish if dead", "stop if dead"
+    if (/^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?dead\b/i.test(line)) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Exit Combat if Enemy Defeated',
+        code: 'exit_if_dead',
+        action: 'exit_if_dead'
+      };
+    }
+
+    // 5d. Exit If HP Threshold: "exit if hp 50", "exit_if_hp 25", "exit if enemy hp 10%"
+    const exitHpMatch = line.match(/^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?(?:enemy[\s_]*)?hp[\s_]*(\d+)\%?/i);
+    if (exitHpMatch) {
+      const threshold = parseInt(exitHpMatch[1], 10);
+      return {
+        id: `step_${stepIndex}`,
+        name: `Exit if Enemy HP <= ${threshold}%`,
+        code: 'exit_if_hp',
+        action: 'exit_if_hp',
+        targetHpPct: threshold
       };
     }
 
@@ -564,42 +620,47 @@ export class TemplateParser {
       };
     }
 
+    const hasEnsureComment = /\b(make\s*sure|ensure|clicked\s*or\s*casted|required?)\b/i.test(line);
+    const cleanLine = line.replace(/\s*\([^)]*\)$/, '').trim();
+
     // 6. Skill with target character: "c4s2 on 2", "c4s2->c2", "skill 4-2 on 2", "char 4 skill 2 on char 2"
-    const skillTargetMatch = line.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->)\s*(?:c|char|character)?\s*(\d)$/i);
+    const skillTargetMatch = cleanLine.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->)\s*(?:c|char|character)?\s*(\d)$/i);
     if (skillTargetMatch) {
       const charNum = parseInt(skillTargetMatch[1] || skillTargetMatch[2], 10);
       const skillNum = parseInt(skillTargetMatch[3], 10);
       const targetChar = parseInt(skillTargetMatch[4], 10);
       return {
         id: `step_${stepIndex}`,
-        name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}`,
+        name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsureComment ? ' (Ensured)' : ''}`,
         code: 'skill',
         action: 'skill',
         character: charNum,
         skill: skillNum,
         targetCharacter: targetChar,
-        waitForNetwork: 'ability_result.json'
+        waitForNetwork: 'ability_result.json',
+        ...(hasEnsureComment ? { ensureCast: true } : {})
       };
     }
 
     // 7. Regular skill: "c1s3", "skill 1-3", "skill 1 3", "char 1 skill 3", "char 4 skill 4", "1-3"
-    const skillMatch = line.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d)|(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)$/i);
+    const skillMatch = cleanLine.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d)|(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)$/i);
     if (skillMatch) {
       const charNum = parseInt(skillMatch[1] || skillMatch[2] || skillMatch[3], 10);
       const skillNum = parseInt(skillMatch[4], 10);
       return {
         id: `step_${stepIndex}`,
-        name: `Character ${charNum} Skill ${skillNum}`,
+        name: `Character ${charNum} Skill ${skillNum}${hasEnsureComment ? ' (Ensured)' : ''}`,
         code: 'skill',
         action: 'skill',
         character: charNum,
         skill: skillNum,
-        waitForNetwork: 'ability_result.json'
+        waitForNetwork: 'ability_result.json',
+        ...(hasEnsureComment ? { ensureCast: true } : {})
       };
     }
 
-    // 8. Summon: "summon 1", "call 3", "summon agni", "call agni", "summon number 2", "summon slot 2"
-    const summonMatch = line.match(/^(?:summon|call)(?:[\s_]+(?:number|slot|no\.?))?[\s_]+([a-zA-Z0-9_\-]+)$/i);
+    // 8. Summon: "summon 1", "call 3", "summon agni", "call agni", "summon number 2", "summon slot 2", "summon #4"
+    const summonMatch = cleanLine.match(/^(?:summon|call)(?:[\s_]+(?:number|slot|no\.?|#))?[\s_]*#?([a-zA-Z0-9_\-]+)$/i);
     if (summonMatch) {
       const param = summonMatch[1].trim();
       const isNum = /^\d+$/.test(param);
@@ -617,7 +678,7 @@ export class TemplateParser {
     }
 
     // 9. Target Enemy / Select Enemy: "target 1", "select enemy 2", "enemy 3"
-    const targetEnemyMatch = line.match(/(?:target(?:[\s_]*enemy)?|select[\s_]+enemy|enemy)[\s_]*(\d+)/i);
+    const targetEnemyMatch = cleanLine.match(/(?:target(?:[\s_]*enemy)?|select[\s_]+enemy|enemy)[\s_]*(\d+)/i);
     if (targetEnemyMatch) {
       const enemyIdx = parseInt(targetEnemyMatch[1], 10);
       return {
@@ -864,6 +925,7 @@ export class TemplateParser {
       lines.push(`Slot: ${template.raidSlot}`);
     }
     if (template.targetScore) lines.push(`TargetScore: ${template.targetScore}`);
+    if (template.isSolo !== undefined) lines.push(`Solo: ${template.isSolo}`);
     if (template.logPath) lines.push(`LogPath: ${template.logPath}`);
     lines.push(`Elixir: ${template.autoElixir !== false}`);
     lines.push(`Berry: ${template.autoBerry !== false}`);
@@ -882,16 +944,18 @@ export class TemplateParser {
         case 'reload':
         case 'f5':
           return `${indent}reload`;
-        case 'skill':
+        case 'skill': {
+          const ensureStr = step.ensureCast ? ' (make sure clicked or casted)' : '';
           if (step.targetCharacter) {
-            return `${indent}c${step.character}s${step.skill} on ${step.targetCharacter}`;
+            return `${indent}c${step.character}s${step.skill} on ${step.targetCharacter}${ensureStr}`;
           }
-          return `${indent}c${step.character}s${step.skill}`;
+          return `${indent}c${step.character}s${step.skill}${ensureStr}`;
+        }
         case 'summon':
           if (step.target && isNaN(Number(step.target))) {
             return `${indent}summon ${step.target}`;
           }
-          return `${indent}summon ${step.slot || 1}`;
+          return `${indent}summon #${step.slot || 1}`;
         case 'target_enemy':
           return `${indent}target ${step.enemyIndex || 1}`;
         case 'heal':
@@ -907,6 +971,7 @@ export class TemplateParser {
         case 'guard':
           return `${indent}guard ${step.target || 'all'}`;
         case 'wait_random':
+        case 'wait_randomize':
           return `${indent}wait_random ${step.minMs || 300} ${step.maxMs || 800}`;
         case 'wait_network':
           return `${indent}wait_network ${step.waitForNetwork || 'normal_attack_result.json'}`;
@@ -917,13 +982,20 @@ export class TemplateParser {
         case 'touch_tap':
           return `${indent}touch_tap ${step.x || 240} ${step.y || 480}`;
         case 'navigate':
-          return `${indent}navigate ${step.target || ''}`;
+        case 'start_quest':
+          return `${indent}navigate ${step.target || step.page || ''}`;
         case 'click':
           return `${indent}click ${step.target || ''}`;
         case 'eval':
           return `${indent}eval ${step.script || ''}`;
         case 'confirm_result':
           return `${indent}confirm_result`;
+        case 'log_enemy_hp':
+          return `${indent}log_enemy_hp`;
+        case 'exit_if_dead':
+          return `${indent}exit_if_dead`;
+        case 'exit_if_hp':
+          return `${indent}exit_if_hp ${step.targetHpPct ?? step.targetHp ?? 0}`;
         case 'skip_story_scene':
           return `${indent}skip_story_scene`;
         case 'pro_skip_favorites':
@@ -932,6 +1004,9 @@ export class TemplateParser {
           return `${indent}dismiss_popups`;
         case 'smart_full_auto':
           return `${indent}smart_full_auto`;
+        case 'auto_fate_episode':
+        case 'skip_fate_episode':
+          return `${indent}auto_fate_episode`;
         case 'loop_while':
           if (step.subSteps && step.subSteps.length > 0) {
             const subLines = step.subSteps.map(s => serializeStep(s, `${indent}  `)).join('\n');

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/battle-systems.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/battle-systems.schema.json",
   "title": "GBFBattleSystemsSchema",
   "description": "Authoritative schema for Granblue Fantasy Battle System 1.0 (Classic) vs Battle System 2.0 (V2), Omens, Guard, and Fatal Chain mechanics.",
   "type": "object",

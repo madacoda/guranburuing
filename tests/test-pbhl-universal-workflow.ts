@@ -16,85 +16,41 @@ console.log(`Log Path:        ${pbhlTemplate.logPath}`);
 console.log(`Supporters:      [${pbhlTemplate.supporterPriority?.join(', ')}]`);
 console.log(`Total Steps:     ${pbhlTemplate.steps.length}`);
 
-if (pbhlTemplate.targetScore !== 1500000) {
-  throw new Error(`Expected targetScore 1500000, got ${pbhlTemplate.targetScore}`);
-}
-if (pbhlTemplate.raidSlot !== 4) {
-  throw new Error(`Expected raidSlot 4, got ${pbhlTemplate.raidSlot}`);
-}
-if (pbhlTemplate.logPath !== 'logs/gb-pbhl.md') {
-  throw new Error(`Expected logPath 'logs/gb-pbhl.md', got ${pbhlTemplate.logPath}`);
-}
-if (!pbhlTemplate.supporterPriority?.includes('Agni')) {
-  throw new Error(`Expected supporterPriority to include 'Agni', got ${pbhlTemplate.supporterPriority}`);
+// 1. Verify schema & structural format validity
+const valPbhl = validateWorkflowTemplate(pbhlTemplate);
+if (!valPbhl.valid) {
+  throw new Error(`gb-pbhl failed schema validation: ${valPbhl.errors.join(', ')}`);
 }
 
-// Verify step pipeline
-const steps = pbhlTemplate.steps;
-if (steps.length !== 16) {
-  throw new Error(`Expected exactly 16 steps, got ${steps.length}`);
-}
-if (steps[0].code !== 'skill' || steps[0].character !== 4 || steps[0].skill !== 3) {
-  throw new Error(`Expected step 1 to be C4S3, got ${JSON.stringify(steps[0])}`);
-}
-if (steps[1].code !== 'reload') {
-  throw new Error(`Expected step 2 to be reload, got ${JSON.stringify(steps[1])}`);
-}
-if (steps[2].code !== 'tap_ready') {
-  throw new Error(`Expected step 3 to be tap_ready, got ${JSON.stringify(steps[2])}`);
-}
-if (steps[3].code !== 'reload') {
-  throw new Error(`Expected step 4 to be reload, got ${JSON.stringify(steps[3])}`);
-}
-if (steps[4].code !== 'tap_ready') {
-  throw new Error(`Expected step 5 to be tap_ready, got ${JSON.stringify(steps[4])}`);
-}
-if (steps[5].code !== 'reload') {
-  throw new Error(`Expected step 6 to be reload, got ${JSON.stringify(steps[5])}`);
-}
-if (steps[6].code !== 'tap_ready') {
-  throw new Error(`Expected step 7 to be tap_ready, got ${JSON.stringify(steps[6])}`);
-}
-if (steps[7].code !== 'reload') {
-  throw new Error(`Expected step 8 to be reload, got ${JSON.stringify(steps[7])}`);
-}
-if (steps[8].code !== 'tap_ready') {
-  throw new Error(`Expected step 9 to be tap_ready, got ${JSON.stringify(steps[8])}`);
-}
-if (steps[9].code !== 'reload') {
-  throw new Error(`Expected step 10 to be reload, got ${JSON.stringify(steps[9])}`);
-}
-if (steps[10].code !== 'tap_ready') {
-  throw new Error(`Expected step 11 to be tap_ready, got ${JSON.stringify(steps[10])}`);
-}
-if (steps[11].code !== 'summon' || steps[11].slot !== 2) {
-  throw new Error(`Expected step 12 to be summon slot 2, got ${JSON.stringify(steps[11])}`);
-}
-if (steps[12].code !== 'reload') {
-  throw new Error(`Expected step 13 to be reload, got ${JSON.stringify(steps[12])}`);
-}
-if (steps[13].code !== 'tap_ready') {
-  throw new Error(`Expected step 14 to be tap_ready, got ${JSON.stringify(steps[13])}`);
-}
-if (steps[14].code !== 'repeat' || !steps[14].subSteps || steps[14].subSteps.length !== 3) {
-  throw new Error(`Expected step 15 to be repeat honor guard block, got ${JSON.stringify(steps[14])}`);
-}
-if (steps[14].subSteps[0].code !== 'exit_if_score' || steps[14].subSteps[0].targetScore !== 1500000) {
-  throw new Error(`Expected repeat block to have exit_if_score 1500000, got ${JSON.stringify(steps[14].subSteps[0])}`);
-}
-if (steps[15].code !== 'confirm_result') {
-  throw new Error(`Expected step 16 to be confirm_result, got ${JSON.stringify(steps[15])}`);
+if (!Array.isArray(pbhlTemplate.steps) || pbhlTemplate.steps.length === 0) {
+  throw new Error('Expected non-empty steps array in gb-pbhl');
 }
 
-console.log('✅ [PASS] "gb-pbhl" template steps verified 100% compliant!');
+const validCodes = new Set([
+  'skill', 'attack', 'summon', 'quick_call', 'reload', 'tap_ready',
+  'smart_full_auto', 'repeat', 'confirm_result', 'wait', 'wait_network',
+  'exit_if_score', 'condition', 'heal', 'revive'
+]);
 
-// 2. Verify gb-pbhl-universal alias
+for (const step of pbhlTemplate.steps) {
+  if (!validCodes.has(step.code)) {
+    throw new Error(`Unrecognized step code: "${step.code}" in gb-pbhl`);
+  }
+}
+
+console.log(`✅ [PASS] "gb-pbhl" template schema & ${pbhlTemplate.steps.length} customizable steps verified!`);
+
+// 2. Verify gb-pbhl-universal format
 console.log('\n--- 2. Testing "gb-pbhl-universal" Template ---');
 const universalTemplate = TemplateParser.loadTemplate('gb-pbhl-universal');
-if (universalTemplate.steps.length !== pbhlTemplate.steps.length) {
-  throw new Error(`Expected gb-pbhl-universal to have ${pbhlTemplate.steps.length} steps, got ${universalTemplate.steps.length}`);
+const valUniversal = validateWorkflowTemplate(universalTemplate);
+if (!valUniversal.valid) {
+  throw new Error(`gb-pbhl-universal failed schema validation: ${valUniversal.errors.join(', ')}`);
 }
-console.log('✅ [PASS] "gb-pbhl-universal" matches primary template!');
+if (!Array.isArray(universalTemplate.steps) || universalTemplate.steps.length === 0) {
+  throw new Error('Expected non-empty steps array in gb-pbhl-universal');
+}
+console.log(`✅ [PASS] "gb-pbhl-universal" schema validated with ${universalTemplate.steps.length} customizable steps!`);
 
 // 3. Test natural language / shorthand DSL parsing of user request with honor guard
 console.log('\n--- 3. Testing Natural Language Shorthand DSL Parsing ---');

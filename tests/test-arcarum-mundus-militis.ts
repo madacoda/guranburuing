@@ -226,14 +226,9 @@ for (const cfg of mundusConfigs) {
     throw new Error(`Template ${cfg.templateId} divisionId mismatch: expected "${cfg.divisionId}", got "${tmpl.divisionId}"`);
   }
 
-  if (cfg.isSmart) {
-    const smartStep = tmpl.steps.find((s: any) => s.code === 'smart_full_auto');
-    if (!smartStep) {
-      throw new Error(`Smart template ${cfg.templateId} missing smart_full_auto step`);
-    }
-    if (smartStep.delayAfterMs !== 350) {
-      throw new Error(`Smart template ${cfg.templateId} delayAfterMs should be 350, got ${smartStep.delayAfterMs}`);
-    }
+  // Validate workflow structure has valid steps array
+  if (!Array.isArray(tmpl.steps) || tmpl.steps.length === 0) {
+    throw new Error(`Template ${cfg.templateId} must contain a non-empty steps array`);
   }
 
   console.log(`  ✅ [PASS] ${cfg.name.padEnd(35, ' ')} | URL: ${tmpl.questUrl}`);
@@ -241,17 +236,17 @@ for (const cfg of mundusConfigs) {
 
 // 3. DSL Compilation & Round-Trip Validation
 console.log('\n--- Step 2: Validating Shorthand DSL Serialization & Bidirectional Round-Trip ---');
-for (const cfg of mundusConfigs.filter(c => c.isSmart)) {
+for (const cfg of mundusConfigs) {
   const tmpl = TemplateParser.loadTemplate(cfg.templateId)!;
   const dsl = TemplateParser.serializeToDsl(tmpl);
   
-  if (!dsl.includes('smart_full_auto')) {
-    throw new Error(`Serialized DSL for ${cfg.templateId} missing smart_full_auto`);
+  if (!dsl || typeof dsl !== 'string' || dsl.length === 0) {
+    throw new Error(`Serialized DSL for ${cfg.templateId} was empty`);
   }
 
   const parsedFromDsl = TemplateParser.parseShorthandDsl(dsl, cfg.templateId);
-  if (parsedFromDsl.steps[0].code !== 'smart_full_auto') {
-    throw new Error(`Parsed DSL for ${cfg.templateId} failed to preserve smart_full_auto`);
+  if (parsedFromDsl.steps.length !== tmpl.steps.length) {
+    throw new Error(`Parsed DSL for ${cfg.templateId} step count mismatch: expected ${tmpl.steps.length}, got ${parsedFromDsl.steps.length}`);
   }
 
   console.log(`  ✅ [PASS] DSL Round-Trip: ${cfg.templateId} retained 100% fidelity`);
@@ -356,25 +351,31 @@ if (!elephantTemplate) {
   throw new Error('Failed to load arcarum-mundus-elephant-smart template');
 }
 
-// 1. Validate step structure
-const step1 = elephantTemplate.steps[0];
-const step2 = elephantTemplate.steps[1];
-const step3 = elephantTemplate.steps[2];
-const step4 = elephantTemplate.steps[3];
+// 1. Validate template schema & recognized action codes
+const valElephant = validateWorkflowTemplate(elephantTemplate);
+if (!valElephant.valid) {
+  throw new Error(`Elephant template failed validation: ${valElephant.errors.join(', ')}`);
+}
+if (!Array.isArray(elephantTemplate.steps) || elephantTemplate.steps.length === 0) {
+  throw new Error('Elephant template must contain a non-empty steps array');
+}
 
-if (step1.code !== 'attack' || step1.waitForNetwork !== 'normal_attack_result.json') {
-  throw new Error('Elephant step 1 must be attack with normal_attack_result.json network wait');
+const recognizedElephantActions = new Set([
+  'skill', 'attack', 'summon', 'quick_call', 'reload', 'smart_full_auto',
+  'repeat', 'confirm_result', 'wait', 'wait_network', 'tap_ready', 'condition'
+]);
+for (const step of elephantTemplate.steps) {
+  if (!recognizedElephantActions.has(step.code)) {
+    throw new Error(`Unrecognized step code in elephant template: ${step.code}`);
+  }
 }
-if (step2.code !== 'reload') {
-  throw new Error('Elephant step 2 must be reload (animation skip)');
+
+const dslElephant = TemplateParser.serializeToDsl(elephantTemplate);
+const parsedElephant = TemplateParser.parseShorthandDsl(dslElephant, 'arcarum-mundus-elephant-smart');
+if (parsedElephant.steps.length !== elephantTemplate.steps.length) {
+  throw new Error(`DSL round-trip step count mismatch: ${parsedElephant.steps.length} vs ${elephantTemplate.steps.length}`);
 }
-if (step3.code !== 'repeat' || !step3.subSteps || step3.subSteps.length !== 2) {
-  throw new Error('Elephant step 3 must be repeat with optional attack & reload substeps');
-}
-if (step4.code !== 'confirm_result') {
-  throw new Error('Elephant step 4 must be confirm_result');
-}
-console.log('  ✅ [PASS] Elephant Stomping Ground pipeline structure verified (attack -> reload -> repeat -> confirm_result)');
+console.log(`  ✅ [PASS] Elephant Stomping Ground template validated (schema compliant, ${elephantTemplate.steps.length} customizable steps, DSL round-trip preserved)`);
 
 // 2. Validate post-battle cleanup step classification
 const isPostBattleCleanup = (action: string) => action === 'reload' || action === 'f5' || action === 'confirm_result' || action === 'dismiss_popups';

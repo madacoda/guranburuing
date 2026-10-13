@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/raid-evaluation.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/raid-evaluation.schema.json",
   "title": "GBFRaidEvaluationAndJoinDecisionSchema",
   "description": "Gold Industry Standard schema for Granblue Fantasy Raid Evaluation, Dynamic Leech vs Racing Decision Engine, EP Return-on-Investment (ROI), and Raid Finder Join Heuristics.",
   "type": "object",

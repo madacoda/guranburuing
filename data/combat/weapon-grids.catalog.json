@@ -1,0 +1,1694 @@
+{
+  "$schema": "../schemas/weapon-grids.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-13T08:30:00.000Z",
+  "description": "Weapon grid setups across all six elements, covering Magna 1 through Magna 3 and Primal builds.",
+  "elements": [
+    {
+      "elementId": "fire",
+      "elementName": "Fire",
+      "magnaGrids": [
+        {
+          "gridId": "fire_m1_basic",
+          "tier": "M1",
+          "name": "Colossus Cane Starter Grid",
+          "archetype": "Stamina",
+          "mainSummon": "Colossus Omega (Lv 100-200)",
+          "supporterSummon": "Shiva (Lv 150) or Colossus Omega (Lv 250)",
+          "hpModifierEstimated": "+15%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Colossus Breaker",
+              "series": "Colossus Omega",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Omega ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Colossus Cane Omega",
+              "series": "Colossus Omega",
+              "recommendedCopies": 5,
+              "skillTypes": [
+                "Omega ATK II"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Baha Dagger Nova",
+              "series": "Bahamut",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK/HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sword of Michael",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ray of Zhuque",
+              "series": "Four Beasts",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK II"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Flamma Orbis",
+              "series": "Xeno",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Massive ATK"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "fire_m2_aes_enmity",
+          "tier": "M2",
+          "name": "Ancient Ecke Sachs Enmity & 100% Critical Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Colossus Omega (Lv 200+)",
+          "supporterSummon": "Colossus Omega (Lv 200+)",
+          "hpModifierEstimated": "+45%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Sol Shreck",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ancient Ecke Sachs",
+              "series": "Old Primarch",
+              "recommendedCopies": 4,
+              "skillTypes": [
+                "Omega Medium ATK",
+                "Omega Medium Crit",
+                "Omega Medium Enmity"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Nilakantha",
+              "series": "Shiva Omega II",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Omega Stamina",
+                "Omega HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Repentance",
+              "series": "Dark Opus",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Alpha / Stamina",
+              "skillTypes": [
+                "Omega Massive ATK",
+                "Cap Up"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sword of Michael",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Heat of The Sun",
+              "series": "New World Quartz",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX ATK",
+                "Sun Amp"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "fire_m3_ira_burst",
+          "tier": "M3_LateGame",
+          "name": "Colossus Ira Omega Rebirth Hybrid Burst Grid",
+          "archetype": "Burst_OTK",
+          "mainSummon": "Colossus Ira Omega (Lv 250)",
+          "supporterSummon": "Beelzebub / Triple Zero",
+          "hpModifierEstimated": "+70%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Luin",
+              "series": "Grand",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Perceval Ignition",
+                "Echo"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ira Volcanic Blade",
+              "series": "Magna 3",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Omega Exalted ATK",
+                "Omega Crit III"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Extinction Blade",
+              "series": "Mugen Revans",
+              "recommendedCopies": 2,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Special ATK Cap",
+                "Supplemental"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Repentance",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Falsehood / Extremity",
+              "skillTypes": [
+                "Omega Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Sword",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Attack Cap / Seraphic",
+              "skillTypes": [
+                "Proficiency Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sol Shreck",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX ATK Cap"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Heat of The Sun",
+              "series": "New World Quartz",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Sun Arcarum Amp"
+              ]
+            }
+          ]
+        }
+      ],
+      "primalGrids": [
+        {
+          "gridId": "fire_primal_agni_percy_sword",
+          "name": "Agni Lord of Flames & Crimson Scale Core Grid",
+          "archetype": "Stamina_Supplemental",
+          "mainSummon": "Agni (Lv 250)",
+          "supporterSummon": "Agni (Lv 250) or Beelzebub",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Lord of Flames",
+              "series": "Grand (Percival)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Fire Resonator",
+                "Normal Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Crimson Scale",
+              "series": "Grand (Michael)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Pact",
+                "Damage Cap Up"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Extinction Blade",
+              "series": "Mugen Revans",
+              "recommendedCopies": 2,
+              "awakeningType": "Special",
+              "skillTypes": [
+                "Supplemental",
+                "Cap"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Repentance (Primal)",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Freyr / Temptation",
+              "skillTypes": [
+                "Primal Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Blade",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Auto Cap / Seraphic",
+              "skillTypes": [
+                "Ultima Key"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sol Shreck",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Cap"
+              ]
+            }
+          ]
+        }
+      ],
+      "universalComponents": [
+        {
+          "weaponName": "Scythe of Repentance",
+          "series": "Dark Opus",
+          "priority": "Mandatory",
+          "description": "Core offensive and cap-breaking anchor; ULB/Transcendence provides essential Pendulum/Chain customizations."
+        },
+        {
+          "weaponName": "Extinction Blade",
+          "series": "Revans Mugen",
+          "priority": "High",
+          "description": "Awakening Attack/Special provides flat raw ATK and unconditional special damage cap up."
+        },
+        {
+          "weaponName": "Heat of The Sun",
+          "series": "New World Quartz",
+          "priority": "High",
+          "description": "Increases damage against Wind foes and provides massive EX attack scaling in Arcarum and general raids."
+        }
+      ]
+    },
+    {
+      "elementId": "water",
+      "elementName": "Water",
+      "magnaGrids": [
+        {
+          "gridId": "water_m1_basic",
+          "tier": "M1",
+          "name": "Leviathan Gaze Dagger Starter Grid",
+          "archetype": "Stamina",
+          "mainSummon": "Leviathan Omega (Lv 100-200)",
+          "supporterSummon": "Leviathan Omega (Lv 250)",
+          "hpModifierEstimated": "+10%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Leviathan Gaze Omega",
+              "series": "Leviathan Omega",
+              "recommendedCopies": 6,
+              "skillTypes": [
+                "Omega ATK II"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Baha Dagger Nova",
+              "series": "Bahamut",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK/HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Wand of Gabriel",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Dante Alighieri",
+              "series": "Xeno",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "EX Massive ATK"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "water_m2_ougi_harp",
+          "tier": "M2",
+          "name": "Tyros Zither (Europa Harp) Ougi Grid",
+          "archetype": "Ougi_CA",
+          "mainSummon": "Leviathan Omega (Lv 200+)",
+          "supporterSummon": "Leviathan Omega (Lv 250)",
+          "hpModifierEstimated": "+40%",
+          "criticalHitRatePercent": 30,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Kaneshige",
+              "series": "Class Champion",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Kengo Devilry"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Tyros Zither",
+              "series": "Europa Omega II",
+              "recommendedCopies": 3,
+              "skillTypes": [
+                "Omega Sentience (CA DMG/Cap)",
+                "Omega Medium ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Spirit of Mana",
+              "series": "Ancient Ennead",
+              "recommendedCopies": 2,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "EX Excelsior",
+                "Progression"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Staff of Renunciation",
+              "series": "Dark Opus",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Beta (CA Cap)",
+              "skillTypes": [
+                "Omega Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Wand of Gabriel",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Schrodinger",
+              "series": "Diaspora Revans",
+              "recommendedCopies": 1,
+              "awakeningType": "Special",
+              "skillTypes": [
+                "CA Supplemental",
+                "Special Cap"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "water_m3_mare_crit",
+          "tier": "M3_LateGame",
+          "name": "Leviathan Mare Omega Rebirth 100% Crit & Skill Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Leviathan Mare Omega (Lv 250)",
+          "supporterSummon": "Leviathan Mare Omega (Lv 250)",
+          "hpModifierEstimated": "+80%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Staff of Renunciation",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Alpha / Extremity",
+              "skillTypes": [
+                "Omega Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Mare Abyssal Dagger",
+              "series": "Magna 3",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Omega Exalted Crit III",
+                "Omega ATK III"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Schrodinger",
+              "series": "Diaspora Revans",
+              "recommendedCopies": 3,
+              "awakeningType": "Defense",
+              "skillTypes": [
+                "Special HP/DEF",
+                "CA Supplemental"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Fateless",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK",
+                "Normal Cap"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Staff",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Skill Cap / Seraphic",
+              "skillTypes": [
+                "Staff Synergy"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Refrain of The Moon",
+              "series": "New World Quartz",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Moon Arcarum Amp"
+              ]
+            }
+          ]
+        }
+      ],
+      "primalGrids": [
+        {
+          "gridId": "water_primal_varuna_crit_skill",
+          "name": "Varuna Wamdus Cnidocyte & Taisai Crit Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Varuna (Lv 250)",
+          "supporterSummon": "Varuna (Lv 250)",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Taisai Spirit Bow",
+              "series": "Grand (Pholia)",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Primal Massive Crit",
+                "Normal ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Galilei Donna",
+              "series": "Grand (Europa)",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Primal Stamina",
+                "Medium Crit"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Wamdus Cnidocyte",
+              "series": "Ancestral (Wamdus)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Supplemental on Crit",
+                "Normal Medium ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Schrodinger",
+              "series": "Diaspora Revans",
+              "recommendedCopies": 3,
+              "awakeningType": "Special",
+              "skillTypes": [
+                "Special Cap",
+                "Supplemental"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Staff of Renunciation (Primal)",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Skill Cap / Temptation",
+              "skillTypes": [
+                "Primal Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Spear",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Ultima Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "universalComponents": [
+        {
+          "weaponName": "Schrodinger",
+          "series": "Diaspora Revans",
+          "priority": "Mandatory",
+          "description": "Essential multi-role weapon providing massive HP/defense on Defense awakening, or CA damage and special cap up on Special awakening."
+        },
+        {
+          "weaponName": "Wamdus Cnidocyte",
+          "series": "Ancestral",
+          "priority": "High",
+          "description": "Provides up to 100,000 supplemental damage on critical hits; core for burst and high-hit count teams."
+        }
+      ]
+    },
+    {
+      "elementId": "earth",
+      "elementName": "Earth",
+      "magnaGrids": [
+        {
+          "gridId": "earth_m1_basic",
+          "tier": "M1",
+          "name": "Yggdrasil Crystal Blade Starter Grid",
+          "archetype": "Stamina",
+          "mainSummon": "Yggdrasil Omega (Lv 100-200)",
+          "supporterSummon": "Yggdrasil Omega (Lv 250)",
+          "hpModifierEstimated": "+10%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Yggdrasil Crystal Blade Omega",
+              "series": "Yggdrasil Omega",
+              "recommendedCopies": 6,
+              "skillTypes": [
+                "Omega ATK II"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Baha Sword Nova",
+              "series": "Bahamut",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK/HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Gauntlet of Uriel",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sahrivar",
+              "series": "Xeno",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "EX Massive ATK"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "earth_m2_klinge_crit",
+          "tier": "M2",
+          "name": "Nibelung Klinge & Horn 100% Crit Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Yggdrasil Omega (Lv 200+)",
+          "supporterSummon": "Yggdrasil Omega (Lv 250)",
+          "hpModifierEstimated": "+40%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Autumn's Transformation",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Nibelung Klinge",
+              "series": "Alexiel Omega II",
+              "recommendedCopies": 3,
+              "skillTypes": [
+                "Omega Medium ATK",
+                "Omega Medium HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Nibelung Horn",
+              "series": "Alexiel Omega II",
+              "recommendedCopies": 3,
+              "skillTypes": [
+                "Omega Stamina",
+                "Omega Medium Crit"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ancient Perseus",
+              "series": "Old Primarch",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Omega Massive ATK",
+                "HP Down"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Yggdrasil's Bough",
+              "series": "Dark Opus",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Alpha / Stamina",
+              "skillTypes": [
+                "Omega Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Gauntlet of Uriel",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "earth_m3_arbos_crit",
+          "tier": "M3_LateGame",
+          "name": "Yggdrasil Arbos Omega Rebirth 100% Crit & Stamina Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Yggdrasil Arbos Omega (Lv 250)",
+          "supporterSummon": "Yggdrasil Arbos Omega (Lv 250)",
+          "hpModifierEstimated": "+85%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Yggdrasil's Bough",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Alpha / Extremity",
+              "skillTypes": [
+                "Omega Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Arbos Verdant Greatsword",
+              "series": "Magna 3",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Omega Exalted Crit III",
+                "Omega ATK III"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Siegfried Fang",
+              "series": "Siegfried Revans",
+              "recommendedCopies": 3,
+              "awakeningType": "Defense",
+              "skillTypes": [
+                "Special HP/DEF",
+                "Normal DMG Cap"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Galleon's Jaw",
+              "series": "Ancestral (Galleon)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "CA Supplemental",
+                "ATK Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Sword",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Proficiency Boost"
+              ]
+            }
+          ]
+        }
+      ],
+      "primalGrids": [
+        {
+          "gridId": "earth_primal_hrunting_burst",
+          "name": "Titan Hrunting 0-Button & High-Tension Burst Grid",
+          "archetype": "Burst_OTK",
+          "mainSummon": "Titan (Lv 250)",
+          "supporterSummon": "Titan (Lv 250) or Beelzebub",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Hrunting",
+              "series": "Illustrious (150 Gold Moon)",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "High Tension",
+                "Instant Attack",
+                "Plain Nuke"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Landslide Scepter",
+              "series": "Grand (Galleon)",
+              "recommendedCopies": 3,
+              "skillTypes": [
+                "Earth Resonator",
+                "Primal Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Siegfried Fang",
+              "series": "Siegfried Revans",
+              "recommendedCopies": 2,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Special Cap",
+                "Attack Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Yggdrasil's Bough (Primal)",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Echo / Extremity",
+              "skillTypes": [
+                "Primal Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Blade",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Blade Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "universalComponents": [
+        {
+          "weaponName": "Hrunting",
+          "series": "Illustrious",
+          "priority": "High",
+          "description": "The premier 150 Gold Moon weapon in the game, enabling unmatched 0-button auto-attack turns and extreme survivability."
+        },
+        {
+          "weaponName": "Siegfried Fang",
+          "series": "Siegfried Revans",
+          "priority": "Mandatory",
+          "description": "Provides unmatched DEF/HP on Defense awakening and solid cap-breaking capabilities across both Magna and Primal."
+        }
+      ]
+    },
+    {
+      "elementId": "wind",
+      "elementName": "Wind",
+      "magnaGrids": [
+        {
+          "gridId": "wind_m1_basic",
+          "tier": "M1",
+          "name": "Tiamat Bolt Omega Enmity Starter Grid",
+          "archetype": "Enmity",
+          "mainSummon": "Tiamat Omega (Lv 100-200)",
+          "supporterSummon": "Tiamat Omega (Lv 250)",
+          "hpModifierEstimated": "+5%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Tiamat Bolt Omega",
+              "series": "Tiamat Omega",
+              "recommendedCopies": 6,
+              "skillTypes": [
+                "Omega ATK II",
+                "Omega Small Enmity"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Baha Dagger Nova",
+              "series": "Bahamut",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK/HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ring of Raphael",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Xeno Spear",
+              "series": "Xeno",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "EX Massive ATK"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "wind_m2_harp_crit",
+          "tier": "M2",
+          "name": "Last Storm Harp 100% Crit Stamina Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Tiamat Omega (Lv 200+)",
+          "supporterSummon": "Tiamat Omega (Lv 250)",
+          "hpModifierEstimated": "+35%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Innocent Love",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Last Storm Harp",
+              "series": "Grimnir Omega II",
+              "recommendedCopies": 3,
+              "skillTypes": [
+                "Omega Stamina",
+                "Omega Medium Crit"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Coruscant Crozier",
+              "series": "Grimnir Omega II",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Omega Medium ATK",
+                "Omega Medium HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Tiamat Bolt Omega",
+              "series": "Tiamat Omega",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Omega Enmity Backup"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Cradle of The Sky",
+              "series": "Dark Opus",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Alpha / Stamina",
+              "skillTypes": [
+                "Omega Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ring of Raphael",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "wind_m3_aura_hybrid",
+          "tier": "M3_LateGame",
+          "name": "Tiamat Aura Omega Rebirth 100% Crit & Multiattack Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Tiamat Aura Omega (Lv 250)",
+          "supporterSummon": "Tiamat Aura Omega (Lv 250)",
+          "hpModifierEstimated": "+75%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Cradle of The Sky",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Falsehood / Extremity",
+              "skillTypes": [
+                "Omega Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Aura Tempest Dagger",
+              "series": "Magna 3",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Omega Exalted Crit III",
+                "Omega Multiattack III"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sette di Spade",
+              "series": "Seofon Revans",
+              "recommendedCopies": 3,
+              "awakeningType": "Defense",
+              "skillTypes": [
+                "Special HP/DEF",
+                "CA Spec Cap"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Innocent Love",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Harp",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Skill Cap / Seraphic",
+              "skillTypes": [
+                "Harp Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "primalGrids": [
+        {
+          "gridId": "wind_primal_zephyrus_kaguya_burst",
+          "name": "Zephyrus Kaguya Fan & Galatine Core Grid",
+          "archetype": "Burst_OTK",
+          "mainSummon": "Zephyrus (Lv 250)",
+          "supporterSummon": "Zephyrus (Lv 250) or Beelzebub",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Kaguya's Folding Fan",
+              "series": "Grand (Kaguya)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Wind Resonator",
+                "Primal Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Galatine",
+              "series": "Grand (Charlotta)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Pact",
+                "Supplemental DMG"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sette di Spade",
+              "series": "Seofon Revans",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Special Cap",
+                "Attack Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Cradle of The Sky (Primal)",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Echo / Extremity",
+              "skillTypes": [
+                "Primal Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Sword",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Sword Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "universalComponents": [
+        {
+          "weaponName": "Sette di Spade",
+          "series": "Seofon Revans",
+          "priority": "Mandatory",
+          "description": "Highly versatile Revans weapon with stacking weapon grid bonuses; Defense awakening solves high-difficulty survival effortlessly."
+        },
+        {
+          "weaponName": "Kaguya's Folding Fan",
+          "series": "Grand",
+          "priority": "High",
+          "description": "Core Resonator weapon for Zephyrus, providing massive raw attack and cap breaking."
+        }
+      ]
+    },
+    {
+      "elementId": "light",
+      "elementName": "Light",
+      "magnaGrids": [
+        {
+          "gridId": "light_m1_sword_grid",
+          "tier": "M1",
+          "name": "Luminiera Sword Omega Baseline Grid",
+          "archetype": "Stamina",
+          "mainSummon": "Luminiera Omega (Lv 100-200)",
+          "supporterSummon": "Luminiera Omega (Lv 250) or Lucifer (Lv 250)",
+          "hpModifierEstimated": "+50%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Luminiera Sword Omega",
+              "series": "Luminiera Omega",
+              "recommendedCopies": 6,
+              "skillTypes": [
+                "Omega Medium ATK",
+                "Normal Small ATK/HP (Optimus Dual)"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Baha Sword Nova",
+              "series": "Bahamut",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK/HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Harp of The Haladom",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sol Flamma",
+              "series": "Xeno",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "EX Massive ATK"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "light_m2_pillar_crit",
+          "tier": "M2",
+          "name": "Pillar of Flame 100% Crit Stamina Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Luminiera Omega (Lv 200+)",
+          "supporterSummon": "Luminiera Omega (Lv 250)",
+          "hpModifierEstimated": "+45%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Flamma Lux",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Pillar of Flame",
+              "series": "Metatron Omega II",
+              "recommendedCopies": 3,
+              "skillTypes": [
+                "Omega Stamina",
+                "Omega Medium Crit"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Mittron's Bow",
+              "series": "Metatron Omega II",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Omega Big Stamina",
+                "Omega Small Crit"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Luminiera Sword Omega",
+              "series": "Luminiera Omega",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Dual HP/ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sword of Renunciation",
+              "series": "Dark Opus",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Alpha / Stamina",
+              "skillTypes": [
+                "Omega Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Harp of The Haladom",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "light_m3_credo_burst",
+          "tier": "M3_LateGame",
+          "name": "Luminiera Credo Omega Rebirth 100% Crit & Echo Grid",
+          "archetype": "Burst_OTK",
+          "mainSummon": "Luminiera Credo Omega (Lv 250)",
+          "supporterSummon": "Beelzebub / Triple Zero",
+          "hpModifierEstimated": "+70%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Sword of Renunciation",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Falsehood / Extremity",
+              "skillTypes": [
+                "Omega Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Credo Holy Sword",
+              "series": "Magna 3",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Omega Exalted Crit III",
+                "Omega ATK III"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Symposium",
+              "series": "Cosmos Revans",
+              "recommendedCopies": 2,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Special Cap",
+                "Attack Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Flamma Lux",
+              "series": "Astral",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "EX Extreme ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Harmonia",
+              "series": "Grand (Yuni)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Light Resonator",
+                "Damage Cap Up"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Sword",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Sword Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "primalGrids": [
+        {
+          "gridId": "light_primal_zeus_harmonia_rinne",
+          "name": "Zeus Harmonia & Rinne Core Grid",
+          "archetype": "Stamina_Supplemental",
+          "mainSummon": "Zeus (Lv 250)",
+          "supporterSummon": "Zeus (Lv 250) or Lucifer (Lv 250)",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Harmonia",
+              "series": "Grand (Yuni)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Light Resonator",
+                "Supplemental Damage",
+                "Max Cap Up"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Rinne",
+              "series": "Grand (Nehan)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Pact",
+                "Skill Supplemental"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Eden",
+              "series": "Grand (Lucio)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Primal Massive Stamina",
+                "Normal ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Sword of Renunciation (Primal)",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Echo / Extremity",
+              "skillTypes": [
+                "Primal Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Symposium",
+              "series": "Cosmos Revans",
+              "recommendedCopies": 1,
+              "awakeningType": "Special",
+              "skillTypes": [
+                "Special Cap"
+              ]
+            }
+          ]
+        }
+      ],
+      "universalComponents": [
+        {
+          "weaponName": "Harmonia",
+          "series": "Grand",
+          "priority": "Mandatory",
+          "description": "Even in Magna grids, slotting Harmonia provides massive flat supplemental damage and unconditional damage cap up."
+        },
+        {
+          "weaponName": "Symposium",
+          "series": "Cosmos Revans",
+          "priority": "High",
+          "description": "Revans weapon providing flat raw stats and special cap breaking for endgame bursting and racing."
+        }
+      ]
+    },
+    {
+      "elementId": "dark",
+      "elementName": "Dark",
+      "magnaGrids": [
+        {
+          "gridId": "dark_m1_claw_enmity",
+          "tier": "M1",
+          "name": "Celeste Claw Omega Enmity Starter Grid",
+          "archetype": "Enmity",
+          "mainSummon": "Celeste Omega (Lv 100-200)",
+          "supporterSummon": "Celeste Omega (Lv 250)",
+          "hpModifierEstimated": "+5%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Celeste Claw Omega",
+              "series": "Celeste Omega",
+              "recommendedCopies": 6,
+              "skillTypes": [
+                "Omega ATK II",
+                "Omega Medium Enmity"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Baha Dagger Nova",
+              "series": "Bahamut",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Normal ATK/HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Belial",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Advente",
+              "series": "Xeno",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "EX Massive ATK"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "dark_m2_spine_ougi",
+          "tier": "M2",
+          "name": "Abyss Spine & Fediel Spine Ougi/Enmity Grid",
+          "archetype": "Ougi_CA",
+          "mainSummon": "Celeste Omega (Lv 200+)",
+          "supporterSummon": "Celeste Omega (Lv 250)",
+          "hpModifierEstimated": "+40%",
+          "criticalHitRatePercent": 0,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Fediel's Spine",
+              "series": "Ancestral (Fediel)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "CA Supplemental (up to 1M)",
+                "Normal ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Abyss Spine",
+              "series": "Avatar Omega II",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Omega Sentience (CA DMG/Cap)",
+                "Omega Medium HP"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Celeste Claw Omega",
+              "series": "Celeste Omega",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Omega Enmity"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Repudiation",
+              "series": "Dark Opus",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Beta / Stamina",
+              "skillTypes": [
+                "Omega Massive ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Belial",
+              "series": "Seraphic",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Seraphic Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Agastia Dagger",
+              "series": "Agastia Revans",
+              "recommendedCopies": 1,
+              "awakeningType": "Special",
+              "skillTypes": [
+                "Special Cap"
+              ]
+            }
+          ]
+        },
+        {
+          "gridId": "dark_m3_ater_burst",
+          "tier": "M3_LateGame",
+          "name": "Celeste Ater Omega Rebirth 100% Crit & Ougi Hybrid Grid",
+          "archetype": "Critical_100",
+          "mainSummon": "Celeste Ater Omega (Lv 250)",
+          "supporterSummon": "Beelzebub / Triple Zero",
+          "hpModifierEstimated": "+70%",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Scythe of Repudiation",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Falsehood / Extremity",
+              "skillTypes": [
+                "Omega Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ater Dark Scythe",
+              "series": "Magna 3",
+              "recommendedCopies": 3,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Omega Exalted Crit III",
+                "Omega ATK III"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Agastia Dagger",
+              "series": "Agastia Revans",
+              "recommendedCopies": 2,
+              "awakeningType": "Attack",
+              "skillTypes": [
+                "Special Cap",
+                "Attack Boost"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Pain and Suffering",
+              "series": "Grand (Lich)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Dark Resonator",
+                "Supplemental Damage",
+                "Max Cap Up"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Axe",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Axe Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "primalGrids": [
+        {
+          "gridId": "dark_primal_ereshkigal_burst",
+          "name": "Hades Ereshkigal 0-Button 3-Turn Quad-Strike Burst Grid",
+          "archetype": "Burst_OTK",
+          "mainSummon": "Hades (Lv 250)",
+          "supporterSummon": "Beelzebub / Hades (Lv 250)",
+          "criticalHitRatePercent": 100,
+          "slots": [
+            {
+              "slotType": "Mainhand",
+              "weaponName": "Ereshkigal",
+              "series": "Illustrious (150 Gold Moon)",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "50% Echo",
+                "Instant Triple Attack",
+                "Death Curse (3 Turns)"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Pain and Suffering",
+              "series": "Grand (Lich)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Dark Resonator",
+                "Pact Supplemental",
+                "Cap Up"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Bab-el-Mandeb",
+              "series": "Grand (Helel ben Shalem)",
+              "recommendedCopies": 2,
+              "skillTypes": [
+                "Primal Massive Crit",
+                "Normal ATK"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Skeletal Eclipse",
+              "series": "Grand (Fediel)",
+              "recommendedCopies": 1,
+              "skillTypes": [
+                "Primal Stamina",
+                "Damage Cap"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Scythe of Repudiation (Primal)",
+              "series": "Dark Opus (Lv 250)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Echo / Extremity",
+              "skillTypes": [
+                "Primal Transcendence"
+              ]
+            },
+            {
+              "slotType": "GridSlot",
+              "weaponName": "Ultima Axe",
+              "series": "Ultima (Lv 200)",
+              "recommendedCopies": 1,
+              "pendulumOrKey": "Normal Cap / Seraphic",
+              "skillTypes": [
+                "Axe Synergy"
+              ]
+            }
+          ]
+        }
+      ],
+      "universalComponents": [
+        {
+          "weaponName": "Ereshkigal",
+          "series": "Illustrious",
+          "priority": "High",
+          "description": "The absolute peak of 0-button farming in Granblue Fantasy; locks battle duration to 3 turns but grants permanent TA, 50% echoes, and unmatched burst speed."
+        },
+        {
+          "weaponName": "Pain and Suffering",
+          "series": "Grand",
+          "priority": "Mandatory",
+          "description": "Core Resonator providing flat supplemental damage (50,000 per copy, capping at 100,000) and damage cap up in both Magna and Primal."
+        }
+      ]
+    }
+  ]
+}

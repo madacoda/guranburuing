@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/cdn-assets.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/cdn-assets.schema.json",
   "title": "GBFCDNAssetsSchema",
   "description": "Authoritative schema for Granblue Fantasy Content Delivery Network (Akamai CDN) layouts, asset URL templates, and client-side caching policies.",
   "type": "object",

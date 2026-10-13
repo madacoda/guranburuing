@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/party-selection-rules.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/party-selection-rules.schema.json",
   "title": "GBFPartySelectionRulesSchema",
   "description": "Authoritative schema for Granblue Fantasy party, weapon grid, and supporter selection rules, multi-element raid exceptions, and grid synergy constraints.",
   "type": "object",

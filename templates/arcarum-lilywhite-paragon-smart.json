@@ -1,0 +1,111 @@
+{
+  "name": "Arcarum Sandbox - Lilywhite Paragon (Targeted Burst Rotation)",
+  "description": "Custom burst rotation for Lilywhite Paragon (Water Defender, Stage 3 / Div 10 / Quest 812111): C4S1 (ensured) -> Quick Call -> Reload -> C3S1 -> C2S1 -> C2S2 -> C1S1 -> C1S3 -> Attack -> Reload -> Summon #4 -> Attack -> Reload -> Summon #3 -> Attack -> Confirm Result / Rerun (Seamless Engine Enemy HP Telemetry)",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/3/3/10/812111/25",
+  "questId": "812111",
+  "divisionId": 10,
+  "element": "Earth",
+  "isSolo": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 200,
+  "speedProfile": "fast",
+  "supporterPriority": ["Yggdrasil", "Titan", "Caim", "Kaguya", "Bahamut", "Lucifer", "Uriel"],
+  "steps": [
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1 (Ensured)",
+      "character": 4,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "quick_call",
+      "name": "Quick Summon Call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Summon Animation Cancel)"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 1",
+      "character": 3,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 2",
+      "character": 2,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 1",
+      "character": 1,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 3",
+      "character": 1,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Turn 1 Attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Attack Animation Cancel)"
+    },
+    {
+      "code": "summon",
+      "name": "Summon Slot 4",
+      "slot": 4,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Turn 2 Attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Turn 2 Animation Cancel)"
+    },
+    {
+      "code": "summon",
+      "name": "Summon Slot 3",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Turn 3 Attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Result & Rerun"
+    }
+  ]
+}

@@ -273,8 +273,208 @@ export const ARCARUM_MUNDUS_PRESETS: Record<string, ArcarumPreset> = {
   }
 };
 
+// ============================================================================
+// Zone Goliath (Stage 3 / Here Be Staves) Authoritative Presets
+// ============================================================================
+export const ARCARUM_GOLIATH_PRESETS: Record<string, ArcarumPreset> = {
+  // --- 1. Zone Boss & Defenders ---
+  'stage3': {
+    id: 'stage3',
+    name: 'Zone Goliath Universal Map',
+    templateId: 'arcarum-stage-3-smart',
+    sector: 'Zone Goliath Stage 3 Hub',
+    divisionId: 3,
+    questId: '',
+    element: 'Earth',
+    type: 'map',
+    aapCost: 20,
+    drops: 'Dynamic Sector Scanner & Defender Auto-Target'
+  },
+  'triune': {
+    id: 'triune',
+    name: 'Goliath Triune',
+    templateId: 'arcarum-goliath-triune-smart',
+    sector: 'Zone Goliath Core (The Triune)',
+    divisionId: 3,
+    questId: '',
+    element: 'Earth',
+    type: 'boss',
+    aapCost: 30,
+    drops: 'Tower / Hanged Man / Death Ideans, Earthborne Astra, Quartz'
+  },
+  'avarice': {
+    id: 'avarice',
+    name: 'Avatar of Avarice (The Hanged Man)',
+    templateId: 'arcarum-avatar-of-avarice-smart',
+    sector: 'Pink Sector (The Hanged Man)',
+    divisionId: 3,
+    questId: '',
+    element: 'Earth',
+    type: 'defender',
+    aapCost: 30,
+    drops: 'Goliath Organ, Earthborne Astra, Hanged Man Idean'
+  },
+  'keeper': {
+    id: 'keeper',
+    name: 'Goliath Keeper (The Tower)',
+    templateId: 'arcarum-goliath-keeper-smart',
+    sector: 'Green Sector (The Tower)',
+    divisionId: 3,
+    questId: '',
+    element: 'Earth',
+    type: 'defender',
+    aapCost: 30,
+    drops: 'Goliath Rib, Earthborne Astra, Tower Idean'
+  },
+  'howler': {
+    id: 'howler',
+    name: 'Frenzied Howler (Death)',
+    templateId: 'arcarum-frenzied-howler-smart',
+    sector: 'Yellow Sector (Death)',
+    divisionId: 3,
+    questId: '',
+    element: 'Dark',
+    type: 'defender',
+    aapCost: 30,
+    drops: 'Goliath Core, Darkborne Astra, Death Idean'
+  },
+
+  // --- 2. Sephira Heralds (+100% Boost) ---
+  'goliath-herald': {
+    id: 'goliath-herald',
+    name: 'Zone Goliath Sephira Heralds',
+    templateId: 'arcarum-goliath-herald-smart',
+    sector: 'Zone Goliath Dynamic Heralds',
+    divisionId: 3,
+    questId: '',
+    element: 'All',
+    type: 'herald',
+    aapCost: 20,
+    drops: '+100% Sephira Gauge Boost for 60 Minutes'
+  },
+
+  // --- 3. Standard 5-Gauge Farming Targets ---
+  'panther': {
+    id: 'panther',
+    name: 'Earthshaking Panther',
+    templateId: 'arcarum-goliath-panther-smart',
+    sector: 'Green Sector (The Tower)',
+    divisionId: 3,
+    questId: '',
+    element: 'Earth',
+    type: '5-gauge',
+    aapCost: 20,
+    drops: 'Spawns Goliath Keeper, Earth Sephira Box'
+  },
+  'barbarian': {
+    id: 'barbarian',
+    name: 'Bloodstained Barbarian',
+    templateId: 'arcarum-goliath-barbarian-smart',
+    sector: 'Pink Sector (The Hanged Man)',
+    divisionId: 3,
+    questId: '',
+    element: 'Earth',
+    type: '5-gauge',
+    aapCost: 20,
+    drops: 'Spawns Avatar of Avarice, Earth Sephira Box'
+  },
+  'despair': {
+    id: 'despair',
+    name: 'Writhing Despair',
+    templateId: 'arcarum-goliath-despair-smart',
+    sector: 'Yellow Sector (Death)',
+    divisionId: 3,
+    questId: '',
+    element: 'Dark',
+    type: '5-gauge',
+    aapCost: 20,
+    drops: 'Spawns Frenzied Howler, Dark Sephira Box'
+  }
+};
+
+// ============================================================================
+// Zone Faym (Stage 3 / Here Be Staves) Authoritative Presets
+// ============================================================================
+export const ARCARUM_FAYM_PRESETS: Record<string, ArcarumPreset> = {
+  'paragon': {
+    id: 'paragon',
+    name: 'Lilywhite Paragon (The Moon Defender)',
+    templateId: 'arcarum-lilywhite-paragon-smart',
+    sector: 'Zone Faym: Green Sector (The Moon / Div 10)',
+    divisionId: 10,
+    questId: '812111',
+    element: 'Water',
+    type: 'defender',
+    aapCost: 30,
+    drops: 'Faym Rib, Moon Idean, Aquaborne Astra, Moon Veritas, Sephira Emerald weapons'
+  },
+  'fortress': {
+    id: 'fortress',
+    name: 'Faymian Fortress (The Moon 5-Gauge)',
+    templateId: 'arcarum-faymian-fortress-smart',
+    sector: 'Zone Faym: Green Sector (The Moon / Div 10)',
+    divisionId: 10,
+    questId: '',
+    element: 'Water',
+    type: '5-gauge',
+    aapCost: 20,
+    drops: 'Spawns Lilywhite Paragon, Moon Sephira Box, 10-Hit Barrier Buster'
+  }
+};
+
+// ============================================================================
+// Zone Joculator (Stage 7 / Here Be Swords / Flumen Glacialis) Presets
+// ============================================================================
+export const ARCARUM_JOCULATOR_PRESETS: Record<string, ArcarumPreset> = {
+  'stage7': {
+    id: 'stage7',
+    name: 'Zone Joculator Universal Map',
+    templateId: 'arcarum-stage-7-smart',
+    sector: 'Zone Joculator Stage 7 Hub (Flumen Glacialis)',
+    divisionId: 7,
+    questId: '',
+    element: 'Earth',
+    type: 'map',
+    aapCost: 20,
+    drops: 'Dynamic Sector Scanner & Defender Auto-Target'
+  },
+  'redemption': {
+    id: 'redemption',
+    name: 'Lady of Redemption (Justice Defender)',
+    templateId: 'arcarum-lady-of-redemption-smart',
+    sector: 'Arctic Plains: Flumen Glacialis (Stage 7 / Div 7)',
+    divisionId: 7,
+    questId: '816071',
+    element: 'Water',
+    type: 'defender',
+    aapCost: 30,
+    drops: 'Joculator materials, Justice Idean, Aquaborne Astra, Justice Veritas, Sephira weapons'
+  },
+  'maiden': {
+    id: 'maiden',
+    name: 'Maiden of the Depths (5-Gauge)',
+    templateId: 'arcarum-maiden-of-the-depths-smart',
+    sector: 'Arctic Plains: Flumen Glacialis (Stage 7 / Div 7)',
+    divisionId: 7,
+    questId: '816031',
+    element: 'Water',
+    type: '5-gauge',
+    aapCost: 20,
+    drops: 'Spawns Lady of Redemption, Water Sephira Box, Defender Hell Gauge'
+  }
+};
+
+// Merged authoritative preset registry
+export const ARCARUM_PRESETS: Record<string, ArcarumPreset> = {
+  ...ARCARUM_MUNDUS_PRESETS,
+  ...ARCARUM_GOLIATH_PRESETS,
+  ...ARCARUM_FAYM_PRESETS,
+  ...ARCARUM_JOCULATOR_PRESETS
+};
+
 // Aliases
 export const ARCARUM_ALIASES: Record<string, string> = {
+  // Stage 10 (Zone Mundus)
   'caong': 'ca-ong',
   'world': 'theworld',
   'mundus': 'stage10',
@@ -283,18 +483,82 @@ export const ARCARUM_ALIASES: Record<string, string> = {
   'cat': 'winged-cat',
   'rock': 'voltage-rock',
   'love-mee': 'love-meeeee',
-  'loveme': 'love-meeeee'
+  'loveme': 'love-meeeee',
+
+  // Stage 3 (Zone Goliath)
+  'goliath': 'stage3',
+  'stage-3': 'stage3',
+  'goliath-triune': 'triune',
+  'goliath_triune': 'triune',
+  'avatar-of-avarice': 'avarice',
+  'avatar': 'avarice',
+  'goliath-keeper': 'keeper',
+  'frenzied-howler': 'howler',
+  'goliath-heralds': 'goliath-herald',
+  'earthshaking-panther': 'panther',
+  'bloodstained-barbarian': 'barbarian',
+  'writhing-despair': 'despair',
+
+  // Stage 3 (Zone Faym - Lilywhite Paragon & Faymian Fortress)
+  'lilywhite': 'paragon',
+  'lilywhite-paragon': 'paragon',
+  'lilywhite_paragon': 'paragon',
+  'faymian-fortress': 'fortress',
+  'faymian_fortress': 'fortress',
+  'faymian': 'fortress',
+  'faym-fortress': 'fortress',
+
+  // Stage 7 (Zone Joculator - Lady of Redemption & Maiden of the Depths)
+  'joculator': 'stage7',
+  'stage-7': 'stage7',
+  'lady': 'redemption',
+  'lady-of-redemption': 'redemption',
+  'lady_of_redemption': 'redemption',
+  'redemption-defender': 'redemption',
+  'maiden-of-the-depths': 'maiden',
+  'maiden_of_the_depths': 'maiden',
+  'maiden-depths': 'maiden'
 };
 
 function printHelp(): void {
   console.log(`
 ========================================================================
-    Granblue Fantasy - Arcarum Zone Mundus (Stage 10) Smart Controller
+    Granblue Fantasy - Arcarum Replicard Sandbox Smart Controller
 ========================================================================
 Usage:
   bun src/cli/run-arcarum.ts [account] [target] [runs] [options]
 
-Target Presets:
+Zone Joculator (Stage 7 / Here Be Swords) Targets:
+  Boss & Defenders:
+    stage7         - Universal Stage 7 Map Scanner & Auto-Defender Target
+    redemption     - Lady of Redemption (Justice Defender, Water, 30 AAP)
+                     Direct URL: #replicard/supporter/7/7/7/816071/25
+  5-Gauge Mobs:
+    maiden         - Maiden of the Depths (Water 5-Gauge, 20 AAP, spawns Redemption)
+                     Direct URL: #replicard/supporter/7/7/7/816031/25
+
+Zone Faym (Stage 3 / Here Be Staves) Targets:
+  Boss & Defenders:
+    paragon        - Lilywhite Paragon (The Moon Defender, Water Lv 100, 98M HP, 30 AAP)
+                     Direct URL: #replicard/supporter/3/3/10/812111/25
+  5-Gauge Mobs:
+    fortress       - Faymian Fortress (The Moon 5-Gauge, Water Lv 90, 61.65M HP, 20 AAP)
+                     Features 10-Hit Earth Barrier shredder mechanics
+
+Zone Goliath (Stage 3 / Here Be Staves) Targets:
+  Boss & Defenders:
+    stage3         - Universal Stage 3 Map Scanner & Auto-Defender Target
+    triune         - Goliath Triune (Zone Boss, Earth, 30 AAP + Rib/Organ/Core)
+    avarice        - Avatar of Avarice (The Hanged Man Defender, Pink Sector)
+    keeper         - Goliath Keeper (The Tower Defender, Green Sector)
+    howler         - Frenzied Howler (Death Defender, Yellow Sector)
+  5-Gauge Standard & Heralds:
+    goliath-herald - Zone Goliath Heralds (+100% Sephira Gauge Boost for 60m)
+    panther        - Earthshaking Panther (Green 5-Gauge, spawns Keeper)
+    barbarian      - Bloodstained Barbarian (Pink 5-Gauge, spawns Avarice)
+    despair        - Writhing Despair (Yellow 5-Gauge, spawns Howler)
+
+Zone Mundus (Stage 10 / Genesis Creationis) Targets:
   Defenders & Bosses:
     ca-ong         - Ca Ong Militis (Water Defender, Div 10)
     prometheus     - Prometheus Militis (Fire Defender, Div 3)
@@ -302,28 +566,18 @@ Target Presets:
     morrigna       - Morrigna Militis (Wind Defender, Div 15)
     theworld       - The World (Zone Mundus Final Core Boss, Div 16)
     stage10        - Universal Stage 10 Map Scanner & Auto-Defender Target
-
-  5-Gauge Standard Farm (Boxes & Defender Gauge):
+  5-Gauge Standard Farm:
     steve          - Parasite Steve (Water, Div 9, spawns Ca Ong)
     tide-caller    - Tide Caller (Water, Div 10)
     fire-demon     - Earth-Shattering Fire Demon (Fire, Div 3, spawns Prometheus)
     elephant       - Elephant Stomping Ground (Earth, Div 7, spawns Gilgamesh)
     princess       - Princess of the Horde (Earth, Div 6)
     dragon-green   - Dragon in Glittering Green (Wind, Div 14, spawns Morrigna)
-
-  3-Gauge Fast Burst Farm:
+  3-Gauge Fast Burst & Heralds:
     pincers        - Hotheaded Pincers (Fire 3-bar, Div 2)
     winged-cat     - Winged Demon Cat (Wind 3-bar, Div 13)
-
-  Sephira Heralds (+100% Boost for 60m):
     herald-water   - Herald of Water (Div 9)
     herald-earth   - Herald of Earth (Div 6)
-
-  Off-Element 5-Gauge Mobs:
-    voltage-rock   - High-Voltage Rock (Light, Div 4)
-    love-meeeee    - Love Meeee (Dark, Div 8)
-    dragon-princess- Proud War Princess of Dragons (Dark, Div 11)
-    wild-hunt      - Goddess of the Wild Hunt (Light, Div 15)
 
 Options:
   --windowed       Run with visible Chromium browser GUI
@@ -331,10 +585,10 @@ Options:
   --dry-run        Validate template and print execution pipeline
 
 Examples:
+  bun src/cli/run-arcarum.ts acc1 stage3 500
+  bun src/cli/run-arcarum.ts acc1 triune 50
+  bun src/cli/run-arcarum.ts acc1 keeper 100
   bun src/cli/run-arcarum.ts acc1 ca-ong 100
-  bun src/cli/run-arcarum.ts acc1 steve 200
-  bun src/cli/run-arcarum.ts acc1 theworld 50 --windowed
-  bun src/cli/run-arcarum.ts acc1 stage10 500
 ========================================================================
 `);
 }
@@ -389,25 +643,25 @@ async function main() {
     resolvedPresetKey = ARCARUM_ALIASES[resolvedPresetKey];
   }
 
-  let preset = ARCARUM_MUNDUS_PRESETS[resolvedPresetKey];
+  let preset = ARCARUM_PRESETS[resolvedPresetKey];
 
   if (!preset && !targetPresetOrTemplate) {
     if (!process.stdin.isTTY) {
-      preset = ARCARUM_MUNDUS_PRESETS['ca-ong'];
+      preset = ARCARUM_PRESETS['stage3'];
     } else {
       console.log('\n========================================================================');
-      console.log('       Select Arcarum Zone Mundus (Stage 10) Target                     ');
+      console.log('       Select Arcarum Replicard Sandbox Target                          ');
       console.log('========================================================================');
-      const keys = Object.keys(ARCARUM_MUNDUS_PRESETS);
+      const keys = Object.keys(ARCARUM_PRESETS);
       keys.forEach((k, idx) => {
-        const p = ARCARUM_MUNDUS_PRESETS[k];
+        const p = ARCARUM_PRESETS[k];
         console.log(`  [${idx + 1}] ${k.padEnd(16, ' ')} | ${p.name.padEnd(30, ' ')} | ${p.element.padEnd(6, ' ')} | ${p.type.padEnd(9, ' ')} | ${p.drops}`);
       });
       console.log('========================================================================');
       const selection = await promptUser('Choose target number [1]: ');
       const selIdx = parseInt(selection || '1', 10) - 1;
-      const chosenKey = keys[selIdx] || 'ca-ong';
-      preset = ARCARUM_MUNDUS_PRESETS[chosenKey];
+      const chosenKey = keys[selIdx] || 'stage3';
+      preset = ARCARUM_PRESETS[chosenKey];
     }
   }
 
@@ -489,7 +743,15 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('[ArcarumController] Fatal error:', err);
-  process.exit(1);
-});
+const isDirectExecution = process.argv[1] && (
+  process.argv[1].endsWith('run-arcarum.ts') ||
+  process.argv[1].endsWith('run-arcarum.js') ||
+  process.argv[1].includes('run-arcarum')
+);
+
+if (isDirectExecution) {
+  main().catch(err => {
+    console.error('[ArcarumController] Fatal error:', err);
+    process.exit(1);
+  });
+}

@@ -2,6 +2,7 @@ import puppeteer, { Browser, Page } from 'puppeteer-core';
 import { execSync } from 'child_process';
 import path from 'path';
 import { config } from './config.js';
+import { installMobageSessionImmunity } from './auth/session-immunity.js';
 
 export class CdpConnectionManager {
   private browser: Browser | null = null;
@@ -90,12 +91,32 @@ export class CdpConnectionManager {
         // Locate active GBF tab directly via targets (avoids browser.pages() hang on internal browser_ui)
         let targetPage: puppeteer.Page | null = null;
         const targets = this.browser.targets();
-        const gbfTarget = targets.find(t => t.type() === 'page' && (t.url().includes('game.granbluefantasy.jp') || t.url().includes('gbf.game.mbga.jp')));
-        if (gbfTarget) {
+        const gbfTargets = targets.filter(t => t.type() === 'page' && (t.url().includes('game.granbluefantasy.jp') || t.url().includes('gbf.game.mbga.jp')));
+        if (gbfTargets.length > 0) {
+          const preferredTarget = gbfTargets.find(t => {
+            const u = t.url();
+            return u.includes('#raid/') || u.includes('#battle/') || u.includes('#result/') || u.includes('replicard');
+          }) || gbfTargets[0];
+
           targetPage = await Promise.race([
-            gbfTarget.page(),
+            preferredTarget.page(),
             new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 3000))
           ]);
+
+          // Close duplicate stale GBF tabs to avoid socket/session desync
+          if (gbfTargets.length > 1) {
+            console.log(`[CDP] Detected ${gbfTargets.length} Granblue Fantasy tabs. Pruning ${gbfTargets.length - 1} duplicate tab(s)...`);
+            for (const t of gbfTargets) {
+              if (t !== preferredTarget) {
+                try {
+                  const extraPage = await t.page();
+                  if (extraPage && !extraPage.isClosed()) {
+                    await extraPage.close().catch(() => null);
+                  }
+                } catch {}
+              }
+            }
+          }
         }
 
         // If not found via gbfTarget, only reuse an existing page target if it is blank
@@ -147,6 +168,9 @@ export class CdpConnectionManager {
           await this.gbfPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
           pageTitle = await this.gbfPage.title().catch(() => 'Granblue Fantasy');
         }
+
+        // Install Mobage Session Immunity Shield to disarm false-positive c.logout() triggers
+        await installMobageSessionImmunity(this.gbfPage);
 
         // Production VPS Optimization Gate (Mute audio, lite canvas graphics, mobile touch viewport)
         if (config.isProduction || config.AUTO_MUTE_GAME) {

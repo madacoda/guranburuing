@@ -20,6 +20,7 @@ This repository directory contains the comprehensive, production-grade architect
 | **10** | **[Reference Implementation](file:///c:/laragon/www/gbf/strategies/principles/10_reference_implementation.md)** | **Production-Grade TypeScript Codebase** | Modular code: CDP connection manager, human motor driver, Sentinel watchdog, Pro Skip engine, Raid joiner engine, Fastify gateway. |
 | **11** | **[Senior Management Architecture](file:///c:/laragon/www/gbf/strategies/principles/11_senior_management_architecture.md)** | **Autonomous Swarm & Enterprise Ops** | Universal engine orchestrator, DSL compiler, multi-account isolation, drop auditing, recovery state machines. |
 | **12** | **[Discord Presence Architecture](file:///c:/laragon/www/gbf/strategies/principles/12_discord_presence_architecture.md)** | **Dual-Channel Live Rich Presence** | Bot Gateway v10 + Desktop IPC named pipe, real-time battle telemetry, daily/session Gold Bar tracking, rate limit immunity. |
+| **13** | **[Authentication & Session Immunity](file:///c:/laragon/www/gbf/strategies/principles/13_authentication_and_session_immunity.md)** | **Mobage JSSDK Architecture & Kickout Immunity** | Cross-origin `session_iframe` mechanics, capture-phase `postMessage` interception, CHIPS cookie partitioning, FuelPHP REST negotiation, and 0ms `#mypage` profile verification. |
 
 ---
 

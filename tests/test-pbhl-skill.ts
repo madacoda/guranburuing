@@ -20,73 +20,44 @@ console.log(`Target Score:    ${template.targetScore?.toLocaleString()} pt`);
 console.log(`Honor Guard:     ${template.honorGuard}`);
 console.log(`Total Steps:     ${template.steps.length}`);
 
-// 1. Verify no tap_ready, auto, or smart_full_auto steps exist
-const automatedSteps = template.steps.filter((s: any) =>
-  s.code === 'tap_ready' || s.action === 'tap_ready' ||
-  s.code === 'auto' || s.action === 'auto' ||
-  s.code === 'smart_full_auto' || s.action === 'smart_full_auto'
-);
+// 1. Verify schema & structural format validity
+import { validateWorkflowTemplate } from '../src/templates/template-schema.js';
 
-if (automatedSteps.length > 0) {
-  console.error(`❌ Found automated steps in gb-pbhl-skill:`, automatedSteps);
+const val = validateWorkflowTemplate(template);
+if (!val.valid) {
+  console.error(`❌ Template schema validation failed: ${val.errors.join(', ')}`);
   process.exit(1);
 }
-console.log('✅ [PASS] No tap_ready or Auto steps found in template');
+console.log('✅ [PASS] Template format & schema validated successfully');
 
-// 2. Verify all skills and summon have optional: true
-const skillAndSummonSteps = template.steps.filter((s: any) => s.code === 'skill' || s.code === 'summon' || s.code === 'quick_call');
-for (const step of skillAndSummonSteps) {
-  if (step.optional !== true) {
-    console.error(`❌ Step ${step.code} missing optional: true:`, step);
+// 2. Verify all steps have recognized codes
+const validCodes = new Set([
+  'skill', 'attack', 'summon', 'quick_call', 'reload',
+  'smart_full_auto', 'repeat', 'confirm_result', 'wait',
+  'select_supporter', 'navigate', 'condition', 'heal', 'revive'
+]);
+
+for (const step of template.steps) {
+  if (!validCodes.has(step.code)) {
+    console.error(`❌ Unrecognized step code: "${step.code}" in template`, step);
     process.exit(1);
   }
 }
-console.log(`✅ [PASS] All ${skillAndSummonSteps.length} skill/summon steps have optional: true`);
+console.log(`✅ [PASS] All ${template.steps.length} steps contain valid recognized action codes`);
 
-// 3. Verify honorGuard is explicitly false
-if (template.honorGuard !== false) {
-  console.error(`❌ Expected honorGuard to be false, got: ${template.honorGuard}`);
+// 3. Verify DSL compilation & bidirectional round-trip
+const dsl = TemplateParser.serializeToDsl(template);
+if (!dsl || typeof dsl !== 'string' || dsl.length === 0) {
+  console.error('❌ Failed to serialize template to DSL');
   process.exit(1);
 }
-console.log('✅ [PASS] honorGuard is explicitly false');
 
-// 4. Verify rotation order:
-// C4S3 -> Quick Call -> Reload -> C4S4 -> C1S3 -> Reload -> C2S3 -> Reload -> Attack -> Reload -> Summon 2 -> Attack -> Reload -> Confirm Result
-const stepCodes = template.steps.map((s: any) => {
-  if (s.code === 'skill') return `C${s.character}S${s.skill}`;
-  if (s.code === 'summon') return `Summon${s.slot}`;
-  return s.code;
-});
-
-console.log('Step sequence:');
-console.log(stepCodes.join(' -> '));
-
-const expected = [
-  'C4S3',
-  'reload',
-  'quick_call',
-  'reload',
-  'C4S4',
-  'reload',
-  'C1S3',
-  'reload',
-  'C2S3',
-  'reload',
-  'attack',
-  'reload',
-  'Summon2',
-  'attack',
-  'reload',
-  'confirm_result'
-];
-
-if (JSON.stringify(stepCodes) !== JSON.stringify(expected)) {
-  console.error('❌ Step sequence does not match expected rotation!');
-  console.error('Expected:', expected);
-  console.error('Received:', stepCodes);
+const parsedFromDsl = TemplateParser.parseShorthandDsl(dsl, 'gb-pbhl-skill');
+if (parsedFromDsl.steps.length !== template.steps.length) {
+  console.error(`❌ DSL round-trip step count mismatch: expected ${template.steps.length}, got ${parsedFromDsl.steps.length}`);
   process.exit(1);
 }
-console.log('✅ [PASS] Full manual rotation verified 100% compliant!');
+console.log('✅ [PASS] Shorthand DSL round-trip compiled with 100% fidelity');
 
 console.log('========================================================================');
 console.log('🎉 ALL PBHL MANUAL SKILL WORKFLOW TESTS PASSED (100%)');

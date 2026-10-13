@@ -6,27 +6,82 @@ console.log('===================================================================
 console.log('             Comprehensive Workflow Template Schema Test Suite          ');
 console.log('========================================================================\n');
 
-// 1. Validate all real workspace templates
-console.log('--- 1. Validating All Production Workspace Templates ---');
-const available = TemplateParser.listAvailableTemplates();
-console.log(`Found ${available.length} templates: ${available.join(', ')}`);
+import fs from 'fs';
+import path from 'path';
+
+// 1. Universal Workflow Template Validator (Dynamic All-in-One for all templates/*.json)
+console.log('--- 1. Universal Dynamic Workflow Template Validation (All JSON Templates) ---');
+const templatesDir = path.resolve(process.cwd(), 'templates');
+const templateFiles = fs.readdirSync(templatesDir).filter(f => f.endsWith('.json')).sort();
+console.log(`Discovered ${templateFiles.length} production templates in ${templatesDir}\n`);
+
+const recognizedActionCodes = new Set([
+  'skill', 'attack', 'summon', 'quick_call', 'reload', 'tap_ready',
+  'smart_full_auto', 'repeat', 'confirm_result', 'wait', 'wait_network',
+  'wait_element', 'wait_random', 'wait_turn', 'touch_tap', 'navigate',
+  'click', 'eval', 'guard', 'auto', 'target_enemy', 'heal', 'revive',
+  'backup_request', 'exit_if_score', 'skip_story_scene', 'pro_skip_favorites',
+  'dismiss_popups', 'loop_while', 'loop_until', 'do_until_finish',
+  'run_daily_target', 'select_supporter', 'condition', 'auto_fate_episode',
+  'log_enemy_hp', 'exit_if_dead', 'exit_if_hp'
+]);
+
+function verifyStepActions(steps: any[], fileName: string) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error(`Template ${fileName} must contain a non-empty steps array`);
+  }
+  for (const step of steps) {
+    const code = step.code || step.action;
+    if (!code || !recognizedActionCodes.has(code)) {
+      throw new Error(`Unrecognized action code: "${code}" in ${fileName} (step: ${step.name || 'unnamed'})`);
+    }
+    if (step.subSteps) {
+      verifyStepActions(step.subSteps, fileName);
+    }
+  }
+}
 
 let allValid = true;
-for (const tmplName of available) {
+let totalValidated = 0;
+
+for (const file of templateFiles) {
+  const filePath = path.join(templatesDir, file);
+  const baseName = file.replace(/\.json$/, '');
+
   try {
-    const loaded = TemplateParser.loadTemplate(tmplName);
-    console.log(`  ✅ [PASS] "${tmplName}" -> "${loaded.name}" (${loaded.steps.length} steps, ${loaded.speedProfile} speed, ${loaded.questUrl.substring(0, 45)}...)`);
+    // Gate 1: Strict JSON Syntax & Structure
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const json = JSON.parse(raw);
+
+    // Gate 2: Schema & Type Boundary Compliance
+    const val = validateWorkflowTemplate(json);
+    if (!val.valid) {
+      throw new Error(`Schema validation error: ${val.errors.join('; ')}`);
+    }
+
+    // Gate 3: Valid Action Vocabulary
+    verifyStepActions(json.steps, file);
+
+    // Gate 4: Lossless Shorthand DSL Serialization & Bidirectional Round-Trip
+    const dsl = TemplateParser.serializeToDsl(val.template || json);
+    const parsedFromDsl = TemplateParser.parseShorthandDsl(dsl, baseName);
+    if (parsedFromDsl.steps.length !== json.steps.length) {
+      throw new Error(`DSL round-trip step count mismatch: expected ${json.steps.length}, got ${parsedFromDsl.steps.length}`);
+    }
+
+    console.log(`  ✅ [PASS] ${baseName.padEnd(35, ' ')} | ${String(json.steps.length).padStart(2, ' ')} steps | ${json.speedProfile || 'fast'} | Schema Valid & DSL Verified`);
+    totalValidated++;
   } catch (err: any) {
-    console.error(`  ❌ [FAIL] "${tmplName}":`, err.message);
+    console.error(`  ❌ [FAIL] "${file}":`, err.message);
     allValid = false;
   }
 }
 
-if (!allValid) {
-  console.error('\n❌ Production template validation failed!');
+if (!allValid || totalValidated !== templateFiles.length) {
+  console.error(`\n❌ Universal template validation failed! Validated: ${totalValidated}/${templateFiles.length}`);
   process.exit(1);
 }
-console.log('\nAll production workspace templates successfully verified!\n');
+console.log(`\n🎉 Universal validation complete: All ${totalValidated} workspace templates dynamically verified (100% compliant)!\n`);
 
 // 2. Negative Validation Test Cases (Must Catch Violations)
 console.log('--- 2. Verifying Negative Schema Validation Constraints ---');

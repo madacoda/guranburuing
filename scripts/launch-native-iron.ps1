@@ -29,6 +29,7 @@ $browserArgs = @(
     "--disable-backgrounding-occluded-windows",
     "--disable-renderer-backgrounding",
     "--autoplay-policy=no-user-gesture-required",
+    "--test-third-party-cookie-phaseout=disabled",
     "--window-size=520,960",
     "`"$targetUrl`""
 )

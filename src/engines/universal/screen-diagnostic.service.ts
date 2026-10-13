@@ -201,8 +201,13 @@ export class ScreenDiagnosticService {
         lower.includes('suspended quest') ||
         lower.includes('quest is in progress') ||
         lower.includes('battle in progress') ||
+        lower.includes('poprestartquest') ||
         rawText.includes('中断されたクエスト') ||
-        rawText.includes('再開しますか')
+        rawText.includes('中断したクエスト') ||
+        rawText.includes('未クリアのクエスト') ||
+        rawText.includes('再開しますか') ||
+        rawText.includes('再開') ||
+        rawText.includes('続ける')
       ) {
         return {
           condition: 'SUSPENDED_QUEST',
@@ -436,8 +441,10 @@ export class ScreenDiagnosticService {
       case 'SUSPENDED_QUEST': {
         console.log('[Deep Analysis] 🔄 Suspended quest in progress detected. Resuming...');
         const resumed = await this.page.evaluate(() => {
-          const ok = document.querySelector('.popRestartQuest .btn-usual-ok, .pop-usual .btn-usual-ok') as HTMLElement;
+          const ok = document.querySelector('.popRestartQuest .btn-usual-ok, .pop-usual .btn-usual-ok, .btn-usual-ok') as HTMLElement;
           if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
             ok.click();
             return true;
           }

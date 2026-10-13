@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/categories.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/categories.schema.json",
   "title": "GBFRaidCategoriesSchema",
   "description": "Authoritative schema for Granblue Fantasy raid category hierarchy, stage IDs, and rank requirements.",
   "type": "object",

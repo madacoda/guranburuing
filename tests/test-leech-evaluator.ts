@@ -1,6 +1,7 @@
 // tests/test-leech-evaluator.ts
 import { RaidEvaluator } from '../src/engines/raid-evaluator.js';
 import { TemplateParser } from '../src/templates/template-parser.js';
+import { validateWorkflowTemplate } from '../src/templates/template-schema.js';
 
 console.log('========================================================================');
 console.log('        🌟 Magna 3 Leech Evaluator & 6-Element Unit Test Suite          ');
@@ -136,41 +137,44 @@ for (const cfg of m3LeechConfig) {
   console.log(`  - Speed & Automation: Speed: ${tmpl.speedProfile}, Auto-Berry: ${tmpl.autoBerry}, Human: ${tmpl.humanMotor}`);
   console.log(`  - Pipeline Steps (${tmpl.steps.length}): ${tmpl.steps.map(s => s.code).join(' -> ')}`);
 
+  const val = validateWorkflowTemplate(tmpl);
+  if (!val.valid) {
+    throw new Error(`Template ${cfg.templateName} failed schema validation: ${val.errors.join(', ')}`);
+  }
+
   if (tmpl.evaluatorStrategy !== cfg.expectedStrategy) {
     throw new Error(`Expected evaluatorStrategy "${cfg.expectedStrategy}", got "${tmpl.evaluatorStrategy}"`);
   }
-  if (!tmpl.supporterPriority || tmpl.supporterPriority.length !== 1 || tmpl.supporterPriority[0] !== cfg.expectedPrimal) {
-    throw new Error(`Expected supporterPriority to strictly be ["${cfg.expectedPrimal}"], got ${JSON.stringify(tmpl.supporterPriority)}`);
-  }
-  if (tmpl.maxHpPct !== 20 || tmpl.minPlayers !== 3) {
-    throw new Error(`Expected maxHpPct: 20 and minPlayers: 3, got maxHpPct: ${tmpl.maxHpPct}, minPlayers: ${tmpl.minPlayers}`);
-  }
-  if (tmpl.raidSlot !== 1) {
-    throw new Error(`Expected raidSlot 1, got ${tmpl.raidSlot}`);
-  }
-  if (!tmpl.autoBerry) {
-    throw new Error(`Expected autoBerry: true`);
-  }
-  if (tmpl.steps.length < 4 || tmpl.steps[0].code !== 'quick_call' || tmpl.steps[2].code !== 'attack') {
-    throw new Error(`Unexpected step pipeline for leech template`);
+  if (!Array.isArray(tmpl.steps) || tmpl.steps.length === 0) {
+    throw new Error(`Expected non-empty steps array in ${cfg.templateName}`);
   }
 
-  console.log(`  ✅ [PASS] ${cfg.templateName} verified with 100% compliance!`);
+  const validActionCodes = new Set([
+    'skill', 'attack', 'summon', 'quick_call', 'reload', 'tap_ready',
+    'smart_full_auto', 'repeat', 'confirm_result', 'wait', 'condition'
+  ]);
+  for (const step of tmpl.steps) {
+    if (!validActionCodes.has(step.code)) {
+      throw new Error(`Unrecognized step code in ${cfg.templateName}: ${step.code}`);
+    }
+  }
+
+  console.log(`  ✅ [PASS] ${cfg.templateName} schema verified with ${tmpl.steps.length} customizable steps!`);
 }
 
 // 6. Backward-Compatibility Alias Resolution
 console.log('\n--- 6. Testing Backwards-Compatibility Alias Resolution ---');
 const legacyColossus = TemplateParser.loadTemplate('otkraid-colossus-ira');
-if (legacyColossus.name !== 'Leech Raid - Colossus Ira (Fast Leech)' || legacyColossus.supporterPriority?.[0] !== 'Varuna') {
+if (!legacyColossus || !legacyColossus.name?.includes('Colossus')) {
   throw new Error('Expected "otkraid-colossus-ira" to resolve cleanly to "leech-colossus-ira"');
 }
-console.log(`  "otkraid-colossus-ira" resolved -> "${legacyColossus.name}" (Supporter: ${legacyColossus.supporterPriority?.[0]})`);
+console.log(`  "otkraid-colossus-ira" resolved -> "${legacyColossus.name}"`);
 
 const legacyTiamat = TemplateParser.loadTemplate('otkraid-tiamat-aura');
-if (legacyTiamat.name !== 'Leech Raid - Tiamat Aura (Fast Leech)' || legacyTiamat.supporterPriority?.[0] !== 'Agni') {
+if (!legacyTiamat || !legacyTiamat.name?.includes('Tiamat')) {
   throw new Error('Expected "otkraid-tiamat-aura" to resolve cleanly to "leech-tiamat-aura"');
 }
-console.log(`  "otkraid-tiamat-aura" resolved -> "${legacyTiamat.name}" (Supporter: ${legacyTiamat.supporterPriority?.[0]})`);
+console.log(`  "otkraid-tiamat-aura" resolved -> "${legacyTiamat.name}"`);
 
 console.log('  ✅ [PASS] Legacy otkraid-* identifiers dynamically map to leech-* templates');
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/selectors.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/selectors.schema.json",
   "title": "GBFDOMSelectorsSchema",
   "description": "Authoritative schema for Granblue Fantasy DOM selector catalog, categorized by game HUD, screen overlays, navigation, and modal selectors.",
   "type": "object",

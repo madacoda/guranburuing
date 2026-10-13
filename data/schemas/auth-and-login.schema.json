@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gbf.wiki/schemas/auth-and-login.schema.json",
+  "$id": "https://game.granbluefantasy.jp/schemas/auth-and-login.schema.json",
   "title": "GBFAuthAndLoginSchema",
   "description": "Authoritative schema for Granblue Fantasy platform authentication gateways, cookie specifications, and CDP session injection protocols.",
   "type": "object",
@@ -86,6 +86,20 @@
             "cookiesJsonFile": { "type": "string" },
             "environmentVariable": { "type": "string" }
           }
+        }
+      }
+    },
+    "browserRequirements": {
+      "type": "object",
+      "properties": {
+        "thirdPartyCookiesRequired": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "chromeFlags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "troubleshooting": {
+          "type": "object"
         }
       }
     }

@@ -40,13 +40,23 @@ export class QuestNavigationService {
       await this.ctx.sentinel.assertSafe();
     }
 
-    // Check if lingering in an actual unfinished battle (e.g. #raid/12345 or #battle/12345)
+    // Check if lingering in an actual unfinished battle or result screen
     const initHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
     const isReplicard = targetUrl.includes('replicard') ||
       targetUrl.includes('819131') || targetUrl.includes('815091') ||
       targetUrl.includes('816091') || targetUrl.includes('819141') ||
       targetUrl.includes('819151') || targetUrl.includes('819161') ||
-      targetUrl.includes('819171');
+      targetUrl.includes('819171') || targetUrl.includes('812111') ||
+      targetUrl.includes('816071') || targetUrl.includes('816031');
+
+    if (initHash.includes('result')) {
+      console.log(`[${this.ctx.accountId}] Lingering result screen detected (${initHash}). Settling rewards and proceeding...`);
+      await this.deps.combatResolution.handleConfirmResult();
+      const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
+      await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
+      await logNormalDelay(600, 0.15);
+    }
+
     const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash) || initHash.includes('replicard/battle');
 
     if (isCombatHash) {
@@ -57,12 +67,30 @@ export class QuestNavigationService {
         const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
         await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
         await logNormalDelay(600, 0.15);
-      } else if (isReplicard) {
-        console.log(`[${this.ctx.accountId}] [Replicard] Active combat detected (${initHash}). Resuming combat directly...`);
-        return true;
       } else {
-        console.log(`[Workflow] Existing battle detected (${initHash}). Resolving prior battle...`);
-        await this.deps.combatResolution.resolveLingeringState();
+        const combatStatus = await this.page.evaluate(() => {
+          const stage = (window as any).stage;
+          const gStatus = stage?.gGameStatus;
+          const pJsn = stage?.pJsnData;
+          const turn = Number(pJsn?.turn || gStatus?.turn || 1);
+          const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
+          const isDead = boss?.hp !== undefined && Number(boss.hp) <= 0;
+          return { turn, isDead };
+        }).catch(() => ({ turn: 1, isDead: false }));
+
+        if (combatStatus.isDead) {
+          console.log(`[${this.ctx.accountId}] Enemy already defeated in battle (${initHash}). Concluding result...`);
+          await this.deps.combatResolution.handleConfirmResult();
+          const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
+          await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
+          await logNormalDelay(600, 0.15);
+        } else if (isReplicard && combatStatus.turn === 1) {
+          console.log(`[${this.ctx.accountId}] [Replicard] Fresh active combat detected at Turn 1 (${initHash}). Starting combat pipeline directly...`);
+          return true;
+        } else {
+          console.log(`[${this.ctx.accountId}] Lingering in-progress battle detected (${initHash} | Turn ${combatStatus.turn}). Auto-finishing to clear state for fresh workflow runs...`);
+          await this.deps.combatResolution.resolveLingeringState();
+        }
       }
     }
 
@@ -92,6 +120,60 @@ export class QuestNavigationService {
 
       if (this.ctx.template.stopOnCaptcha !== false) {
         await this.ctx.sentinel.assertSafe();
+      }
+
+      // Check if suspended quest in progress modal is open (.popRestartQuest)
+      const hasRestartModal = await this.page.evaluate(() => {
+        const pop = document.querySelector('.popRestartQuest, .pop-usual.pop-show, .pop-usual, #pop.popup-view-root');
+        if (pop && (pop as HTMLElement).offsetParent !== null) {
+          const txt = (pop.textContent || '').toLowerCase();
+          if (
+            txt.includes('in progress') ||
+            txt.includes('progress') ||
+            txt.includes('再開') ||
+            txt.includes('続ける') ||
+            txt.includes('中断') ||
+            pop.classList.contains('popRestartQuest')
+          ) {
+            const okBtn = pop.querySelector('.btn-usual-ok, .btn-ok, .btn-settle') as HTMLElement;
+            if (okBtn && okBtn.offsetParent !== null) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(okBtn).trigger('tap');
+              okBtn.click();
+              return true;
+            }
+          }
+        }
+        return false;
+      }).catch(() => false);
+
+      if (hasRestartModal) {
+        console.log(`[${this.ctx.accountId}] [Resume] Suspended quest in progress modal detected (.popRestartQuest). Resuming battle...`);
+        await this.deps.combatResolution.waitForBattleToMount(10000);
+        const combatStatus = await this.page.evaluate(() => {
+          const stage = (window as any).stage;
+          const gStatus = stage?.gGameStatus;
+          const pJsn = stage?.pJsnData;
+          const turn = Number(pJsn?.turn || gStatus?.turn || 1);
+          const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
+          const isDead = boss?.hp !== undefined && Number(boss.hp) <= 0;
+          return { turn, isDead };
+        }).catch(() => ({ turn: 1, isDead: false }));
+
+        if (combatStatus.isDead || (await this.deps.combatResolution.isBattleEnded())) {
+          console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is already concluded. Settling results...`);
+          await this.deps.combatResolution.handleConfirmResult();
+          continue;
+        }
+
+        if (isReplicard && combatStatus.turn === 1) {
+          console.log(`[${this.ctx.accountId}] [Resume] Resumed Replicard battle is at Turn 1. Starting combat pipeline directly.`);
+          return true;
+        }
+
+        console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is on Turn ${combatStatus.turn}. Resolving lingering battle to start fresh...`);
+        await this.deps.combatResolution.resolveLingeringState();
+        continue;
       }
 
       // Check if pending battle popup modal is currently displayed

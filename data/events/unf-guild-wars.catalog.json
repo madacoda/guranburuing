@@ -1,0 +1,162 @@
+{
+  "$schema": "../schemas/unf-guild-wars.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-13T08:35:00.000Z",
+  "description": "Guild Wars guide covering EX+ meat farming (0B0C/0B1C) and Nightmare boss strategies (NM90 to NM250).",
+  "stages": [
+    {
+      "stageId": "unf_ex_plus",
+      "name": "Extreme+ (EX+ Meat Farming)",
+      "bossHp": "24,000,000",
+      "meatCostOrYield": "Yields 5-8 Meat chunks per kill (AP 30)",
+      "honorYield": "80,800 Honors",
+      "defenseMultiplier": 14,
+      "targetClearTime": "Sub-3.5 seconds (0-Button or Quick Summon OTK)"
+    },
+    {
+      "stageId": "unf_nm90",
+      "name": "Nightmare 90 (Prelims / Day 1)",
+      "bossHp": "42,000,000",
+      "meatCostOrYield": "Costs 5 Meat chunks",
+      "honorYield": "260,000 Honors",
+      "defenseMultiplier": 15,
+      "targetClearTime": "1 Turn (Sub-5 seconds)"
+    },
+    {
+      "stageId": "unf_nm95",
+      "name": "Nightmare 95 (Finals Day 1)",
+      "bossHp": "131,250,000",
+      "meatCostOrYield": "Costs 10 Meat chunks",
+      "honorYield": "910,000 Honors",
+      "defenseMultiplier": 16,
+      "targetClearTime": "1-2 Turns (Sub-15 seconds)"
+    },
+    {
+      "stageId": "unf_nm100",
+      "name": "Nightmare 100 (Finals Day 2)",
+      "bossHp": "288,750,000",
+      "meatCostOrYield": "Costs 20 Meat chunks",
+      "honorYield": "2,650,000 Honors",
+      "defenseMultiplier": 18,
+      "targetClearTime": "3-5 Turns (Sub-45 seconds)"
+    },
+    {
+      "stageId": "unf_nm150",
+      "name": "Nightmare 150 (Finals Day 2-3)",
+      "bossHp": "510,000,000",
+      "meatCostOrYield": "Costs 20 Meat chunks",
+      "honorYield": "4,100,000 Honors",
+      "defenseMultiplier": 25,
+      "targetClearTime": "5-8 Turns (Sub-1m 30s)"
+    },
+    {
+      "stageId": "unf_nm200",
+      "name": "Nightmare 200 (Finals Day 3-4)",
+      "bossHp": "577,500,000",
+      "meatCostOrYield": "Costs 30 Meat chunks",
+      "honorYield": "13,400,000 Honors",
+      "defenseMultiplier": 30,
+      "targetClearTime": "Sub-3 minutes (Full Auto)"
+    },
+    {
+      "stageId": "unf_nm250",
+      "name": "Nightmare 250 (Apex Crew Stage)",
+      "bossHp": "1,000,000,000+",
+      "meatCostOrYield": "Costs 40 Meat chunks",
+      "honorYield": "30,000,000 Honors",
+      "defenseMultiplier": 35,
+      "targetClearTime": "Sub-6 minutes (Full Auto / Duo)"
+    }
+  ],
+  "meatOptimization": [
+    {
+      "archetype": "0B0C_Normal_Attack_Burst",
+      "buttonCount": 0,
+      "chargeAttackCount": 0,
+      "mcClass": "Apsaras / Berserker / Sumaibito",
+      "coreRequirements": [
+        "Guaranteed TA party (e.g. Bowman, Seox, Ilsa)",
+        "Ereshkigal or Hrunting or Falsehood Opus",
+        "Belial summon"
+      ],
+      "tacticalActionSequence": "Press Attack immediately upon battle entry; no skills or summons invoked. Normal attacks + echoes + end-of-turn nukes defeat boss in 2.8 seconds."
+    },
+    {
+      "archetype": "0B1C_Single_Charge_Attack",
+      "buttonCount": 0,
+      "chargeAttackCount": 1,
+      "mcClass": "Relic Buster / Chrysaor",
+      "coreRequirements": [
+        "Single ally with 100% starting bar",
+        "High Ougi supplemental (Fediel Spine / Galleon Jaw)"
+      ],
+      "tacticalActionSequence": "Press Attack; frontline 1st character Ougis and deals massive single-hit cap-breaking damage."
+    },
+    {
+      "archetype": "0B_Quick_Summon_Instakill",
+      "buttonCount": 1,
+      "chargeAttackCount": 0,
+      "mcClass": "Any",
+      "coreRequirements": [
+        "Beelzebub / Triple Zero set as Quick Summon"
+      ],
+      "tacticalActionSequence": "Click Quick Summon button -> Press Attack. Beelzebub deals 3M plain damage + 40% DEF down + Bore; normal attacks clean up remaining HP."
+    }
+  ],
+  "nightmareStrategies": [
+    {
+      "difficulty": "NM95",
+      "bossTriggers": [
+        "75% Trigger: Deals multi-hit damage and inflicts DEF Down / Blind",
+        "50% Trigger: Buff wipe and gains 50% Damage Cut barrier",
+        "25% Trigger: High damage single-target nuke"
+      ],
+      "recommendedFullAutoRoster": [
+        "High single-turn burst units (Percival, Narmaya, Nehan, Ilsa)",
+        "Fast dispels on 50%"
+      ],
+      "survivalInterlocks": [
+        "Ensure Dispel available to immediately clear 50% damage cut buff to avoid turn stalls."
+      ],
+      "notes": "Target sub-20 second clears with 1-turn burst setups or fast 2-turn Full Auto."
+    },
+    {
+      "difficulty": "NM200",
+      "bossTriggers": [
+        "85% Trigger: Deals 25,000 plain damage and inflicts Strong Poison / Skill Seal",
+        "50% Trigger: Strips all party buffs, clears boss debuffs, gains 100% TA and Unchallenged",
+        "35% Trigger: Deals 40,000 multi-hit elemental damage and inflicts Paralyze",
+        "15% Trigger: Fatal lethal strike (bypasses standard cuts)"
+      ],
+      "recommendedFullAutoRoster": [
+        "Auto-cleanse / auto-heal anchors (Satyr, Haaselia, Horus, Lich, Cosmos)",
+        "Frequent end-of-turn dispels to purge 50% Unchallenged barrier",
+        "Damage mitigation tanks (Poseidon, Anne, Vira, Seox)"
+      ],
+      "survivalInterlocks": [
+        "Zombified Safety Interlock: Potion/heal commands MUST be locked if 85% trigger inflicts Zombified.",
+        "Mandatory 2+ dispels queued for 50% trigger to eliminate Unchallenged before main attacks."
+      ],
+      "notes": "Optimal honor-per-meat conversion efficiency for players with refined FA rosters."
+    },
+    {
+      "difficulty": "NM250",
+      "bossTriggers": [
+        "90% Trigger: Omen (Requires 40 hits or 4 Charge Attacks to cancel)",
+        "70% Trigger: Boss gains Absolute Barrier (100,000 per hit limit) and Reflect",
+        "50% Trigger: Massive plain damage nuke, full buff strip, inflicts Petrified (4 turns)",
+        "20% Trigger: Enters Berserk stance; normal attacks hit all 4 party members simultaneously"
+      ],
+      "recommendedFullAutoRoster": [
+        "Transcendence Lucifer 250 (Main/Friend) for 50% max HP and auto-cleanse on specials",
+        "Dual sustain buffers with revive fail-safes (Haaselia, Yuni, Horus, Fediel)",
+        "Defense-awakened Revans weapons (Sette di Spade / Schrodinger / Extinction Blade)"
+      ],
+      "survivalInterlocks": [
+        "Reflect / 100% Cut Halt: Pause normal attack queues when 70% Reflect buff is present without Dispel.",
+        "Lucifer 250 Turn-1 call or Quick Summon to maintain Wings of Pure White refresh."
+      ],
+      "notes": "Crew coordination stage; solo FA requires 70k+ HP pool and defense-awakened weapon grids."
+    }
+  ]
+}

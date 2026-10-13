@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { Page } from 'puppeteer-core';
 import { AccountConfig, VerifiedPlayerProfile } from '../types/account.types.js';
-import { logNormalDelay, humanReactionDelay } from '../human-motor.js';
+import { installMobageSessionImmunity } from './session-immunity.js';
 
 export function safeUrl(p?: Page | null): string {
   if (!p) return '';
@@ -14,146 +14,232 @@ export function safeUrl(p?: Page | null): string {
   }
 }
 
+export interface EnsureAuthenticatedOptions {
+  interactive?: boolean;        // e.g. Windowed setup mode: prioritize user interactive login
+  skipCookieRestore?: boolean;  // Don't inject disk cookies from data/${account.id}-cookies.json
+  timeoutMs?: number;
+}
+
 export class AccountAuthManager {
   /**
-   * Navigates to https://game.granbluefantasy.jp/#profile and obtains verified in-game player details.
-   * Returns null if unauthenticated or redirected to title/login screen.
+   * Checks if any tab or page in the browser is currently on the Mobage JSSDK redirect URL.
+   */
+  public static isMobageRedirectUrl(url: string): boolean {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return (
+      lower.includes('connect.mobage.jp') &&
+      (lower.includes('redirect') || lower.includes('access_token=') || lower.includes('authorization_response') || lower.includes('jssdk'))
+    );
+  }
+
+  /**
+   * Checks if midship session cookie is present and valid in the browser via CDP.
+   */
+  public static async getMidshipCookie(page: Page): Promise<any | null> {
+    try {
+      const client = await page.target().createCDPSession();
+      const { cookies } = await client.send('Network.getAllCookies');
+      const midship = cookies.find(c =>
+        c.name === 'midship' &&
+        (c.domain.includes('granbluefantasy.jp') || c.domain.includes('mbga.jp')) &&
+        c.value && c.value.length > 20
+      );
+      return midship || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Sanitizes cookie objects for Puppeteer / CDP Network.setCookies.
+   * Strips out guest markers, deduplicates by name+domain+path, formats expires as integer,
+   * ensures sameSite: 'None' has secure: true.
+   */
+  public static sanitizeCookiesForCDP(rawCookies: any[]): any[] {
+    if (!Array.isArray(rawCookies)) return [];
+    const cookieMap = new Map<string, any>();
+
+    for (const c of rawCookies) {
+      if (!c || !c.name || typeof c.name !== 'string') continue;
+      const name = c.name.trim();
+      if (name === 'SP_GUEST' || (name === 't' && c.value === 'dummy')) continue;
+
+      let domain = (c.domain || '').toLowerCase().trim();
+      if (!domain) domain = 'game.granbluefantasy.jp';
+
+      // Crucial: Cygames only accepts host-only midship, wing, access_gbtk on game.granbluefantasy.jp.
+      // Duplicate dot-domain cookies (.granbluefantasy.jp) cause duplicate Cookie headers and 409 Conflict.
+      if (['midship', 'wing', 'access_gbtk'].includes(name)) {
+        domain = 'game.granbluefantasy.jp';
+      }
+
+      let path = c.path || '/';
+      const key = ['midship', 'wing', 'access_gbtk'].includes(name)
+        ? `${name}|game.granbluefantasy.jp|${path}`
+        : `${name}|${domain}|${path}`;
+
+      const secure = typeof c.secure === 'boolean' ? c.secure : false;
+      const httpOnly = typeof c.httpOnly === 'boolean' ? c.httpOnly : false;
+      const expires = typeof c.expires === 'number' && c.expires > 0 ? Math.floor(c.expires) : undefined;
+      const sameSite = c.sameSite && ['Strict', 'Lax', 'None'].includes(c.sameSite) ? c.sameSite : undefined;
+
+      const clean: any = {
+        name,
+        value: String(c.value ?? ''),
+        domain,
+        path,
+        secure: sameSite === 'None' ? true : secure,
+        httpOnly,
+        ...(expires !== undefined ? { expires } : {}),
+        ...(sameSite ? { sameSite } : {})
+      };
+
+      if (cookieMap.has(key)) {
+        const existing = cookieMap.get(key);
+        const existingExp = existing.expires || 0;
+        const newExp = clean.expires || 0;
+        if (newExp >= existingExp && clean.value.length >= existing.value.length) {
+          cookieMap.set(key, clean);
+        }
+      } else {
+        cookieMap.set(key, clean);
+      }
+    }
+
+    return Array.from(cookieMap.values());
+  }
+
+  /**
+   * Passively inspects the active browser page to determine if an authenticated Granblue player session is active.
+   * Completely read-only: NEVER clicks any DOM buttons, NEVER forces reloads or page navigations.
+   * Returns VerifiedPlayerProfile if authenticated, or null if unauthenticated or on login/title screens.
    */
   public static async getVerifiedProfile(page: Page): Promise<VerifiedPlayerProfile | null> {
     try {
-      // 0. Fast direct API verification (authoritative in-game check with context retry)
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const apiProfile = await page.evaluate(async () => {
-            try {
-              const g = (window as any).Game;
-              let version = g?.version || (window as any).version || '';
-              if (!version) {
-                for (let i = 0; i < 10 && !version; i++) {
-                  await new Promise(r => setTimeout(r, 150));
-                  version = (window as any).Game?.version || (window as any).version || '';
-                }
-              }
-              const headers: Record<string, string> = {
-                'Accept': 'application/json, text/javascript, */*; q=0.01',
-                'X-Requested-With': 'XMLHttpRequest'
-              };
-              if (version) headers['X-VERSION'] = String(version);
-
-              const rStatus = await fetch(`/user/status?_=${Date.now()}`, { headers });
-              if (!rStatus.ok) return null;
-              const statusJson = await rStatus.json().catch(() => null);
-
-              const uid = statusJson?.status?.user_id;
-              if (statusJson?.status?.level && uid && uid !== '0' && uid !== 0) {
-                const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
-                const cleanName = nameEl?.textContent?.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim() || g?.userName || statusJson?.status?.name || 'Player';
-                return {
-                  name: cleanName,
-                  rank: String(statusJson.status.level),
-                  id: String(uid)
-                };
-              }
-              return null;
-            } catch {
-              return null;
-            }
-          });
-          if (apiProfile) return apiProfile;
-        } catch (evalErr: any) {
-          if (evalErr.message?.includes('Execution context was destroyed') || evalErr.message?.includes('navigated')) {
-            await new Promise(r => setTimeout(r, 600));
-            continue;
-          }
-          break;
-        }
-      }
-
-      // 1. Fast check if active page DOM is already authenticated (#mypage, #profile, header)
-      const instant = await page.evaluate(() => {
-        const Game = (window as any).Game;
-        const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
-        const rankEl = document.querySelector('.prt-rank-value');
-        const idEl = document.querySelector('.prt-user-id, .txt-user-id');
-        const hasUserInfo = !!document.querySelector('.prt-user-info, .cnt-mypage, .prt-header');
-
-        if ((Game?.userId && Game.userId !== 0 && Game.userId !== '0') || hasUserInfo) {
-          let cleanName = nameEl?.textContent?.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim() || (Game?.userName ? String(Game.userName) : null);
-          let cleanRank = rankEl?.textContent?.trim() || null;
-          const id = (Game?.userId && Game.userId !== 0) ? String(Game.userId) : (idEl?.textContent?.replace(/[^0-9]/g, '') || null);
-          if (cleanName && cleanName !== 'Guest' && cleanName !== 'undefined' && cleanName !== 'Player') {
-            return { name: cleanName, rank: cleanRank || 'Unknown', id: id || 'Unknown' };
-          }
-        }
-        return null;
-      }).catch(() => null);
-
-      if (instant) {
-        return instant;
-      }
-
-      // 2. Navigate to #profile if not yet on GBF
       const currentUrl = safeUrl(page);
-      if (!currentUrl.includes('granbluefantasy.jp')) {
-        await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
-      } else {
-        await page.evaluate(() => {
-          window.location.hash = '#profile';
-        }).catch(() => null);
+      if (!currentUrl || !currentUrl.includes('granbluefantasy.jp')) {
+        return null;
+      }
+      if (currentUrl.includes('mobage.jp') || currentUrl.includes('mbga.jp') || currentUrl.includes('dmm.com')) {
+        return null;
       }
 
-      // Wait up to 6s for #profile DOM elements to mount or true redirect to occur
-      const start = Date.now();
-      while (Date.now() - start < 6000) {
-        const hash = await page.evaluate(() => window.location.hash).catch(() => '');
-        const url = safeUrl(page);
+      // Check DOM and window.Game state
+      const profile = await page.evaluate(() => {
+        try {
+          const Game = (window as any).Game;
+          const hash = window.location.hash || '';
 
-        // Only treat as unauthenticated redirect if at least 4s have elapsed and hash is top or login
-        const elapsed = Date.now() - start;
-        const isAuthRedirect = (hash.includes('login') && !hash.includes('loginbonus')) ||
-                               (elapsed > 4000 && (hash.includes('top') || hash === '' || hash === '#')) ||
-                               url.includes('mbga.jp') || url.includes('dmm.com');
-        if (isAuthRedirect) {
-          return null;
-        }
+          // Definitely on authentication or platform select screen
+          if (hash.includes('authentication') || !!document.querySelector('.btn-auth-platform, .prt-select-auth')) {
+            return null;
+          }
 
-        // If on loginbonus daily screen, dismiss modal and re-route to #profile
-        if (hash.includes('loginbonus')) {
-          await page.evaluate(() => {
-            const btn = document.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close, .pop-usual .btn-usual-ok, [class*="close"]') as HTMLElement;
-            if (btn) btn.click();
-            window.location.hash = '#profile';
-          }).catch(() => null);
-        }
-
-        const data = await page.evaluate(() => {
-          const nameEl = document.querySelector('.prt-user-name, .txt-user-name, .prt-status-user-name');
-          const rankEl = document.querySelector('.prt-rank-value');
+          const nameEl = document.querySelector('.btn-user-name, .prt-user-name, .txt-user-name, .prt-status-user-name');
+          const rankEl = document.querySelector('.txt-rank-value, .prt-rank-value, .prt-info-rank, .prt-rank');
           const idEl = document.querySelector('.prt-user-id, .txt-user-id');
-          const gameUserId = (window as any).Game?.userId;
 
-          let cleanName = nameEl?.textContent?.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim() || null;
-          let cleanRank = rankEl?.textContent?.trim() || null;
+          const uid = (Game?.userId && Game.userId !== 0 && Game.userId !== '0')
+            ? String(Game.userId)
+            : (idEl?.textContent?.replace(/[^0-9]/g, '') || null);
+
+          let cleanName = nameEl?.textContent?.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim() || (Game?.userName ? String(Game.userName) : null);
+          let cleanRank = rankEl?.textContent?.replace(/[^0-9]/g, '').trim() || (Game?.userRank ? String(Game.userRank) : null);
+
           if (cleanName && cleanName.includes('Rank')) {
             const parts = cleanName.split(/Rank\s*/);
             cleanName = parts[0].trim();
-            if (!cleanRank && parts[1]) {
-              cleanRank = parts[1].trim();
-            }
+            if (!cleanRank && parts[1]) cleanRank = parts[1].replace(/[^0-9]/g, '').trim();
           }
-          const id = (gameUserId && gameUserId !== 0) ? String(gameUserId) : (idEl?.textContent?.replace(/[^0-9]/g, '') || null);
 
-          if (cleanName && cleanName !== 'Guest' && cleanName !== 'undefined') {
-            return { name: cleanName, rank: cleanRank || 'Unknown', id: id || 'Unknown' };
+          if (
+            uid &&
+            uid !== '0' &&
+            cleanName &&
+            cleanName !== 'Guest' &&
+            cleanName !== 'undefined' &&
+            cleanRank &&
+            cleanRank !== '0'
+          ) {
+            return { name: cleanName, rank: cleanRank, id: uid };
           }
+
+          // If uid is valid and Game.isLoggedIn is true on an in-game page
+          if (uid && uid !== '0' && (Game?.isLoggedIn || hash.includes('mypage') || hash.includes('quest') || hash.includes('raid') || hash.includes('profile'))) {
+            return {
+              name: cleanName || (Game?.userName ? String(Game.userName) : 'Player'),
+              rank: cleanRank || (Game?.userRank ? String(Game.userRank) : 'Unknown'),
+              id: uid
+            };
+          }
+
           return null;
+        } catch {
+          return null;
+        }
+      }).catch(() => null);
+
+      if (profile) return profile;
+
+      // If on an in-game page and DOM didn't yield all fields, perform a passive API check via /user/status
+      const hash = await page.evaluate(() => window.location.hash || '').catch(() => '');
+      if (hash.includes('mypage') || hash.includes('quest') || hash.includes('raid') || hash.includes('profile')) {
+        const apiProfile = await page.evaluate(async () => {
+          try {
+            const g = (window as any).Game;
+            let version = g?.version || (window as any).version || '';
+            if (!version) {
+              const scriptEl = document.querySelector('script[src*="version="], script[src*="v="]') as HTMLScriptElement;
+              if (scriptEl) {
+                const m = scriptEl.src.match(/[?&](?:version|v)=(\d+)/);
+                if (m) version = m[1];
+              }
+            }
+
+            const headers: Record<string, string> = {
+              'Accept': 'application/json, text/javascript, */*; q=0.01',
+              'X-Requested-With': 'XMLHttpRequest'
+            };
+            if (version) headers['X-VERSION'] = String(version);
+
+            const rStatus = await fetch(`/user/status?_=${Date.now()}`, { headers });
+            if (!rStatus.ok) return null;
+            const statusJson = await rStatus.json().catch(() => null);
+
+            if (statusJson?.auth_status === 'require_auth') {
+              return null;
+            }
+
+            const uid = statusJson?.status?.user_id;
+            const level = statusJson?.status?.level;
+            const rawName = statusJson?.status?.name || g?.userName;
+            const name = rawName ? String(rawName).trim() : null;
+
+            if (
+              level &&
+              String(level) !== 'Unknown' &&
+              uid &&
+              uid !== '0' &&
+              uid !== 0 &&
+              name &&
+              name !== 'Player' &&
+              name !== 'Guest' &&
+              name !== 'undefined'
+            ) {
+              return {
+                name,
+                rank: String(level),
+                id: String(uid)
+              };
+            }
+            return null;
+          } catch {
+            return null;
+          }
         }).catch(() => null);
 
-        if (data && data.name) {
-          return data;
-        }
-
-        await new Promise(r => setTimeout(r, 400));
+        if (apiProfile) return apiProfile;
       }
 
       return null;
@@ -171,11 +257,282 @@ export class AccountAuthManager {
   }
 
   /**
-   * Ensures the page is authenticated for the given account.
-   * Navigates to #profile, verifies in-game player name and rank, or performs on-demand login.
+   * Master Human Login Flow for Granblue Fantasy:
+   * 1. Check if already authenticated on active page. If yes, save fresh cookies and return.
+   * 2. If on #top title screen, click login button (#login-auth / .btn-login) ONCE to go to #authentication.
+   * 3. On #authentication screen, choose Mobage and click OK ONCE.
+   * 4. Await Mobage Connect authorization screen.
+   * 5. When on Mobage authorization redirect (jssdk/redirect or "この画面を閉じて元の画面に戻り操作を続行できます"):
+   *    TRULY WAIT, NO RUSH (allow 6s quiet buffer for server-side tokens and session to settle).
+   * 6. Click the gray button ("閉じる" / #notify-response-button).
+   * 7. Follow redirect back to GBF game tab.
+   * 8. On GBF tab, detect in-game modal popup showing email / signing-in / "続ける" (Continue) / "OK" button.
+   *    Click the Continue button.
+   * 9. NO NEED TO FORCE OPEN MOBAGE CONNECT AGAIN OR ANYTHING, LET IT BE, WAIT THERE.
+   *    (Never force reload, never force #mypage via goto(). Let the game client transition naturally!)
+   * 10. If Game Start button (#start) appears on #top, tap it to enter game naturally.
+   * 11. Once verified on #mypage, wait 4s settling buffer, save all cookies to data/${account.id}-cookies.json,
+   *     close leftover popup tab, and return verified profile.
    */
-  public static async ensureAuthenticated(page: Page, account: AccountConfig): Promise<VerifiedPlayerProfile | null> {
-    console.log(`[Auth] Verifying in-game identity on #profile for account [${account.name}]...`);
+  public static async executeHumanLoginFlow(
+    gbfPage: Page,
+    account: AccountConfig,
+    options?: { timeoutMs?: number }
+  ): Promise<VerifiedPlayerProfile | null> {
+    const timeoutMs = options?.timeoutMs || 300000;
+    const start = Date.now();
+
+    console.log(`[Auth] Starting human login workflow for account [${account.name}] (${account.id})...`);
+    await installMobageSessionImmunity(gbfPage).catch(() => null);
+
+    // 0. Ensure GBF tab is open on game.granbluefantasy.jp (recover if off-domain or trapped on tutorial/termsofuse)
+    const currentUrl = safeUrl(gbfPage);
+    const isTerms = currentUrl.includes('tutorial') || currentUrl.includes('termsofuse');
+    if (!currentUrl.includes('granbluefantasy.jp') || isTerms) {
+      console.log('[Auth] Opening Granblue Fantasy (https://game.granbluefantasy.jp/)...');
+      await gbfPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded' }).catch(() => null);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // Check if already authenticated
+    let initialProfile = await this.getVerifiedProfile(gbfPage);
+    if (initialProfile) {
+      console.log(`[Auth] ✅ Already authenticated: Player "${initialProfile.name}" (Rank ${initialProfile.rank} | ID: ${initialProfile.id})`);
+      await this.saveCookiesSafely(gbfPage, account);
+      return initialProfile;
+    }
+
+    let authInitiated = false;
+    let redirectNotified = false;
+    let redirectClosed = false;
+    let continueClicked = false;
+    let handledCredentialSubmit = false;
+    let lastLogTime = 0;
+
+    while (Date.now() - start < timeoutMs) {
+      // 1. Check if session is verified in-game on #mypage
+      const candidateProfile = await this.getVerifiedProfile(gbfPage);
+      if (candidateProfile) {
+        console.log(`[Auth] ⏳ In-game session detected ("${candidateProfile.name}" | Rank ${candidateProfile.rank}). Waiting 5s settling buffer to confirm persistence...`);
+        await new Promise(r => setTimeout(r, 5000));
+
+        // Re-confirm profile after settling buffer (guarantees session did NOT bounce or fail heartbeat)
+        const confirmedProfile = await this.getVerifiedProfile(gbfPage);
+        if (!confirmedProfile) {
+          console.warn('[Auth] ⚠️ Session transiently unverified after settling buffer. Continuing to monitor...');
+          continue;
+        }
+
+        console.log('\n========================================================================');
+        console.log(`🎉 [Auth] SUCCESS: Authoritatively verified in-game session for account [${account.name}]!`);
+        console.log(`   Player Name:      ${confirmedProfile.name}`);
+        console.log(`   Player Rank:      ${confirmedProfile.rank}`);
+        console.log(`   Granblue User ID: ${confirmedProfile.id}`);
+        console.log('========================================================================\n');
+
+        await this.saveCookiesSafely(gbfPage, account);
+        return confirmedProfile;
+      }
+
+      // 2. Discover all browser tabs
+      const browser = gbfPage.browser();
+      const allPages = await browser.pages().catch(() => [gbfPage]);
+      const mobageTab = allPages.find(p => {
+        const u = safeUrl(p);
+        return u.includes('connect.mobage.jp') || u.includes('mbga.jp');
+      });
+
+      // 3. Mobage tab handling: Form credentials if unauthenticated, or redirect completion if authenticated
+      if (mobageTab && !mobageTab.isClosed()) {
+        const mobageUrl = safeUrl(mobageTab);
+
+        // Check if on redirect page (JSSDK redirect or text "この画面を閉じて...")
+        const isRedirect = this.isMobageRedirectUrl(mobageUrl) || await mobageTab.evaluate(() => {
+          const body = document.body?.innerText || '';
+          return body.includes('この画面を閉じて') || !!document.querySelector('#notify-response-button');
+        }).catch(() => false);
+
+        if (isRedirect) {
+          if (!redirectNotified) {
+            redirectNotified = true;
+            console.log('[Auth] ⏳ Detected Mobage authorization redirect (jssdk/redirect).');
+            console.log('[Auth] ⏳ Truly waiting (no rush) for 6 seconds so session cookies and tokens settle...');
+            await new Promise(r => setTimeout(r, 6000));
+          }
+
+          if (!redirectClosed) {
+            console.log('[Auth] 🔘 Clicking the gray button (閉じる) to complete Mobage authorization...');
+            await mobageTab.evaluate(() => {
+              const btns = Array.from(document.querySelectorAll('button, a, [class*="close"], [class*="btn"], input[type="button"], input[type="submit"]')) as HTMLElement[];
+              const closeBtn = btns.find(b => {
+                const t = (b.innerText || b.textContent || b.getAttribute('value') || '').trim();
+                return t.includes('閉じる') || b.className.includes('btn-close') || b.id === 'notify-response-button';
+              });
+              if (closeBtn) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(closeBtn).trigger('tap');
+                closeBtn.click();
+              }
+            }).catch(() => null);
+
+            redirectClosed = true;
+            await new Promise(r => setTimeout(r, 2000));
+            await mobageTab.close().catch(() => null);
+
+            console.log('[Auth] Switching focus back to GBF game tab...');
+            await gbfPage.bringToFront().catch(() => null);
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+        } else if (!handledCredentialSubmit && account.credentials?.email && account.credentials?.password) {
+          // If Mobage login form is visible with login inputs
+          const hasLoginForm = await mobageTab.evaluate(() => {
+            return !!document.querySelector('#subject-id, input[name="subject_id"], #login_id, input[name="login_id"]');
+          }).catch(() => false);
+
+          if (hasLoginForm) {
+            console.log(`[Auth] Entering Mobage Connect credentials (${account.credentials.email})...`);
+            handledCredentialSubmit = true;
+            await this.handleMobageConnectForm(mobageTab, account.credentials.email, account.credentials.password);
+            continue;
+          }
+        }
+      }
+
+      // 4. On GBF tab: Check for in-game confirmation popup ("...でログイン中" / Continue button)
+      // "there is signin u in, OR U SEE BUTTON CONTINUE, click it"
+      // MUST only look inside an active visible popup modal (#pop, .pop-usual, .prt-popup-body)
+      const inGameContinueClicked = await gbfPage.evaluate(() => {
+        const popContainer = document.querySelector('#pop:not([style*="none"]), .pop-usual:not([style*="none"]), .prt-popup-body:not([style*="none"])');
+        if (!popContainer) return false;
+
+        const modalBtns = Array.from(popContainer.querySelectorAll(
+          '.btn-usual-ok, .btn-agree, .btn-continue, [class*="btn-ok"], [class*="btn-agree"], [class*="btn-continue"], button, a'
+        )) as HTMLElement[];
+
+        const confirmBtn = modalBtns.find(b => {
+          if (b.id === 'login-auth' || b.className.includes('btn-login') || b.className.includes('close')) return false;
+          const t = (b.innerText || b.textContent || b.getAttribute('value') || '').trim();
+          return (
+            t.includes('続ける') ||
+            t.includes('OK') ||
+            t.includes('同意') ||
+            t.includes('Continue') ||
+            t === '次へ'
+          );
+        });
+
+        if (confirmBtn) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(confirmBtn).trigger('tap');
+          confirmBtn.click();
+          return true;
+        }
+
+        return false;
+      }).catch(() => false);
+
+      if (inGameContinueClicked) {
+        continueClicked = true;
+        console.log('[Auth] 🔘 In-game login confirmation detected ("続ける" / Continue). Clicked Continue.');
+        console.log('[Auth] ⏳ Letting the game client transition naturally (no reload, no forced URL, waiting there)...');
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+
+      // 5. Initial trigger: "auth, choose mobage" (only run if no popup is active)
+      if (!authInitiated && !mobageTab) {
+        const pageState = await gbfPage.evaluate(() => {
+          const h = window.location.hash || '';
+          const hasLoginBtn = !!document.querySelector('#login-auth, .btn-login');
+          const isAuthPage = h.includes('authentication') || !!document.querySelector('.btn-auth-platform, .prt-select-auth');
+          const isTermsOrTutorial = h.includes('tutorial') || h.includes('termsofuse');
+          const isTop = h.includes('top') || h === '' || h === '#';
+          return { h, isTop, hasLoginBtn, isAuthPage, isTermsOrTutorial };
+        }).catch(() => null);
+
+        // Escape out of accidental tutorial or terms-of-use
+        if (pageState?.isTermsOrTutorial) {
+          console.log('[Auth] Detected tutorial/terms of use page (#tutorial/termsofuse). Navigating directly to authentication...');
+          await gbfPage.goto('https://game.granbluefantasy.jp/#authentication', { waitUntil: 'domcontentloaded' }).catch(() => null);
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+
+        if (pageState?.isAuthPage) {
+          console.log(`[Auth] Selecting platform [${account.service}] on authentication screen...`);
+          await gbfPage.evaluate((service) => {
+            const platformBtn = document.querySelector(`.btn-auth-platform[data-platform="${service}"], .btn-auth-platform`) as HTMLElement;
+            if (platformBtn) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(platformBtn).trigger('tap');
+              platformBtn.click();
+            }
+          }, account.service).catch(() => null);
+
+          await new Promise(r => setTimeout(r, 1000));
+
+          await gbfPage.evaluate(() => {
+            const ok = document.querySelector('.btn-ok:not(.disable), .btn-usual-ok:not(.disable)') as HTMLElement;
+            if (ok) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(ok).trigger('tap');
+              ok.click();
+            }
+          }).catch(() => null);
+
+          authInitiated = true;
+          console.log('[Auth] Platform Mobage selected and confirmed. Awaiting Mobage Connect popup window...');
+          await new Promise(r => setTimeout(r, 2500));
+          continue;
+        } else if (pageState?.hasLoginBtn) {
+          console.log(`[Auth] [${account.name}] Clicking Login button (#login-auth / データ連携)...`);
+          await gbfPage.evaluate(() => {
+            const btn = document.querySelector('#login-auth, .btn-login') as HTMLElement;
+            if (btn) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              btn.click();
+            }
+          }).catch(() => null);
+
+          await new Promise(r => setTimeout(r, 2500));
+          continue;
+        } else if (pageState?.isTop || !pageState?.h.includes('authentication')) {
+          console.log('[Auth] Directing to authentication screen (https://game.granbluefantasy.jp/#authentication)...');
+          await gbfPage.goto('https://game.granbluefantasy.jp/#authentication', { waitUntil: 'domcontentloaded' }).catch(() => null);
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+      }
+
+      // 7. Periodic humane progress logging
+      if (Date.now() - lastLogTime > 10000) {
+        lastLogTime = Date.now();
+        const elapsedSec = Math.round((Date.now() - start) / 1000);
+        console.log(`[Auth] ⏳ Awaiting natural game transition... (${elapsedSec}s / ${Math.round(timeoutMs / 1000)}s) [No reload, waiting there]`);
+      }
+
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    console.warn(`[Auth] ⚠️ Human login flow timed out after ${Math.round(timeoutMs / 1000)}s.`);
+    return null;
+  }
+
+  /**
+   * Ensures the page is authenticated for the given account.
+   * Restores cached cookies if present, or executes the human login workflow if interactive.
+   */
+  public static async ensureAuthenticated(
+    page: Page,
+    account: AccountConfig,
+    options?: EnsureAuthenticatedOptions
+  ): Promise<VerifiedPlayerProfile | null> {
+    // 0. Install Mobage Session Immunity Shield immediately
+    await installMobageSessionImmunity(page).catch(() => null);
+
+    console.log(`[Auth] Verifying active session for account [${account.name}]...`);
     let profile = await this.getVerifiedProfile(page);
     if (profile) {
       console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
@@ -183,184 +540,147 @@ export class AccountAuthManager {
       return profile;
     }
 
-    // Attempt restoring session from data/${account.id}-cookies.json if available
+    // Attempt restoring session from data/${account.id}-cookies.json unless skipCookieRestore requested
     const cookieFile = path.resolve(process.cwd(), 'data', `${account.id}-cookies.json`);
-    if (fs.existsSync(cookieFile)) {
+    if (!options?.skipCookieRestore && fs.existsSync(cookieFile)) {
       try {
         const raw = fs.readFileSync(cookieFile, 'utf-8');
-        const cookies = JSON.parse(raw);
-        if (Array.isArray(cookies) && cookies.length > 0) {
-          console.log(`[Auth] Attempting session restoration from data/${account.id}-cookies.json (${cookies.length} cookies)...`);
+        const rawCookies = JSON.parse(raw);
+        if (Array.isArray(rawCookies) && rawCookies.length > 0) {
+          console.log(`[Auth] Restoring session from data/${account.id}-cookies.json (${rawCookies.length} cookies)...`);
           const client = await page.target().createCDPSession();
-          await client.send('Network.setCookies', { cookies });
-          await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
-          await logNormalDelay(2500, 0.15);
+          const sanitized = this.sanitizeCookiesForCDP(rawCookies);
+          await client.send('Network.setCookies', { cookies: sanitized });
+
+          // Also set CHIPS partitioned variants for Mobage session cookies so session_iframe matches
+          const partitionedVariants: any[] = [];
+          for (const sc of sanitized) {
+            if (['CSSID', 'CSID_P', 'USE_CHIPS', 'CTID_P'].includes(sc.name)) {
+              partitionedVariants.push({
+                ...sc,
+                secure: true,
+                sameSite: 'None',
+                partitionKey: {
+                  topLevelSite: 'https://granbluefantasy.jp',
+                  hasCrossSiteAncestor: true
+                }
+              });
+            }
+          }
+          if (partitionedVariants.length > 0) {
+            await client.send('Network.setCookies', { cookies: partitionedVariants }).catch(() => null);
+          }
+
+          await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
+          await new Promise(r => setTimeout(r, 3000));
+
           profile = await this.getVerifiedProfile(page);
           if (profile) {
             console.log(`[Auth] ✅ Authenticated via cached cookies: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
+            await this.saveCookiesSafely(page, account);
             return profile;
           }
         }
-      } catch {}
+      } catch (err: any) {
+        console.warn('[Auth] Notice during cookie restoration:', err.message);
+      }
     }
 
-    console.log(`[Auth] Account [${account.name}] session is NOT authenticated (redirected to title/login).`);
-    console.log(`[Auth] Triggering on-demand authentication (Service: ${account.service.toUpperCase()})...`);
-
-    // 0. Recover if stuck on error page
-    const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
-    if (currentHash.includes('error')) {
-      await page.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded' }).catch(() => null);
-      await logNormalDelay(2000, 0.15);
+    if (!options?.interactive) {
+      console.warn(`\n[Auth] ⚠️ Account [${account.name}] session has expired or requires re-authentication.`);
+      console.warn(`[Auth] 👉 Please log in via desktop browser window:\n       bun run account:setup ${account.id} --windowed\n`);
+      return null;
     }
 
-    // 1. If currently on Title screen (#top), click Login button (#login-auth / データ連携)
-    const onTitle = await page.evaluate(() => {
-      const h = window.location.hash;
-      return h.includes('top') || h === '' || h === '#';
-    }).catch(() => false);
-
-    if (onTitle) {
-      console.log(`[Auth] [${account.name}] Clicking Login button (#login-auth / データ連携)...`);
-      await page.evaluate(() => {
-        const btn = document.querySelector('#login-auth, .btn-login') as HTMLElement;
-        if (btn) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(btn).trigger('tap');
-          btn.click();
+    // Clean only guest/colliding cookies before interactive setup, preserving valid existing sessions
+    try {
+      console.log('[Auth] Preparing clean interactive login session (purging guest & colliding cookies)...');
+      const client = await page.target().createCDPSession();
+      const { cookies } = await client.send('Network.getCookies', { urls: ['https://game.granbluefantasy.jp/'] });
+      for (const c of cookies) {
+        const isGuest = c.name === 'SP_GUEST' || (c.name === 't' && c.value === 'dummy');
+        const isDotDomainDuplicate = c.domain.startsWith('.') && ['midship', 'wing', 'access_gbtk'].includes(c.name);
+        if (isGuest || isDotDomainDuplicate) {
+          await client.send('Network.deleteCookies', { name: c.name, domain: c.domain, path: c.path });
         }
+      }
+    } catch {}
+
+    return await this.executeHumanLoginFlow(page, account, { timeoutMs: options?.timeoutMs || 300000 });
+  }
+
+  /**
+   * Waits for the Mobage OAuth token exchange and session cookies to settle.
+   * Backward-compatible delegation to executeHumanLoginFlow.
+   */
+  public static async waitForMidshipSync(
+    gbfPage: Page,
+    redirectPage?: Page | null,
+    timeoutMs = 60000
+  ): Promise<boolean> {
+    console.log('[Auth] ⏳ Detected Mobage OAuth redirect (jssdk/redirect).');
+    console.log('[Auth] ⏳ Letting it sit quietly for session and tokens to settle (truly waiting, no rush)...');
+
+    // Truly wait 6s undisturbed
+    await new Promise(r => setTimeout(r, 6000));
+
+    // Click the gray button ("閉じる" / close) to finish authorization
+    if (redirectPage && !redirectPage.isClosed()) {
+      console.log('[Auth] 🔘 Clicking the gray button (閉じる) to complete Mobage authorization...');
+      await redirectPage.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button, a, [class*="close"], [class*="btn"], input[type="button"], input[type="submit"]')) as HTMLElement[];
+        const closeBtn = btns.find(b => {
+          const t = (b.innerText || b.textContent || b.getAttribute('value') || '').trim();
+          return t.includes('閉じる') || b.className.includes('btn-close') || b.id === 'notify-response-button';
+        });
+        if (closeBtn) closeBtn.click();
       }).catch(() => null);
-      await logNormalDelay(2500, 0.15);
-    }
 
-    // 2. If on #authentication screen, select platform (Mobage/DMM) and proceed
-    const isNowAuth = await page.evaluate(() => {
-      return window.location.hash.includes('authentication') || !!document.querySelector('.btn-auth-platform, .prt-select-auth');
-    }).catch(() => false);
-
-    if (isNowAuth) {
-      console.log(`[Auth] [${account.name}] Selecting platform [${account.service}] on authentication screen...`);
-      await page.evaluate((service) => {
-        const platformBtn = document.querySelector(`.btn-auth-platform[data-platform="${service}"], .btn-auth-platform`) as HTMLElement;
-        if (platformBtn) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(platformBtn).trigger('tap');
-          platformBtn.click();
-        }
-      }, account.service).catch(() => null);
-      await logNormalDelay(1000, 0.15);
-
-      await page.evaluate(() => {
-        const ok = document.querySelector('.btn-ok:not(.disable)') as HTMLElement;
-        if (ok) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(ok).trigger('tap');
-          ok.click();
-        }
-      }).catch(() => null);
-      await logNormalDelay(3000, 0.15);
-
-      // Check for popup tab (Mobage Connect popup)
-      try {
-        const browser = page.browser();
-        const pages = await browser.pages();
-        for (const p of pages) {
-          const pUrl = safeUrl(p);
-          if (p !== page && (pUrl.includes('connect.mobage.jp') || pUrl.includes('mbga.jp'))) {
-            console.log(`[Auth] [${account.name}] Handling Mobage connect popup window...`);
-            await this.handleMobageConnectForm(p, account.credentials?.email || '', account.credentials?.password || '');
-            await logNormalDelay(2000, 0.15);
-          }
-        }
-      } catch {}
-
-      // Bring GBF page forward and wait for in-game navigation
-      await page.bringToFront().catch(() => null);
-      profile = await this.getVerifiedProfile(page);
-      if (!profile) {
-        await page.goto('https://game.granbluefantasy.jp/#profile', { waitUntil: 'domcontentloaded' }).catch(() => null);
-        await logNormalDelay(3000, 0.15);
-        profile = await this.getVerifiedProfile(page);
-      }
-      if (profile) {
-        console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
-        await this.saveCookiesSafely(page, account);
-        return profile;
-      }
-    }
-
-    // 3. Perform automated portal login if credentials are provided
-    if (account.credentials?.email && account.credentials?.password) {
-      let loginOk = false;
-      if (account.service === 'mobage') {
-        loginOk = await this.loginMobage(page, account);
-      } else if (account.service === 'dmm') {
-        loginOk = await this.loginDmm(page, account);
-      }
-      if (loginOk) {
-        profile = await this.getVerifiedProfile(page);
-        if (profile) {
-          console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
-          await this.saveCookiesSafely(page, account);
-          return profile;
-        }
-      }
-    }
-
-    // 4. Fallback: Manual assisted login (audible prompt)
-    console.log('\n\x07');
-    console.log('========================================================================');
-    console.log(` 🔑 ONE-TIME LOGIN REQUIRED: Account [${account.name}] (${account.id}) `);
-    console.log('========================================================================');
-    console.log(` 👉 Please complete the 1-time login in the open browser window.`);
-    console.log(` ⚠️ If no browser window is visible, run with visible window:`);
-    console.log(`    👉 bun run account:setup ${account.id} --windowed`);
-    console.log(` 👉 Once you reach in-game (#mypage), your profile will be verified automatically.`);
-    console.log('========================================================================\n');
-
-    const startWait = Date.now();
-    while (Date.now() - startWait < 300000) {
-      profile = await this.getVerifiedProfile(page);
-      if (profile) {
-        console.log(`[Auth] 🎉 Verified Player: "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})!`);
-        await this.saveCookiesSafely(page, account);
-        return profile;
-      }
       await new Promise(r => setTimeout(r, 2000));
     }
 
-    return null;
+    // Switch focus to the GBF opener tab
+    console.log('[Auth] Switching focus to GBF game tab...');
+    await gbfPage.bringToFront().catch(() => null);
+    await new Promise(r => setTimeout(r, 1500));
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const profile = await this.getVerifiedProfile(gbfPage);
+      if (profile) {
+        console.log(`[Auth] 🎉 GBF in-game session verified: "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
+        return true;
+      }
+
+      // Check for in-game continue popup
+      await gbfPage.evaluate(() => {
+        const modalBtns = Array.from(document.querySelectorAll(
+          '.btn-usual-ok, .btn-agree, .btn-continue, .btn-login, .btn-submit, [class*="btn-ok"], [class*="btn-agree"], [class*="btn-continue"], .pop-usual .btn-usual-ok, #pop .btn-usual-ok'
+        )) as HTMLElement[];
+        const confirmBtn = modalBtns.find(b => {
+          const t = (b.innerText || b.textContent || b.getAttribute('value') || '').trim();
+          return t.includes('続ける') || t.includes('OK') || t.includes('同意') || t.includes('ログイン') || t.includes('次へ') || t.includes('Continue') || t.includes('Sign in');
+        });
+        if (confirmBtn) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(confirmBtn).trigger('tap');
+          confirmBtn.click();
+        }
+      }).catch(() => null);
+
+
+
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    return false;
   }
 
   /**
    * Helper that automates the modern Mobage Connect OAuth login form (connect.mobage.jp).
    */
-  private static async handleMobageConnectForm(targetPage: Page, email: string, pass: string): Promise<boolean> {
+  public static async handleMobageConnectForm(targetPage: Page, email: string, pass: string): Promise<boolean> {
     try {
-      // 1. Fast path: check if already redirected to success screen
-      const isRedirectScreen = await targetPage.evaluate(() => {
-        return !!document.querySelector('#notify-response-button');
-      }).catch(() => false);
-
-      if (isRedirectScreen || safeUrl(targetPage).includes('redirect')) {
-        console.log('[Auth] Finalizing Mobage redirect popup (already authorized)...');
-        await targetPage.evaluate(() => {
-          const notifyBtn = document.querySelector('#notify-response-button') as HTMLElement;
-          if (notifyBtn) {
-            notifyBtn.click();
-            return;
-          }
-          const btns = Array.from(document.querySelectorAll('button, a, [class*="close"], [class*="btn"]')) as HTMLElement[];
-          const closeBtn = btns.find(b => b.innerText?.includes('閉じる') || b.textContent?.includes('閉じる') || b.className.includes('btn-close'));
-          if (closeBtn) closeBtn.click();
-        }).catch(() => null);
-
-        await new Promise(r => setTimeout(r, 1500));
-        await targetPage.close().catch(() => null);
-        return true;
-      }
-
-      // 2. Form submission if login inputs exist
       const emailInput = await targetPage.waitForSelector('#subject-id, input[name="subject_id"], #login_id, input[name="login_id"]', { visible: true, timeout: 5000 }).catch(() => null);
       const passInput = await targetPage.$('#subject-password, input[name="subject_password"], #login_pw, input[name="login_pw"]').catch(() => null);
       if (emailInput && passInput && email && pass) {
@@ -408,23 +728,6 @@ export class AccountAuthManager {
           if (agreeBtn) agreeBtn.click();
         }).catch(() => null);
 
-        await new Promise(r => setTimeout(r, 1500));
-
-        // Click close/notify button (#notify-response-button or "閉じる")
-        console.log(`[Auth] Finalizing Mobage redirect popup...`);
-        await targetPage.evaluate(() => {
-          const notifyBtn = document.querySelector('#notify-response-button') as HTMLElement;
-          if (notifyBtn) {
-            notifyBtn.click();
-            return;
-          }
-          const btns = Array.from(document.querySelectorAll('button, a, [class*="close"], [class*="btn"]')) as HTMLElement[];
-          const closeBtn = btns.find(b => b.innerText?.includes('閉じる') || b.textContent?.includes('閉じる') || b.className.includes('btn-close'));
-          if (closeBtn) closeBtn.click();
-        }).catch(() => null);
-
-        await new Promise(r => setTimeout(r, 1000));
-        await targetPage.close().catch(() => null);
         return true;
       }
     } catch (e: any) {
@@ -435,216 +738,34 @@ export class AccountAuthManager {
 
   /**
    * Automatically saves active session cookies to data/${account.id}-cookies.json.
+   * Strips out guest markers (SP_GUEST), dummy tokens, deduplicates, and preserves canonical midship.
    */
-  private static async saveCookiesSafely(page: Page, account: AccountConfig): Promise<void> {
+  public static async saveCookiesSafely(page: Page, account: AccountConfig): Promise<void> {
     try {
       const client = await page.target().createCDPSession();
       const { cookies } = await client.send('Network.getAllCookies');
-      const relevantCookies = cookies.filter(c => {
-        const domain = (c.domain || '').toLowerCase();
+
+      // Filter for GBF, Mobage, DMM
+      const relevant = cookies.filter(c => {
+        const d = (c.domain || '').toLowerCase();
         return (
-          domain.includes('granbluefantasy.jp') ||
-          domain.includes('mbga.jp') ||
-          domain.includes('mobage.jp') ||
-          domain.includes('dmm.com')
+          d.includes('granbluefantasy.jp') ||
+          d.includes('mbga.jp') ||
+          d.includes('mobage.jp') ||
+          d.includes('dmm.com')
         );
       });
+
+      // Sanitize and deduplicate across all domains without stripping subdomains
+      const cleanCookies = this.sanitizeCookiesForCDP(relevant);
+
       const dataDir = path.resolve(process.cwd(), 'data');
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
       const cookieFile = path.join(dataDir, `${account.id}-cookies.json`);
-      fs.writeFileSync(cookieFile, JSON.stringify(relevantCookies, null, 2), 'utf-8');
-      console.log(`[Auth] 💾 Auto-cached session cookies (${relevantCookies.length} cookies) to data/${account.id}-cookies.json`);
-    } catch {}
-  }
-
-  /**
-   * Automated credential login for Mobage.
-   */
-  private static async loginMobage(page: Page, account: AccountConfig): Promise<boolean> {
-    const email = account.credentials?.email || '';
-    const password = account.credentials?.password || '';
-    if (!email || !password) {
-      console.warn(`[Auth] [${account.name}] Missing credentials for Mobage login.`);
-      return false;
+      fs.writeFileSync(cookieFile, JSON.stringify(cleanCookies, null, 2), 'utf-8');
+      console.log(`[Auth] 💾 Successfully saved ${cleanCookies.length} fresh session cookies across all domains to data/${account.id}-cookies.json`);
+    } catch (err: any) {
+      console.warn('[Auth] Notice saving fresh cookies:', err.message);
     }
-    console.log(`[Auth] [${account.name}] Performing automated Mobage login for: ${email}`);
-
-    // If active page or any tab is on connect.mobage.jp
-    const currentUrl = safeUrl(page);
-    if (currentUrl.includes('connect.mobage.jp')) {
-      await this.handleMobageConnectForm(page, email, password);
-      const gbfPage = (await page.browser().pages().catch(() => [])).find(p => safeUrl(p).includes('granbluefantasy.jp')) || page;
-      await gbfPage.bringToFront().catch(() => null);
-      await gbfPage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
-      return await this.waitForMypage(gbfPage, 25000);
-    } else {
-      const browser = page.browser();
-      const pages = await browser.pages().catch(() => []);
-      const mobagePage = pages.find(p => safeUrl(p).includes('connect.mobage.jp'));
-      if (mobagePage) {
-        await this.handleMobageConnectForm(mobagePage, email, password);
-        const gbfPage = (await browser.pages().catch(() => [])).find(p => safeUrl(p).includes('granbluefantasy.jp')) || page;
-        await gbfPage.bringToFront().catch(() => null);
-        await gbfPage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
-        return await this.waitForMypage(gbfPage, 25000);
-      } else if (!currentUrl.includes('mbga.jp')) {
-        await page.goto('https://ssl.sp.mbga.jp/_login', { waitUntil: 'domcontentloaded' }).catch(() => null);
-        await logNormalDelay(1500, 0.15);
-      }
-    }
-
-    // Wait for login inputs safely if on mbga.jp
-    if (safeUrl(page).includes('mbga.jp')) {
-      const emailInput = await page.waitForSelector('#login_id, input[name="login_id"]', { visible: true, timeout: 5000 }).catch(() => null);
-      const passInput = await page.$('#login_pw, input[name="login_pw"]').catch(() => null);
-
-      if (emailInput && passInput) {
-        await humanReactionDelay(80, 0.10);
-        await emailInput.click({ clickCount: 3 });
-        await emailInput.type(email, { delay: 40 });
-
-        await humanReactionDelay(80, 0.10);
-        await passInput.click({ clickCount: 3 });
-        await passInput.type(password, { delay: 40 });
-
-        await humanReactionDelay(120, 0.10);
-        const submitBtn = await page.$('.btn-login, input[type="submit"], button[type="submit"]');
-        if (submitBtn) {
-          console.log(`[Auth] [${account.name}] Submitting Mobage credentials...`);
-          await Promise.all([
-            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null),
-            submitBtn.click()
-          ]);
-        }
-      }
-    }
-
-    // Check if verification challenge (CAPTCHA / 2FA OTP) appeared
-    const hasChallenge = await page.evaluate(() => {
-      const bodyText = document.body.innerText.toLowerCase();
-      return (
-        bodyText.includes('captcha') ||
-        bodyText.includes('verification') ||
-        bodyText.includes('認証コード') ||
-        bodyText.includes('確認コード') ||
-        !!document.querySelector('#auth_code')
-      );
-    }).catch(() => false);
-
-    if (hasChallenge) {
-      console.log('\n\x07\x07');
-      console.log('========================================================================');
-      console.log(` 🚨 VERIFICATION CHALLENGE / 2FA DETECTED for [${account.name}] `);
-      console.log('========================================================================');
-      console.log(' 👉 Please complete the verification challenge or enter your email OTP.');
-      console.log(' 👉 Waiting for successful navigation to #mypage...');
-      console.log('========================================================================\n');
-    }
-
-    // Navigate to GBF #mypage if redirected to Mobage portal
-    if (safeUrl(page).includes('mbga.jp') || safeUrl(page).includes('mobage.jp')) {
-      await logNormalDelay(2000, 0.15);
-      await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
-    } else if (safeUrl(page).includes('#top')) {
-      await page.evaluate(() => {
-        const start = document.querySelector('#start, .btn-start') as HTMLElement;
-        if (start) start.click();
-        else window.location.hash = '#profile';
-      }).catch(() => null);
-    }
-
-    return await this.waitForMypage(page, 60000);
-  }
-
-  /**
-   * Automated credential login for DMM.
-   */
-  private static async loginDmm(page: Page, account: AccountConfig): Promise<boolean> {
-    const email = account.credentials?.email || '';
-    const password = account.credentials?.password || '';
-    if (!email || !password) {
-      console.warn(`[Auth] [${account.name}] Missing credentials for DMM login.`);
-      return false;
-    }
-    console.log(`[Auth] [${account.name}] Performing automated DMM login for: ${email}`);
-
-    if (!safeUrl(page).includes('accounts.dmm.com')) {
-      await page.goto('https://accounts.dmm.com/service/login/password', { waitUntil: 'domcontentloaded' }).catch(() => null);
-      await logNormalDelay(1500, 0.15);
-    }
-
-    const idInput = await page.waitForSelector('#login_id, input[name="login_id"]', { visible: true, timeout: 8000 }).catch(() => null);
-    const pwInput = await page.$('#password, input[name="password"]');
-
-    if (idInput && pwInput) {
-      await humanReactionDelay(80, 0.10);
-      await idInput.click({ clickCount: 3 });
-      await idInput.type(email, { delay: 40 });
-
-      await humanReactionDelay(80, 0.10);
-      await pwInput.click({ clickCount: 3 });
-      await pwInput.type(password, { delay: 40 });
-
-      await humanReactionDelay(120, 0.10);
-      const submitBtn = await page.$('input[type="submit"], button[type="submit"], .btn-login');
-      if (submitBtn) {
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null),
-          submitBtn.click()
-        ]);
-      }
-    }
-
-    await logNormalDelay(2500, 0.15);
-    await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
-    return await this.waitForMypage(page, 60000);
-  }
-
-  /**
-   * Helper that polls until the page lands on #mypage or #quest.
-   */
-  private static async waitForMypage(page: Page, timeoutMs = 60000): Promise<boolean> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      const hash = await page.evaluate(() => window.location.hash).catch(() => '');
-      if (hash.includes('mypage') || hash.includes('quest') || hash.includes('raid')) {
-        console.log('[Auth] Authenticated session confirmed on #mypage!');
-        return true;
-      }
-
-      // If on #top title screen, trigger Game Start
-      if (hash.includes('top') || hash === '' || hash === '#') {
-        await page.evaluate(() => {
-          const startBtn = document.querySelector('#start, .btn-start, [data-location-href="start"], #wrapper') as HTMLElement;
-          if (startBtn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(startBtn).trigger('tap');
-            startBtn.click();
-          }
-        }).catch(() => null);
-      }
-
-      // Authoritative API check
-      const isAuth = await page.evaluate(async () => {
-        try {
-          const g = (window as any).Game;
-          const version = g?.version || (window as any).version || '';
-          const headers: Record<string, string> = { 'Accept': 'application/json, text/javascript, */*; q=0.01', 'X-Requested-With': 'XMLHttpRequest' };
-          if (version) headers['X-VERSION'] = String(version);
-          const r = await fetch(`/user/status?_=${Date.now()}`, { headers });
-          const d = await r.json().catch(() => null);
-          return !!(d?.status?.level);
-        } catch { return false; }
-      }).catch(() => false);
-
-      if (isAuth) {
-        console.log('[Auth] Authenticated session confirmed via in-game API!');
-        return true;
-      }
-
-      await new Promise(r => setTimeout(r, 800));
-    }
-    console.warn('[Auth] Timed out waiting for #mypage.');
-    return false;
   }
 }

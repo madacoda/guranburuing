@@ -76,7 +76,17 @@ async function run() {
     'schemas/side-stories.schema.json',
     'schemas/side-story-optimizer.schema.json',
     'events/side-stories.catalog.json',
-    'events/side-story-optimizer.json'
+    'events/side-story-optimizer.json',
+    'schemas/weapon-grids.schema.json',
+    'schemas/character-tiering.schema.json',
+    'schemas/summon-hierarchies.schema.json',
+    'schemas/revans-and-apex.schema.json',
+    'schemas/unf-guild-wars.schema.json',
+    'combat/weapon-grids.catalog.json',
+    'combat/character-tiering.catalog.json',
+    'combat/summon-hierarchies.catalog.json',
+    'raids/revans-and-apex-walkthroughs.catalog.json',
+    'events/unf-guild-wars.catalog.json'
   ];
 
   for (const relPath of expectedFiles) {
@@ -524,6 +534,59 @@ async function run() {
   const earlyStories = catalog.getAvailableSideStories(8);
   assert(earlyStories.length >= 5, `Stories unlocked at Chapter 8 >= 5 (found: ${earlyStories.length})`);
   assert(earlyStories.every(s => s.unlockPrerequisite.mainQuestChapter <= 8), 'All returned stories respect Chapter 8 boundary');
+
+  // Test 12: Official Game KMS Extensions (Volumes 18-21)
+  console.log('\n[12/12] Testing Official Game KMS Extensions (Weapon Grids, Character Tiering, Summon Hierarchies, Revans, Guild Wars)...');
+  
+  // 12.1 Weapon Grids
+  const fireGrids = catalog.getWeaponGrids('fire');
+  assert(!!fireGrids, 'Resolves Fire weapon grids');
+  assert(fireGrids?.magnaGrids.length! >= 3, `Fire has M1, M2, M3 grids (found: ${fireGrids?.magnaGrids.length})`);
+  assert(fireGrids?.primalGrids.length! >= 1, `Fire has Primal Agni grid (found: ${fireGrids?.primalGrids.length})`);
+
+  const darkEresh = catalog.getWeaponGridById('dark_primal_ereshkigal_burst');
+  assert(!!darkEresh, 'Resolves Dark Ereshkigal 0-button burst grid');
+  assert(darkEresh?.slots.some(s => s.weaponName === 'Ereshkigal') === true, 'Ereshkigal grid contains Ereshkigal');
+
+  const allGrids = catalog.getAllElementalWeaponGrids();
+  assert(allGrids.length === 6, `All 6 elements have authoritative weapon grids (found: ${allGrids.length})`);
+
+  // 12.2 Character Tiering
+  const waterTierChars = catalog.getCharacterTiers('water');
+  assert(waterTierChars.length >= 4, `Water character roster contains core units (found: ${waterTierChars.length})`);
+  assert(waterTierChars.some(c => c.name.includes('Haaselia')), 'Water roster contains Haaselia (FLB)');
+
+  const percival = catalog.getCharacterTierById('char_fire_percival_grand');
+  assert(!!percival, 'Resolves Grand Percival');
+  assert(percival?.role === 'Burst_OTK', 'Percival classified as Burst_OTK');
+
+  // 12.3 Summon Hierarchies
+  const providence = catalog.getProvidenceSummons();
+  assert(providence.length >= 5, `Providence summons cataloged >= 5 (found: ${providence.length})`);
+  assert(providence.some(s => s.name === 'Beelzebub'), 'Contains Beelzebub');
+  assert(providence.some(s => s.name === 'Belial'), 'Contains Belial');
+  assert(providence.some(s => s.name.includes('Lucifer')), 'Contains Lucifer (Transcendence 250)');
+
+  const archangels = catalog.getArchangelSubAuras();
+  assert(archangels.length === 6, `All 6 elements have Archangel damage cap sub-auras (found: ${archangels.length})`);
+
+  // 12.4 Revans & Apex Raids
+  const diaspora = catalog.getRevansApexRaid('revans_diaspora');
+  assert(!!diaspora, 'Resolves Diaspora Revans raid');
+  assert(diaspora?.battleSystem === 'V2', 'Diaspora is Battle System 2.0');
+  assert(diaspora?.hpPhases.length! >= 2, 'Diaspora has Phase 1 (Activation) and Phase 2 (Cell Death)');
+
+  const faa0 = catalog.getRevansApexRaid('dark_rapture_zero');
+  assert(!!faa0, 'Resolves Dark Rapture Zero (Faa-0)');
+
+  // 12.5 Guild Wars Tactics
+  const gwStages = catalog.getGuildWarsStages();
+  assert(gwStages.length >= 5, `Guild Wars stages cataloged >= 5 (found: ${gwStages.length})`);
+  assert(gwStages.some(s => s.stageId === 'unf_ex_plus'), 'Contains EX+ Meat stage');
+  assert(gwStages.some(s => s.stageId === 'unf_nm200'), 'Contains NM200 stage');
+
+  const meatOpts = catalog.getGuildWarsMeatOptimizations();
+  assert(meatOpts.some(m => m.archetype === '0B0C_Normal_Attack_Burst'), 'Contains 0B0C normal attack meat optimization');
 
   console.log('\n🎉 ALL DATA ARCHITECTURE ASSERTIONS PASSED (100% GOLD INDUSTRY STANDARD)');
 }

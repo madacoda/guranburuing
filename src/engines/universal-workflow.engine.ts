@@ -1061,12 +1061,21 @@ export class UniversalWorkflowEngine {
         await this.sentinel.assertSafe();
       }
 
-      if (!this.isManualWorkflow() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
+      if (!this.isManualWorkflow() && !this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
         console.log(`[Run ${runNumber}] Target score reached (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Terminating combat pipeline early.`);
         return true;
       }
 
       if (step.code === 'exit_if_score' || step.action === 'exit_if_score') {
+        if (this.isSoloQuest()) {
+          const enemy = await this.combatResolution.getAndLogEnemyHp();
+          if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
+            console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated (evaluated at exit_if_score). Exiting combat pipeline early.`);
+            return true;
+          }
+          console.log(`[Run ${runNumber}] Solo Boss still active (${enemy ? `${enemy.hpPct}% HP` : 'unknown'}). Continuing pipeline...`);
+          continue;
+        }
         await this.combatResolution.syncCurrentHonors();
         const threshold = step.targetScore || this.template.targetScore || 1500000;
         if (this.ctx.state.currentScore >= threshold) {
@@ -1077,6 +1086,27 @@ export class UniversalWorkflowEngine {
         continue;
       }
 
+      if (step.code === 'exit_if_dead' || step.action === 'exit_if_dead') {
+        const enemy = await this.combatResolution.getAndLogEnemyHp();
+        if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
+          console.log(`[Run ${runNumber}] 🏁 Enemy defeated. Exiting combat pipeline early.`);
+          return true;
+        }
+        console.log(`[Run ${runNumber}] Enemy still active (${enemy ? `${enemy.hpPct}% HP` : 'unknown'}). Continuing pipeline...`);
+        continue;
+      }
+
+      if (step.code === 'exit_if_hp' || step.action === 'exit_if_hp') {
+        const enemy = await this.combatResolution.getAndLogEnemyHp();
+        const threshold = step.targetHpPct ?? step.targetHp ?? 0;
+        if (enemy && (enemy.isDefeated || enemy.hpPct <= threshold)) {
+          console.log(`[Run ${runNumber}] 🏁 Enemy HP threshold met (${enemy.hpPct}% <= ${threshold}%). Exiting combat pipeline early.`);
+          return true;
+        }
+        console.log(`[Run ${runNumber}] Enemy HP (${enemy ? `${enemy.hpPct}%` : 'unknown'}) above threshold (${threshold}%). Continuing pipeline...`);
+        continue;
+      }
+
       if (this.template.mode !== 'routine' && i > 0 && await this.combatResolution.isBattleEnded()) {
         const stepAction = step.code || step.action;
         const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
@@ -1084,6 +1114,18 @@ export class UniversalWorkflowEngine {
           await this.combatResolution.syncCurrentHonors();
           console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
           return true;
+        }
+      }
+
+      if (this.isSoloQuest() && i > 0) {
+        const stepAction = step.code || step.action;
+        const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
+        if (!isPostBattleCleanup) {
+          const enemy = await this.combatResolution.getAndLogEnemyHp();
+          if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
+            console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
+            return true;
+          }
         }
       }
 
@@ -1120,11 +1162,15 @@ export class UniversalWorkflowEngine {
       }
     }
 
-    if (this.template.honorGuard !== false && this.template.targetScore) {
+    if (!this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore) {
       await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
     }
 
     return true;
+  }
+
+  public isSoloQuest(): boolean {
+    return this.combatExecution.isSoloQuest();
   }
 
   private isManualWorkflow(): boolean {
@@ -1212,6 +1258,12 @@ export class UniversalWorkflowEngine {
       case 'exit_if_score':
         return await this.combatExecution.handleExitIfScore(step);
 
+      case 'exit_if_dead':
+        return await this.combatExecution.handleExitIfDead();
+
+      case 'exit_if_hp':
+        return await this.combatExecution.handleExitIfHp(step);
+
       case 'wait_turn':
         return await this.combatExecution.handleWaitTurn(step);
 
@@ -1232,6 +1284,10 @@ export class UniversalWorkflowEngine {
 
       case 'click':
         return await this.combatExecution.handleClick(step);
+
+      case 'log_enemy_hp':
+        await this.combatResolution.getAndLogEnemyHp(step.name || 'Manual Log');
+        return true;
 
       case 'touch_tap':
         if (step.x !== undefined && step.y !== undefined) {
@@ -1695,6 +1751,10 @@ export class UniversalWorkflowEngine {
 
   public async handleReload(step: WorkflowStep): Promise<boolean> {
     return await this.combatExecution.handleReload(step);
+  }
+
+  public async logEnemyHp(contextNote?: string) {
+    return await this.combatResolution.getAndLogEnemyHp(contextNote);
   }
 
   public async handleClick(step: WorkflowStep): Promise<boolean> {

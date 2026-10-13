@@ -54,6 +54,14 @@ export class CombatExecutionService {
         return true;
       }
 
+      if (this.isSoloQuest()) {
+        const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+        if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.deps.combatResolution.isBattleEnded())) {
+          console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated during repeat loop. Exiting repeat block early.`);
+          return true;
+        }
+      }
+
       console.log(`[Run ${runNumber}] Repeat loop ${r + 1}/${count}...`);
 
       for (let s = 0; s < step.subSteps.length; s++) {
@@ -81,6 +89,27 @@ export class CombatExecutionService {
     return true;
   }
 
+  public isSoloQuest(): boolean {
+    const tmpl = this.ctx?.template;
+    if (!tmpl) return false;
+    if (tmpl.isSolo === true) return true;
+    const qUrl = (tmpl.questUrl || '').toLowerCase();
+    const mode = (tmpl.mode || '').toLowerCase();
+    const name = (tmpl.name || '').toLowerCase();
+    return (
+      qUrl.includes('replicard') ||
+      qUrl.includes('arcarum') ||
+      qUrl.includes('fate') ||
+      mode === 'single' ||
+      mode === 'solo' ||
+      name.includes('arcarum') ||
+      name.includes('replicard') ||
+      name.includes('paragon') ||
+      name.includes('fortress') ||
+      name.includes('fate')
+    );
+  }
+
   private async executeFallbackSubStep(step: WorkflowStep): Promise<boolean> {
     const code = step.code || step.action;
     switch (code) {
@@ -89,6 +118,14 @@ export class CombatExecutionService {
       case 'tap_ready': return await this.handleTapReady(step);
       case 'skill': return await this.handleSkill(step);
       case 'summon': return await this.handleSummon(step);
+      case 'quick_call': return await this.handleQuickCall(step);
+      case 'log_enemy_hp':
+        await this.deps.combatResolution.getAndLogEnemyHp(step.name || 'Manual Log');
+        return true;
+      case 'exit_if_dead':
+        return await this.handleExitIfDead();
+      case 'exit_if_hp':
+        return await this.handleExitIfHp(step);
       case 'wait':
         await new Promise(r => setTimeout(r, step.ms || 500));
         return true;
@@ -97,9 +134,17 @@ export class CombatExecutionService {
   }
 
   /**
-   * Evaluates early exit condition based on current honors.
+   * Evaluates early exit condition based on current honors (or boss remaining HP in solo quests).
    */
   public async handleExitIfScore(step: WorkflowStep): Promise<boolean> {
+    if (this.isSoloQuest()) {
+      const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+      if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.deps.combatResolution.isBattleEnded())) {
+        console.log(`[Combat:Solo] Boss defeated. Exiting combat early.`);
+        return true;
+      }
+      return true;
+    }
     await this.deps.combatResolution.syncCurrentHonors();
     const threshold = step.targetScore || this.ctx.template.targetScore || 1480000;
     if (this.ctx.state.currentScore >= threshold) {
@@ -107,6 +152,25 @@ export class CombatExecutionService {
       return true;
     }
     return true;
+  }
+
+  public async handleExitIfDead(): Promise<boolean> {
+    const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+    const isDead = enemy?.isDefeated || enemy?.currentHp === 0 || (await this.deps.combatResolution.isBattleEnded());
+    if (isDead) {
+      console.log('[Combat:Enemy] 🏁 Enemy defeated. Exiting combat early.');
+    }
+    return isDead;
+  }
+
+  public async handleExitIfHp(step: WorkflowStep): Promise<boolean> {
+    const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+    const threshold = step.targetHpPct ?? step.targetHp ?? 0;
+    const isBelow = !!enemy && (enemy.isDefeated || enemy.hpPct <= threshold);
+    if (isBelow) {
+      console.log(`[Combat:Enemy] 🎯 Enemy HP threshold met (${enemy?.hpPct.toFixed(1)}% <= ${threshold}%). Exiting combat early.`);
+    }
+    return isBelow;
   }
 
   /**
@@ -257,8 +321,9 @@ export class CombatExecutionService {
 
     if (!isDrawerOpen) {
       const charSelector = `.prt-command-chara[pos="${charIdx}"] .btn-command-character, .lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, div[pos="${charIdx}"].btn-command-character, .btn-command-character[pos="${charIdx}"]`;
+      const maxOpenAttempts = step.ensureCast ? 5 : 3;
 
-      for (let openAttempt = 1; openAttempt <= 3; openAttempt++) {
+      for (let openAttempt = 1; openAttempt <= maxOpenAttempts; openAttempt++) {
         let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 1000 : 2500 }).catch(() => null);
         if (!charBtn) {
           await this.deps.combatResolution.dismissCombatDrawersAndPopups();
@@ -351,69 +416,79 @@ export class CombatExecutionService {
     ];
 
     const targetNet = step.waitForNetwork || 'ability_result.json';
-    const netPromise = this.deps.combatResolution.waitForNetworkResponse(targetNet, isTurbo ? 2500 : 4500);
-
+    const maxCastTries = step.ensureCast ? 3 : 1;
     let clicked = false;
-    for (const sel of skillSelectors) {
-      clicked = await this.page.evaluate((s: string) => {
-        const target = document.querySelector(s) as HTMLElement;
-        if (!target || target.offsetParent === null) return false;
-        if (target.classList.contains('btn-ability-unavailable') || target.classList.contains('btn-ability-off')) return false;
-        const btn = ((target.classList.contains('btn-ability-available') ? target : target.querySelector('.btn-ability-available')) || target) as HTMLElement;
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) {
-          $(btn).trigger('tap');
-          $(btn).trigger('click');
-        }
-        btn.click();
-        return true;
-      }, sel).catch(() => false);
 
-      if (clicked) break;
-    }
+    for (let tryNum = 1; tryNum <= maxCastTries; tryNum++) {
+      const netPromise = this.deps.combatResolution.waitForNetworkResponse(targetNet, isTurbo ? 2500 : 4500);
 
-    if (!clicked) {
       for (const sel of skillSelectors) {
-        const handle = await this.page.$(sel).catch(() => null);
-        if (handle) {
-          await humanizedClick(this.page, handle);
-          clicked = true;
-          break;
-        }
+        clicked = await this.page.evaluate((s: string) => {
+          const target = document.querySelector(s) as HTMLElement;
+          if (!target || target.offsetParent === null) return false;
+          if (target.classList.contains('btn-ability-unavailable') || target.classList.contains('btn-ability-off')) return false;
+          const btn = ((target.classList.contains('btn-ability-available') ? target : target.querySelector('.btn-ability-available')) || target) as HTMLElement;
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) {
+            $(btn).trigger('tap');
+            $(btn).trigger('click');
+          }
+          btn.click();
+          return true;
+        }, sel).catch(() => false);
+
+        if (clicked) break;
       }
-    }
 
-    if (clicked) {
-      console.log(`[Combat] ⚡ Cast Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''}`);
-      await netPromise;
-
-      // 6. Handle single-target character selection modal if present
-      await this.page.evaluate((targetIdx: number) => {
-        const pop = document.querySelector('.pop-usual, .prt-popup-body, .pop-target');
-        if (pop && (pop as HTMLElement).offsetParent !== null) {
-          const targetChar = pop.querySelector(`.lis-character${targetIdx}, .btn-command-character[pos="${targetIdx}"], .lis-character0, .btn-command-character`) as HTMLElement;
-          if (targetChar) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(targetChar).trigger('tap');
-            targetChar.click();
+      if (!clicked) {
+        for (const sel of skillSelectors) {
+          const handle = await this.page.$(sel).catch(() => null);
+          if (handle) {
+            await humanizedClick(this.page, handle);
+            clicked = true;
+            break;
           }
         }
-      }, (step.targetCharacter ? step.targetCharacter - 1 : 0)).catch(() => null);
+      }
 
-      // 7. Fast-tick animation and unlock UI
-      await this.page.evaluate(() => {
-        const cjs = (window as any).createjs;
-        if (cjs?.Tween?.tick) cjs.Tween.tick(2500, false);
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
-        }
-      }).catch(() => null);
+      if (clicked) {
+        console.log(`[Combat] ⚡ Cast Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''}${step.ensureCast ? ' (Verified)' : ''}`);
+        await netPromise;
 
-      await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 250 : 1000);
-      return true;
+        // 6. Handle single-target character selection modal if present
+        await this.page.evaluate((targetIdx: number) => {
+          const pop = document.querySelector('.pop-usual, .prt-popup-body, .pop-target');
+          if (pop && (pop as HTMLElement).offsetParent !== null) {
+            const targetChar = pop.querySelector(`.lis-character${targetIdx}, .btn-command-character[pos="${targetIdx}"], .lis-character0, .btn-command-character`) as HTMLElement;
+            if (targetChar) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(targetChar).trigger('tap');
+              targetChar.click();
+            }
+          }
+        }, (step.targetCharacter ? step.targetCharacter - 1 : 0)).catch(() => null);
+
+        // 7. Fast-tick animation and unlock UI
+        await this.page.evaluate(() => {
+          const cjs = (window as any).createjs;
+          if (cjs?.Tween?.tick) cjs.Tween.tick(2500, false);
+          const stage = (window as any).stage;
+          if (stage?.gGameStatus) {
+            stage.gGameStatus.lock = false;
+            stage.gGameStatus.btn_lock = false;
+            stage.gGameStatus.animation = false;
+          }
+        }).catch(() => null);
+
+        await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 250 : 1000);
+        await this.deps.combatResolution.getAndLogEnemyHp(`C${char}S${skill} Cast`);
+        return true;
+      }
+
+      if (tryNum < maxCastTries) {
+        console.log(`[Combat] Skill C${char}S${skill} cast attempt ${tryNum}/${maxCastTries} unconfirmed. Retrying...`);
+        await new Promise(r => setTimeout(r, 200));
+      }
     }
 
     if (step.optional) {
@@ -590,6 +665,7 @@ export class CombatExecutionService {
       }).catch(() => null);
 
       await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1500);
+      await this.deps.combatResolution.getAndLogEnemyHp(`Summon Slot ${slot}`);
       return true;
     }
 
@@ -1250,6 +1326,7 @@ export class CombatExecutionService {
       }).catch(() => null);
 
       await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 400 : 2500);
+      await this.deps.combatResolution.getAndLogEnemyHp('Quick Call');
       return true;
     }
     return step.optional ? true : false;
@@ -1401,6 +1478,7 @@ export class CombatExecutionService {
       if (resolved || serverTurnAdvanced || serverHonorsIncreased) {
         await this.deps.combatResolution.syncCurrentHonors();
         console.log(`[Combat] Attack registered successfully (attempt ${attempt}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        await this.deps.combatResolution.getAndLogEnemyHp(`Turn ${this.ctx.state.currentTurn} Attack`);
         return true;
       }
 
@@ -1475,6 +1553,7 @@ export class CombatExecutionService {
       this.ctx.state.currentTurn = updatedTurn;
     }
 
+    await this.deps.combatResolution.getAndLogEnemyHp('Post-Reload');
     return true;
   }
 
@@ -1509,7 +1588,7 @@ export class CombatExecutionService {
    * Honors Guard: continues combat attack loop until minimum required honors are attained.
    */
   public async ensureMinimumHonors(minHonors = 1500000, maxExtraTurns = 25): Promise<void> {
-    if (this.ctx.template.honorGuard === false) return;
+    if (this.ctx.template.honorGuard === false || this.isSoloQuest()) return;
     await this.deps.combatResolution.syncCurrentHonors();
     if (this.ctx.state.currentScore >= minHonors) {
       console.log(`[Honors Guard] Minimum honor met (${this.ctx.state.currentScore.toLocaleString()} >= ${minHonors.toLocaleString()} pt).`);

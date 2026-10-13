@@ -120,15 +120,26 @@ data/
 │   ├── event-detail.schema.json         # Schema: Detailed Collaboration & Scenario Events
 │   ├── event-farming-optimizer.schema.json # Schema: Event Farming Decision Trees
 │   ├── side-stories.schema.json         # Schema: Permanent Side Story Vault & Spark Calculations
-│   └── side-story-optimizer.schema.json # Schema: Side Story Farming Priorities & Pacing
+│   ├── side-story-optimizer.schema.json # Schema: Side Story Farming Priorities & Pacing
+│   ├── weapon-grids.schema.json         # Schema: Weapon Grids, M1-M3 & Primal
+│   ├── character-tiering.schema.json    # Schema: Character Roles, Burst & FA Tiers
+│   ├── summon-hierarchies.schema.json   # Schema: Providence & Sub-Aura Summon Tiers
+│   ├── revans-and-apex.schema.json      # Schema: Revans, M3 & Apex Raid Walkthroughs
+│   └── unf-guild-wars.schema.json       # Schema: Guild Wars Stages, Meat & Nightmares
 ├── raids/                               # Raids Subsystem
+│   ├── raids.catalog.json               # Master Raids Catalog
+│   └── revans-and-apex-walkthroughs.catalog.json # Magna 3, Revans & Apex Mechanics
 ├── events/                              # Events Subsystem (Master & Detailed Event Catalogs)
 │   ├── events.catalog.json              # Master Registry of All Events
 │   ├── biography045-gintama.catalog.json# Authoritative Gintama Collaboration Catalog
-│   ├── event-farming-optimizer.json    # Algorithmic Event Farming Decision Tree
+│   ├── event-farming-optimizer.json     # Algorithmic Event Farming Decision Tree
 │   ├── side-stories.catalog.json        # Permanent Side Story Vault (56 Stories, 8 Sagas)
-│   └── side-story-optimizer.json        # Side Story Speed-Clearing & Spark Acceleration Tree
+│   ├── side-story-optimizer.json        # Side Story Speed-Clearing & Spark Acceleration Tree
+│   └── unf-guild-wars.catalog.json      # Guild Wars Tactics & Nightmares
 ├── combat/                              # Combat Subsystem
+│   ├── weapon-grids.catalog.json        # Authoritative M1-M3 & Primal Weapon Grids
+│   ├── character-tiering.catalog.json   # Tactical Character Roles & Tiers
+│   └── summon-hierarchies.catalog.json  # Providence & Sub-Aura Hierarchies
 ├── elements/                            # Elements Subsystem
 ├── ui/                                  # UI & Navigation Subsystem
 ├── network/                             # Network & Protocol Subsystem

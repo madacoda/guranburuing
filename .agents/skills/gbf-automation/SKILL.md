@@ -77,6 +77,7 @@ Accounts are registered in [accounts.config.json](file:///c:/laragon/www/guranbu
 ### Key Principles:
 - **Port Isolation**: Each account runs its dedicated CDP port (default `9222` for `acc1`, `9223` for `acc2`).
 - **Profile Isolation**: Each account maintains its isolated Chrome profile directory in `~/.gbf-profiles/<account>`, preventing cookie collisions.
+- **Third-Party Cookies Mandatory**: GBF runs on `game.granbluefantasy.jp` while session tokens live on `.mbga.jp` (Mobage) or `.dmm.com`. Blocking third-party cookies causes infinite OAuth redirect loops and blank screens. Launchers must supply `--test-third-party-cookie-phaseout=disabled` and browser settings must allow third-party cookies.
 - **Headless Execution**: Automation defaults to `--headless=new` (configured via `.env` or `--headless`). To visually inspect or assist, append `--windowed` or run `bun run account:setup <account>`.
 
 ---
@@ -98,11 +99,27 @@ await page.evaluate(() => {
 });
 ```
 
-### 2. Autonomous Title & Authentication Flow:
-When an account's session expires or redirects to `#top` / `#authentication`:
-1. `AccountAuthManager` safely clicks `#login-auth` (`.btn-login`).
-2. On `#authentication`, selects the target platform (`.btn-auth-platform[data-platform="mobage"]`) and clicks `.btn-ok`.
-3. Intercepts any opened OAuth redirect popup (`connect.mobage.jp`), triggers the `閉じる` (`.btn-close`) button to fire JSSDK `postMessage`, and verifies `#mypage` / `#profile`.
+### 2. Autonomous Authentication Lifecycle & Session Immunity Shield:
+When an account's session is initialized or requires verification:
+1. **Mobage Session Immunity Shield (`src/auth/session-immunity.ts`)**:
+   - Injected via `Page.addScriptToEvaluateOnNewDocument` before any game or Mobage code executes.
+   - Intercepts incoming `window.addEventListener('message', ..., true)` capture phase events and outgoing `window.postMessage` / `MessagePort.postMessage`.
+   - Neutralizes false-positive Mobage `session_state_change_response` messages caused by Chromium third-party cookie restrictions (CHIPS) by rewriting `status: "changed"` to `"unchanged"` and calling `event.stopImmediatePropagation()`.
+   - Permanently disarms Granblue's `mobageSubscribeLogout` listener, eliminating phantom kickouts to `#authentication`.
+2. **Dual-View & Runtime Profile Verification (`AccountAuthManager.getVerifiedProfile`)**:
+   - Evaluates `window.Game` singleton state (`userId`, `userName`, `userRank`) first.
+   - Evaluates `#mypage` DOM nodes (`.btn-user-name`, `.txt-rank-value`).
+   - Evaluates `#profile` DOM nodes (`.prt-user-name`, `.prt-rank-value`, `.prt-user-id`).
+   - Employs strict negative guards against `#authentication` and `.btn-auth-platform`.
+   - Sends proper Zepto headers (`Accept: application/json, text/javascript, */*; q=0.01`, `X-Requested-With: XMLHttpRequest`) if querying `/user/status`, preventing FuelPHP HTTP 409 Conflict.
+3. **Partitioned Multi-Domain Cookie Persistence**:
+   - Captures all 14+ cookies across `granbluefantasy.jp`, `mobage.jp`, and `sp.mbga.jp` using CDP `Network.getAllCookies`.
+   - Preserves `partitionKey` attributes (`topLevelSite: https://granbluefantasy.jp`) and host-only domain constraints (`game.granbluefantasy.jp` for `midship`).
+   - Persists sanitized cookie jar to `data/<account_id>-cookies.json`.
+4. **Standard Operating Procedure (SOP)**:
+   - Onboard account: `bun run account:setup acc1 --windowed`
+   - Headless verification: `bun run daily` or `bun run workflow acc1 <template>`
+   - Detailed architectural reference: [`strategies/AUTH_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md`](file:///c:/laragon/www/guranburuing/strategies/AUTH_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md)
 
 ### 3. Reconnect Watchdog:
 Upon network disconnect or browser restart, `CdpConnectionManager` automatically triggers `reconnect()`. Listeners re-bind the active page reference on `SentinelWatchdog` and `UniversalWorkflowEngine` to eliminate `Execution context was destroyed` or `detached Frame` errors.

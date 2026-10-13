@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/revans-and-apex.schema.json",
+  "title": "GBFRevansAndApexWalkthroughSchema",
+  "description": "Authoritative schema for Revans, Magna 3, and Apex high-difficulty raid walkthroughs, mechanics, omen cancellations, and team archetypes.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "categories"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["categoryId", "categoryName", "raids"],
+        "properties": {
+          "categoryId": { "type": "string" },
+          "categoryName": { "type": "string" },
+          "raids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["raidId", "name", "element", "battleSystem", "maxPlayers", "totalHp", "mechanicsSummary", "hpPhases", "recommendedClasses"],
+              "properties": {
+                "raidId": { "type": "string" },
+                "name": { "type": "string" },
+                "element": { "type": "string" },
+                "battleSystem": { "type": "string", "enum": ["V1", "V2"] },
+                "maxPlayers": { "type": "number" },
+                "totalHp": { "type": "string" },
+                "mechanicsSummary": { "type": "string" },
+                "hpPhases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["phaseName", "hpRange", "omensAndTriggers"],
+                    "properties": {
+                      "phaseName": { "type": "string" },
+                      "hpRange": { "type": "string" },
+                      "omensAndTriggers": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": ["triggerType", "name", "cancelCondition", "penaltyIfUncanceled"],
+                          "properties": {
+                            "triggerType": { "type": "string", "enum": ["HP_Trigger", "Turn_Trigger", "Charge_Diamond", "Special"] },
+                            "name": { "type": "string" },
+                            "cancelCondition": { "type": "string" },
+                            "penaltyIfUncanceled": { "type": "string" },
+                            "mitigationNotes": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "recommendedClasses": { "type": "array", "items": { "type": "string" } },
+                "teamTemplates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "templateName": { "type": "string" },
+                      "mcClass": { "type": "string" },
+                      "keyCharacters": { "type": "array", "items": { "type": "string" } },
+                      "strategySummary": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
