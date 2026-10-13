@@ -85,8 +85,8 @@ const stage3Templates = [
   },
   {
     name: 'Faymian Fortress (The Moon 5-Gauge)',
-    templateId: 'arcarum-faymian-fortress-smart',
-    expectedUrl: 'https://game.granbluefantasy.jp/#replicard/stage/3',
+    templateId: 'arcarum-faymian-fortress',
+    expectedUrl: 'https://game.granbluefantasy.jp/#replicard/supporter/3/3/10/812051/25',
     type: '5-gauge'
   }
 ];

@@ -203,6 +203,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Arcarum Zone Joculator (Stage 7) Lady of Redemption Tests',
     file: 'tests/test-arcarum-stage-7-joculator.ts',
     description: 'Verify Lady of Redemption, Maiden of the Depths, Stage 7 templates, Paragon step equivalence, and Joculator presets'
+  },
+  {
+    name: 'Duplicate Workflow Prevention & Canonical Alias Tests',
+    file: 'tests/test-duplicate-workflows.ts',
+    description: 'Verify 0 duplicate workflow pipelines on disk, canonical alias resolution, and Stage 3 / M3 disambiguation'
+  },
+  {
+    name: 'Raid: The World (HL) Multi-Battle Template & DSL Tests',
+    file: 'tests/test-raid-the-world-template.ts',
+    description: 'Verify The World (HL) multi-battle assist raid template, Finder Tab 1, 10-step burst, random delay, and DSL round-trip'
+  },
+  {
+    name: 'Arcarum Stage 7 (Xeno Cocytus Militis) Template & DSL Tests',
+    file: 'tests/test-arcarum-xeno-cocytus.ts',
+    description: 'Verify Xeno Cocytus Militis template, Quest 816131, Division 15, Paragon step equivalence, DSL round-trip, and Joculator presets'
   }
 ];
 

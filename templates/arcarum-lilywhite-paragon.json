@@ -1,0 +1,57 @@
+{
+  "name": "Arcarum Sandbox - Lilywhite Paragon",
+  "description": "Lilywhite Paragon battle loop: C4S1 -> Quick Call -> C2S1 -> C2S2 -> C1S1 -> C1S3 -> Attack -> Rerun (Confirm Result)",
+  "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/3/3/10/812111/25",
+  "questId": "812111",
+  "divisionId": 10,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 100,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "quick_call",
+      "waitForNetwork": "summon_result.json",
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 2,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 1,
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "character": 1,
+      "skill": 3,
+      "optional": true
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json",
+      "delayAfterMs": 350
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

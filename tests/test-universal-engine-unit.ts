@@ -373,6 +373,55 @@ try { fs.unlinkSync(tempLogPath); } catch {}
 engine.requestStop();
 console.log('  ✅ [PASS] requestStop gracefully sets stopRequested = true');
 
+// --- Testing Arcarum / Solo Zero-Honor Isolation ---
+console.log('\n--- Testing Arcarum / Solo Zero-Honor & Blue Chest Isolation ---');
+const { isSoloWorkflowTemplate } = await import('../src/types/workflow.types.js');
+const arcarumTemplate = {
+  name: 'Arcarum Sandbox - Faymian Fortress (Fast Burst)',
+  questUrl: 'https://game.granbluefantasy.jp/#replicard/supporter/3/3/10/812051/25',
+  steps: [{ code: 'attack' as const }, { code: 'reload' as const }, { code: 'confirm_result' as const }]
+};
+
+if (!isSoloWorkflowTemplate(arcarumTemplate)) {
+  throw new Error('Arcarum template must be recognized as isSoloWorkflowTemplate() === true');
+}
+const soloEngine = new UniversalWorkflowEngine(mockPage, mockSentinel, arcarumTemplate, 'test-acc');
+if (!soloEngine.isSoloQuest()) {
+  throw new Error('Arcarum template must report soloEngine.isSoloQuest() === true');
+}
+const soloHonors = await soloEngine.combatResolution.syncCurrentHonors();
+if (soloHonors !== 0) {
+  throw new Error(`Expected syncCurrentHonors() to return 0 for solo quest, got ${soloHonors}`);
+}
+
+const soloBc = (soloEngine as any).checkForBlueChestDrop({ reward_box_11: 1, special_reward_flag: true });
+if (soloBc !== false) {
+  throw new Error('Expected checkForBlueChestDrop to return false for solo quest, got true');
+}
+console.log('  ✅ [PASS] Arcarum / Replicard isolated: isSoloQuest === true, 0 raid honors, zero blue chest targeting');
+
+// --- Testing Inter-Run Human Delay Motor Randomization ---
+console.log('\n--- Testing Inter-Run Human Delay Motor Randomization ---');
+const { interRunHumanDelay } = await import('../src/human-motor.js');
+
+const fastTick = await interRunHumanDelay({ humanMotor: false });
+if (fastTick > 250) {
+  throw new Error(`Expected humanMotor: false to yield quick tick <= 250ms, got ${fastTick}`);
+}
+console.log(`  ✅ [PASS] humanMotor: false respected (${fastTick}ms minimal tick)`);
+
+const customDuration = await interRunHumanDelay({ customDelayMs: [500, 700], humanMotor: true });
+if (customDuration < 450 || customDuration > 750) {
+  throw new Error(`Expected custom delay [500, 700] to be within range, got ${customDuration}`);
+}
+console.log(`  ✅ [PASS] customDelayMs range respected (${customDuration}ms)`);
+
+const turboDuration = await interRunHumanDelay({ speedProfile: 'turbo', humanMotor: true });
+if (turboDuration < 300 || turboDuration > 1500) {
+  throw new Error(`Expected turbo inter-run duration to be in [300, 1500]ms, got ${turboDuration}`);
+}
+console.log(`  ✅ [PASS] turbo speed profile inter-run pause randomized (${turboDuration}ms)`);
+
 console.log('\n========================================================================');
 console.log('     🎉 ALL UNIVERSAL ENGINE UNIT & MOCK TESTS PASSED (100%)            ');
 console.log('========================================================================\n');

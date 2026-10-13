@@ -179,6 +179,7 @@ Optimized Smart Full Auto workflows for all Stage 3 (`#replicard/stage/3`) encou
 | Command | Target | Role / Sector | Drops |
 | :--- | :--- | :---: | :--- |
 | `bun run redemption` / `arcarum:redemption` | **Lady of Redemption** | Defender (Justice / Stage 7 / Div 7 / Quest 816071) | Joculator materials, Justice Idean, Aquaborne Astra, Justice Veritas, Sephira weapons |
+| `bun run cocytus` / `arcarum:cocytus` | **Xeno Cocytus Militis** | Militis Boss (Water / Stage 7 / Div 15 / Quest 816131) | Xeno Cocytus Militis weapons, Water Luster, Veritas, Sephira Box |
 | `bun run paragon` / `arcarum:paragon` | **Lilywhite Paragon** | Defender (The Moon / Div 10 / Quest 812111) | **Faym Rib**, Moon Idean, Aquaborne Astra, Moon Veritas, Sephira Emerald weapons |
 | `bun run arcarum:triune` | **Goliath Triune** | Zone Boss (Earth) | Tower/Hanged Man/Death Ideans, Earth Astra, Quartz |
 | `bun run arcarum:avarice` | **Avatar of Avarice** | Defender (Pink / Hanged Man) | **Goliath Organ**, Earthborne Astra, Hanged Man Idean |
@@ -228,6 +229,7 @@ Dedicated Blue Chest honor burst workflows (1.4M–1.58M target honors) with dro
 | `bun run gb-akasha` | Akasha HL | 1.43M | Dark/Fire burst loop targeting Gold Bar & Keys |
 | `bun run gb-go` | Grand Order HL | 1.58M | Multi-turn burst for Heavenly Horns & Centrums |
 | `bun run gb-farm` | Tri-Raid Rotator | Dynamic | Concurrently rotates PBHL $\rightarrow$ Akasha $\rightarrow$ GOHL |
+| `bun run theworld:raid` / `world:raid` | The World (HL) | — | Finder Tab 1: C4S1 $\rightarrow$ C3S1 $\rightarrow$ C3S2 $\rightarrow$ C2S1 $\rightarrow$ Atk $\rightarrow$ Reload $\rightarrow$ Random Delay $\rightarrow$ Atk $\rightarrow$ Reload |
 | `bun run goldbar` | Telemetry | — | Tests permanent raid archive URL resolution & drops |
 | `bun run gb:report` | Telemetry | — | Generates Gold Bar drop summary & dry-streak analysis |
 
@@ -337,6 +339,50 @@ Execute any pre-packaged, modified, or custom workflow template dynamically.
    # Or run in silent background mode:
    bun run gb-pbhl
    ```
+
+### How to Customize Minimum and Maximum HP Targets (Raid & Leech)
+You can configure raid candidate filtering boundaries directly in the workflow JSON or Shorthand DSL:
+
+#### 1. In Template JSON (`templates/*.json`):
+```json
+{
+  "name": "Raid - The World (HL)",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "raidSlot": 1,
+  "evaluatorStrategy": "leech",
+  "minHpPct": 1,
+  "maxHpPct": 100,
+  "minPlayers": 1,
+  "maxPlayers": 29,
+  "minRaidScore": 0,
+  "steps": [ ... ]
+}
+```
+
+- **`minHpPct`** (`number`): Hard lower HP% bound (e.g. `1` for dying/leech, `50` for fresh raids). Raids below this HP are disqualified (`HP_BELOW_MIN`).
+- **`maxHpPct`** (`number`): Hard upper HP% bound (e.g. `20` for Magna 3 fast leech, `80` to avoid 100% full-health raids). Raids above this HP are disqualified (`HP_ABOVE_MAX`).
+- **`evaluatorStrategy`** (`"honor"` | `"otk_burst"` | `"leech"`): 
+  - `"honor"`: Blue chest focus, prioritizes fresh raids with high remaining HP.
+  - `"leech"` / `"otk_burst"`: Fast burst focus, prioritizes low HP raids for rapid drop turn-around.
+- **`minPlayers`** / **`maxPlayers`** (`number`): Enforces minimum clearing participants (e.g. `minPlayers: 3`) or max capacity ceiling (`maxPlayers: 29`).
+- **`minRaidScore`** (`number`): Minimum score needed to accept candidate (default: `0` for custom HP bands, `40` for standard honor raids).
+
+#### 2. In Shorthand DSL (`.dsl`):
+```yaml
+Name: Custom Raid Leech
+Quest: https://game.granbluefantasy.jp/#quest/assist
+Mode: assist
+Raid Slot: 1
+Strategy: leech
+Min HP: 10
+Max HP: 60
+Min Players: 3
+Max Players: 25
+Min Raid Score: 30
+
+# Or using concise range syntax:
+HP: 10-60%
+```
 
 ### How to Create a New Template
 1. Create `templates/my-custom-raid.json` (see [Full Guide](./docs/workflows/creating-and-modifying-workflows.md)).

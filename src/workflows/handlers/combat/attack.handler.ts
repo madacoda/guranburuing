@@ -5,7 +5,7 @@ import {
   StepExecutionResult,
   WorkflowExecutionContext
 } from '../../context/workflow-context.types.js';
-import { humanizedClick, sampleGaussian } from '../../../human-motor.js';
+import { humanizedClick, sampleGaussian, logNormalDelay } from '../../../human-motor.js';
 
 export class AttackStepHandler implements IStepHandler {
   public readonly supportedActions: WorkflowActionType[] = ['attack'];
@@ -37,13 +37,18 @@ export class AttackStepHandler implements IStepHandler {
         }
         const el = document.querySelector('.btn-attack-start') as HTMLElement;
         if (!el) return false;
-        const isDisplayOn = (el.classList.contains('display-on') || !el.classList.contains('display-off')) && !el.classList.contains('lock');
+        const isDisplayOn = el.classList.contains('display-on') && !el.classList.contains('lock') && !el.classList.contains('display-off');
         return isDisplayOn && el.offsetWidth > 0;
-      }, { timeout: isTurbo ? 1000 : 2500 }).then(() => page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
+      }, { timeout: isTurbo ? 1200 : 3000 }).then(() => page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
 
       if (!atkBtn) {
         await context.services.combat.dismissCombatDrawersAndPopups();
         atkBtn = await page.$('.btn-attack-start.display-on, .btn-attack-start');
+      }
+
+      if (template.humanMotor !== false && !isTurbo) {
+        // Natural ocular-motor reaction delay (120ms - 220ms) before clicking attack
+        await logNormalDelay(160, 0.18);
       }
 
       // 4. Arm network promise

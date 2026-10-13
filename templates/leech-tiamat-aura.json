@@ -2,6 +2,8 @@
   "name": "Leech Raid - Tiamat Aura (Fast Leech)",
   "description": "High-speed raid leecher for Tiamat Aura: Finder Tab 1, Agni primal supporter, HP <= 20% & Players >= 3 for rapid clear, quick damage injection, and active assist recovery on 3 pending limits.",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "element": "Fire",
+  "targetEnemy": "Tiamat Aura",
   "raidSlot": 1,
   "supporterPriority": ["Agni"],
   "evaluatorStrategy": "leech",

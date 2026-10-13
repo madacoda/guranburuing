@@ -83,6 +83,18 @@ export const ARCARUM_MUNDUS_PRESETS: Record<string, ArcarumPreset> = {
     aapCost: 30,
     drops: 'World Idean, Mundus Lusters, New World Quartz'
   },
+  'theworld-raid': {
+    id: 'theworld-raid',
+    name: 'The World (Raid)',
+    templateId: 'raid-the-world',
+    sector: 'Raid Finder (Tab 1)',
+    divisionId: 1,
+    questId: '',
+    element: 'All',
+    type: 'boss',
+    aapCost: 0,
+    drops: 'World Idean, Mundus Lusters, New World Quartz'
+  },
   'stage10': {
     id: 'stage10',
     name: 'Zone Mundus Universal Map',
@@ -411,10 +423,10 @@ export const ARCARUM_FAYM_PRESETS: Record<string, ArcarumPreset> = {
   'fortress': {
     id: 'fortress',
     name: 'Faymian Fortress (The Moon 5-Gauge)',
-    templateId: 'arcarum-faymian-fortress-smart',
+    templateId: 'arcarum-faymian-fortress',
     sector: 'Zone Faym: Green Sector (The Moon / Div 10)',
     divisionId: 10,
-    questId: '',
+    questId: '812051',
     element: 'Water',
     type: '5-gauge',
     aapCost: 20,
@@ -461,6 +473,18 @@ export const ARCARUM_JOCULATOR_PRESETS: Record<string, ArcarumPreset> = {
     type: '5-gauge',
     aapCost: 20,
     drops: 'Spawns Lady of Redemption, Water Sephira Box, Defender Hell Gauge'
+  },
+  'xeno-cocytus': {
+    id: 'xeno-cocytus',
+    name: 'Xeno Cocytus Militis',
+    templateId: 'arcarum-xeno-cocytus-militis',
+    sector: 'Arctic Plains: Flumen Glacialis (Stage 7 / Div 15)',
+    divisionId: 15,
+    questId: '816131',
+    element: 'Water',
+    type: 'boss',
+    aapCost: 25,
+    drops: 'Xeno Cocytus Militis weapons, Water Luster, Veritas, Sephira Box'
   }
 };
 
@@ -508,7 +532,7 @@ export const ARCARUM_ALIASES: Record<string, string> = {
   'faymian': 'fortress',
   'faym-fortress': 'fortress',
 
-  // Stage 7 (Zone Joculator - Lady of Redemption & Maiden of the Depths)
+  // Stage 7 (Zone Joculator - Lady of Redemption, Xeno Cocytus & Maiden of the Depths)
   'joculator': 'stage7',
   'stage-7': 'stage7',
   'lady': 'redemption',
@@ -517,7 +541,11 @@ export const ARCARUM_ALIASES: Record<string, string> = {
   'redemption-defender': 'redemption',
   'maiden-of-the-depths': 'maiden',
   'maiden_of_the_depths': 'maiden',
-  'maiden-depths': 'maiden'
+  'maiden-depths': 'maiden',
+  'xeno-cocytus-militis': 'xeno-cocytus',
+  'cocytus-militis': 'xeno-cocytus',
+  'cocytus': 'xeno-cocytus',
+  'xenococytus': 'xeno-cocytus'
 };
 
 function printHelp(): void {
@@ -533,6 +561,8 @@ Zone Joculator (Stage 7 / Here Be Swords) Targets:
     stage7         - Universal Stage 7 Map Scanner & Auto-Defender Target
     redemption     - Lady of Redemption (Justice Defender, Water, 30 AAP)
                      Direct URL: #replicard/supporter/7/7/7/816071/25
+    xeno-cocytus   - Xeno Cocytus Militis (Water Boss, 25 AAP)
+                     Direct URL: #replicard/supporter/7/7/15/816131/25/0/25083
   5-Gauge Mobs:
     maiden         - Maiden of the Depths (Water 5-Gauge, 20 AAP, spawns Redemption)
                      Direct URL: #replicard/supporter/7/7/7/816031/25

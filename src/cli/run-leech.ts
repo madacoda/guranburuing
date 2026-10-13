@@ -35,6 +35,9 @@ function resolveLeechTemplateName(input: string): string {
   if (clean === 'celeste' || clean === 'celeste-ater' || clean === 'ater') {
     return 'leech-celeste-ater';
   }
+  if (clean === 'theworld' || clean === 'world' || clean === 'the-world' || clean === 'theworld-raid' || clean === 'raid-the-world') {
+    return 'raid-the-world';
+  }
 
   // Fallback to direct name or leech prefix
   if (input.startsWith('leech-')) return input;

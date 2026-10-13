@@ -2,7 +2,7 @@
 import { Page } from 'puppeteer-core';
 import { UniversalContext } from './types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
-import { WorkflowStep } from '../../types/workflow.types.js';
+import { WorkflowStep, isSoloWorkflowTemplate } from '../../types/workflow.types.js';
 import { config } from '../../config.js';
 import {
   humanizedClick,
@@ -90,24 +90,7 @@ export class CombatExecutionService {
   }
 
   public isSoloQuest(): boolean {
-    const tmpl = this.ctx?.template;
-    if (!tmpl) return false;
-    if (tmpl.isSolo === true) return true;
-    const qUrl = (tmpl.questUrl || '').toLowerCase();
-    const mode = (tmpl.mode || '').toLowerCase();
-    const name = (tmpl.name || '').toLowerCase();
-    return (
-      qUrl.includes('replicard') ||
-      qUrl.includes('arcarum') ||
-      qUrl.includes('fate') ||
-      mode === 'single' ||
-      mode === 'solo' ||
-      name.includes('arcarum') ||
-      name.includes('replicard') ||
-      name.includes('paragon') ||
-      name.includes('fortress') ||
-      name.includes('fate')
-    );
+    return isSoloWorkflowTemplate(this.ctx?.template);
   }
 
   private async executeFallbackSubStep(step: WorkflowStep): Promise<boolean> {
@@ -129,6 +112,16 @@ export class CombatExecutionService {
       case 'wait':
         await new Promise(r => setTimeout(r, step.ms || 500));
         return true;
+      case 'wait_random':
+      case 'wait_randomize':
+        {
+          const min = step.minMs || 500;
+          const max = step.maxMs || 1500;
+          const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+          console.log(`[Combat] ⏳ Random delay: ${delay}ms`);
+          await new Promise(r => setTimeout(r, delay));
+          return true;
+        }
       default: return true;
     }
   }
@@ -1369,13 +1362,18 @@ export class CombatExecutionService {
         }
         const el = document.querySelector('.btn-attack-start') as HTMLElement;
         if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') return false;
-        const isLocked = el.classList.contains('display-off') || el.classList.contains('lock');
-        return !isLocked;
-      }, { timeout: isTurbo ? 1000 : 2500 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
+        const isReady = el.classList.contains('display-on') && !el.classList.contains('lock') && !el.classList.contains('display-off');
+        return isReady;
+      }, { timeout: isTurbo ? 1200 : 3000 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
 
       if (!atkBtn) {
         await this.deps.combatResolution.dismissCombatDrawersAndPopups();
         atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start');
+      }
+
+      if (this.ctx.template.humanMotor !== false && !isTurbo) {
+        // Natural ocular-motor reaction latency (120ms - 220ms) before striking attack
+        await logNormalDelay(160, 0.18);
       }
 
       const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 3500 : 5000);

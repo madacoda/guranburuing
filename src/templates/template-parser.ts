@@ -50,6 +50,27 @@ export class TemplateParser {
   public static loadTemplate(templateName: string): WorkflowTemplate {
     const baseName = templateName.replace(/\.(json|txt|dsl|yaml|yml)$/, '');
     const altNames = [baseName];
+
+    // Canonical template alias registry to prevent duplicate workflow files on disk
+    const CANONICAL_ALIASES: Record<string, string> = {
+      'gb-pbhl-universal': 'gb-pbhl',
+      'arcarum-faymian-fortress-smart': 'arcarum-faymian-fortress',
+      'theworld-raid': 'raid-the-world',
+      'the-world-raid': 'raid-the-world',
+      'world-raid': 'raid-the-world',
+      'raid-theworld': 'raid-the-world',
+      'arcarum-theworld-raid': 'raid-the-world',
+      'arcarum-xeno-cocytus-militis-smart': 'arcarum-xeno-cocytus-militis',
+      'arcarum-xeno-cocytus': 'arcarum-xeno-cocytus-militis',
+      'xeno-cocytus-militis': 'arcarum-xeno-cocytus-militis',
+      'xeno-cocytus': 'arcarum-xeno-cocytus-militis',
+      'cocytus-militis': 'arcarum-xeno-cocytus-militis',
+      'cocytus': 'arcarum-xeno-cocytus-militis',
+    };
+    if (CANONICAL_ALIASES[baseName]) {
+      altNames.push(CANONICAL_ALIASES[baseName]);
+    }
+
     if (baseName.startsWith('otkraid-')) {
       altNames.push(`leech-${baseName.slice(8)}`);
     } else if (baseName.startsWith('leech-')) {
@@ -139,6 +160,7 @@ export class TemplateParser {
     let description = '';
     let mode: 'combat' | 'routine' | 'assist' = 'combat';
     let questUrl = 'https://game.granbluefantasy.jp/#quest/supporter/947551/1/0';
+    let stageUrl: string | undefined;
     let supporterPriority = ['Hades', 'Bahamut', 'Zeus', 'Lucifer'];
     let raidSlot: number | undefined;
     let raidSlots: number[] | undefined;
@@ -152,9 +174,15 @@ export class TemplateParser {
     let minBatchClaim: number | undefined;
     let maxBatchClaim: number | undefined;
     let minHpPct: number | undefined;
+    let maxHpPct: number | undefined;
+    let minPlayers: number | undefined;
     let maxPlayers: number | undefined;
+    let minRaidScore: number | undefined;
+    let evaluatorStrategy: 'honor' | 'otk_burst' | 'leech' | undefined;
     let logPath: string | undefined;
     let isSolo: boolean | undefined;
+    let sector: string | undefined;
+    let targetEnemy: string | undefined;
 
     const steps: WorkflowStep[] = [];
     let readyScreenOccurrence = 0;
@@ -200,6 +228,11 @@ export class TemplateParser {
       if (/^(?:start|quest|url)\s*:\s*(.+)$/i.test(line)) {
         const urlMatch = line.match(/https?:\/\/[^\s]+|#[^\s]+/);
         if (urlMatch) questUrl = urlMatch[0];
+        continue;
+      }
+      if (/^(?:stage_?url|stage)\s*:\s*(.+)$/i.test(line)) {
+        const stageMatch = line.match(/https?:\/\/[^\s]+|#[^\s]+/);
+        if (stageMatch) stageUrl = stageMatch[0];
         continue;
       }
       if (/^speed(?:\s*profile)?\s*:\s*(.+)$/i.test(line)) {
@@ -254,6 +287,44 @@ export class TemplateParser {
       }
       if (/^log_?path\s*:\s*(.+)$/i.test(line)) {
         logPath = line.match(/^log_?path\s*:\s*(.+)$/i)![1].trim();
+        continue;
+      }
+      if (/^sector\s*:\s*(.+)$/i.test(line)) {
+        sector = line.match(/^sector\s*:\s*(.+)$/i)![1].trim();
+        continue;
+      }
+      if (/^(?:target_enemy|enemy|target_boss|boss)\s*:\s*(.+)$/i.test(line)) {
+        targetEnemy = line.match(/^(?:target_enemy|enemy|target_boss|boss)\s*:\s*(.+)$/i)![1].trim();
+        continue;
+      }
+      if (/^(?:min[\s_]?hp(?:[\s_]?pct)?|min[\s_]?health)\s*:\s*(\d+)%?$/i.test(line)) {
+        minHpPct = parseInt(line.match(/^(?:min[\s_]?hp(?:[\s_]?pct)?|min[\s_]?health)\s*:\s*(\d+)%?$/i)![1], 10);
+        continue;
+      }
+      if (/^(?:max[\s_]?hp(?:[\s_]?pct)?|max[\s_]?health)\s*:\s*(\d+)%?$/i.test(line)) {
+        maxHpPct = parseInt(line.match(/^(?:max[\s_]?hp(?:[\s_]?pct)?|max[\s_]?health)\s*:\s*(\d+)%?$/i)![1], 10);
+        continue;
+      }
+      if (/^hp(?:[\s_]?pct)?\s*:\s*(\d+)\s*(?:-|to|\.\.)\s*(\d+)\s*%?$/i.test(line)) {
+        const m = line.match(/^hp(?:[\s_]?pct)?\s*:\s*(\d+)\s*(?:-|to|\.\.)\s*(\d+)\s*%?$/i)!;
+        minHpPct = parseInt(m[1], 10);
+        maxHpPct = parseInt(m[2], 10);
+        continue;
+      }
+      if (/^min[\s_]?players?\s*:\s*(\d+)$/i.test(line)) {
+        minPlayers = parseInt(line.match(/^min[\s_]?players?\s*:\s*(\d+)$/i)![1], 10);
+        continue;
+      }
+      if (/^max[\s_]?players?\s*:\s*(\d+)$/i.test(line)) {
+        maxPlayers = parseInt(line.match(/^max[\s_]?players?\s*:\s*(\d+)$/i)![1], 10);
+        continue;
+      }
+      if (/^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech)$/i.test(line)) {
+        evaluatorStrategy = line.match(/^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech)$/i)![1].toLowerCase() as any;
+        continue;
+      }
+      if (/^min[\s_]?(?:raid[\s_]?)?score\s*:\s*(\d+)$/i.test(line)) {
+        minRaidScore = parseInt(line.match(/^min[\s_]?(?:raid[\s_]?)?score\s*:\s*(\d+)$/i)![1], 10);
         continue;
       }
 
@@ -415,8 +486,15 @@ export class TemplateParser {
       minBatchClaim,
       maxBatchClaim,
       minHpPct,
+      maxHpPct,
+      minPlayers,
       maxPlayers,
+      evaluatorStrategy,
+      minRaidScore,
       logPath,
+      sector,
+      targetEnemy,
+      stageUrl,
       steps
     };
   }
@@ -739,14 +817,14 @@ export class TemplateParser {
       };
     }
 
-    // 14. Wait Random: "wait_random 300 800"
-    const waitRandomMatch = line.match(/(?:wait[\s_]*random|wait[\s_]*randomize|delay[\s_]*random)[\s_]+(\d+)[\s_]+(\d+)/i);
+    // 14. Wait Random / Random Delay: "wait_random 300 800", "random delay", "random_delay 500 1200", "delay random"
+    const waitRandomMatch = cleanLine.match(/^(?:wait[\s_]*random(?:ize)?|delay[\s_]*random|random[\s_]*delay|random[\s_]*wait)(?:[\s_]+(\d+)[\s_]+(\d+))?$/i);
     if (waitRandomMatch) {
-      const minMs = parseInt(waitRandomMatch[1], 10);
-      const maxMs = parseInt(waitRandomMatch[2], 10);
+      const minMs = waitRandomMatch[1] ? parseInt(waitRandomMatch[1], 10) : 500;
+      const maxMs = waitRandomMatch[2] ? parseInt(waitRandomMatch[2], 10) : 1500;
       return {
         id: `step_${stepIndex}`,
-        name: `Wait Random (${minMs}ms - ${maxMs}ms)`,
+        name: `Random Delay (${minMs}ms - ${maxMs}ms)`,
         code: 'wait_random',
         action: 'wait_random',
         minMs,
@@ -927,6 +1005,13 @@ export class TemplateParser {
     if (template.targetScore) lines.push(`TargetScore: ${template.targetScore}`);
     if (template.isSolo !== undefined) lines.push(`Solo: ${template.isSolo}`);
     if (template.logPath) lines.push(`LogPath: ${template.logPath}`);
+    if (template.sector) lines.push(`Sector: ${template.sector}`);
+    if (template.minHpPct !== undefined) lines.push(`Min HP: ${template.minHpPct}`);
+    if (template.maxHpPct !== undefined) lines.push(`Max HP: ${template.maxHpPct}`);
+    if (template.minPlayers !== undefined) lines.push(`Min Players: ${template.minPlayers}`);
+    if (template.maxPlayers !== undefined) lines.push(`Max Players: ${template.maxPlayers}`);
+    if (template.evaluatorStrategy) lines.push(`Strategy: ${template.evaluatorStrategy}`);
+    if (template.minRaidScore !== undefined) lines.push(`Min Raid Score: ${template.minRaidScore}`);
     lines.push(`Elixir: ${template.autoElixir !== false}`);
     lines.push(`Berry: ${template.autoBerry !== false}`);
     lines.push('');

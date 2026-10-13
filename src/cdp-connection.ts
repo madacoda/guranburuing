@@ -109,9 +109,20 @@ export class CdpConnectionManager {
             for (const t of gbfTargets) {
               if (t !== preferredTarget) {
                 try {
-                  const extraPage = await t.page();
-                  if (extraPage && !extraPage.isClosed()) {
-                    await extraPage.close().catch(() => null);
+                  const targetId = (t as any)._targetId || (t as any)._targetInfo?.targetId;
+                  if (targetId) {
+                    await fetch(`http://127.0.0.1:${port}/json/close/${targetId}`, { signal: AbortSignal.timeout(1500) }).catch(() => null);
+                  } else {
+                    const extraPage = await Promise.race([
+                      t.page(),
+                      new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 1500))
+                    ]);
+                    if (extraPage && !extraPage.isClosed()) {
+                      await Promise.race([
+                        extraPage.close(),
+                        new Promise(r => setTimeout(r, 1500))
+                      ]).catch(() => null);
+                    }
                   }
                 } catch {}
               }

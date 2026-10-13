@@ -158,7 +158,7 @@ console.log('  ✅ [PASS] EnsureAuthenticatedOptions contract verified');
 console.log('\n[Test 4] Testing real credential support & settlement protection...');
 
 // Ensure real credentials like user's actual email are never blocked
-const userEmail = 'hamada.tester@gmail.com';
+const userEmail = 'user@example.com';
 if (!userEmail.includes('@') || userEmail.length < 5) {
   throw new Error('User email validation failed');
 }

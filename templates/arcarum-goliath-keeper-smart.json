@@ -3,6 +3,8 @@
   "description": "Optimal Smart Full Auto battle loop for Goliath Keeper (Earth Green Defender, The Tower path, Zone Goliath Stage 3): Spawns from Earthshaking Panther / Goliath Vanguard gauge clears. Turn 1 Quick Call + Wind Burst Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Confirm Result. Drops: Goliath Rib, Earthborne Astra, Tower Idean",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
   "element": "Wind",
+  "sector": "Green Sector (The Tower)",
+  "targetEnemy": "Goliath Keeper",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

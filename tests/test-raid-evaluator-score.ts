@@ -102,6 +102,49 @@ if (allBadSelection.best !== null) {
 }
 console.log('  ✅ [PASS] Returns null when all candidate raids are unviable, safely triggering search wait/refresh');
 
+// Test 7: Customizable Min & Max HP Target Boundaries (Honor Strategy)
+console.log('\n--- 7. Testing Customizable Min & Max HP Targets (Honor Strategy) ---');
+const honorCustomMax = RaidEvaluator.evaluateCandidate(85, 2, 30, { maxHpPct: 70 });
+console.log(`  HP 85%, maxHpPct=70 -> Viable: ${honorCustomMax.viable}, Reason: "${honorCustomMax.reason}"`);
+if (honorCustomMax.viable || !honorCustomMax.reason.includes('above maximum threshold')) {
+  throw new Error('Expected HP 85% to be disqualified when maxHpPct is 70% in honor strategy');
+}
+
+const honorCustomMin = RaidEvaluator.evaluateCandidate(40, 2, 30, { minHpPct: 50 });
+console.log(`  HP 40%, minHpPct=50 -> Viable: ${honorCustomMin.viable}, Reason: "${honorCustomMin.reason}"`);
+if (honorCustomMin.viable || !honorCustomMin.reason.includes('below minimum threshold')) {
+  throw new Error('Expected HP 40% to be disqualified when minHpPct is 50% in honor strategy');
+}
+
+const honorCustomPass = RaidEvaluator.evaluateCandidate(60, 2, 30, { minHpPct: 50, maxHpPct: 70 });
+console.log(`  HP 60%, minHpPct=50, maxHpPct=70 -> Score: ${honorCustomPass.score}, Viable: ${honorCustomPass.viable}`);
+if (!honorCustomPass.viable) {
+  throw new Error('Expected HP 60% to be viable within [50%, 70%] range in honor strategy');
+}
+console.log('  ✅ [PASS] Honor strategy strictly honors custom minHpPct and maxHpPct boundaries');
+
+// Test 8: Customizable Min & Max HP Target Boundaries (Leech Strategy)
+console.log('\n--- 8. Testing Customizable Min & Max HP Targets (Leech Strategy) ---');
+const leechCustomMax = RaidEvaluator.evaluateCandidate(65, 5, 30, { strategy: 'leech', maxHpPct: 50 });
+console.log(`  Leech HP 65%, maxHpPct=50 -> Viable: ${leechCustomMax.viable}, Reason: "${leechCustomMax.reason}"`);
+if (leechCustomMax.viable || !leechCustomMax.reason.includes('exceeds maximum threshold')) {
+  throw new Error('Expected Leech HP 65% to be disqualified when maxHpPct is 50%');
+}
+
+const leechCustomMin = RaidEvaluator.evaluateCandidate(10, 5, 30, { strategy: 'leech', minHpPct: 20 });
+console.log(`  Leech HP 10%, minHpPct=20 -> Viable: ${leechCustomMin.viable}, Reason: "${leechCustomMin.reason}"`);
+if (leechCustomMin.viable || !leechCustomMin.reason.includes('below minimum')) {
+  throw new Error('Expected Leech HP 10% to be disqualified when minHpPct is 20%');
+}
+
+const leechCustomWide = RaidEvaluator.evaluateCandidate(50, 5, 30, { strategy: 'leech', minHpPct: 10, maxHpPct: 80, minPlayers: 3, minScore: 0 });
+console.log(`  Leech HP 50%, minHpPct=10, maxHpPct=80 -> Score: ${leechCustomWide.score}, Viable: ${leechCustomWide.viable}`);
+if (!leechCustomWide.viable || leechCustomWide.score <= 0) {
+  throw new Error('Expected Leech HP 50% to be viable within customized [10%, 80%] range');
+}
+console.log('  ✅ [PASS] Leech strategy strictly honors custom minHpPct and maxHpPct boundaries with smooth scoring');
+
 console.log('\n========================================================================');
 console.log('      🎉 ALL RAID EVALUATOR SCORE TESTS PASSED (100%)                   ');
 console.log('========================================================================\n');
+

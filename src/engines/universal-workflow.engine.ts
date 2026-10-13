@@ -11,7 +11,9 @@ import { discordDmRelay } from '../relay/discord-dm-relay.js';
 import {
   setSpeedProfile,
   getSpeedProfile,
-  logNormalDelay
+  logNormalDelay,
+  interRunHumanDelay,
+  SpeedProfile
 } from '../human-motor.js';
 import {
   WorkflowTemplate,
@@ -117,6 +119,14 @@ export class UniversalWorkflowEngine {
     // Initialize modular domain services
     this.screenDiagnostic = new ScreenDiagnosticService(this.ctx);
     this.combatResolution = new CombatResolutionService(this.ctx);
+    this.screenDiagnostic.setCallbacks({
+      resolveLingeringRaidLimit: (logPath, currentRuns) => this.resolveLingeringRaidLimit(logPath, currentRuns),
+      claimPendingBattles: (logPath, currentRuns, returnUrl) => this.claimPendingBattles(logPath, currentRuns, returnUrl),
+      waitForBattleToMount: (timeoutMs) => this.combatResolution.waitForBattleToMount(timeoutMs),
+      resolveLingeringState: () => this.combatResolution.resolveLingeringState(),
+      getReplicardStageHash: () => this.combatResolution.getReplicardStageHash(),
+      waitForAndDismissReplicardStagePopups: (timeoutMs) => this.combatResolution.waitForAndDismissReplicardStagePopups(timeoutMs)
+    });
     this.milestoneSweeper = new MilestoneSweeperService(this.ctx, undefined, undefined, {
       claimPendingBattles: (logPath, currentRuns, returnUrl) => this.claimPendingBattles(logPath, currentRuns, returnUrl),
       resolveLingeringRaidLimit: (logPath, currentRuns) => this.resolveLingeringRaidLimit(logPath, currentRuns)
@@ -342,22 +352,37 @@ export class UniversalWorkflowEngine {
                 (typeof json.player?.point === 'number' && json.player.point > 0 ? json.player.point : null);
             }
 
-            const targetHonors = this.template.targetScore || 1500000;
+            if (this.isSoloQuest()) {
+              // Solo quests (Arcarum, Replicard, Fate Episode, etc.) have no multi-raid honors or blue chests
+              if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
+              else if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
+              return;
+            }
+
+            const targetHonors = this.template.targetScore;
             const payloadKey = `${json.raid_id || 'battle'}_t${json.status?.turn || json.turn || ''}_hp${json.status?.boss?.param?.[0]?.hp ?? ''}`;
 
             if (directPoint !== null) {
               this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, directPoint);
               this.ctx.state.lastProcessedAttackKey = payloadKey;
-              const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-              console.log(`[Combat] 🎯 Attack Honors Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+              if (targetHonors) {
+                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+                console.log(`[Combat] 🎯 Attack Honors Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+              } else {
+                console.log(`[Combat] 🎯 Attack Honors Synced: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+              }
             } else if (this.ctx.state.lastProcessedAttackKey !== payloadKey) {
               this.ctx.state.lastProcessedAttackKey = payloadKey;
               const turnDmg = this.extractTurnDamage(json);
               if (turnDmg > 0) {
                 const turnHonors = Math.floor(turnDmg / 100);
                 this.ctx.state.currentScore += turnHonors;
-                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-                console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+                if (targetHonors) {
+                  const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+                  console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+                } else {
+                  console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+                }
               }
             }
             if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
@@ -374,13 +399,22 @@ export class UniversalWorkflowEngine {
               this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
             }
 
+            if (this.isSoloQuest()) {
+              if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
+              return;
+            }
+
             const abilityDmg = this.extractTurnDamage(json);
             if (abilityDmg > 0) {
               const abilityHonors = Math.floor(abilityDmg / 100);
               this.ctx.state.currentScore += abilityHonors;
-              const targetHonors = this.template.targetScore || 1500000;
-              const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-              console.log(`[Combat] ⚡ Skill Damage: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+              const targetHonors = this.template.targetScore;
+              if (targetHonors) {
+                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+                console.log(`[Combat] ⚡ Skill Damage: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+              } else {
+                console.log(`[Combat] ⚡ Skill Damage: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+              }
             }
 
             const abilityPoint =
@@ -396,6 +430,11 @@ export class UniversalWorkflowEngine {
         if (url.includes('summon_result.json')) {
           const json = await res.json().catch(() => null);
           if (json) {
+            if (this.isSoloQuest()) {
+              if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
+              return;
+            }
+
             const summonPoint =
               (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
               (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
@@ -407,9 +446,13 @@ export class UniversalWorkflowEngine {
               if (summonDmg > 0) {
                 const summonHonors = Math.floor(summonDmg / 100);
                 this.ctx.state.currentScore += summonHonors;
-                const targetHonors = this.template.targetScore || 1500000;
-                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-                console.log(`[Combat] 🔮 Summon Damage: ${summonDmg.toLocaleString()} (~${summonHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+                const targetHonors = this.template.targetScore;
+                if (targetHonors) {
+                  const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
+                  console.log(`[Combat] 🔮 Summon Damage: ${summonDmg.toLocaleString()} (~${summonHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
+                } else {
+                  console.log(`[Combat] 🔮 Summon Damage: ${summonDmg.toLocaleString()} (~${summonHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+                }
               }
             }
             if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
@@ -526,7 +569,7 @@ export class UniversalWorkflowEngine {
   }
 
   private checkForBlueChestDrop(payload: any): boolean {
-    if (!payload) return false;
+    if (!payload || this.isSoloQuest()) return false;
     let found = false;
 
     if (payload.special_reward_flag || payload.special_reward || payload.reward_box_11) {
@@ -1027,11 +1070,13 @@ export class UniversalWorkflowEngine {
 
       console.log(`[Run ${runNumber}] Completed in ${(runDuration / 1000).toFixed(1)}s | Honors: ${this.ctx.state.currentScore.toLocaleString()} pt | Overall: ${totalCompleted}/${runs} runs`);
 
-      if ((this.template as any).delayBetweenRunsMs) {
-        await new Promise(r => setTimeout(r, (this.template as any).delayBetweenRunsMs));
-      } else {
-        await logNormalDelay(400, 0.15);
-      }
+      // Human motor inter-run randomize delay across all workflows
+      const customInterRun = this.template.interRunDelayMs ?? this.template.delayBetweenRunsMs;
+      await interRunHumanDelay({
+        speedProfile: (this.template.speedProfile || getSpeedProfile() || 'fast') as SpeedProfile,
+        customDelayMs: customInterRun,
+        humanMotor: this.template.humanMotor !== false
+      });
     }
 
     const totalDurationMs = Date.now() - startTime;
@@ -1306,9 +1351,10 @@ export class UniversalWorkflowEngine {
       case 'wait_random':
       case 'wait_randomize':
         {
-          const min = step.minMs || 300;
-          const max = step.maxMs || 800;
+          const min = step.minMs || 500;
+          const max = step.maxMs || 1500;
           const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+          console.log(`[Combat] ⏳ Random delay: ${delay}ms`);
           await new Promise(r => setTimeout(r, delay));
         }
         return true;

@@ -43,6 +43,7 @@ function verifyStepActions(steps: any[], fileName: string) {
 
 let allValid = true;
 let totalValidated = 0;
+const seenSignatures = new Map<string, string>();
 
 for (const file of templateFiles) {
   const filePath = path.join(templatesDir, file);
@@ -68,6 +69,23 @@ for (const file of templateFiles) {
     if (parsedFromDsl.steps.length !== json.steps.length) {
       throw new Error(`DSL round-trip step count mismatch: expected ${json.steps.length}, got ${parsedFromDsl.steps.length}`);
     }
+
+    // Gate 5: Duplicate Workflow Prevention (Zero Redundancy Under Different Names)
+    const workflowSignature = JSON.stringify({
+      questUrl: json.questUrl,
+      questId: json.questId,
+      divisionId: json.divisionId,
+      sector: json.sector,
+      targetEnemy: json.targetEnemy,
+      element: json.element,
+      raidSlot: json.raidSlot,
+      targetScore: json.targetScore,
+      steps: json.steps
+    });
+    if (seenSignatures.has(workflowSignature)) {
+      throw new Error(`Duplicate workflow pipeline detected! "${file}" is functionally identical to "${seenSignatures.get(workflowSignature)}"`);
+    }
+    seenSignatures.set(workflowSignature, file);
 
     console.log(`  ✅ [PASS] ${baseName.padEnd(35, ' ')} | ${String(json.steps.length).padStart(2, ' ')} steps | ${json.speedProfile || 'fast'} | Schema Valid & DSL Verified`);
     totalValidated++;

@@ -3,6 +3,8 @@
   "description": "Optimal Smart Full Auto battle loop for Goliath Triune (Earth Zone Boss, Zone Goliath / Here Be Staves Stage 3): Host cost 30 AAP + Goliath Rib x1 + Goliath Organ x1 + Goliath Core x1. Turn 1 Quick Call + Adaptive Wind Tactical Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Multi-turn fast loop canceling Demolition and Descorrer omens until victory -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
   "element": "Wind",
+  "sector": "Zone Goliath Core (The Triune)",
+  "targetEnemy": "Goliath Triune",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

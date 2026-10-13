@@ -11,6 +11,8 @@ export interface IScreenDiagnosticCallbacks {
   claimPendingBattles: (logPath: string, currentRuns: number, returnUrl?: string) => Promise<number>;
   waitForBattleToMount: (timeoutMs?: number) => Promise<boolean>;
   resolveLingeringState: () => Promise<void>;
+  getReplicardStageHash?: () => string;
+  waitForAndDismissReplicardStagePopups?: (timeoutMs?: number) => Promise<boolean>;
 }
 
 /**
@@ -462,15 +464,62 @@ export class ScreenDiagnosticService {
       }
 
       case 'COMMUNICATION_ERROR': {
-        console.log('[Deep Analysis] 🌐 Communication error detected. Reloading page...');
+        console.log('[Deep Analysis] 🌐 Communication error detected. Resolving dialog...');
         await this.page.evaluate(() => {
           const ok = document.querySelector('.pop-usual .btn-usual-ok, .btn-usual-ok') as HTMLElement;
-          if (ok) ok.click();
-          else window.location.reload();
+          if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
+            ok.click();
+          }
         }).catch(() => null);
-        await logNormalDelay(1500, 0.15);
-        recovered = true;
-        reason = 'Reloaded page after communication error';
+        await logNormalDelay(600, 0.15);
+
+        const questUrl = (this.ctx?.template?.questUrl || '').toLowerCase();
+        const stageUrl = (this.ctx?.template?.stageUrl || '').toLowerCase();
+        const name = (this.ctx?.template?.name || '').toLowerCase();
+        const isReplicard = questUrl.includes('replicard') ||
+          questUrl.includes('arcarum') ||
+          stageUrl.includes('replicard') ||
+          name.includes('replicard') ||
+          name.includes('arcarum') ||
+          name.includes('cocytus') ||
+          name.includes('fortress') ||
+          name.includes('paragon') ||
+          Boolean(this.ctx?.template?.divisionId) ||
+          Boolean(this.ctx?.template?.sector) ||
+          questUrl.includes('816131') ||
+          questUrl.includes('819131') ||
+          questUrl.includes('812051');
+
+        if (isReplicard) {
+          const stageHash = this.callbacks?.getReplicardStageHash
+            ? this.callbacks.getReplicardStageHash()
+            : (this.ctx?.template?.stageUrl
+              ? (this.ctx.template.stageUrl.includes('#') ? '#' + this.ctx.template.stageUrl.split('#')[1] : this.ctx.template.stageUrl)
+              : (questUrl.match(/replicard\/(?:supporter|stage)\/(\d+)/i) ? `#replicard/stage/${questUrl.match(/replicard\/(?:supporter|stage)\/(\d+)/i)![1]}` : '#replicard/stage/7'));
+
+          console.log(`[Deep Analysis] Replicard communication error encountered. Heading to stage map (${stageHash}) to settle pending rewards...`);
+          await this.page.evaluate((hash: string) => {
+            window.location.hash = hash;
+          }, stageHash).catch(() => null);
+          await logNormalDelay(800, 0.15);
+
+          if (this.callbacks?.waitForAndDismissReplicardStagePopups) {
+            await this.callbacks.waitForAndDismissReplicardStagePopups(6000);
+          } else {
+            await this.dismissPopupModal();
+          }
+          recovered = true;
+          reason = `Recovered Replicard communication error via stage map (${stageHash}) settlement`;
+        } else {
+          await this.page.evaluate(() => {
+            window.location.reload();
+          }).catch(() => null);
+          await logNormalDelay(1500, 0.15);
+          recovered = true;
+          reason = 'Reloaded page after communication error';
+        }
         break;
       }
 

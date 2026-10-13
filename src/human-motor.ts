@@ -77,6 +77,88 @@ export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<vo
   await new Promise(resolve => setTimeout(resolve, Math.max(minDelay, duration)));
 }
 
+export interface InterRunDelayOptions {
+  speedProfile?: SpeedProfile;
+  customDelayMs?: number | [number, number];
+  humanMotor?: boolean;
+}
+
+/**
+ * Computes and executes an organic, biomechanically randomized pause between workflow runs.
+ * Applies Gaussian log-normal jitter and occasional natural human hesitation to mirror authentic player pacing.
+ * Returns the exact millisecond duration waited.
+ */
+export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Promise<number> {
+  const profile = options.speedProfile || getSpeedProfile() || 'fast';
+  const humanMotor = options.humanMotor !== false;
+
+  if (!humanMotor) {
+    const minDelay = config.isProduction ? 50 : 150;
+    await new Promise(r => setTimeout(r, minDelay));
+    return minDelay;
+  }
+
+  // 1. Explicit custom override: [min, max] range or number
+  if (options.customDelayMs !== undefined) {
+    if (Array.isArray(options.customDelayMs)) {
+      const [minMs, maxMs] = options.customDelayMs;
+      const low = Math.min(minMs, maxMs);
+      const high = Math.max(minMs, maxMs);
+      const span = high - low;
+      const jittered = Math.max(low, Math.min(high, low + span * 0.5 + sampleGaussian(0, span * 0.18)));
+      const duration = Math.round(jittered);
+      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${duration}ms (explicit range [${low}, ${high}]ms)...`);
+      await new Promise(r => setTimeout(r, duration));
+      return duration;
+    } else if (typeof options.customDelayMs === 'number' && options.customDelayMs > 0) {
+      const base = options.customDelayMs;
+      const jittered = Math.max(Math.round(base * 0.5), Math.round(base + sampleGaussian(0, base * 0.12)));
+      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${jittered}ms (target ${base}ms with Gaussian jitter)...`);
+      await new Promise(r => setTimeout(r, jittered));
+      return jittered;
+    }
+  }
+
+  // 2. Default profile-tuned Gaussian log-normal distribution
+  let baselineMedian = 1600;
+  let shape = 0.24;
+  let hesitationChance = 0.035;
+  let hesitationMedian = 1400;
+
+  if (profile === 'turbo') {
+    baselineMedian = 750;
+    shape = 0.20;
+    hesitationChance = 0.01;
+    hesitationMedian = 500;
+  } else if (profile === 'stealth') {
+    baselineMedian = 3200;
+    shape = 0.30;
+    hesitationChance = 0.07;
+    hesitationMedian = 2500;
+  }
+
+  if (config.isProduction) {
+    baselineMedian = Math.max(250, baselineMedian * 0.25);
+    hesitationChance = 0;
+  }
+
+  const mu = Math.log(baselineMedian);
+  let duration = Math.exp(sampleGaussian(mu, shape));
+
+  if (Math.random() < hesitationChance) {
+    const hesitation = Math.exp(sampleGaussian(Math.log(hesitationMedian), 0.28));
+    duration += hesitation;
+  }
+
+  const minFloor = profile === 'turbo' ? 400 : (profile === 'fast' ? 950 : 1800);
+  const maxCeil = profile === 'turbo' ? 1400 : (profile === 'fast' ? 3800 : 8000);
+  const finalDuration = Math.round(Math.max(minFloor, Math.min(maxCeil, duration)));
+
+  console.log(`[HumanMotor] 🎲 Natural inter-run pause: ${finalDuration}ms (${profile.toUpperCase()} profile, Gaussian jitter)...`);
+  await new Promise(r => setTimeout(r, finalDuration));
+  return finalDuration;
+}
+
 /**
  * Evaluates a cubic Bézier curve at parameter t in [0, 1].
  */

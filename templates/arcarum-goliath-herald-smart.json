@@ -2,6 +2,8 @@
   "name": "Arcarum Sandbox - Zone Goliath Sephira Heralds (Smart Fast OTK)",
   "description": "Fast 1-turn burst for Zone Goliath Sephira Heralds (Herald of The Tower / The Hanged Man / Death): Grants +100% Sephira Gauge gain rate (Tidings of Sephira) for 1 hour. Turn 1 Quick Call + Burst Skills -> Attack -> 350ms Wait & Reload -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
+  "sector": "Zone Goliath Dynamic Heralds",
+  "targetEnemy": "Sephira Heralds",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

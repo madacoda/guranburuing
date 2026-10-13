@@ -3,6 +3,7 @@ import { HTTPResponse, Page } from 'puppeteer-core';
 import { humanizedClick, logNormalDelay, sampleGaussian, getSpeedProfile } from '../../human-motor.js';
 import { UniversalContext } from './types.js';
 import { config } from '../../config.js';
+import { isSoloWorkflowTemplate } from '../../types/workflow.types.js';
 
 /**
  * Service orchestrating combat readiness, turn polling, honors synchronization,
@@ -16,7 +17,16 @@ export class CombatResolutionService {
     return this.ctx.page;
   }
 
+  public isSoloQuest(): boolean {
+    return isSoloWorkflowTemplate(this.ctx?.template);
+  }
+
   public async syncCurrentHonors(): Promise<number> {
+    // Solo quests (Arcarum, Replicard, Fate Story, etc.) have no multi-raid honors or blue chests
+    if (this.isSoloQuest()) {
+      return 0;
+    }
+
     try {
       const result = await this.page.evaluate((cachedId, accountName) => {
         const stage = (window as any).stage;
@@ -86,29 +96,6 @@ export class CombatResolutionService {
           }
         }
 
-        // 7. Authoritative Solo / Replicard Boss Damage tracking (1 pt = 100 dmg)
-        const rawBoss = pJsn?.boss?.param || pJsn?.boss || stage?.gEnemyStatus || stage?.gGameStatus?.boss?.param || stage?.gGameStatus?.boss;
-        const bosses = Array.isArray(rawBoss) ? rawBoss : (rawBoss?.param && Array.isArray(rawBoss.param) ? rawBoss.param : Object.values(rawBoss || {}));
-        if (bosses.length > 0) {
-          let totalMaxHp = 0;
-          let totalCurHp = 0;
-          for (const b of bosses) {
-            if (b) {
-              const bMax = parseInt(String(b.hpmax || 0), 10);
-              const bCur = parseInt(String(b.hp || 0), 10);
-              if (!isNaN(bMax) && bMax > 0) {
-                totalMaxHp += bMax;
-                totalCurHp += !isNaN(bCur) ? Math.min(Math.max(bCur, 0), bMax) : 0;
-              }
-            }
-          }
-          if (totalMaxHp > 0 && totalMaxHp > totalCurHp) {
-            const bossDmg = totalMaxHp - totalCurHp;
-            const soloHonors = Math.floor(bossDmg / 100);
-            if (soloHonors > 0) return { score: soloHonors, userId: detectedUserId };
-          }
-        }
-
         return { score: 0, userId: detectedUserId };
       }, this.ctx.state.myUserId, this.ctx.state.playerName || '').catch(() => ({ score: 0, userId: '' }));
 
@@ -118,9 +105,13 @@ export class CombatResolutionService {
 
       if (result.score > this.ctx.state.currentScore) {
         this.ctx.state.currentScore = result.score;
-        const target = this.ctx.template.targetScore || 1500000;
-        const pct = ((this.ctx.state.currentScore / target) * 100).toFixed(1);
-        console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${target.toLocaleString()} pt (${pct}%)`);
+        if (this.ctx.template.targetScore) {
+          const target = this.ctx.template.targetScore;
+          const pct = ((this.ctx.state.currentScore / target) * 100).toFixed(1);
+          console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${target.toLocaleString()} pt (${pct}%)`);
+        } else {
+          console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        }
       }
       return this.ctx.state.currentScore;
     } catch {
@@ -367,7 +358,7 @@ export class CombatResolutionService {
         if (cjs?.Tween?.tick) cjs.Tween.tick(2000, false);
 
         const atk = document.querySelector('.btn-attack-start') as HTMLElement;
-        if (atk && (atk.classList.contains('display-on') || !atk.classList.contains('display-off')) && !atk.classList.contains('lock') && atk.offsetWidth > 0) {
+        if (atk && atk.classList.contains('display-on') && !atk.classList.contains('lock') && !atk.classList.contains('display-off') && atk.offsetWidth > 0) {
           return true;
         }
 
@@ -638,7 +629,7 @@ export class CombatResolutionService {
 
     const targetUrl = this.ctx.template.questUrl || '';
     const isAssistRaid = targetUrl.includes('assist') || (this.ctx.template.raidSlots && this.ctx.template.raidSlots.length > 0);
-    const isReplicard = targetUrl.includes('replicard') || targetUrl.includes('819131') || targetUrl.includes('815091') || targetUrl.includes('816091') || targetUrl.includes('819141') || targetUrl.includes('819151') || targetUrl.includes('819161') || targetUrl.includes('819171');
+    const isReplicard = this.isReplicardWorkflow();
     const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
     const isStillCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(curHash) || curHash.includes('replicard/battle');
 
@@ -649,12 +640,20 @@ export class CombatResolutionService {
         await logNormalDelay(800, 0.15);
       }
     } else if (isReplicard) {
-      if (isStillCombatHash || curHash.includes('result')) {
-        const destHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : '#replicard/stage/10';
-        console.log(`[Workflow] Replicard run concluded. Returning to quest URL (${destHash})...`);
-        await this.page.evaluate((hash: string) => { window.location.hash = hash; }, destHash).catch(() => null);
+      const stageHash = this.getReplicardStageHash();
+      if (isStillCombatHash || curHash.includes('result') || !curHash.includes('replicard/stage')) {
+        console.log(`[Workflow] Replicard battle concluded. Heading to stage map (${stageHash}) for reward settlement...`);
+        await this.page.evaluate((hash: string) => {
+          if (window.location.hash === hash) {
+            window.location.reload();
+          } else {
+            window.location.hash = hash;
+          }
+        }, stageHash).catch(() => null);
         await logNormalDelay(600, 0.15);
       }
+      // Await and dismiss stage completion rewards, Sephira box modals, and AAP bonus
+      await this.waitForAndDismissReplicardStagePopups(6000);
     } else if (isStillCombatHash || curHash.includes('result')) {
       const destHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : '#quest/index';
       console.log(`[Workflow] Quest concluded. Returning to quest URL (${destHash})...`);
@@ -663,6 +662,123 @@ export class CombatResolutionService {
     }
 
     return true;
+  }
+
+  /**
+   * Identifies whether the active workflow is an Arcarum / Replicard Sandbox activity.
+   */
+  public isReplicardWorkflow(): boolean {
+    const targetUrl = (this.ctx.template.questUrl || '').toLowerCase();
+    const stageUrl = (this.ctx.template.stageUrl || '').toLowerCase();
+    const name = (this.ctx.template.name || '').toLowerCase();
+    return (
+      targetUrl.includes('replicard') ||
+      targetUrl.includes('arcarum') ||
+      stageUrl.includes('replicard') ||
+      name.includes('replicard') ||
+      name.includes('arcarum') ||
+      name.includes('cocytus') ||
+      name.includes('fortress') ||
+      name.includes('paragon') ||
+      Boolean(this.ctx.template.divisionId) ||
+      Boolean(this.ctx.template.sector) ||
+      targetUrl.includes('816131') || // Xeno Cocytus Militis
+      targetUrl.includes('819131') || // Prometheus Militis
+      targetUrl.includes('815091') ||
+      targetUrl.includes('816091') ||
+      targetUrl.includes('819141') ||
+      targetUrl.includes('819151') ||
+      targetUrl.includes('819161') ||
+      targetUrl.includes('819171') ||
+      targetUrl.includes('812111') ||
+      targetUrl.includes('812051') || // Faymian Fortress
+      targetUrl.includes('816071') ||
+      targetUrl.includes('816031')
+    );
+  }
+
+  /**
+   * Resolves the canonical Replicard stage map hash (e.g. #replicard/stage/7).
+   */
+  public getReplicardStageHash(): string {
+    if (this.ctx.template.stageUrl) {
+      return this.ctx.template.stageUrl.includes('#')
+        ? '#' + this.ctx.template.stageUrl.split('#')[1]
+        : this.ctx.template.stageUrl;
+    }
+    const questUrl = this.ctx.template.questUrl || '';
+    const match = questUrl.match(/replicard\/(?:supporter|stage)\/(\d+)/i);
+    if (match && match[1]) {
+      return `#replicard/stage/${match[1]}`;
+    }
+    return '#replicard/stage/7';
+  }
+
+  /**
+   * Navigates to or waits on the Replicard stage map, waiting for and dismissing any
+   * post-combat reward popups, Sephira box modals, AAP bonus notifications, or drop screens.
+   */
+  public async waitForAndDismissReplicardStagePopups(maxWaitMs = 6000): Promise<boolean> {
+    const startTime = Date.now();
+    let anyDismissed = false;
+    let cleanCycles = 0;
+
+    console.log('[Replicard] Awaiting stage settlement & reward popups...');
+    await logNormalDelay(600, 0.1);
+
+    while (Date.now() - startTime < maxWaitMs) {
+      if (this.ctx.state.stopRequested) return anyDismissed;
+
+      const dismissed = await this.page.evaluate(() => {
+        const popups = Array.from(document.querySelectorAll<HTMLElement>(
+          '.pop-usual, #pop, .prt-popup-body, .pop-stage-result, .pop-sephira-box, .pop-treasure-box, .pop-gauge-box, .pop-show'
+        )).filter(el => {
+          if (!el) return false;
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && (el.offsetWidth > 0 || el.offsetHeight > 0);
+        });
+
+        if (popups.length === 0) return false;
+
+        for (const pop of popups) {
+          const btn = pop.querySelector<HTMLElement>(
+            '.btn-usual-ok, .btn-usual-close, .btn-close, .btn-settle, .btn-ok, .btn-result-close, .btn-sephira-close, .se-quest-start'
+          );
+          if (btn && btn.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(btn).trigger('tap');
+            btn.click();
+            return true;
+          }
+        }
+
+        const globalOk = document.querySelector<HTMLElement>('#pop .btn-usual-ok, .pop-usual .btn-usual-ok, .btn-usual-ok.pop-close');
+        if (globalOk && globalOk.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(globalOk).trigger('tap');
+          globalOk.click();
+          return true;
+        }
+
+        return false;
+      }).catch(() => false);
+
+      if (dismissed) {
+        anyDismissed = true;
+        cleanCycles = 0;
+        console.log('[Replicard] Dismissed stage reward / Sephira popup modal.');
+        await logNormalDelay(700, 0.15);
+      } else {
+        cleanCycles++;
+        // If clean for at least 2 consecutive checks and at least 1.5s passed on stage, proceed
+        if (cleanCycles >= 2 && (Date.now() - startTime >= 1500)) {
+          break;
+        }
+        await logNormalDelay(400, 0.1);
+      }
+    }
+
+    return anyDismissed;
   }
 
   public async resolveLingeringState(): Promise<void> {

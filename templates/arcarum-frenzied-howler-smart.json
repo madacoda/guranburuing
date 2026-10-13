@@ -3,6 +3,8 @@
   "description": "Optimal Smart Full Auto battle loop for Frenzied Howler (Dark Yellow Defender, Death path, Zone Goliath Stage 3): Spawns from Writhing Despair / Temptation's Guide gauge clears. Turn 1 Quick Call + Light Burst Skills -> Attack -> 350ms Wait & Reload (Animation Skip) -> Confirm Result. Drops: Goliath Core, Darkborne Astra, Death Idean",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
   "element": "Light",
+  "sector": "Yellow Sector (Death)",
+  "targetEnemy": "Frenzied Howler",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

@@ -1,0 +1,76 @@
+{
+  "name": "Raid - The World (HL)",
+  "description": "Multi-battle assist raid farmer for The World (HL): Finder Tab 1, C4S1 -> C3S1 -> C3S2 -> C2S1 -> Attack -> Reload -> Random Delay -> Attack -> Reload -> Rerun.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "mode": "assist",
+  "targetEnemy": "The World",
+  "raidSlot": 1,
+  "supporterPriority": [
+    "Bahamut",
+    "Hades",
+    "Zeus",
+    "Lucifer",
+    "Kaguya"
+  ],
+  "speedProfile": "fast",
+  "defaultRuns": 500,
+  "autoBerry": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "minBatchClaim": 3,
+  "maxBatchClaim": 5,
+  "evaluatorStrategy": "leech",
+  "minHpPct": 1,
+  "maxHpPct": 100,
+  "minPlayers": 1,
+  "maxPlayers": 29,
+  "minRaidScore": 0,
+  "steps": [
+    {
+      "code": "skill",
+      "character": 4,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 3,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "wait_random",
+      "minMs": 500,
+      "maxMs": 1500
+    },
+    {
+      "code": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

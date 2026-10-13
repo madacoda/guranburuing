@@ -233,6 +233,19 @@ export class RaidEvaluator {
       };
     }
 
+    // 2b. Hard absolute maximum HP threshold (customizable on workflow)
+    if (options.maxHpPct !== undefined && hpPct > options.maxHpPct) {
+      flags |= RaidDisqualificationReason.HP_ABOVE_MAX;
+      flagSummaries.push('HP_ABOVE_MAX');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `HP (${hpPct}%) is above maximum threshold (${options.maxHpPct}%)`,
+        details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
+      };
+    }
+
     // 3. Hard maximum player ceiling
     if (players > maxP) {
       flags |= RaidDisqualificationReason.PLAYERS_EXCEEDED;
@@ -246,8 +259,9 @@ export class RaidEvaluator {
       };
     }
 
-    // 4. Critical burn rate / Doomed raid disqualification
-    if (hpPct < 30 && players >= 5) {
+    // 4. Critical burn rate / Doomed raid disqualification (honored if custom minHpPct is unspecified or >= 30)
+    const hasCustomLowMinHp = options.minHpPct !== undefined && options.minHpPct < 30;
+    if (!hasCustomLowMinHp && hpPct < 30 && players >= 5) {
       flags |= RaidDisqualificationReason.BURN_RATE_EXCESSIVE;
       flagSummaries.push('BURN_RATE_EXCESSIVE');
       return {
@@ -259,7 +273,7 @@ export class RaidEvaluator {
       };
     }
 
-    if (hpPct < 40 && players >= 8) {
+    if (!hasCustomLowMinHp && hpPct < 40 && players >= 8) {
       flags |= RaidDisqualificationReason.BURN_RATE_EXCESSIVE;
       flagSummaries.push('BURN_RATE_EXCESSIVE');
       return {
@@ -274,7 +288,7 @@ export class RaidEvaluator {
     const effectivePlayers = Math.max(players, 1);
     const hpPerPlayer = round2(hpPct / effectivePlayers);
 
-    if (hpPerPlayer < 5.0) {
+    if (!hasCustomLowMinHp && hpPerPlayer < 5.0) {
       flags |= RaidDisqualificationReason.HP_PER_PLAYER_TOO_LOW;
       flagSummaries.push('HP_PER_PLAYER_TOO_LOW');
       return {
@@ -438,15 +452,16 @@ export class RaidEvaluator {
       };
     }
 
-    // 5. Hard maximum HP ceiling check (HP too high will take minutes to clear)
-    if (hpPct > maxHp + 15) {
+    // 5. Hard maximum HP ceiling check
+    const hardMaxHp = options.maxHpPct !== undefined ? options.maxHpPct : maxHp + 15;
+    if (hpPct > hardMaxHp) {
       flags |= RaidDisqualificationReason.HP_ABOVE_MAX;
       flagSummaries.push('HP_ABOVE_MAX');
       return {
         score: 0,
         grade: 'F',
         viable: false,
-        reason: `HP (${hpPct}%) significantly exceeds OTK burst limit (${maxHp}%): raid will take too long to clear`,
+        reason: `HP (${hpPct}%) exceeds maximum threshold (${options.maxHpPct ?? maxHp}%)`,
         details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
       };
     }
@@ -457,12 +472,19 @@ export class RaidEvaluator {
     // 6. HP Quality Score (0 to 55 points)
     let hpScore = 0;
     if (hpPct <= maxHp) {
-      if (hpPct >= 3 && hpPct <= 12) {
-        hpScore = 55 - (Math.abs(hpPct - 6) * 0.7);
-      } else if (hpPct > 12) {
-        hpScore = 50 - ((hpPct - 12) / 8) * 12;
+      if (maxHp <= 25) {
+        if (hpPct >= 3 && hpPct <= 12) {
+          hpScore = 55 - (Math.abs(hpPct - 6) * 0.7);
+        } else if (hpPct > 12) {
+          hpScore = Math.max(10, 50 - ((hpPct - 12) / 8) * 12);
+        } else {
+          hpScore = 46 + (hpPct - 1) * 2;
+        }
       } else {
-        hpScore = 46 + (hpPct - 1) * 2;
+        // Generalized leech/burst scoring for wide custom maxHp ranges
+        const span = Math.max(1, maxHp - minHp);
+        const norm = Math.max(0, Math.min(1, (hpPct - minHp) / span));
+        hpScore = Math.round(50 - (norm * 25)); // 50 (at minHp) down to 25 (at maxHp)
       }
     } else {
       hpScore = Math.max(5, 35 - ((hpPct - maxHp) / 15) * 25);

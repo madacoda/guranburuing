@@ -97,9 +97,12 @@ export interface WorkflowTemplate {
   name: string;
   description?: string;
   questUrl: string;
+  stageUrl?: string;        // Optional Replicard stage map URL (e.g. 'https://game.granbluefantasy.jp/#replicard/stage/7')
   mode?: 'combat' | 'routine' | 'assist'; // Execution mode: 'combat' (default quest run), 'routine' (page/dialog/loop automation), 'assist' (raid finder)
   questId?: string | number; // Specific quest ID for stage maps (e.g. 819141 for Prometheus Militis)
   divisionId?: number;      // Replicard division ID (e.g. 3 for Serenity Ridge: Slopes)
+  sector?: string;          // Replicard sector (e.g. 'Pink Sector (The Hanged Man)', 'Green Sector (The Tower)')
+  targetEnemy?: string;     // Target enemy or encounter name (e.g. 'Avatar of Avarice', 'Goliath Keeper')
   element?: string;         // Target or player element (e.g. 'Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark')
   supporterPriority?: string[];
   steps: WorkflowStep[];
@@ -126,6 +129,35 @@ export interface WorkflowTemplate {
   minRaidScore?: number;    // Minimum viability score (0-100) to join raid (default: 40)
   evaluatorStrategy?: 'honor' | 'otk_burst' | 'leech'; // Scoring model: 'honor' (high HP, low players) or 'otk_burst' / 'leech' (low HP <= 20%, active players >= 3)
   logPath?: string;         // Custom path to drop log (e.g. 'logs/gb-pbhl.md')
+  interRunDelayMs?: number | [number, number]; // Explicit min-max or fixed delay between runs (with Gaussian jitter)
+  delayBetweenRunsMs?: number | [number, number]; // Alias for interRunDelayMs
+}
+
+/**
+ * Returns true if the workflow template represents a Solo quest (Arcarum, Replicard, Fate Episode, etc.).
+ * Solo quests do not feature raid honors, multi-player rankings, or Blue Chests.
+ */
+export function isSoloWorkflowTemplate(tmpl?: WorkflowTemplate | null): boolean {
+  if (!tmpl) return false;
+  if (tmpl.isSolo === true) return true;
+  if (tmpl.isSolo === false) return false;
+  const qUrl = (tmpl.questUrl || '').toLowerCase();
+  if (qUrl.includes('assist')) return false;
+  const mode = (tmpl.mode || '').toLowerCase();
+  if (mode === 'assist') return false;
+  const name = (tmpl.name || '').toLowerCase();
+  return (
+    qUrl.includes('replicard') ||
+    qUrl.includes('arcarum') ||
+    qUrl.includes('fate') ||
+    mode === 'single' ||
+    mode === 'solo' ||
+    name.includes('arcarum') ||
+    name.includes('replicard') ||
+    name.includes('paragon') ||
+    name.includes('fortress') ||
+    name.includes('fate')
+  );
 }
 
 export interface WorkflowRunResult {

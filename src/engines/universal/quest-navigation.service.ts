@@ -42,12 +42,19 @@ export class QuestNavigationService {
 
     // Check if lingering in an actual unfinished battle or result screen
     const initHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-    const isReplicard = targetUrl.includes('replicard') ||
-      targetUrl.includes('819131') || targetUrl.includes('815091') ||
-      targetUrl.includes('816091') || targetUrl.includes('819141') ||
-      targetUrl.includes('819151') || targetUrl.includes('819161') ||
-      targetUrl.includes('819171') || targetUrl.includes('812111') ||
-      targetUrl.includes('816071') || targetUrl.includes('816031');
+    const isReplicard = this.deps.combatResolution.isReplicardWorkflow
+      ? this.deps.combatResolution.isReplicardWorkflow()
+      : (targetUrl.includes('replicard') ||
+        targetUrl.includes('819131') || targetUrl.includes('815091') ||
+        targetUrl.includes('816091') || targetUrl.includes('819141') ||
+        targetUrl.includes('819151') || targetUrl.includes('819161') ||
+        targetUrl.includes('819171') || targetUrl.includes('812111') ||
+        targetUrl.includes('816071') || targetUrl.includes('816031') ||
+        targetUrl.includes('816131') || targetUrl.includes('812051'));
+
+    if (isReplicard && this.deps.combatResolution.waitForAndDismissReplicardStagePopups) {
+      await this.deps.combatResolution.waitForAndDismissReplicardStagePopups(2500);
+    }
 
     if (initHash.includes('result')) {
       console.log(`[${this.ctx.accountId}] Lingering result screen detected (${initHash}). Settling rewards and proceeding...`);
@@ -449,9 +456,10 @@ export class QuestNavigationService {
       }
 
       const isOtk = this.ctx.template.evaluatorStrategy === 'otk_burst' || this.ctx.template.evaluatorStrategy === 'leech';
+      const hasCustomHp = this.ctx.template.minHpPct !== undefined || this.ctx.template.maxHpPct !== undefined;
       const evalOptions: RaidEvaluationOptions = {
-        strategy: this.ctx.template.evaluatorStrategy || 'honor',
-        minScore: this.ctx.template.minRaidScore ?? RaidEvaluator.DEFAULT_MIN_SCORE,
+        strategy: this.ctx.template.evaluatorStrategy || (hasCustomHp && (this.ctx.template.maxHpPct ?? 100) <= 50 ? 'leech' : 'honor'),
+        minScore: this.ctx.template.minRaidScore ?? (hasCustomHp ? 0 : RaidEvaluator.DEFAULT_MIN_SCORE),
         minHpPct: this.ctx.template.minHpPct ?? (isOtk ? 1 : RaidEvaluator.DEFAULT_MIN_HP),
         maxHpPct: this.ctx.template.maxHpPct ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MAX_HP : undefined),
         minPlayers: this.ctx.template.minPlayers ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MIN_PLAYERS : 1),

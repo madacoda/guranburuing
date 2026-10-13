@@ -2,6 +2,8 @@
   "name": "Leech Raid - Celeste Ater (Fast Leech)",
   "description": "High-speed raid leecher for Celeste Ater: Finder Tab 1, Zeus primal supporter, HP <= 20% & Players >= 3 for rapid clear, quick damage injection, and active assist recovery on 3 pending limits.",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "element": "Light",
+  "targetEnemy": "Celeste Ater",
   "raidSlot": 1,
   "supporterPriority": ["Zeus"],
   "evaluatorStrategy": "leech",

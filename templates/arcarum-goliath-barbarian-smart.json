@@ -3,6 +3,8 @@
   "description": "Sub-8s fast farming loop for Bloodstained Barbarian (Pink Sector 5-Gauge mob, Zone Goliath Stage 3): Primary Earth farm to spawn Avatar of Avarice (The Hanged Man Defender). Quick Summon + Wind Burst -> Attack -> 350ms Wait & Reload -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
   "element": "Wind",
+  "sector": "Pink Sector (The Hanged Man)",
+  "targetEnemy": "Bloodstained Barbarian",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

@@ -3,6 +3,8 @@
   "description": "Sub-8s fast farming loop for Earthshaking Panther (Green Sector 5-Gauge mob, Zone Goliath Stage 3): Primary Earth farm to spawn Goliath Keeper (The Tower Defender). Quick Summon + Wind Burst -> Attack -> 350ms Wait & Reload -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
   "element": "Wind",
+  "sector": "Green Sector (The Tower)",
+  "targetEnemy": "Earthshaking Panther",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

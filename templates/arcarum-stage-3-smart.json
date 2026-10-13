@@ -2,6 +2,8 @@
   "name": "Arcarum Sandbox - Zone Goliath Stage 3 (Smart Full Auto)",
   "description": "Universal Stage 3 (Zone Goliath / Here Be Staves) map controller: Navigates to #replicard/stage/3, scans active sector for available Defender (Avatar of Avarice, Goliath Keeper, Frenzied Howler) or active quest, initiates battle, and executes Smart Full Auto with 350ms reload animation skip",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/stage/3",
+  "sector": "Zone Goliath Stage 3 Hub",
+  "targetEnemy": "Stage 3 Autonomous Selector",
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,

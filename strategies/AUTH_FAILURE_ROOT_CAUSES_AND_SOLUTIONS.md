@@ -131,7 +131,7 @@ Start-Process $chromePath -ArgumentList $chromeArgs
 ```
 When `$chromeArgs` contained strings with nested quotes (e.g. `"--user-data-dir=`"$profileDir`"`"), PowerShell double-quoted the argument string when passing it to `CreateProcessW`:
 ```
---user-data-dir="\"C:\Users\hamad\.gbf-profiles\acc1\""
+--user-data-dir="\"C:\Users\<username>\.gbf-profiles\acc1\""
 ```
 Chromium parsed the literal backslashes and quote characters as part of the folder path. Instead of loading the authenticated profile, Chrome created or attached to an empty, corrupt profile directory, causing headless runs to immediately fail with zero cookies.
 
@@ -285,10 +285,10 @@ The session export and restore engine was upgraded to handle multi-domain and pa
 
 `scripts/launch-gbf-chrome.ps1` was re-engineered using Windows Management Instrumentation (WMI):
 1. **WMI Execution**: Uses `Invoke-CimMethod -ClassName Win32_Process -MethodName Create` with a single `$fullCmdLine` string. This completely eliminates PowerShell's argument re-quoting bug.
-2. **Normalized User Directory**: Standardized on `~/.gbf-profiles/acc1` (`C:\Users\hamad\.gbf-profiles\acc1`), guaranteeing full Windows DPAPI key inheritance and eliminating file locking collisions.
+2. **Normalized User Directory**: Standardized on `~/.gbf-profiles/acc1` (`%USERPROFILE%\.gbf-profiles\acc1`), guaranteeing full Windows DPAPI key inheritance and eliminating file locking collisions.
 3. **Anti-Detection & Cookie Flags**:
    - `--remote-debugging-port=9222`
-   - `--user-data-dir="C:\Users\hamad\.gbf-profiles\acc1"`
+   - `--user-data-dir="%USERPROFILE%\.gbf-profiles\acc1"`
    - `--disable-blink-features=AutomationControlled`
    - `--no-first-run --no-default-browser-check`
 
@@ -309,7 +309,7 @@ bun run daily
 ========================================================================
 Account:             acc1 (acc1)
 CDP Port:            9222
-Profile Directory:   C:\Users\hamad\.gbf-profiles\acc1
+Profile Directory:   %USERPROFILE%\.gbf-profiles\acc1
 Routine Template:    daily-universal
 Target Runs:         1
 Browser Mode:        HEADLESS (--headless=new)

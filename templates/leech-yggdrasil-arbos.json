@@ -2,6 +2,8 @@
   "name": "Leech Raid - Yggdrasil Arbos (Fast Leech)",
   "description": "High-speed raid leecher for Yggdrasil Arbos: Finder Tab 1, Zephyrus primal supporter, HP <= 20% & Players >= 3 for rapid clear, quick damage injection, and active assist recovery on 3 pending limits.",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "element": "Wind",
+  "targetEnemy": "Yggdrasil Arbos",
   "raidSlot": 1,
   "supporterPriority": ["Zephyrus"],
   "evaluatorStrategy": "leech",
