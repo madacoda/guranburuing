@@ -11,6 +11,7 @@ import {
   ARCARUM_ALIASES,
   ARCARUM_FAYM_PRESETS,
   ARCARUM_GOLIATH_PRESETS,
+  ARCARUM_KALENDAE_PRESETS,
   ARCARUM_JOCULATOR_PRESETS,
   ARCARUM_MUNDUS_PRESETS,
   ARCARUM_PRESETS,
@@ -22,6 +23,7 @@ export {
   ARCARUM_ALIASES,
   ARCARUM_FAYM_PRESETS,
   ARCARUM_GOLIATH_PRESETS,
+  ARCARUM_KALENDAE_PRESETS,
   ARCARUM_JOCULATOR_PRESETS,
   ARCARUM_MUNDUS_PRESETS,
   ARCARUM_PRESETS,
@@ -35,6 +37,12 @@ function printHelp(): void {
 ========================================================================
 Usage:
   bun src/cli/run-arcarum.ts [account] [target] [runs] [options]
+
+Zone Kalendae (Stage 6 / Here Might Be Swords) Targets:
+  Boss & Defenders:
+    stage6         - Universal Stage 6 Map Scanner & Auto-Defender Target
+    xeno-ifrit     - Xeno Ifrit Militis (Fire Boss, 25 AAP)
+                     Direct URL: #replicard/supporter/6/6/14/815131/25/0/25083
 
 Zone Joculator (Stage 7 / Here Be Swords) Targets:
   Boss & Defenders:

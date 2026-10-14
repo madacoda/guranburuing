@@ -744,11 +744,18 @@ export class UniversalWorkflowEngine {
     return this.combatExecution.isSoloQuest();
   }
 
-  private isManualWorkflow(): boolean {
+  public isManualWorkflow(): boolean {
     const mode = this.template.mode as string | undefined;
-    const isManualMode = mode === 'single' || mode === 'multi' || mode === 'routine';
-    const isRaidEvaluatorOrBurst = !!this.template.evaluatorStrategy || (this.template.speedProfile === 'turbo' && mode === 'assist');
-    return isManualMode && !isRaidEvaluatorOrBurst;
+    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
+    if (mode === 'assist' || mode === 'auto' || mode === 'smart_auto') return false;
+
+    const hasAuto = this.template.steps?.some(s => s.code === 'auto' || s.code === 'smart_full_auto');
+    if (hasAuto) return false;
+
+    const hasManualSteps = this.template.steps?.some(s =>
+      s.code === 'skill' || s.code === 'attack' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'wait_element'
+    );
+    return hasManualSteps || this.template.isSolo === true;
   }
 
   private createExecutionContext(): WorkflowExecutionContext {

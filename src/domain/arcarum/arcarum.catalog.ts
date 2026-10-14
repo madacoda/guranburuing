@@ -480,11 +480,42 @@ export const ARCARUM_JOCULATOR_PRESETS: Record<string, ArcarumPreset> = {
   }
 };
 
+// ============================================================================
+// Zone Kalendae (Stage 6 / Here Might Be Swords) Presets
+// ============================================================================
+export const ARCARUM_KALENDAE_PRESETS: Record<string, ArcarumPreset> = {
+  'stage6': {
+    id: 'stage6',
+    name: 'Zone Kalendae Universal Map',
+    templateId: 'arcarum-stage-6-smart',
+    sector: 'Zone Kalendae Stage 6 Hub',
+    divisionId: 6,
+    questId: '',
+    element: 'Water',
+    type: 'map',
+    aapCost: 20,
+    drops: 'Dynamic Sector Scanner & Defender Auto-Target'
+  },
+  'xeno-ifrit': {
+    id: 'xeno-ifrit',
+    name: 'Xeno Ifrit Militis',
+    templateId: 'arcarum-xeno-ifrit-militis',
+    sector: 'Kalendae Ridge: Stage 6 / Div 14',
+    divisionId: 14,
+    questId: '815131',
+    element: 'Fire',
+    type: 'boss',
+    aapCost: 25,
+    drops: 'Xeno Ifrit Militis weapons, Fire Luster, Veritas, Sephira Box'
+  }
+};
+
 // Merged authoritative preset registry
 export const ARCARUM_PRESETS: Record<string, ArcarumPreset> = {
   ...ARCARUM_MUNDUS_PRESETS,
   ...ARCARUM_GOLIATH_PRESETS,
   ...ARCARUM_FAYM_PRESETS,
+  ...ARCARUM_KALENDAE_PRESETS,
   ...ARCARUM_JOCULATOR_PRESETS
 };
 
@@ -523,6 +554,15 @@ export const ARCARUM_ALIASES: Record<string, string> = {
   'faymian_fortress': 'fortress',
   'faymian': 'fortress',
   'faym-fortress': 'fortress',
+
+  // Stage 6 (Zone Kalendae - Xeno Ifrit Militis)
+  'kalendae': 'stage6',
+  'stage-6': 'stage6',
+  'xeno-ifrit-militis': 'xeno-ifrit',
+  'xeno-ifrit': 'xeno-ifrit',
+  'ifrit-militis': 'xeno-ifrit',
+  'ifrit': 'xeno-ifrit',
+  'xenoifrit': 'xeno-ifrit',
 
   // Stage 7 (Zone Joculator - Lady of Redemption, Xeno Cocytus & Maiden of the Depths)
   'joculator': 'stage7',

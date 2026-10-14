@@ -29,12 +29,19 @@ export class CombatExecutionService {
     return this.ctx.page;
   }
 
-  private isManualWorkflow(): boolean {
+  public isManualWorkflow(): boolean {
     if (this.deps.isManualWorkflow) return this.deps.isManualWorkflow();
     const mode = this.ctx.template.mode as string | undefined;
-    const isManualMode = mode === 'single' || mode === 'multi' || mode === 'routine';
-    const isRaidEvaluatorOrBurst = !!this.ctx.template.evaluatorStrategy || (this.ctx.template.speedProfile === 'turbo' && mode === 'assist');
-    return isManualMode && !isRaidEvaluatorOrBurst;
+    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
+    if (mode === 'assist' || mode === 'auto' || mode === 'smart_auto') return false;
+
+    const hasAuto = this.ctx.template.steps?.some(s => s.code === 'auto' || s.code === 'smart_full_auto');
+    if (hasAuto) return false;
+
+    const hasManualSteps = this.ctx.template.steps?.some(s =>
+      s.code === 'skill' || s.code === 'attack' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'wait_element'
+    );
+    return hasManualSteps || this.ctx.template.isSolo === true;
   }
 
   /**
@@ -122,6 +129,16 @@ export class CombatExecutionService {
           await new Promise(r => setTimeout(r, delay));
           return true;
         }
+      case 'wait_element':
+        if (step.target) {
+          await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 5000 }).catch(() => null);
+        }
+        return true;
+      case 'wait_network':
+        if (step.waitForNetwork) {
+          await this.deps.combatResolution.waitForNetworkResponse(step.waitForNetwork, step.timeoutMs || 5000);
+        }
+        return true;
       default: return true;
     }
   }
@@ -1536,11 +1553,7 @@ export class CombatExecutionService {
       }
     }, isManual, config.TICKER_FPS).catch(() => null);
 
-    if (!isManual) {
-      await this.page.touchscreen.tap(240, 260).catch(() => null);
-      await this.page.mouse.click(240, 260).catch(() => null);
-      if (!isTurbo) await logNormalDelay(100, 0.1);
-    }
+    if (!isTurbo) await logNormalDelay(100, 0.1);
 
     await this.deps.combatResolution.syncCurrentHonors();
     const updatedTurn = await this.page.evaluate(() => {

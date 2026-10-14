@@ -36,6 +36,13 @@ const CANONICAL_ALIASES: Readonly<Record<string, string>> = {
   'xeno-cocytus': 'arcarum-xeno-cocytus-militis',
   'cocytus-militis': 'arcarum-xeno-cocytus-militis',
   'cocytus': 'arcarum-xeno-cocytus-militis',
+  'arcarum-xeno-ifrit-militis-rotation': 'arcarum-xeno-ifrit-militis',
+  'arcarum-xeno-ifrit-militis-smart': 'arcarum-xeno-ifrit-militis',
+  'arcarum-xeno-ifrit': 'arcarum-xeno-ifrit-militis',
+  'xeno-ifrit-militis': 'arcarum-xeno-ifrit-militis',
+  'xeno-ifrit': 'arcarum-xeno-ifrit-militis',
+  'ifrit-militis': 'arcarum-xeno-ifrit-militis',
+  'ifrit': 'arcarum-xeno-ifrit-militis',
 };
 
 const RX_TEMPLATE_EXT = /\.(json|txt|dsl|yaml|yml)$/i;

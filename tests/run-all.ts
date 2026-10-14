@@ -220,6 +220,11 @@ const TEST_SUITES: TestSuite[] = [
     description: 'Verify Xeno Cocytus Militis template, Quest 816131, Division 15, Paragon step equivalence, DSL round-trip, and Joculator presets'
   },
   {
+    name: 'Arcarum Stage 6 (Xeno Ifrit Militis) Template & Screen Guard Tests',
+    file: 'tests/test-arcarum-xeno-ifrit.ts',
+    description: 'Verify Xeno Ifrit Militis template, Quest 815131, Division 14, pre-skill screen load guard, random wait, step equivalence, and Kalendae presets'
+  },
+  {
     name: 'Human Behavioral Mimicry & Account Cadence Tests',
     file: 'tests/test-human-behavioral-mimicry.ts',
     description: 'Verify inventory supply auditing, 1st-of-month shop reset detection, cadence lifecycle, and Discord operator integration'

@@ -1,6 +1,7 @@
 {
   "name": "Arcarum Sandbox - Xeno Cocytus Militis (Targeted Burst Rotation)",
   "description": "Custom burst rotation for Xeno Cocytus Militis (Water Militis Boss, Zone Joculator Stage 7 / Div 15 / Quest 816131): C4S1 (ensured) -> Quick Call -> Reload -> C3S1 -> C2S1 -> C2S2 -> C1S1 -> C1S3 -> Attack -> Reload -> Summon #4 -> Attack -> Reload -> Summon #3 -> Attack -> Confirm Result / Rerun (Seamless Engine Enemy HP Telemetry)",
+  "mode": "combat",
   "questUrl": "https://game.granbluefantasy.jp/#replicard/supporter/7/7/15/816131/25/0/25083",
   "stageUrl": "https://game.granbluefantasy.jp/#replicard/stage/7",
   "questId": "816131",

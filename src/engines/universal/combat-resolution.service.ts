@@ -314,8 +314,6 @@ export class CombatResolutionService {
 
       if (isReady) {
         if (!isTurbo) {
-          await this.page.touchscreen.tap(240, 260).catch(() => null);
-          await this.page.mouse.click(240, 260).catch(() => null);
           await logNormalDelay(250, 0.12);
         }
         await this.getAndLogEnemyHp('Battle Start');
@@ -611,6 +609,34 @@ export class CombatResolutionService {
 
     const initialHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
     const isLingerCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initialHash) || initialHash.includes('replicard/battle');
+    if (this.isSoloQuest() && isLingerCombat && !(await this.isBattleEnded())) {
+      const enemy = await this.getAndLogEnemyHp('Pre-Result Verification');
+      if (enemy && !enemy.isDefeated && enemy.currentHp > 0) {
+        console.warn(`[Combat:Solo] ⚠️ Boss survived burst rotation with ${enemy.currentHp.toLocaleString()} HP (${enemy.hpPct.toFixed(1)}%). Executing cleanup attack...`);
+        for (let cleanupTurn = 1; cleanupTurn <= 3; cleanupTurn++) {
+          if (await this.isBattleEnded()) break;
+
+          await this.waitForCombatInputReady(3000);
+          const atkBtn = await this.page.waitForSelector('.btn-attack-start.display-on, .btn-attack-start:not(.display-off)', { visible: true, timeout: 3000 }).catch(() => null);
+          if (atkBtn) {
+            await humanizedClick(this.page, atkBtn);
+            await this.waitForNetworkResponse('normal_attack_result.json', 8000);
+            await logNormalDelay(350, 0.1);
+            await Promise.all([
+              this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => null),
+              this.page.evaluate(() => location.reload()).catch(() => null)
+            ]);
+            await logNormalDelay(350, 0.1);
+            await this.checkAndDismissProcessingTurnPopup();
+          }
+          if (await this.isBattleEnded()) {
+            console.log(`[Combat:Solo] 🏆 Boss defeated on cleanup turn ${cleanupTurn}!`);
+            break;
+          }
+        }
+      }
+    }
+
     if (isLingerCombat && await this.isBattleEnded()) {
       console.log('[Workflow] Battle ended but still on combat hash. Reloading to transition to result screen...');
       await Promise.all([
@@ -1134,8 +1160,17 @@ export class CombatResolutionService {
     return totalDmg;
   }
 
-  private isManualWorkflow(): boolean {
-    const isManualMode = this.ctx.template.mode === 'combat' && !this.ctx.template.steps.some(s => s.code === 'smart_full_auto' || s.code === 'auto');
-    return isManualMode || (this.ctx.template as any).manualMode === true;
+  public isManualWorkflow(): boolean {
+    const mode = this.ctx.template.mode as string | undefined;
+    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
+    if (mode === 'assist' || mode === 'auto' || mode === 'smart_auto') return false;
+
+    const hasAuto = this.ctx.template.steps?.some(s => s.code === 'auto' || s.code === 'smart_full_auto');
+    if (hasAuto) return false;
+
+    const hasManualSteps = this.ctx.template.steps?.some(s =>
+      s.code === 'skill' || s.code === 'attack' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'wait_element'
+    );
+    return hasManualSteps || this.ctx.template.isSolo === true;
   }
 }
