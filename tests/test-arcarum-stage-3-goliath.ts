@@ -186,27 +186,27 @@ try {
   const rerunStep = paragonJson.steps[paragonJson.steps.length - 1];
   assert(rerunStep.code === 'confirm_result', 'Terminal step is confirm_result (handles rerun & next battle loop)');
 
-  // 2. DSL Template Verification
-  const paragonDsl = TemplateParser.loadTemplate('arcarum-lilywhite-paragon-rotation');
-  assert(!!paragonDsl, 'Compiled arcarum-lilywhite-paragon-rotation.dsl successfully');
-  assert(paragonDsl.isSolo === true, 'DSL has isSolo: true via header declaration');
-  assert(paragonDsl.steps.length === 16, `DSL compiled to exact 16-step rotation (${paragonDsl.steps.length}/16 steps)`);
+  // 2. JSON-Only Policy & Canonical Alias Verification
+  const paragonAlias = TemplateParser.loadTemplate('arcarum-lilywhite-paragon-rotation');
+  assert(!!paragonAlias, 'Resolved arcarum-lilywhite-paragon-rotation alias to canonical JSON template');
+  assert(paragonAlias.isSolo === true, 'Canonical JSON template has isSolo: true');
+  assert(paragonAlias.steps.length === 16, `Canonical JSON template has exact 16-step rotation (${paragonAlias.steps.length}/16 steps)`);
 
-  const dslValidation = validateWorkflowTemplate(paragonDsl);
-  assert(dslValidation.valid, `DSL schema validation passed (Errors: ${dslValidation.errors.join(', ') || 'None'})`);
+  const dslValidation = validateWorkflowTemplate(paragonAlias);
+  assert(dslValidation.valid, `JSON schema validation passed (Errors: ${dslValidation.errors.join(', ') || 'None'})`);
 
-  const dslC4s1 = paragonDsl.steps[0];
-  assert(dslC4s1.code === 'skill' && dslC4s1.character === 4 && dslC4s1.skill === 1, 'DSL Step 0 parsed as Character 4 Skill 1');
-  assert(dslC4s1.ensureCast === true, 'DSL "c4s1 (make sure clicked or casted)" compiled with ensureCast: true');
+  const dslC4s1 = paragonAlias.steps[0];
+  assert(dslC4s1.code === 'skill' && dslC4s1.character === 4 && dslC4s1.skill === 1, 'Step 0 is Character 4 Skill 1');
+  assert(dslC4s1.ensureCast === true, 'Step 0 C4S1 has ensureCast: true');
 
-  const dslSummon4 = paragonDsl.steps.find((s: any) => s.code === 'summon' && s.slot === 4);
-  assert(!!dslSummon4, 'DSL "summon #4" correctly compiled to summon slot 4');
+  const dslSummon4 = paragonAlias.steps.find((s: any) => s.code === 'summon' && s.slot === 4);
+  assert(!!dslSummon4, 'Contains summon slot 4');
 
-  const dslSummon3 = paragonDsl.steps.find((s: any) => s.code === 'summon' && s.slot === 3);
-  assert(!!dslSummon3, 'DSL "summon #3" correctly compiled to summon slot 3');
+  const dslSummon3 = paragonAlias.steps.find((s: any) => s.code === 'summon' && s.slot === 3);
+  assert(!!dslSummon3, 'Contains summon slot 3');
 
-  const dslRerun = paragonDsl.steps[paragonDsl.steps.length - 1];
-  assert(dslRerun.code === 'confirm_result', 'DSL "rerun" correctly compiled to confirm_result');
+  const dslRerun = paragonAlias.steps[paragonAlias.steps.length - 1];
+  assert(dslRerun.code === 'confirm_result', 'Terminal step is confirm_result');
 
   // 3. DSL Exit If Dead / Exit If HP compilation check
   const testDslCode = `

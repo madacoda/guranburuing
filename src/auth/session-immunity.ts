@@ -94,12 +94,19 @@ export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
  * so all future navigations and child iframes inherit the immunity shield.
  */
 export async function installMobageSessionImmunity(page: Page): Promise<void> {
+  let client: any = null;
   try {
-    const client = await page.target().createCDPSession();
+    client = await page.target().createCDPSession();
     await client.send('Page.addScriptToEvaluateOnNewDocument', {
       source: MOBAGE_SESSION_IMMUNITY_SCRIPT
     }).catch(() => null);
-  } catch {}
+  } catch {
+    // Ignore on mock pages or closed targets
+  } finally {
+    if (client && typeof client.detach === 'function') {
+      await client.detach().catch(() => null);
+    }
+  }
 
   try {
     await page.evaluate(MOBAGE_SESSION_IMMUNITY_SCRIPT).catch(() => null);

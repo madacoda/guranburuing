@@ -3,22 +3,64 @@ import fs from 'fs';
 import path from 'path';
 import {
   WorkflowTemplate,
-  WorkflowStep,
-  WorkflowActionType,
-  WorkflowStepCondition
+  WorkflowStep
 } from '../types/workflow.types.js';
 import {
-  WorkflowTemplateSchema,
   validateWorkflowTemplate,
-  normalizeActionCode,
   TemplateValidationResult
 } from './template-schema.js';
+import {
+  parseShorthandDsl as compileShorthandDsl,
+  parseSingleDslAction as compileSingleDslAction
+} from './dsl-compiler.js';
+import {
+  serializeToDsl as formatTemplateToDsl,
+  serializeToJson as formatTemplateToJson
+} from './dsl-serializer.js';
+
+// Canonical template alias registry to prevent duplicate workflow files on disk
+const CANONICAL_ALIASES: Readonly<Record<string, string>> = {
+  'gb-pbhl-universal': 'gb-pbhl',
+  'arcarum-faymian-fortress-smart': 'arcarum-faymian-fortress',
+  'arcarum-lady-of-redemption-rotation': 'arcarum-lady-of-redemption-smart',
+  'arcarum-lilywhite-paragon-rotation': 'arcarum-lilywhite-paragon-smart',
+  'arcarum-xeno-cocytus-militis-rotation': 'arcarum-xeno-cocytus-militis',
+  'theworld-raid': 'raid-the-world',
+  'the-world-raid': 'raid-the-world',
+  'world-raid': 'raid-the-world',
+  'raid-theworld': 'raid-the-world',
+  'arcarum-theworld-raid': 'raid-the-world',
+  'arcarum-xeno-cocytus-militis-smart': 'arcarum-xeno-cocytus-militis',
+  'arcarum-xeno-cocytus': 'arcarum-xeno-cocytus-militis',
+  'xeno-cocytus-militis': 'arcarum-xeno-cocytus-militis',
+  'xeno-cocytus': 'arcarum-xeno-cocytus-militis',
+  'cocytus-militis': 'arcarum-xeno-cocytus-militis',
+  'cocytus': 'arcarum-xeno-cocytus-militis',
+};
+
+const RX_TEMPLATE_EXT = /\.(json|txt|dsl|yaml|yml)$/i;
+const RX_JSON_EXT = /\.json$/i;
+
+interface CachedTemplateEntry {
+  mtimeMs: number;
+  template: WorkflowTemplate;
+}
 
 export class TemplateParser {
   private static readonly TEMPLATES_DIR = path.resolve(process.cwd(), 'templates');
+  private static readonly templateCache = new Map<string, CachedTemplateEntry>();
+  private static readonly nameToPathCache = new Map<string, string>();
 
   /**
-   * Lists all available template names in the templates directory.
+   * Clears the in-memory template cache.
+   */
+  public static clearCache(): void {
+    this.templateCache.clear();
+    this.nameToPathCache.clear();
+  }
+
+  /**
+   * Lists all available JSON workflow template names in the templates directory.
    */
   public static listAvailableTemplates(): string[] {
     if (!fs.existsSync(this.TEMPLATES_DIR)) {
@@ -29,8 +71,8 @@ export class TemplateParser {
     const files = fs.readdirSync(this.TEMPLATES_DIR);
     const seen = new Set<string>();
     for (const f of files) {
-      if (f.endsWith('.json') || f.endsWith('.txt') || f.endsWith('.dsl') || f.endsWith('.yaml') || f.endsWith('.yml')) {
-        seen.add(f.replace(/\.(json|txt|dsl|yaml|yml)$/, ''));
+      if (RX_JSON_EXT.test(f)) {
+        seen.add(f.replace(RX_JSON_EXT, ''));
       }
     }
     return Array.from(seen).sort();
@@ -44,110 +86,85 @@ export class TemplateParser {
   }
 
   /**
-   * Loads and parses a template file by name. Supports .json, .dsl, .txt, .yaml.
-   * Enforces compile-time schema validation and provides actionable error reports.
+   * Loads and parses a JSON workflow template file by name from templates/*.json.
+   * Uses an mtime-validated in-memory cache with deep cloning to prevent mutation leaks.
    */
   public static loadTemplate(templateName: string): WorkflowTemplate {
-    const baseName = templateName.replace(/\.(json|txt|dsl|yaml|yml)$/, '');
-    const altNames = [baseName];
+    const baseName = templateName.replace(RX_TEMPLATE_EXT, '');
+    let filePath = this.nameToPathCache.get(baseName);
 
-    // Canonical template alias registry to prevent duplicate workflow files on disk
-    const CANONICAL_ALIASES: Record<string, string> = {
-      'gb-pbhl-universal': 'gb-pbhl',
-      'arcarum-faymian-fortress-smart': 'arcarum-faymian-fortress',
-      'theworld-raid': 'raid-the-world',
-      'the-world-raid': 'raid-the-world',
-      'world-raid': 'raid-the-world',
-      'raid-theworld': 'raid-the-world',
-      'arcarum-theworld-raid': 'raid-the-world',
-      'arcarum-xeno-cocytus-militis-smart': 'arcarum-xeno-cocytus-militis',
-      'arcarum-xeno-cocytus': 'arcarum-xeno-cocytus-militis',
-      'xeno-cocytus-militis': 'arcarum-xeno-cocytus-militis',
-      'xeno-cocytus': 'arcarum-xeno-cocytus-militis',
-      'cocytus-militis': 'arcarum-xeno-cocytus-militis',
-      'cocytus': 'arcarum-xeno-cocytus-militis',
-    };
-    if (CANONICAL_ALIASES[baseName]) {
-      altNames.push(CANONICAL_ALIASES[baseName]);
+    if (filePath && !fs.existsSync(filePath)) {
+      this.nameToPathCache.delete(baseName);
+      filePath = undefined;
     }
 
-    if (baseName.startsWith('otkraid-')) {
-      altNames.push(`leech-${baseName.slice(8)}`);
-    } else if (baseName.startsWith('leech-')) {
-      altNames.push(`otkraid-${baseName.slice(6)}`);
-    } else {
-      altNames.push(`leech-${baseName}`);
-      altNames.push(`otkraid-${baseName}`);
-    }
+    if (!filePath) {
+      const altNames = [baseName];
 
-    const possibleFiles: string[] = [];
-    for (const name of altNames) {
-      possibleFiles.push(
-        path.join(this.TEMPLATES_DIR, `${name}.json`),
-        path.join(this.TEMPLATES_DIR, `${name}.dsl`),
-        path.join(this.TEMPLATES_DIR, `${name}.txt`),
-        path.join(this.TEMPLATES_DIR, `${name}.yaml`),
-        path.join(this.TEMPLATES_DIR, `${name}.yml`),
-        path.join(this.TEMPLATES_DIR, name)
-      );
-    }
+      if (CANONICAL_ALIASES[baseName]) {
+        altNames.push(CANONICAL_ALIASES[baseName]);
+      }
 
-    const filePath = possibleFiles.find(p => fs.existsSync(p));
+      if (baseName.startsWith('otkraid-')) {
+        altNames.push(`leech-${baseName.slice(8)}`);
+      } else if (baseName.startsWith('leech-')) {
+        altNames.push(`otkraid-${baseName.slice(6)}`);
+      } else {
+        altNames.push(`leech-${baseName}`);
+        altNames.push(`otkraid-${baseName}`);
+      }
+
+      for (const name of altNames) {
+        const candidate = path.join(this.TEMPLATES_DIR, `${name}.json`);
+        if (fs.existsSync(candidate)) {
+          filePath = candidate;
+          this.nameToPathCache.set(baseName, candidate);
+          break;
+        }
+      }
+    }
 
     if (!filePath) {
       throw new Error(
-        `[TemplateParser] Template "${templateName}" not found in ${this.TEMPLATES_DIR}.\nAvailable: ${this.listAvailableTemplates().join(', ') || 'None'}`
+        `[TemplateParser] JSON workflow template "${templateName}" not found in ${this.TEMPLATES_DIR}.\nAvailable: ${this.listAvailableTemplates().join(', ') || 'None'}`
       );
+    }
+
+    const stat = fs.statSync(filePath);
+    const cached = this.templateCache.get(filePath);
+    if (cached && cached.mtimeMs === stat.mtimeMs) {
+      return structuredClone(cached.template);
     }
 
     const rawContent = fs.readFileSync(filePath, 'utf-8').trim();
 
-    // 1. JSON handling
-    if (filePath.endsWith('.json') || rawContent.startsWith('{')) {
-      try {
-        const rawJson = JSON.parse(rawContent);
-        const validation = validateWorkflowTemplate(rawJson);
-        if (validation.valid && validation.template) {
-          if (validation.warnings.length > 0) {
-            console.warn(`[TemplateParser] ⚠️ Warnings in "${templateName}":\n  - ${validation.warnings.join('\n  - ')}`);
-          }
-          return validation.template;
-        } else {
-          throw new Error(
-            `[TemplateParser] Invalid template structure in "${filePath}":\n  - ${validation.errors.join('\n  - ')}`
-          );
+    try {
+      const rawJson = JSON.parse(rawContent);
+      const validation = validateWorkflowTemplate(rawJson);
+      if (validation.valid && validation.template) {
+        if (validation.warnings.length > 0) {
+          console.warn(`[TemplateParser] ⚠️ Warnings in "${templateName}":\n  - ${validation.warnings.join('\n  - ')}`);
         }
-      } catch (err: any) {
-        if (err.message.includes('[TemplateParser] Invalid template structure')) {
-          throw err;
-        }
-        // If JSON.parse failed and file is not explicitly .json, try parsing as shorthand DSL
-        if (!filePath.endsWith('.json')) {
-          return this.parseShorthandDsl(rawContent, baseName);
-        }
-        throw new Error(`[TemplateParser] JSON syntax error in "${filePath}": ${err.message}`);
+        this.templateCache.set(filePath, { mtimeMs: stat.mtimeMs, template: validation.template });
+        return structuredClone(validation.template);
+      } else {
+        throw new Error(
+          `[TemplateParser] Invalid template structure in "${filePath}":\n  - ${validation.errors.join('\n  - ')}`
+        );
       }
+    } catch (err: any) {
+      if (err.message.includes('[TemplateParser] Invalid template structure')) {
+        throw err;
+      }
+      throw new Error(`[TemplateParser] JSON syntax error in "${filePath}": ${err.message}`);
     }
-
-    // 2. Parse as shorthand DSL
-    const dslTemplate = this.parseShorthandDsl(rawContent, baseName);
-    const validation = validateWorkflowTemplate(dslTemplate);
-    if (!validation.valid) {
-      throw new Error(
-        `[TemplateParser] DSL parsed template for "${templateName}" failed validation:\n  - ${validation.errors.join('\n  - ')}`
-      );
-    }
-    if (validation.warnings.length > 0) {
-      console.warn(`[TemplateParser] ⚠️ Warnings in DSL "${templateName}":\n  - ${validation.warnings.join('\n  - ')}`);
-    }
-    return validation.template!;
   }
 
   /**
    * Parses human-written shorthand DSL text. Alias for parseShorthandDsl.
    */
   public static parseDsl(content: string, defaultName = 'dsl-template'): WorkflowTemplate {
-    return this.parseShorthandDsl(content, defaultName);
+    return compileShorthandDsl(content, defaultName);
   }
 
   /**
@@ -155,348 +172,7 @@ export class TemplateParser {
    * compact action abbreviations, repeat blocks, and conditional exits.
    */
   public static parseShorthandDsl(content: string, defaultName: string): WorkflowTemplate {
-    const rawLines = content.split('\n');
-    let templateName = defaultName;
-    let description = '';
-    let mode: 'combat' | 'routine' | 'assist' = 'combat';
-    let questUrl = 'https://game.granbluefantasy.jp/#quest/supporter/947551/1/0';
-    let stageUrl: string | undefined;
-    let supporterPriority = ['Hades', 'Bahamut', 'Zeus', 'Lucifer'];
-    let raidSlot: number | undefined;
-    let raidSlots: number[] | undefined;
-    let speedProfile: 'stealth' | 'fast' | 'turbo' = 'fast';
-    let defaultRuns = 100;
-    let humanMotor = true;
-    let stopOnCaptcha = true;
-    let autoElixir = true;
-    let autoBerry = true;
-    let targetScore: number | undefined;
-    let minBatchClaim: number | undefined;
-    let maxBatchClaim: number | undefined;
-    let minHpPct: number | undefined;
-    let maxHpPct: number | undefined;
-    let minPlayers: number | undefined;
-    let maxPlayers: number | undefined;
-    let minRaidScore: number | undefined;
-    let evaluatorStrategy: 'honor' | 'otk_burst' | 'leech' | undefined;
-    let logPath: string | undefined;
-    let isSolo: boolean | undefined;
-    let sector: string | undefined;
-    let targetEnemy: string | undefined;
-
-    const steps: WorkflowStep[] = [];
-    let readyScreenOccurrence = 0;
-
-    type BlockType = 'repeat' | 'loop_while' | 'loop_until' | 'do_until_finish';
-    let currentBlockType: BlockType | null = null;
-    let currentBlockTarget: string | undefined;
-    let repeatCount = 1;
-    let currentBlockSubSteps: WorkflowStep[] = [];
-
-    for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-      let line = rawLines[lineIndex].trim();
-
-      // Skip blank lines and comments
-      if (line.length === 0 || line.startsWith('#') || line.startsWith('//') || line.startsWith(';')) {
-        continue;
-      }
-
-      // Separators
-      if (line.startsWith('---') || line.startsWith('===')) {
-        continue;
-      }
-
-      // Strip extraneous surrounding quotes or backticks from user typing/copy-paste
-      line = line.replace(/^["'`]+|["'`]+$/g, '').trim();
-
-      // Metadata Directives (Header definitions)
-      if (/^name\s*:\s*(.+)$/i.test(line)) {
-        templateName = line.match(/^name\s*:\s*(.+)$/i)![1].trim();
-        continue;
-      }
-      if (/^mode\s*:\s*(.+)$/i.test(line)) {
-        const m = line.match(/^mode\s*:\s*(.+)$/i)![1].toLowerCase().trim();
-        if (m === 'combat' || m === 'routine' || m === 'assist') {
-          mode = m;
-        }
-        continue;
-      }
-      if (/^desc(?:ription)?\s*:\s*(.+)$/i.test(line)) {
-        description = line.match(/^desc(?:ription)?\s*:\s*(.+)$/i)![1].trim();
-        continue;
-      }
-      if (/^(?:start|quest|url)\s*:\s*(.+)$/i.test(line)) {
-        const urlMatch = line.match(/https?:\/\/[^\s]+|#[^\s]+/);
-        if (urlMatch) questUrl = urlMatch[0];
-        continue;
-      }
-      if (/^(?:stage_?url|stage)\s*:\s*(.+)$/i.test(line)) {
-        const stageMatch = line.match(/https?:\/\/[^\s]+|#[^\s]+/);
-        if (stageMatch) stageUrl = stageMatch[0];
-        continue;
-      }
-      if (/^speed(?:\s*profile)?\s*:\s*(.+)$/i.test(line)) {
-        const val = line.match(/^speed(?:\s*profile)?\s*:\s*(.+)$/i)![1].toLowerCase().trim();
-        if (val === 'stealth' || val === 'fast' || val === 'turbo') speedProfile = val;
-        continue;
-      }
-      if (/^runs?\s*:\s*(\d+)$/i.test(line)) {
-        defaultRuns = parseInt(line.match(/^runs?\s*:\s*(\d+)$/i)![1], 10);
-        continue;
-      }
-      if (/^supporters?\s*:\s*(.+)$/i.test(line)) {
-        const supStr = line.match(/^supporters?\s*:\s*(.+)$/i)![1];
-        supporterPriority = supStr.split(',').map(s => s.trim()).filter(Boolean);
-        continue;
-      }
-      if (/^slots?\s*:\s*([\d\s,]+)$/i.test(line)) {
-        const slotNums = line.match(/^slots?\s*:\s*([\d\s,]+)$/i)![1]
-          .split(',')
-          .map(s => parseInt(s.trim(), 10))
-          .filter(n => !isNaN(n) && n >= 1 && n <= 4);
-        if (slotNums.length === 1) {
-          raidSlot = slotNums[0];
-          raidSlots = [slotNums[0]];
-        } else if (slotNums.length > 1) {
-          raidSlot = slotNums[0];
-          raidSlots = slotNums;
-        }
-        continue;
-      }
-      if (/^target_?score\s*:\s*(\d+)$/i.test(line)) {
-        targetScore = parseInt(line.match(/^target_?score\s*:\s*(\d+)$/i)![1], 10);
-        continue;
-      }
-      if (/^(?:auto_?)?elixir\s*:\s*(true|false)$/i.test(line)) {
-        autoElixir = line.match(/true/i) !== null;
-        continue;
-      }
-      if (/^(?:auto_?)?berry\s*:\s*(true|false)$/i.test(line)) {
-        autoBerry = line.match(/true/i) !== null;
-        continue;
-      }
-      if (/^solo\s*:\s*(true|false)$/i.test(line)) {
-        isSolo = line.match(/true/i) !== null;
-        continue;
-      }
-      if (/^batch_?claim\s*:\s*(\d+)\s*[-to\s]+\s*(\d+)$/i.test(line)) {
-        const m = line.match(/^batch_?claim\s*:\s*(\d+)\s*[-to\s]+\s*(\d+)$/i)!;
-        minBatchClaim = parseInt(m[1], 10);
-        maxBatchClaim = parseInt(m[2], 10);
-        continue;
-      }
-      if (/^log_?path\s*:\s*(.+)$/i.test(line)) {
-        logPath = line.match(/^log_?path\s*:\s*(.+)$/i)![1].trim();
-        continue;
-      }
-      if (/^sector\s*:\s*(.+)$/i.test(line)) {
-        sector = line.match(/^sector\s*:\s*(.+)$/i)![1].trim();
-        continue;
-      }
-      if (/^(?:target_enemy|enemy|target_boss|boss)\s*:\s*(.+)$/i.test(line)) {
-        targetEnemy = line.match(/^(?:target_enemy|enemy|target_boss|boss)\s*:\s*(.+)$/i)![1].trim();
-        continue;
-      }
-      if (/^(?:min[\s_]?hp(?:[\s_]?pct)?|min[\s_]?health)\s*:\s*(\d+)%?$/i.test(line)) {
-        minHpPct = parseInt(line.match(/^(?:min[\s_]?hp(?:[\s_]?pct)?|min[\s_]?health)\s*:\s*(\d+)%?$/i)![1], 10);
-        continue;
-      }
-      if (/^(?:max[\s_]?hp(?:[\s_]?pct)?|max[\s_]?health)\s*:\s*(\d+)%?$/i.test(line)) {
-        maxHpPct = parseInt(line.match(/^(?:max[\s_]?hp(?:[\s_]?pct)?|max[\s_]?health)\s*:\s*(\d+)%?$/i)![1], 10);
-        continue;
-      }
-      if (/^hp(?:[\s_]?pct)?\s*:\s*(\d+)\s*(?:-|to|\.\.)\s*(\d+)\s*%?$/i.test(line)) {
-        const m = line.match(/^hp(?:[\s_]?pct)?\s*:\s*(\d+)\s*(?:-|to|\.\.)\s*(\d+)\s*%?$/i)!;
-        minHpPct = parseInt(m[1], 10);
-        maxHpPct = parseInt(m[2], 10);
-        continue;
-      }
-      if (/^min[\s_]?players?\s*:\s*(\d+)$/i.test(line)) {
-        minPlayers = parseInt(line.match(/^min[\s_]?players?\s*:\s*(\d+)$/i)![1], 10);
-        continue;
-      }
-      if (/^max[\s_]?players?\s*:\s*(\d+)$/i.test(line)) {
-        maxPlayers = parseInt(line.match(/^max[\s_]?players?\s*:\s*(\d+)$/i)![1], 10);
-        continue;
-      }
-      if (/^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech)$/i.test(line)) {
-        evaluatorStrategy = line.match(/^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech)$/i)![1].toLowerCase() as any;
-        continue;
-      }
-      if (/^min[\s_]?(?:raid[\s_]?)?score\s*:\s*(\d+)$/i.test(line)) {
-        minRaidScore = parseInt(line.match(/^min[\s_]?(?:raid[\s_]?)?score\s*:\s*(\d+)$/i)![1], 10);
-        continue;
-      }
-
-      // Check Block End: '}'
-      if (currentBlockType && line === '}') {
-        if (currentBlockType === 'repeat') {
-          steps.push({
-            id: `step_${steps.length + 1}`,
-            name: `Repeat Block (${repeatCount}x)`,
-            code: 'repeat',
-            action: 'repeat',
-            repeatCount,
-            subSteps: currentBlockSubSteps
-          });
-        } else if (currentBlockType === 'loop_while') {
-          steps.push({
-            id: `step_${steps.length + 1}`,
-            name: `Loop While (${currentBlockTarget})`,
-            code: 'loop_while',
-            action: 'loop_while',
-            target: currentBlockTarget,
-            subSteps: currentBlockSubSteps
-          });
-        } else if (currentBlockType === 'loop_until') {
-          steps.push({
-            id: `step_${steps.length + 1}`,
-            name: `Loop Until (${currentBlockTarget})`,
-            code: 'loop_until',
-            action: 'loop_until',
-            target: currentBlockTarget,
-            subSteps: currentBlockSubSteps
-          });
-        } else if (currentBlockType === 'do_until_finish') {
-          steps.push({
-            id: `step_${steps.length + 1}`,
-            name: `Do Until Finish (${currentBlockTarget})`,
-            code: 'do_until_finish',
-            action: 'do_until_finish',
-            target: currentBlockTarget,
-            tag: currentBlockTarget,
-            subSteps: currentBlockSubSteps
-          });
-        }
-        currentBlockType = null;
-        currentBlockTarget = undefined;
-        repeatCount = 1;
-        currentBlockSubSteps = [];
-        continue;
-      }
-
-      // Check Repeat Block Start: 'repeat 2 {' or 'loop 3 {'
-      const repeatBlockMatch = line.match(/^(?:repeat|loop)\s+(\d+)\s*\{/i);
-      if (repeatBlockMatch) {
-        currentBlockType = 'repeat';
-        repeatCount = parseInt(repeatBlockMatch[1], 10);
-        currentBlockSubSteps = [];
-        continue;
-      }
-
-      // Check Loop While Block Start: 'loop_while .selector {' or 'while .selector {'
-      const loopWhileMatch = line.match(/^(?:loop_while|while)\s+(.+?)\s*\{/i);
-      if (loopWhileMatch) {
-        currentBlockType = 'loop_while';
-        currentBlockTarget = loopWhileMatch[1].trim();
-        currentBlockSubSteps = [];
-        continue;
-      }
-
-      // Check Loop Until Block Start: 'loop_until .selector {' or 'until .selector {'
-      const loopUntilMatch = line.match(/^(?:loop_until|until)\s+(.+?)\s*\{/i);
-      if (loopUntilMatch) {
-        currentBlockType = 'loop_until';
-        currentBlockTarget = loopUntilMatch[1].trim();
-        currentBlockSubSteps = [];
-        continue;
-      }
-
-      // Check Do Until Finish Block Start: 'do_until_finish <target/tag> {'
-      const doUntilFinishBlockMatch = line.match(/^(?:do_until_finish|loop_until_finish|until_finish)\s+(.+?)\s*\{/i);
-      if (doUntilFinishBlockMatch) {
-        currentBlockType = 'do_until_finish';
-        currentBlockTarget = doUntilFinishBlockMatch[1].trim();
-        currentBlockSubSteps = [];
-        continue;
-      }
-
-      // Single-line inline repeat: "repeat 2: attack -> reload" or "loop 2: attack, f5"
-      const inlineRepeatMatch = line.match(/^(?:repeat|loop)\s+(\d+)\s*:\s*(.+)$/i);
-      if (inlineRepeatMatch) {
-        const count = parseInt(inlineRepeatMatch[1], 10);
-        const subActionStrings = inlineRepeatMatch[2].split(/->|,/).map(s => s.trim()).filter(Boolean);
-        const compiledSubSteps: WorkflowStep[] = [];
-        for (const subStr of subActionStrings) {
-          const parsed = this.parseSingleDslAction(subStr, compiledSubSteps.length + 1);
-          if (parsed) compiledSubSteps.push(parsed);
-        }
-        if (compiledSubSteps.length > 0) {
-          const stepObj: WorkflowStep = {
-            id: `step_${steps.length + 1}`,
-            name: `Repeat (${count}x)`,
-            code: 'repeat',
-            action: 'repeat',
-            repeatCount: count,
-            subSteps: compiledSubSteps
-          };
-          if (currentBlockType) {
-            currentBlockSubSteps.push(stepObj);
-          } else {
-            steps.push(stepObj);
-          }
-        }
-        continue;
-      }
-
-      // Standard single-action parsing
-      const hasPriorCombatActions = () => {
-        const checkSteps = (st: WorkflowStep[]): boolean =>
-          st.some(s => s.code === 'skill' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'attack' || s.code === 'smart_full_auto' || (s.subSteps && checkSteps(s.subSteps)));
-        return checkSteps(steps) || checkSteps(currentBlockSubSteps);
-      };
-
-      const step = this.parseSingleDslAction(
-        line,
-        currentBlockType ? currentBlockSubSteps.length + 1 : steps.length + 1,
-        () => {
-          readyScreenOccurrence++;
-          return readyScreenOccurrence;
-        },
-        hasPriorCombatActions
-      );
-
-      if (step) {
-        if (currentBlockType) {
-          currentBlockSubSteps.push(step);
-        } else {
-          steps.push(step);
-        }
-      }
-    }
-
-    return {
-      name: templateName,
-      description,
-      mode,
-      questUrl,
-      supporterPriority,
-      raidSlot,
-      raidSlots,
-      speedProfile,
-      defaultRuns,
-      humanMotor,
-      stopOnCaptcha,
-      autoElixir,
-      autoBerry,
-      autoReplenishAp: autoElixir,
-      autoReplenishEp: autoBerry,
-      targetScore,
-      isSolo,
-      minBatchClaim,
-      maxBatchClaim,
-      minHpPct,
-      maxHpPct,
-      minPlayers,
-      maxPlayers,
-      evaluatorStrategy,
-      minRaidScore,
-      logPath,
-      sector,
-      targetEnemy,
-      stageUrl,
-      steps
-    };
+    return compileShorthandDsl(content, defaultName);
   }
 
   /**
@@ -508,633 +184,21 @@ export class TemplateParser {
     getReadyOccurrence?: () => number,
     hasPriorCombatActions?: () => boolean
   ): WorkflowStep | null {
-    const line = rawLine.replace(/^["'`]+|["'`]+$/g, '').trim();
-
-    // Auto Fate Episode Routine
-    if (/^(?:auto[\s_]*fate(?:[\s_]*episode)?|fate[\s_]*(?:stories|episode|auto))/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Clear Fate Episode (Cutscene Skip & Full Auto Combat)',
-        code: 'auto_fate_episode',
-        action: 'auto_fate_episode'
-      };
-    }
-
-    // Skip Story Scene / Fast Skip Dialogue
-    if (/^skip[\s_]*(?:story[\s_]*scene|story|scene)/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Fast-Skip Story Dialogue & Scene',
-        code: 'skip_story_scene',
-        action: 'skip_story_scene'
-      };
-    }
-
-    // Pro Skip Favorites / Daily Favorites Macro
-    if (/^(?:pro[\s_]*skip(?:[\s_]*favorites)?|daily[\s_]*(?:favorites|pro))/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Run All Pinned Favorite Daily Pro Skips',
-        code: 'pro_skip_favorites',
-        action: 'pro_skip_favorites'
-      };
-    }
-
-    // Dismiss Popups & Modals
-    if (/^dismiss[\s_]*(?:popups?|modals?|all)/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Dismiss All Popups and Modals',
-        code: 'dismiss_popups',
-        action: 'dismiss_popups'
-      };
-    }
-
-    // Do Until Finish / Run Daily Target: "do_until_finish daily_magna_pro" or "run_daily daily_magna_pro"
-    const doUntilMatch = line.match(/^(?:do_until_finish|loop_until_finish|until_finish|run_daily_target|run_daily|daily_target)\s+(.+)/i);
-    if (doUntilMatch) {
-      const targetTag = doUntilMatch[1].trim();
-      return {
-        id: `step_${stepIndex}`,
-        name: `Do Until Finish (${targetTag})`,
-        code: 'do_until_finish',
-        action: 'do_until_finish',
-        target: targetTag,
-        tag: targetTag
-      };
-    }
-
-    // 1. Ready screen tap: "tap ready", "tap the ready", "ready: click"
-    if (/(?:tab|tap)(?:[\s_]+the)?[\s_]*ready|^ready(?:\s*:\s*click)?/i.test(line)) {
-      const occurrence = getReadyOccurrence ? getReadyOccurrence() : 1;
-      const hasPrior = hasPriorCombatActions ? hasPriorCombatActions() : false;
-      // Turn 0 quick call only if it is the very first combat action of the raid and not explicitly attack
-      if (occurrence === 1 && !hasPrior && !/(?:attack|atk)/i.test(line)) {
-        return {
-          id: `step_${stepIndex}`,
-          name: 'Tap Ready Screen (Quick Call)',
-          code: 'tap_ready',
-          action: 'tap_ready',
-          waitForNetwork: 'summon_result.json'
-        };
-      }
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Tap Ready Screen (Full Auto / Turn Action)',
-        code: 'tap_ready',
-        action: 'tap_ready'
-      };
-    }
-
-    // 2. F5 / Reload / Refresh
-    if (/^f5|^reload|^refresh/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: `Instant Reload F5 (Step ${stepIndex})`,
-        code: 'reload',
-        action: 'reload'
-      };
-    }
-
-    // 3. Attack / Atk (supports optional delay: "attack 350", "attack wait 350ms")
-    const atkMatch = line.match(/^(?:attack|atk)(?:[\s_]+(?:wait[\s_]+)?(\d+)(?:ms)?)?/i);
-    if (atkMatch) {
-      const delay = atkMatch[1] ? parseInt(atkMatch[1], 10) : undefined;
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Execute Normal Attack',
-        code: 'attack',
-        action: 'attack',
-        waitForNetwork: 'normal_attack_result.json',
-        ...(delay !== undefined ? { delayAfterMs: delay } : {})
-      };
-    }
-
-    // 4. Quick Call / Quick Summon / QS
-    if (/^quick[\s_]*(?:call|summon)|^qs\b/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Execute Quick Call',
-        code: 'quick_call',
-        action: 'quick_call',
-        waitForNetwork: 'summon_result.json'
-      };
-    }
-
-    // 5. Result Confirmation & Loot: "confirm", "loot", "confirm a bit", "result", "done", "finish", "rerun", "next"
-    if (/^(?:confirm|loot|dismiss|result|done|finish|rerun|next)(?:[\s_]+a[\s_]+bit)?/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Confirm Battle Result & Dismiss Popups',
-        code: 'confirm_result',
-        action: 'confirm_result'
-      };
-    }
-
-    // 5b. Log Enemy HP: "log enemy hp", "log hp", "enemy hp", "check enemy hp"
-    if (/^(?:log|check|print)[\s_]*(?:enemy[\s_]*)?hp\b/i.test(line) || /^enemy[\s_]*hp\b/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Log Enemy HP & Remaining HP',
-        code: 'log_enemy_hp',
-        action: 'log_enemy_hp'
-      };
-    }
-
-    // 5c. Exit If Dead: "exit if dead", "exit_if_dead", "finish if dead", "stop if dead"
-    if (/^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?dead\b/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Exit Combat if Enemy Defeated',
-        code: 'exit_if_dead',
-        action: 'exit_if_dead'
-      };
-    }
-
-    // 5d. Exit If HP Threshold: "exit if hp 50", "exit_if_hp 25", "exit if enemy hp 10%"
-    const exitHpMatch = line.match(/^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?(?:enemy[\s_]*)?hp[\s_]*(\d+)\%?/i);
-    if (exitHpMatch) {
-      const threshold = parseInt(exitHpMatch[1], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Exit if Enemy HP <= ${threshold}%`,
-        code: 'exit_if_hp',
-        action: 'exit_if_hp',
-        targetHpPct: threshold
-      };
-    }
-
-    // Shorthand for loop until honor: "check the honor and keep attacking until honor", "keep attacking until honor", "attack until honor"
-    if (/^(?:check[\s_]*(?:the[\s_]*)?honor[\s_]*and[\s_]*)?(?:keep[\s_]*)?attack(?:ing)?[\s_]*until[\s_]*honor/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Loop Attack Until Target Honor Reached',
-        code: 'repeat',
-        action: 'repeat',
-        repeatCount: 10,
-        subSteps: [
-          {
-            id: `step_${stepIndex}_1`,
-            name: 'Exit if Honors Met',
-            code: 'exit_if_score',
-            action: 'exit_if_score',
-            targetScore: 1800000
-          },
-          {
-            id: `step_${stepIndex}_2`,
-            name: 'Execute Normal Attack',
-            code: 'attack',
-            action: 'attack',
-            optional: true,
-            waitForNetwork: 'normal_attack_result.json'
-          },
-          {
-            id: `step_${stepIndex}_3`,
-            name: 'Instant Reload F5',
-            code: 'reload',
-            action: 'reload'
-          }
-        ]
-      };
-    }
-
-    const hasEnsureComment = /\b(make\s*sure|ensure|clicked\s*or\s*casted|required?)\b/i.test(line);
-    const cleanLine = line.replace(/\s*\([^)]*\)$/, '').trim();
-
-    // 6. Skill with target character: "c4s2 on 2", "c4s2->c2", "skill 4-2 on 2", "char 4 skill 2 on char 2"
-    const skillTargetMatch = cleanLine.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->)\s*(?:c|char|character)?\s*(\d)$/i);
-    if (skillTargetMatch) {
-      const charNum = parseInt(skillTargetMatch[1] || skillTargetMatch[2], 10);
-      const skillNum = parseInt(skillTargetMatch[3], 10);
-      const targetChar = parseInt(skillTargetMatch[4], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsureComment ? ' (Ensured)' : ''}`,
-        code: 'skill',
-        action: 'skill',
-        character: charNum,
-        skill: skillNum,
-        targetCharacter: targetChar,
-        waitForNetwork: 'ability_result.json',
-        ...(hasEnsureComment ? { ensureCast: true } : {})
-      };
-    }
-
-    // 7. Regular skill: "c1s3", "skill 1-3", "skill 1 3", "char 1 skill 3", "char 4 skill 4", "1-3"
-    const skillMatch = cleanLine.match(/^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d)|(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)$/i);
-    if (skillMatch) {
-      const charNum = parseInt(skillMatch[1] || skillMatch[2] || skillMatch[3], 10);
-      const skillNum = parseInt(skillMatch[4], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Character ${charNum} Skill ${skillNum}${hasEnsureComment ? ' (Ensured)' : ''}`,
-        code: 'skill',
-        action: 'skill',
-        character: charNum,
-        skill: skillNum,
-        waitForNetwork: 'ability_result.json',
-        ...(hasEnsureComment ? { ensureCast: true } : {})
-      };
-    }
-
-    // 8. Summon: "summon 1", "call 3", "summon agni", "call agni", "summon number 2", "summon slot 2", "summon #4"
-    const summonMatch = cleanLine.match(/^(?:summon|call)(?:[\s_]+(?:number|slot|no\.?|#))?[\s_]*#?([a-zA-Z0-9_\-]+)$/i);
-    if (summonMatch) {
-      const param = summonMatch[1].trim();
-      const isNum = /^\d+$/.test(param);
-      const slot = isNum ? parseInt(param, 10) : 1;
-      const target = isNum ? undefined : param.toLowerCase();
-      return {
-        id: `step_${stepIndex}`,
-        name: isNum ? `Invoke Summon Slot ${slot}` : `Invoke Summon (${param})`,
-        code: 'summon',
-        action: 'summon',
-        slot,
-        ...(target ? { target } : {}),
-        waitForNetwork: 'summon_result.json'
-      };
-    }
-
-    // 9. Target Enemy / Select Enemy: "target 1", "select enemy 2", "enemy 3"
-    const targetEnemyMatch = cleanLine.match(/(?:target(?:[\s_]*enemy)?|select[\s_]+enemy|enemy)[\s_]*(\d+)/i);
-    if (targetEnemyMatch) {
-      const enemyIdx = parseInt(targetEnemyMatch[1], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Select Enemy ${enemyIdx}`,
-        code: 'target_enemy',
-        action: 'target_enemy',
-        enemyIndex: enemyIdx
-      };
-    }
-
-    // 10. Heal / Potion: "heal green", "heal blue", "potion green", "potion blue", "elixir"
-    const healMatch = line.match(/(?:heal|potion)[\s_]*(green|blue|elixir)/i);
-    if (healMatch) {
-      const pType = healMatch[1].toLowerCase() as 'green' | 'blue' | 'elixir';
-      return {
-        id: `step_${stepIndex}`,
-        name: `Use ${pType.toUpperCase()} Potion`,
-        code: 'heal',
-        action: 'heal',
-        potionType: pType
-      };
-    }
-
-    // 11. Backup Request: "backup", "request_backup", "backup_request"
-    if (/backup(?:[\s_]*request)?|request[\s_]+backup/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Request Multi-Raid Backup',
-        code: 'backup_request',
-        action: 'backup_request'
-      };
-    }
-
-    // 12. Exit if Score: "exit_if_score 1480000", "if score >= 1480000 exit"
-    const exitScoreMatch = line.match(/(?:exit[\s_]*if[\s_]*score|exit[\s_]*on[\s_]*score)[\s_]*(\d+)|if\s+score\s*>=\s*(\d+)\s+exit/i);
-    if (exitScoreMatch) {
-      const score = parseInt(exitScoreMatch[1] || exitScoreMatch[2], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Exit if Honors >= ${score.toLocaleString()}`,
-        code: 'exit_if_score',
-        action: 'exit_if_score',
-        targetScore: score
-      };
-    }
-
-    // 13. Wait Turn: "wait_turn 2"
-    const waitTurnMatch = line.match(/wait[\s_]*turn[\s_]*(\d+)/i);
-    if (waitTurnMatch) {
-      const turn = parseInt(waitTurnMatch[1], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Wait until Turn ${turn}`,
-        code: 'wait_turn',
-        action: 'wait_turn',
-        condition: { type: 'turn_at_least', value: turn }
-      };
-    }
-
-    // 14. Wait Random / Random Delay: "wait_random 300 800", "random delay", "random_delay 500 1200", "delay random"
-    const waitRandomMatch = cleanLine.match(/^(?:wait[\s_]*random(?:ize)?|delay[\s_]*random|random[\s_]*delay|random[\s_]*wait)(?:[\s_]+(\d+)[\s_]+(\d+))?$/i);
-    if (waitRandomMatch) {
-      const minMs = waitRandomMatch[1] ? parseInt(waitRandomMatch[1], 10) : 500;
-      const maxMs = waitRandomMatch[2] ? parseInt(waitRandomMatch[2], 10) : 1500;
-      return {
-        id: `step_${stepIndex}`,
-        name: `Random Delay (${minMs}ms - ${maxMs}ms)`,
-        code: 'wait_random',
-        action: 'wait_random',
-        minMs,
-        maxMs
-      };
-    }
-
-    // 15. Wait Network: "wait_network normal_attack_result.json"
-    const waitNetMatch = line.match(/wait[\s_]*network[\s_]+(.+)/i);
-    if (waitNetMatch) {
-      const netUrl = waitNetMatch[1].trim();
-      return {
-        id: `step_${stepIndex}`,
-        name: `Wait Network (${netUrl})`,
-        code: 'wait_network',
-        action: 'wait_network',
-        waitForNetwork: netUrl
-      };
-    }
-
-    // 16. Wait Element: "wait_element .btn-attack-start"
-    const waitElemMatch = line.match(/wait[\s_]*element[\s_]+(.+)/i);
-    if (waitElemMatch) {
-      const selector = waitElemMatch[1].trim();
-      return {
-        id: `step_${stepIndex}`,
-        name: `Wait Element (${selector})`,
-        code: 'wait_element',
-        action: 'wait_element',
-        target: selector
-      };
-    }
-
-    // 17. Wait: "wait 500", "sleep 500", "delay 500"
-    const waitMatch = line.match(/(?:wait|sleep|delay)\s*(\d+)/i);
-    if (waitMatch) {
-      const ms = parseInt(waitMatch[1], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Wait ${ms}ms`,
-        code: 'wait',
-        action: 'wait',
-        ms,
-        delayAfterMs: ms
-      };
-    }
-
-    // 18. Auto / Smart Full Auto / Full Auto / Semi Auto
-    if (/^(?:smart_full_auto|fast_full_auto|smart_auto|fast_auto)/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Smart Full Auto Execution',
-        code: 'smart_full_auto',
-        action: 'smart_full_auto'
-      };
-    }
-    if (/^full_auto\b/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Toggle Full Auto Mode',
-        code: 'auto',
-        action: 'auto',
-        mode: 'full'
-      };
-    }
-    if (/semi_auto/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Toggle Semi Auto Mode',
-        code: 'auto',
-        action: 'auto',
-        mode: 'semi'
-      };
-    }
-    if (/^auto\b/i.test(line)) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Toggle Auto Mode',
-        code: 'auto',
-        action: 'auto',
-        mode: 'full'
-      };
-    }
-
-    // 19. Guard: "guard all", "guard 1"
-    const guardMatch = line.match(/guard\s*(all|\d)/i);
-    if (guardMatch) {
-      const tgt = guardMatch[1].toLowerCase();
-      return {
-        id: `step_${stepIndex}`,
-        name: `Guard (${tgt})`,
-        code: 'guard',
-        action: 'guard',
-        target: tgt
-      };
-    }
-
-    // 20. Navigate / Goto: "navigate https://..."
-    const navMatch = line.match(/(?:navigate|goto)\s+(.+)/i);
-    if (navMatch) {
-      const targetUrl = navMatch[1].trim();
-      return {
-        id: `step_${stepIndex}`,
-        name: `Navigate to ${targetUrl}`,
-        code: 'navigate',
-        action: 'navigate',
-        target: targetUrl
-      };
-    }
-
-    // 21. Touch Tap: "touch_tap 240 370"
-    const touchMatch = line.match(/(?:touch_tap|tap)\s+(\d+)\s+(\d+)/i);
-    if (touchMatch) {
-      const x = parseInt(touchMatch[1], 10);
-      const y = parseInt(touchMatch[2], 10);
-      return {
-        id: `step_${stepIndex}`,
-        name: `Touch Tap (${x}, ${y})`,
-        code: 'touch_tap',
-        action: 'touch_tap',
-        x,
-        y
-      };
-    }
-
-    // 22. Eval JavaScript: "eval window.location.reload()"
-    const evalMatch = line.match(/eval\s+(.+)/i);
-    if (evalMatch) {
-      return {
-        id: `step_${stepIndex}`,
-        name: 'Execute Custom Eval Script',
-        code: 'eval',
-        action: 'eval',
-        script: evalMatch[1].trim()
-      };
-    }
-
-    // 23. Click Selector: "click .btn-attack-start"
-    const clickMatch = line.match(/click\s+(.+)/i);
-    if (clickMatch) {
-      return {
-        id: `step_${stepIndex}`,
-        name: `Click ${clickMatch[1]}`,
-        code: 'click',
-        action: 'click',
-        target: clickMatch[1].trim()
-      };
-    }
-
-    return null;
+    return compileSingleDslAction(rawLine, stepIndex, getReadyOccurrence, hasPriorCombatActions);
   }
 
   /**
    * Serializes a WorkflowTemplate into clean, human-readable DSL format.
    */
   public static serializeToDsl(template: WorkflowTemplate): string {
-    const lines: string[] = [];
-
-    lines.push(`# =========================================================================`);
-    lines.push(`# Workflow Template: ${template.name}`);
-    if (template.description) lines.push(`# Description: ${template.description}`);
-    lines.push(`# =========================================================================`);
-    lines.push('');
-    lines.push(`Name: ${template.name}`);
-    if (template.description) lines.push(`Description: ${template.description}`);
-    if (template.mode) lines.push(`Mode: ${template.mode}`);
-    lines.push(`Quest: ${template.questUrl}`);
-    if (template.speedProfile) lines.push(`Speed: ${template.speedProfile}`);
-    if (template.defaultRuns) lines.push(`Runs: ${template.defaultRuns}`);
-    if (template.supporterPriority && template.supporterPriority.length > 0) {
-      lines.push(`Supporters: ${template.supporterPriority.join(', ')}`);
-    }
-    if (template.raidSlots && template.raidSlots.length > 0) {
-      lines.push(`Slots: ${template.raidSlots.join(', ')}`);
-    } else if (template.raidSlot) {
-      lines.push(`Slot: ${template.raidSlot}`);
-    }
-    if (template.targetScore) lines.push(`TargetScore: ${template.targetScore}`);
-    if (template.isSolo !== undefined) lines.push(`Solo: ${template.isSolo}`);
-    if (template.logPath) lines.push(`LogPath: ${template.logPath}`);
-    if (template.sector) lines.push(`Sector: ${template.sector}`);
-    if (template.minHpPct !== undefined) lines.push(`Min HP: ${template.minHpPct}`);
-    if (template.maxHpPct !== undefined) lines.push(`Max HP: ${template.maxHpPct}`);
-    if (template.minPlayers !== undefined) lines.push(`Min Players: ${template.minPlayers}`);
-    if (template.maxPlayers !== undefined) lines.push(`Max Players: ${template.maxPlayers}`);
-    if (template.evaluatorStrategy) lines.push(`Strategy: ${template.evaluatorStrategy}`);
-    if (template.minRaidScore !== undefined) lines.push(`Min Raid Score: ${template.minRaidScore}`);
-    lines.push(`Elixir: ${template.autoElixir !== false}`);
-    lines.push(`Berry: ${template.autoBerry !== false}`);
-    lines.push('');
-    lines.push('---');
-
-    const serializeStep = (step: WorkflowStep, indent = ''): string => {
-      const code = step.code || step.action;
-      switch (code) {
-        case 'tap_ready':
-          return `${indent}tap_ready`;
-        case 'quick_call':
-          return `${indent}quick_call`;
-        case 'attack':
-          return `${indent}attack`;
-        case 'reload':
-        case 'f5':
-          return `${indent}reload`;
-        case 'skill': {
-          const ensureStr = step.ensureCast ? ' (make sure clicked or casted)' : '';
-          if (step.targetCharacter) {
-            return `${indent}c${step.character}s${step.skill} on ${step.targetCharacter}${ensureStr}`;
-          }
-          return `${indent}c${step.character}s${step.skill}${ensureStr}`;
-        }
-        case 'summon':
-          if (step.target && isNaN(Number(step.target))) {
-            return `${indent}summon ${step.target}`;
-          }
-          return `${indent}summon #${step.slot || 1}`;
-        case 'target_enemy':
-          return `${indent}target ${step.enemyIndex || 1}`;
-        case 'heal':
-          return `${indent}heal ${step.potionType || 'green'}`;
-        case 'backup_request':
-          return `${indent}backup_request`;
-        case 'exit_if_score':
-          return `${indent}exit_if_score ${step.targetScore || 1480000}`;
-        case 'wait_turn':
-          return `${indent}wait_turn ${step.condition?.value || 2}`;
-        case 'auto':
-          return `${indent}${step.mode === 'semi' ? 'semi_auto' : 'full_auto'}`;
-        case 'guard':
-          return `${indent}guard ${step.target || 'all'}`;
-        case 'wait_random':
-        case 'wait_randomize':
-          return `${indent}wait_random ${step.minMs || 300} ${step.maxMs || 800}`;
-        case 'wait_network':
-          return `${indent}wait_network ${step.waitForNetwork || 'normal_attack_result.json'}`;
-        case 'wait_element':
-          return `${indent}wait_element ${step.target || '.btn-attack-start'}`;
-        case 'wait':
-          return `${indent}wait ${step.ms || 500}`;
-        case 'touch_tap':
-          return `${indent}touch_tap ${step.x || 240} ${step.y || 480}`;
-        case 'navigate':
-        case 'start_quest':
-          return `${indent}navigate ${step.target || step.page || ''}`;
-        case 'click':
-          return `${indent}click ${step.target || ''}`;
-        case 'eval':
-          return `${indent}eval ${step.script || ''}`;
-        case 'confirm_result':
-          return `${indent}confirm_result`;
-        case 'log_enemy_hp':
-          return `${indent}log_enemy_hp`;
-        case 'exit_if_dead':
-          return `${indent}exit_if_dead`;
-        case 'exit_if_hp':
-          return `${indent}exit_if_hp ${step.targetHpPct ?? step.targetHp ?? 0}`;
-        case 'skip_story_scene':
-          return `${indent}skip_story_scene`;
-        case 'pro_skip_favorites':
-          return `${indent}pro_skip_favorites`;
-        case 'dismiss_popups':
-          return `${indent}dismiss_popups`;
-        case 'smart_full_auto':
-          return `${indent}smart_full_auto`;
-        case 'auto_fate_episode':
-        case 'skip_fate_episode':
-          return `${indent}auto_fate_episode`;
-        case 'loop_while':
-          if (step.subSteps && step.subSteps.length > 0) {
-            const subLines = step.subSteps.map(s => serializeStep(s, `${indent}  `)).join('\n');
-            return `${indent}loop_while ${step.target || step.conditionElement || ''} {\n${subLines}\n${indent}}`;
-          }
-          return `${indent}# Empty loop_while block`;
-        case 'loop_until':
-          if (step.subSteps && step.subSteps.length > 0) {
-            const subLines = step.subSteps.map(s => serializeStep(s, `${indent}  `)).join('\n');
-            return `${indent}loop_until ${step.target || step.conditionElement || ''} {\n${subLines}\n${indent}}`;
-          }
-          return `${indent}# Empty loop_until block`;
-        case 'repeat':
-          if (step.subSteps && step.subSteps.length > 0) {
-            const subLines = step.subSteps.map(s => serializeStep(s, `${indent}  `)).join('\n');
-            return `${indent}repeat ${step.repeatCount || 2} {\n${subLines}\n${indent}}`;
-          }
-          return `${indent}# Empty repeat block`;
-        case 'do_until_finish':
-        case 'run_daily_target':
-          if (step.subSteps && step.subSteps.length > 0) {
-            const subLines = step.subSteps.map(s => serializeStep(s, `${indent}  `)).join('\n');
-            return `${indent}do_until_finish ${step.tag || step.target || ''} {\n${subLines}\n${indent}}`;
-          }
-          return `${indent}do_until_finish ${step.tag || step.target || ''}`;
-        default:
-          return `${indent}# Custom action: ${code}`;
-      }
-    };
-
-    for (const step of template.steps) {
-      lines.push(serializeStep(step));
-    }
-
-    lines.push('---');
-    return lines.join('\n');
+    return formatTemplateToDsl(template);
   }
 
   /**
    * Serializes a WorkflowTemplate to a JSON string.
    */
   public static serializeToJson(template: WorkflowTemplate, pretty = true): string {
-    return JSON.stringify(template, null, pretty ? 2 : undefined);
+    return formatTemplateToJson(template, pretty);
   }
 
   /**
@@ -1149,6 +213,7 @@ export class TemplateParser {
     const targetFile = path.join(this.TEMPLATES_DIR, `${slug}.${format}`);
     const content = format === 'dsl' ? this.serializeToDsl(template) : this.serializeToJson(template);
     fs.writeFileSync(targetFile, content, 'utf-8');
+    this.templateCache.delete(targetFile);
     return targetFile;
   }
 }

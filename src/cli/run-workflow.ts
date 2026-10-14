@@ -102,17 +102,6 @@ function handleDryRun(template: WorkflowTemplate): void {
   process.exit(0);
 }
 
-function handleExportDsl(templateName: string): void {
-  const tmpl = TemplateParser.loadTemplate(templateName);
-  const dslContent = TemplateParser.serializeToDsl(tmpl);
-  const outPath = path.resolve(process.cwd(), 'templates', `${templateName}.dsl`);
-  fs.writeFileSync(outPath, dslContent, 'utf-8');
-  console.log(`\n✅ Exported DSL template to: ${outPath}`);
-  console.log('\n--- DSL Content ---');
-  console.log(dslContent);
-  process.exit(0);
-}
-
 function handleExportJson(templateName: string): void {
   const tmpl = TemplateParser.loadTemplate(templateName);
   const jsonContent = TemplateParser.serializeToJson(tmpl, true);
@@ -131,14 +120,6 @@ async function main() {
     const valIdx = args.findIndex(a => a === '--validate' || a === '-v');
     const target = args[valIdx + 1] && !args[valIdx + 1].startsWith('-') ? args[valIdx + 1] : undefined;
     handleValidateCommand(target);
-    return;
-  }
-
-  // Command: --export-dsl [template]
-  if (args.includes('--export-dsl')) {
-    const idx = args.indexOf('--export-dsl');
-    const target = args[idx + 1] || 'gw-meat-light';
-    handleExportDsl(target);
     return;
   }
 

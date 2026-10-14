@@ -713,7 +713,7 @@
         "chapterId": "30532",
         "proChapterId": "30583",
         "pageUrl": "https://game.granbluefantasy.jp/#quest/extra",
-        "selector": ".pop-pro-quest-list [data-quest-id='305321'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30532'], .pop-pro-quest-list .btn-set-quest[data-pro-chapter-id='30583']",
+        "selector": ".pop-pro-quest-list [data-quest-id='305831'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30583'], .pop-pro-quest-list [data-quest-id='305321'] .btn-set-quest, .pop-pro-quest-list .btn-set-quest[data-chapter-id='30532'], .pop-pro-quest-list .btn-set-quest[data-pro-chapter-id='30583']",
         "dailyLimit": 1,
         "apCost": 360
       },
@@ -731,7 +731,7 @@
         "tag": "daily_skyscope",
         "name": "Claim Skyscope Daily Missions",
         "category": "mission",
-        "pageUrl": "https://game.granbluefantasy.jp/#mission",
+        "pageUrl": "https://game.granbluefantasy.jp/#skyscope",
         "selector": ".btn-claim-all, .btn-receive-all, .prt-mission-complete",
         "dailyLimit": 1
       },

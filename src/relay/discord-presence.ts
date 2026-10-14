@@ -75,7 +75,7 @@ export class DiscordPresenceManager {
       task: this.customOptions.task,
       quote: this.customOptions.quote,
     });
-    if (immediate) {
+    if (immediate && this.isEnabled()) {
       this.ensureConnected();
       this.dispatchCurrentPresence();
     }
@@ -108,7 +108,7 @@ export class DiscordPresenceManager {
    * Initializes Discord Gateway WebSocket connection for live Bot Presence.
    */
   private initGateway(): void {
-    if (!config.DISCORD_BOT_TOKEN || this.gatewayWs) return;
+    if (!this.isEnabled() || !config.DISCORD_BOT_TOKEN || this.gatewayWs) return;
 
     try {
       const gatewayUrl = 'wss://gateway.discord.gg/?v=10&encoding=json';
@@ -232,6 +232,7 @@ export class DiscordPresenceManager {
    * Probes discord-ipc-0 through discord-ipc-9 to reliably connect.
    */
   private async initIpc(): Promise<void> {
+    if (!this.isEnabled()) return;
     const now = Date.now();
     if (this.isConnectingIpc || this.ipcSocket || (now - this.lastIpcAttempt < 5000)) return;
     this.lastIpcAttempt = now;
@@ -379,6 +380,7 @@ export class DiscordPresenceManager {
    * Broadcasts current presence to both the Discord Bot Gateway and Local Desktop IPC.
    */
   private dispatchCurrentPresence(): void {
+    if (!this.isEnabled()) return;
     const act = this.formatActivityData(this.currentState);
     const signature = `${act.name}|${act.details}|${act.state}`;
 
@@ -415,6 +417,7 @@ export class DiscordPresenceManager {
   }
 
   private dispatchIpcActivity(): void {
+    if (!this.isEnabled()) return;
     if (!this.isIpcReady || !this.ipcSocket || this.ipcSocket.destroyed) {
       this.initIpc().catch(() => {});
       return;

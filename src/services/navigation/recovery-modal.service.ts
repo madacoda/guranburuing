@@ -19,11 +19,11 @@ export class RecoveryModalService implements IRecoveryModalService {
    */
   public async handleApRecovery(autoElixir = true): Promise<ResourceRecoveryOutcome> {
     const isModalOpen = await this.page.evaluate(() => {
-      const pop = document.querySelector('.pop-usual, .pop-show') as HTMLElement;
+      const pop = document.querySelector('.pop-stamina, .pop-usual, .pop-show') as HTMLElement;
       if (!pop || pop.offsetParent === null) return false;
       const text = pop.innerText || '';
-      const hasUseBtn = !!pop.querySelector('.btn-use-item, .btn-usual-use, .se-use');
-      return (text.includes('AP') || text.includes('Elixir') || text.includes('回復') || text.includes('Recovery')) && hasUseBtn;
+      const hasUseBtn = !!pop.querySelector('.btn-use-full:not(.disable), .btn-use-item, .btn-usual-use, .se-use');
+      return (pop.classList.contains('pop-stamina') || text.includes('AP') || text.includes('Elixir') || text.includes('回復') || text.includes('Recovery')) && hasUseBtn;
     }).catch(() => false);
 
     if (!isModalOpen) {
@@ -67,7 +67,7 @@ export class RecoveryModalService implements IRecoveryModalService {
       const pop = document.querySelector('.pop-usual, .pop-show') as HTMLElement;
       if (!pop || pop.offsetParent === null) return false;
       const text = pop.innerText || '';
-      const hasUseBtn = !!pop.querySelector('.btn-use-item, .btn-usual-use, .se-use');
+      const hasUseBtn = !!pop.querySelector('.btn-use-full:not(.disable), .btn-use-item, .btn-usual-use, .se-use');
       return (text.includes('EP') || text.includes('Soul Berry') || text.includes('ソウルシード') || text.includes('回復')) && hasUseBtn;
     }).catch(() => false);
 
@@ -112,7 +112,7 @@ export class RecoveryModalService implements IRecoveryModalService {
       const pop = document.querySelector('.pop-usual, .pop-show') as HTMLElement;
       if (!pop || pop.offsetParent === null) return false;
       const text = pop.innerText || '';
-      return (text.includes('AAP') || text.includes('回復') || text.includes('recover')) && !!pop.querySelector('.btn-use-item');
+      return (text.includes('AAP') || text.includes('回復') || text.includes('recover')) && !!pop.querySelector('.btn-use-item, .btn-use-full');
     }).catch(() => false);
 
     if (!isModalOpen) {
@@ -141,15 +141,15 @@ export class RecoveryModalService implements IRecoveryModalService {
    */
   public async handleAnyRecovery(options: { autoElixir?: boolean; autoBerry?: boolean } = {}): Promise<ResourceRecoveryOutcome | null> {
     const modalType = await this.page.evaluate(() => {
-      const pop = document.querySelector('.pop-usual, .pop-show') as HTMLElement;
+      const pop = document.querySelector('.pop-stamina, .pop-usual, .pop-show') as HTMLElement;
       if (!pop || pop.offsetParent === null) return null;
       const text = pop.innerText || '';
-      const hasUseBtn = !!pop.querySelector('.btn-use-item, .btn-usual-use, .se-use');
+      const hasUseBtn = !!pop.querySelector('.btn-use-full:not(.disable), .btn-use-item, .btn-usual-use, .se-use');
       if (!hasUseBtn) return null;
 
       if (text.includes('AAP')) return 'AAP';
       if (text.includes('EP') || text.includes('ソウル')) return 'EP';
-      if (text.includes('AP') || text.includes('Elixir') || text.includes('エリクシール')) return 'AP';
+      if (pop.classList.contains('pop-stamina') || text.includes('AP') || text.includes('Elixir') || text.includes('エリクシール')) return 'AP';
       return 'AP'; // fallback default
     }).catch(() => null);
 
@@ -163,7 +163,7 @@ export class RecoveryModalService implements IRecoveryModalService {
   private async executeItemUseAndConfirm(): Promise<boolean> {
     const itemClicked = await this.page.evaluate(() => {
       const useBtn = document.querySelector(
-        '.pop-usual .btn-use-item, .pop-show .btn-use-item, .btn-use-item.btn-usual-use, .btn-usual-ok.se-use, .btn-use-item'
+        '.pop-stamina .btn-use-full[data-item-id="2"]:not(.disable), .pop-stamina .btn-use-full.index-1:not(.disable), .pop-stamina .btn-use-full:not(.disable), .pop-usual .btn-use-item, .pop-show .btn-use-item, .btn-use-item.btn-usual-use, .btn-usual-ok.se-use, .btn-use-item'
       ) as HTMLElement;
       if (useBtn && useBtn.offsetParent !== null) {
         const $ = (window as any).$ || (window as any).Zepto;
@@ -175,10 +175,19 @@ export class RecoveryModalService implements IRecoveryModalService {
     }).catch(() => false);
 
     if (!itemClicked) return false;
-    await logNormalDelay(400, 0.15);
+    if (typeof this.page.waitForSelector === 'function') {
+      await this.page.waitForSelector('.pop-result .btn-usual-ok, .pop-usual .btn-usual-ok, .pop-show .btn-usual-ok', {
+        visible: true,
+        timeout: 5000
+      }).catch(() => null);
+    } else {
+      await logNormalDelay(400, 0.15);
+    }
 
     const okClicked = await this.page.evaluate(() => {
-      const okBtn = document.querySelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-usual-ok') as HTMLElement;
+      const okBtn = document.querySelector(
+        '.pop-result .btn-usual-ok:not(.select-num):not(.reuse-item), .pop-result .btn-usual-ok, .pop-usual .btn-usual-ok, .pop-show .btn-usual-ok, .btn-usual-ok'
+      ) as HTMLElement;
       if (okBtn && okBtn.offsetParent !== null) {
         const $ = (window as any).$ || (window as any).Zepto;
         if ($) $(okBtn).trigger('tap');
@@ -195,7 +204,7 @@ export class RecoveryModalService implements IRecoveryModalService {
   private async dismissModal(): Promise<void> {
     await this.page.evaluate(() => {
       const cancelBtn = document.querySelector(
-        '.pop-usual .btn-usual-cancel, .pop-show .btn-usual-cancel, .pop-usual .btn-close'
+        '.pop-stamina .btn-usual-cancel, .pop-usual .btn-usual-cancel, .pop-show .btn-usual-cancel, .pop-usual .btn-close'
       ) as HTMLElement;
       if (cancelBtn) cancelBtn.click();
     }).catch(() => null);

@@ -1,6 +1,6 @@
-// src/services/discord/process-runner.service.ts
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 export interface CommandPreset {
   key: string;
@@ -100,6 +100,16 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     script: 'src/cli/run-fate.ts',
     defaultArgs: ['acc1', '10'],
     description: 'Autonomous Fate Episode Skip (10 episodes)'
+  },
+  'farm:human': {
+    key: 'farm:human',
+    script: 'src/cli/run-human-cadence.ts',
+    description: 'Human Behavioral Cadence Farming (GB Priority + Leeching + Rest Gaps + Supply Audits)'
+  },
+  'inventory': {
+    key: 'inventory',
+    script: 'src/cli/run-inventory-audit.ts',
+    description: 'In-Game Inventory & Supply Audit (#item Gold Bars, Pots, Berries, Moons)'
   }
 };
 
@@ -223,6 +233,12 @@ export class ProcessRunnerService {
 
       this.activeJob = activeJob;
 
+      const logDir = path.resolve(process.cwd(), 'logs');
+      if (!fs.existsSync(logDir)) {
+        try { fs.mkdirSync(logDir, { recursive: true }); } catch {}
+      }
+      const logFile = path.join(logDir, 'automation.log');
+
       const appendOutput = (data: Buffer | string) => {
         const text = data.toString('utf8');
         const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
@@ -231,6 +247,10 @@ export class ProcessRunnerService {
           if (outputBuffer.length > this.maxBufferSize) {
             outputBuffer.shift();
           }
+          try {
+            const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            fs.appendFileSync(logFile, `[${timestamp}] [${preset.key}] ${line}\n`, 'utf8');
+          } catch {}
         }
       };
 
@@ -341,6 +361,26 @@ export class ProcessRunnerService {
         lastOutputLines: this.activeJob.outputBuffer.slice(-6)
       }
     };
+  }
+
+  /**
+   * Retrieves recent log lines from memory or disk.
+   */
+  public getRecentLogs(maxLines = 15): string[] {
+    if (this.activeJob && this.activeJob.outputBuffer.length > 0) {
+      return this.activeJob.outputBuffer.slice(-maxLines);
+    }
+
+    const logFile = path.resolve(process.cwd(), 'logs', 'automation.log');
+    if (fs.existsSync(logFile)) {
+      try {
+        const content = fs.readFileSync(logFile, 'utf8');
+        const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+        return lines.slice(-maxLines);
+      } catch {}
+    }
+
+    return ['_No recent automation logs found._'];
   }
 }
 

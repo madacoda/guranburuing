@@ -218,6 +218,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Arcarum Stage 7 (Xeno Cocytus Militis) Template & DSL Tests',
     file: 'tests/test-arcarum-xeno-cocytus.ts',
     description: 'Verify Xeno Cocytus Militis template, Quest 816131, Division 15, Paragon step equivalence, DSL round-trip, and Joculator presets'
+  },
+  {
+    name: 'Human Behavioral Mimicry & Account Cadence Tests',
+    file: 'tests/test-human-behavioral-mimicry.ts',
+    description: 'Verify inventory supply auditing, 1st-of-month shop reset detection, cadence lifecycle, and Discord operator integration'
   }
 ];
 
@@ -256,29 +261,43 @@ async function runSuite(suite: TestSuite): Promise<TestResult> {
 }
 
 async function main() {
+  const wallStart = Date.now();
+  const concurrency = Math.max(1, parseInt(process.env.TEST_CONCURRENCY || '6', 10) || 6);
+
   console.log('\n========================================================================');
   console.log('       Granblue Fantasy Remote Controller - Unified Test Runner         ');
+  console.log(`       Parallel Worker Pool: ${concurrency} concurrent test workers            `);
   console.log('========================================================================\n');
 
-  const results: TestResult[] = [];
+  const results: TestResult[] = new Array(TEST_SUITES.length);
   let allPassed = true;
+  let nextIdx = 0;
+  let completedCount = 0;
 
-  for (let i = 0; i < TEST_SUITES.length; i++) {
-    const suite = TEST_SUITES[i];
-    process.stdout.write(`  [${i + 1}/${TEST_SUITES.length}] Running: ${suite.name}... `);
+  const runWorker = async () => {
+    while (true) {
+      const idx = nextIdx++;
+      if (idx >= TEST_SUITES.length) break;
 
-    const result = await runSuite(suite);
-    results.push(result);
+      const suite = TEST_SUITES[idx];
+      const result = await runSuite(suite);
+      results[idx] = result;
+      completedCount++;
 
-    if (result.passed) {
-      console.log(`✅ PASS (${result.durationMs}ms)`);
-    } else {
-      console.log(`❌ FAIL (${result.durationMs}ms)`);
-      allPassed = false;
+      const statusIcon = result.passed ? '✅ PASS' : '❌ FAIL';
+      console.log(`  [${completedCount}/${TEST_SUITES.length}] ${statusIcon} (${result.durationMs}ms) - [#${idx + 1}] ${suite.name}`);
+
+      if (!result.passed) {
+        allPassed = false;
+      }
     }
-  }
+  };
 
-  const totalDuration = results.reduce((sum, r) => sum + r.durationMs, 0);
+  const workers = Array.from({ length: Math.min(concurrency, TEST_SUITES.length) }, () => runWorker());
+  await Promise.all(workers);
+
+  const wallDurationMs = Date.now() - wallStart;
+  const totalCpuDurationMs = results.reduce((sum, r) => sum + r.durationMs, 0);
   const passedCount = results.filter(r => r.passed).length;
   const failedCount = results.filter(r => !r.passed).length;
 
@@ -292,7 +311,9 @@ async function main() {
   });
 
   console.log('------------------------------------------------------------------------');
-  console.log(`Total Suites: ${results.length} | Passed: ${passedCount} | Failed: ${failedCount} | Total Time: ${(totalDuration / 1000).toFixed(2)}s`);
+  console.log(
+    `Total Suites: ${results.length} | Passed: ${passedCount} | Failed: ${failedCount} | Wall Time: ${(wallDurationMs / 1000).toFixed(2)}s (CPU Time: ${(totalCpuDurationMs / 1000).toFixed(2)}s)`
+  );
 
   if (!allPassed) {
     console.log('\n--- Failure Details ---');

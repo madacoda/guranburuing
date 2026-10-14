@@ -142,9 +142,18 @@ export class PendingBattleService implements IPendingBattleService {
 
       // Check if reward result screen reached
       const resultData = await this.page.evaluate(() => {
-        const text = document.body.innerText || '';
-        const hasGoldBar = text.includes('Gold Brick') || text.includes('ヒヒイロカネ') || !!document.querySelector('[data-item-id="20004"]');
-        const hasBlueChest = !!document.querySelector('.prt-blue-chest, .ico-blue-chest');
+        const resultRoot = document.querySelector('#cnt-result, .cnt-result, .prt-result-cnt, .pop-raid-result') as HTMLElement | null;
+        const text = (resultRoot ? resultRoot.innerText : document.body.innerText) || '';
+        const candidates = Array.from(document.querySelectorAll(
+          '[data-key="17_20004"], img[src*="/item/evolution/"][src*="20004."], .lis-treasure.btn-treasure-item[data-item-id="20004"], #cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper), .cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper)'
+        ));
+        const hasDomGoldBar = candidates.some(el => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          return htmlEl.offsetParent !== null;
+        });
+        const hasGoldBar = /\b(?:Gold\s+Brick|Gold\s+Bar)\b/i.test(text) || text.includes('ヒヒイロカネ') || hasDomGoldBar;
+        const hasBlueChest = !!document.querySelector('.prt-blue-chest, .ico-blue-chest, .ico-treasure-11-mini, [data-box-type="11"]');
         return { hasGoldBar, hasBlueChest };
       }).catch(() => ({ hasGoldBar: false, hasBlueChest: false }));
 

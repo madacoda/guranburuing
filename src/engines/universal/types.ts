@@ -34,6 +34,7 @@ export interface UniversalWorkflowState {
   playerName?: string;
   lastAttackLockoutExpires: number;
   lastProcessedAttackKey?: string;
+  isClaimingPending?: boolean;
 }
 
 export interface UniversalContext {

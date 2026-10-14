@@ -107,6 +107,46 @@ async function runTests() {
     assert(!processRunnerService.isBusy(), 'Discards message sent with bot flag');
   }
 
+  // 7. Scheduler Toggle & Operator Commands (/gbf scheduler:off & /gbf scheduler:on)
+  {
+    const { dailyResetScheduler } = await import('../src/services/scheduler/daily-reset.scheduler.js');
+    const authUserId = config.DISCORD_USER_ID || '350293029825019915';
+
+    // Start daemon if not running
+    if (!dailyResetScheduler.getIsRunning()) {
+      dailyResetScheduler.startDaemon();
+    }
+    assert(dailyResetScheduler.getIsRunning(), 'Scheduler starts in running state');
+
+    // Operator sends /gbf scheduler:off
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '777777777777777771',
+      content: '/gbf scheduler:off',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(!dailyResetScheduler.getIsRunning(), 'Operator command "/gbf scheduler:off" pauses daemon');
+
+    // Operator sends /gbf scheduler:on
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '777777777777777772',
+      content: '/gbf scheduler:on',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(dailyResetScheduler.getIsRunning(), 'Operator command "/gbf scheduler:on" resumes daemon');
+
+    // Stop daemon after test cleanup
+    dailyResetScheduler.stopDaemon();
+    assert(!dailyResetScheduler.getIsRunning(), 'Scheduler cleanly stops');
+  }
+
+  // 8. Disk & Buffer Log Retrieval Verification
+  {
+    const logs = processRunnerService.getRecentLogs(5);
+    assert(Array.isArray(logs) && logs.length > 0, 'Recent log retrieval returns array of log lines');
+  }
+
   console.log(`\nDiscord Remote Controller Tests: ${passed}/${total} passed.\n`);
   if (passed !== total) {
     throw new Error(`Discord Remote Controller tests failed: ${passed}/${total}`);

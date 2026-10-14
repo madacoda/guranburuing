@@ -37,10 +37,11 @@ export class AccountAuthManager {
    * Checks if midship session cookie is present and valid in the browser via CDP.
    */
   public static async getMidshipCookie(page: Page): Promise<any | null> {
+    let client: any = null;
     try {
-      const client = await page.target().createCDPSession();
+      client = await page.target().createCDPSession();
       const { cookies } = await client.send('Network.getAllCookies');
-      const midship = cookies.find(c =>
+      const midship = cookies.find((c: any) =>
         c.name === 'midship' &&
         (c.domain.includes('granbluefantasy.jp') || c.domain.includes('mbga.jp')) &&
         c.value && c.value.length > 20
@@ -48,6 +49,10 @@ export class AccountAuthManager {
       return midship || null;
     } catch {
       return null;
+    } finally {
+      if (client && typeof client.detach === 'function') {
+        await client.detach().catch(() => null);
+      }
     }
   }
 
@@ -548,27 +553,34 @@ export class AccountAuthManager {
         const rawCookies = JSON.parse(raw);
         if (Array.isArray(rawCookies) && rawCookies.length > 0) {
           console.log(`[Auth] Restoring session from data/${account.id}-cookies.json (${rawCookies.length} cookies)...`);
-          const client = await page.target().createCDPSession();
           const sanitized = this.sanitizeCookiesForCDP(rawCookies);
-          await client.send('Network.setCookies', { cookies: sanitized });
+          let client: any = null;
+          try {
+            client = await page.target().createCDPSession();
+            await client.send('Network.setCookies', { cookies: sanitized });
 
-          // Also set CHIPS partitioned variants for Mobage session cookies so session_iframe matches
-          const partitionedVariants: any[] = [];
-          for (const sc of sanitized) {
-            if (['CSSID', 'CSID_P', 'USE_CHIPS', 'CTID_P'].includes(sc.name)) {
-              partitionedVariants.push({
-                ...sc,
-                secure: true,
-                sameSite: 'None',
-                partitionKey: {
-                  topLevelSite: 'https://granbluefantasy.jp',
-                  hasCrossSiteAncestor: true
-                }
-              });
+            // Also set CHIPS partitioned variants for Mobage session cookies so session_iframe matches
+            const partitionedVariants: any[] = [];
+            for (const sc of sanitized) {
+              if (['CSSID', 'CSID_P', 'USE_CHIPS', 'CTID_P'].includes(sc.name)) {
+                partitionedVariants.push({
+                  ...sc,
+                  secure: true,
+                  sameSite: 'None',
+                  partitionKey: {
+                    topLevelSite: 'https://granbluefantasy.jp',
+                    hasCrossSiteAncestor: true
+                  }
+                });
+              }
             }
-          }
-          if (partitionedVariants.length > 0) {
-            await client.send('Network.setCookies', { cookies: partitionedVariants }).catch(() => null);
+            if (partitionedVariants.length > 0) {
+              await client.send('Network.setCookies', { cookies: partitionedVariants }).catch(() => null);
+            }
+          } finally {
+            if (client && typeof client.detach === 'function') {
+              await client.detach().catch(() => null);
+            }
           }
 
           await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
@@ -593,18 +605,23 @@ export class AccountAuthManager {
     }
 
     // Clean only guest/colliding cookies before interactive setup, preserving valid existing sessions
+    let cleanClient: any = null;
     try {
       console.log('[Auth] Preparing clean interactive login session (purging guest & colliding cookies)...');
-      const client = await page.target().createCDPSession();
-      const { cookies } = await client.send('Network.getCookies', { urls: ['https://game.granbluefantasy.jp/'] });
+      cleanClient = await page.target().createCDPSession();
+      const { cookies } = await cleanClient.send('Network.getCookies', { urls: ['https://game.granbluefantasy.jp/'] });
       for (const c of cookies) {
         const isGuest = c.name === 'SP_GUEST' || (c.name === 't' && c.value === 'dummy');
         const isDotDomainDuplicate = c.domain.startsWith('.') && ['midship', 'wing', 'access_gbtk'].includes(c.name);
         if (isGuest || isDotDomainDuplicate) {
-          await client.send('Network.deleteCookies', { name: c.name, domain: c.domain, path: c.path });
+          await cleanClient.send('Network.deleteCookies', { name: c.name, domain: c.domain, path: c.path });
         }
       }
-    } catch {}
+    } catch {} finally {
+      if (cleanClient && typeof cleanClient.detach === 'function') {
+        await cleanClient.detach().catch(() => null);
+      }
+    }
 
     return await this.executeHumanLoginFlow(page, account, { timeoutMs: options?.timeoutMs || 300000 });
   }
@@ -741,12 +758,13 @@ export class AccountAuthManager {
    * Strips out guest markers (SP_GUEST), dummy tokens, deduplicates, and preserves canonical midship.
    */
   public static async saveCookiesSafely(page: Page, account: AccountConfig): Promise<void> {
+    let client: any = null;
     try {
-      const client = await page.target().createCDPSession();
+      client = await page.target().createCDPSession();
       const { cookies } = await client.send('Network.getAllCookies');
 
       // Filter for GBF, Mobage, DMM
-      const relevant = cookies.filter(c => {
+      const relevant = cookies.filter((c: any) => {
         const d = (c.domain || '').toLowerCase();
         return (
           d.includes('granbluefantasy.jp') ||
@@ -766,6 +784,10 @@ export class AccountAuthManager {
       console.log(`[Auth] 💾 Successfully saved ${cleanCookies.length} fresh session cookies across all domains to data/${account.id}-cookies.json`);
     } catch (err: any) {
       console.warn('[Auth] Notice saving fresh cookies:', err.message);
+    } finally {
+      if (client && typeof client.detach === 'function') {
+        await client.detach().catch(() => null);
+      }
     }
   }
 }

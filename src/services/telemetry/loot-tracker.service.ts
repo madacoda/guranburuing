@@ -20,6 +20,147 @@ export class LootTrackerService implements ILootTrackerService {
   }
 
   /**
+   * Authoritative check for whether an individual reward item object represents a Gold Brick (ID 20004, kind 17).
+   */
+  public static isGoldBarItemObject(node: any, objectKey?: string): boolean {
+    if (!node || typeof node !== 'object') return false;
+    if (objectKey === '17_20004') return true;
+
+    const rawId = String(node.item_id ?? node.id ?? '').trim();
+    const rawKey = String(node.key ?? node.item_key ?? '').trim();
+    const rawKind = String(node.item_kind ?? node.kind ?? node.type ?? '').trim();
+    const rawName = String(node.name ?? node.item_name ?? '').trim();
+    const rawImg = String(node.img ?? node.image ?? node.thumbnail ?? '').trim();
+
+    if (rawKey === '17_20004') return true;
+
+    if (rawId === '20004' || rawId === '17_20004') {
+      // In GBF, Gold Brick is an evolution item (item_kind 17). Reject if explicitly marked as another kind (e.g. 9=rupies, 10=article, 1=weapon).
+      if (rawKind === '' || rawKind === '17' || rawKind.toLowerCase() === 'evolution') {
+        return true;
+      }
+    }
+
+    if (/\b(?:Gold\s+Brick|Gold\s+Bar)\b/i.test(rawName) || rawName.includes('ヒヒイロカネ')) {
+      return true;
+    }
+
+    if (/\/item\/evolution\/[a-z0-9_]+\/20004\.(?:jpg|png)/i.test(rawImg)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Authoritative check for Gold Brick markers inside decoded result HTML templates (payload.data).
+   * Never matches bare '20004' substrings (which collide with Rupies, EXP, damage, or timestamps).
+   */
+  public static hasGoldBarInHtml(html: string): boolean {
+    if (!html || typeof html !== 'string') return false;
+    let decoded = html;
+    if (html.includes('%')) {
+      try {
+        decoded = decodeURIComponent(html);
+      } catch {
+        decoded = html;
+      }
+    }
+
+    if (
+      /data-key=["']17_20004["']/i.test(decoded) ||
+      /\/item\/evolution\/[a-z0-9_]+\/20004\.(?:jpg|png)/i.test(decoded) ||
+      /\bGold\s+(?:Brick|Bar)\b/i.test(decoded) ||
+      decoded.includes('ヒヒイロカネ')
+    ) {
+      return true;
+    }
+
+    // Match data-item-id="20004" only on reward elements (not footer .prt-treasure-wrapper)
+    const itemIdTagRegex = /<([a-z0-9]+)[^>]*\bdata-item-id=["']20004["'][^>]*>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = itemIdTagRegex.exec(decoded)) !== null) {
+      const tagHtml = match[0];
+      if (!tagHtml.includes('prt-treasure-wrapper')) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Authoritative check for Gold Brick drops in a GBF battle result / reward JSON payload.
+   * Exclusively inspects reward item structures (reward_list / rewards) and result HTML (payload.data),
+   * preventing false positives from Rupies (gold), EXP (exp), honors, damage, or user IDs containing '20004'.
+   */
+  public static hasGoldBarInPayload(payload: any): boolean {
+    if (!payload || typeof payload !== 'object') return false;
+    let found = false;
+
+    const traverseRewardNode = (node: any, key?: string): void => {
+      if (!node || found) return;
+      if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+          traverseRewardNode(node[i]);
+          if (found) return;
+        }
+        return;
+      }
+      if (typeof node === 'object') {
+        if (LootTrackerService.isGoldBarItemObject(node, key)) {
+          found = true;
+          return;
+        }
+        const keys = Object.keys(node);
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          // Skip article_list inventory summaries unless they are reward_list entries
+          if (k === 'article_list') continue;
+          traverseRewardNode(node[k], k);
+          if (found) return;
+        }
+      }
+    };
+
+    const rewardSources = [
+      payload.rewards?.reward_list,
+      payload.option?.result_data?.rewards?.reward_list,
+      payload.reward_list,
+      Array.isArray(payload.rewards) ? payload.rewards : undefined,
+      Array.isArray(payload.option?.result_data?.rewards) ? payload.option.result_data.rewards : undefined
+    ].filter(Boolean);
+
+    if (rewardSources.length > 0) {
+      for (const src of rewardSources) {
+        traverseRewardNode(src);
+        if (found) return true;
+      }
+    } else if (
+      payload.rewards &&
+      typeof payload.rewards === 'object' &&
+      !payload.rewards.reward_list
+    ) {
+      traverseRewardNode(payload.rewards);
+      if (found) return true;
+    } else if (
+      payload.item_id !== undefined ||
+      payload.item_name !== undefined ||
+      payload.key === '17_20004'
+    ) {
+      if (LootTrackerService.isGoldBarItemObject(payload)) {
+        return true;
+      }
+    }
+
+    if (typeof payload.data === 'string' && LootTrackerService.hasGoldBarInHtml(payload.data)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Parses JSON API responses (/reward.json, /result.json, etc.) for drops.
    */
   public inspectRewardResponse(data: any): RaidLootInspectionOutcome {
@@ -34,25 +175,25 @@ export class LootTrackerService implements ILootTrackerService {
     if (!data) return outcome;
 
     try {
-      const dataStr = JSON.stringify(data);
-      if (dataStr.includes('20004') || dataStr.includes('Gold Bar') || dataStr.includes('ヒヒイロカネ')) {
-        outcome.hasGoldBar = true;
-      }
+      outcome.hasGoldBar = LootTrackerService.hasGoldBarInPayload(data);
 
+      const dataStr = JSON.stringify(data);
       if (data.special_reward_flag || data.special_reward || data.reward_box_11 || dataStr.includes('reward_box_11')) {
         outcome.hasBlueChest = true;
       }
 
       if (data.raid_id) outcome.raidId = String(data.raid_id);
+      else if (data.Point?.raid_id) outcome.raidId = String(data.Point.raid_id);
+      else if (data.option?.result_data?.Point?.raid_id) outcome.raidId = String(data.option.result_data.Point.raid_id);
 
       // Extract rewards array
-      const rewards = data.rewards || data.reward_list || [];
+      const rewards = data.rewards?.reward_list || data.rewards || data.reward_list || [];
       if (Array.isArray(rewards)) {
         for (const r of rewards) {
           const id = String(r.item_id || r.id || '');
           const count = Number(r.count || r.num || 1);
           const name = String(r.name || r.item_name || id);
-          const isGoldBar = id === '20004' || name.includes('Gold Bar') || name.includes('ヒヒイロカネ');
+          const isGoldBar = LootTrackerService.isGoldBarItemObject(r);
           if (isGoldBar) outcome.hasGoldBar = true;
           outcome.lootItems.push({ id, name, count, isGoldBar });
         }
@@ -74,19 +215,28 @@ export class LootTrackerService implements ILootTrackerService {
 
     try {
       return await this.page.evaluate(() => {
-        const text = document.body?.innerText || '';
-        const hasTextGb = text.includes('Gold Bar') || text.includes('Gold Brick') || text.includes('ヒヒイロカネ');
-        const hasImgGb = !!document.querySelector([
-          'img[src*="20004"]',
-          'img.img-thumb[src*="20004"]',
-          'img[src*="evolution/s/20004"]',
-          'img[src*="evolution/m/20004"]',
+        const resultRoot = document.querySelector('#cnt-result, .cnt-result, .prt-result-cnt, .pop-raid-result') as HTMLElement | null;
+        const text = (resultRoot ? resultRoot.innerText : document.body?.innerText) || '';
+        const hasTextGb = /\b(?:Gold\s+Bar|Gold\s+Brick)\b/i.test(text) || text.includes('ヒヒイロカネ');
+
+        const candidates = Array.from(document.querySelectorAll([
+          '[data-key="17_20004"]',
+          'img[src*="/item/evolution/"][src*="20004."]',
           '[data-item-name*="Gold Bar"]',
           '[data-item-name*="Gold Brick"]',
           '[data-item-name*="ヒヒイロカネ"]',
-          'div[data-item-id="20004"]',
-          '[data-item-id="20004"]'
-        ].join(', '));
+          '.lis-treasure.btn-treasure-item[data-item-id="20004"]',
+          '.prt-reward-item [data-item-id="20004"]',
+          '.prt-item-list [data-item-id="20004"]',
+          '#cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper)',
+          '.cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper)'
+        ].join(', ')));
+
+        const hasImgGb = candidates.some(el => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          return htmlEl.offsetParent !== null;
+        });
 
         const hasBlueChestEl = !!document.querySelector([
           '.prt-special-reward',
@@ -96,12 +246,13 @@ export class LootTrackerService implements ILootTrackerService {
           '.prt-box-special',
           '[data-box-type="11"]',
           '.box-11',
-          '.reward-box-11'
+          '.reward-box-11',
+          '.ico-treasure-11-mini'
         ].join(', '));
 
         const hasTextBc = text.includes('特別報酬') || text.includes('Special Reward') || text.includes('Blue Chest');
 
-        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
+        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(?:detail\/)?(\d+)/);
         const textMatch = text.match(/ID[:\s]*(\d+)/i);
         const raidId = raidIdMatch ? raidIdMatch[1] : (textMatch ? textMatch[1] : '');
 

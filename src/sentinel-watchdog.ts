@@ -78,6 +78,8 @@ export class SentinelWatchdog {
     '.cf-turnstile'
   ];
 
+  private responseHandler?: (res: any) => Promise<void>;
+
   constructor(
     private page: Page,
     alertRelay?: AlertRelay,
@@ -89,8 +91,23 @@ export class SentinelWatchdog {
   }
 
   public updatePage(newPage: Page): void {
+    this.detachNetworkListener();
     this.page = newPage;
     this.setupNetworkListener();
+  }
+
+  private detachNetworkListener(): void {
+    if (!this.page || !this.responseHandler) return;
+    try {
+      const p = this.page as any;
+      if (typeof p.off === 'function') {
+        p.off('response', this.responseHandler);
+      } else if (typeof p.removeListener === 'function') {
+        p.removeListener('response', this.responseHandler);
+      }
+    } catch {
+      // Ignore cleanup errors on closed pages
+    }
   }
 
   /**
@@ -99,57 +116,61 @@ export class SentinelWatchdog {
   private setupNetworkListener(): void {
     if (!this.page || typeof this.page.on !== 'function') return;
 
-    try {
-      this.page.on('response', async (res) => {
-        try {
-          const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
-          // Ignore external auth providers (Mobage, DMM) loading recaptcha or auth scripts during normal login
-          if (
-            !currentUrl.includes('sec_challenge') &&
-            (currentUrl.includes('mobage.jp') || currentUrl.includes('mbga.jp') || currentUrl.includes('dmm.com'))
-          ) {
-            return;
-          }
+    this.detachNetworkListener();
 
-          const url = res.url();
+    this.responseHandler = async (res: any) => {
+      try {
+        const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
+        // Ignore external auth providers (Mobage, DMM) loading recaptcha or auth scripts during normal login
+        if (
+          !currentUrl.includes('sec_challenge') &&
+          (currentUrl.includes('mobage.jp') || currentUrl.includes('mbga.jp') || currentUrl.includes('dmm.com'))
+        ) {
+          return;
+        }
 
-          // 1. Direct verification route or security challenge
-          if (
-            url.includes('/quest/verification') ||
-            url.includes('/verification') ||
-            url.includes('sec_challenge') ||
-            url.includes('turnstile') ||
-            url.includes('recaptcha')
-          ) {
-            this.networkVerificationDetected = true;
-            this.isLocked = true;
-            return;
-          }
+        const url = res.url();
 
-          // 2. Action API response JSON redirecting to verification
-          if (
-            url.includes('granbluefantasy.jp') &&
-            (url.includes('/quest/') || url.includes('/rest/') || url.includes('/multiraid/'))
-          ) {
-            const headers = res.headers ? res.headers() : {};
-            const contentType = headers['content-type'] || '';
-            if (contentType.includes('application/json')) {
-              const json = await res.json().catch(() => null);
-              if (
-                json &&
-                (json.url?.includes('verification') ||
-                 json.redirect?.includes('verification') ||
-                 json.error === 'verification')
-              ) {
-                this.networkVerificationDetected = true;
-                this.isLocked = true;
-              }
+        // 1. Direct verification route or security challenge
+        if (
+          url.includes('/quest/verification') ||
+          url.includes('/verification') ||
+          url.includes('sec_challenge') ||
+          url.includes('turnstile') ||
+          url.includes('recaptcha')
+        ) {
+          this.networkVerificationDetected = true;
+          this.isLocked = true;
+          return;
+        }
+
+        // 2. Action API response JSON redirecting to verification
+        if (
+          url.includes('granbluefantasy.jp') &&
+          (url.includes('/quest/') || url.includes('/rest/') || url.includes('/multiraid/'))
+        ) {
+          const headers = res.headers ? res.headers() : {};
+          const contentType = headers['content-type'] || '';
+          if (contentType.includes('application/json')) {
+            const json = await res.json().catch(() => null);
+            if (
+              json &&
+              (json.url?.includes('verification') ||
+               json.redirect?.includes('verification') ||
+               json.error === 'verification')
+            ) {
+              this.networkVerificationDetected = true;
+              this.isLocked = true;
             }
           }
-        } catch {
-          // Ignore transient response parsing errors on unrelated assets
         }
-      });
+      } catch {
+        // Ignore transient response parsing errors on unrelated assets
+      }
+    };
+
+    try {
+      this.page.on('response', this.responseHandler);
     } catch {
       // Non-critical network hook setup
     }
@@ -220,11 +241,21 @@ export class SentinelWatchdog {
             return rect.width > 0 && rect.height > 0;
           };
 
-          // 3a. Check targeted CAPTCHA selectors
-          for (const sel of selectors) {
-            const els = document.querySelectorAll(sel);
-            for (let i = 0; i < els.length; i++) {
-              if (isElementVisible(els[i])) return true;
+          // 3a. Check targeted CAPTCHA selectors (fast single-pass combined query with per-selector fallback)
+          try {
+            const combined = selectors.join(', ');
+            if (combined) {
+              const matched = document.querySelectorAll(combined);
+              for (let i = 0; i < matched.length; i++) {
+                if (isElementVisible(matched[i])) return true;
+              }
+            }
+          } catch {
+            for (const sel of selectors) {
+              const els = document.querySelectorAll(sel);
+              for (let i = 0; i < els.length; i++) {
+                if (isElementVisible(els[i])) return true;
+              }
             }
           }
 

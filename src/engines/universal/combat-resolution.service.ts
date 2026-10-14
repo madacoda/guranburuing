@@ -466,13 +466,34 @@ export class CombatResolutionService {
   }
 
   public async inspectDomForGoldBar(): Promise<{ hasGoldBar: boolean; raidId?: string }> {
+    if (this.isSoloQuest()) {
+      return { hasGoldBar: false };
+    }
     try {
       return await this.page.evaluate(() => {
-        const barImg = document.querySelector(
-          'img[src*="20004"], [data-item-id="20004"], img[title*="ヒヒイロカネ"], img[alt*="ヒヒイロカネ"], img[title*="Gold Bar"], img[alt*="Gold Bar"], img[title*="Gold Brick"], img[alt*="Gold Brick"]'
-        );
-        const hasBar = !!(barImg && (barImg as HTMLElement).offsetParent !== null);
-        const hashMatch = window.location.hash.match(/(?:result|result_multi|raid|raid_multi)\/(\d+)/);
+        const candidates = Array.from(document.querySelectorAll([
+          '[data-key="17_20004"]',
+          'img[src*="/item/evolution/"][src*="20004."]',
+          '.lis-treasure.btn-treasure-item[data-item-id="20004"]',
+          '.prt-reward-item [data-item-id="20004"]',
+          '.prt-item-list [data-item-id="20004"]',
+          '#cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper)',
+          '.cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper)',
+          'img[title*="ヒヒイロカネ"]',
+          'img[alt*="ヒヒイロカネ"]',
+          'img[title*="Gold Bar"]',
+          'img[alt*="Gold Bar"]',
+          'img[title*="Gold Brick"]',
+          'img[alt*="Gold Brick"]'
+        ].join(', ')));
+
+        const hasBar = candidates.some(el => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          return htmlEl.offsetParent !== null;
+        });
+
+        const hashMatch = window.location.hash.match(/(?:result|result_multi|raid|raid_multi)\/(?:detail\/)?(\d+)/);
         const raidId = hashMatch ? hashMatch[1] : undefined;
         return { hasGoldBar: hasBar, raidId };
       });
@@ -513,7 +534,9 @@ export class CombatResolutionService {
   public async checkAndDismissProcessingTurnPopup(): Promise<boolean> {
     try {
       return await this.page.evaluate(() => {
-        const pop = document.querySelector('.pop-processing, .prt-popup-processing, .pop-usual') as HTMLElement;
+        const pop = document.querySelector(
+          '.pop-processing, .prt-popup-processing, .pop-usual:not(.pop-pro-quest-list):not(.pop-bulk-pro-confirm):not(.pop-pro-quest-skip):not(.pop-treasure-raid):not(.pop-start-assist):not(.pop-stamina)'
+        ) as HTMLElement;
         if (pop && pop.offsetParent !== null) {
           const ok = pop.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
           if (ok && ok.offsetParent !== null) {
@@ -543,8 +566,21 @@ export class CombatResolutionService {
           stage.gGameStatus.animation = false;
         }
 
+        // Close quest-launch confirmation modals strictly via Close/Cancel
+        const closeOnlyBtns = Array.from(document.querySelectorAll(
+          '.pop-pro-quest-list .btn-usual-close, .pop-bulk-pro-confirm .btn-usual-close, .pop-pro-quest-skip .btn-usual-close, .pop-pro-quest-skip .btn-usual-cancel, .pop-treasure-raid .btn-usual-close, .pop-treasure-raid .btn-usual-cancel, .pop-stamina .btn-usual-cancel'
+        )) as HTMLElement[];
+        for (const btn of closeOnlyBtns) {
+          if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(btn).trigger('tap');
+            btn.click();
+            acted = true;
+          }
+        }
+
         const popBtns = Array.from(document.querySelectorAll(
-          '.pop-usual .btn-close, .pop-usual .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close, .btn-usual-close, .prt-popup-footer .btn-usual-ok'
+          '.pop-usual .btn-close, .pop-usual:not(.pop-pro-quest-list):not(.pop-bulk-pro-confirm):not(.pop-pro-quest-skip):not(.pop-treasure-raid):not(.pop-start-assist):not(.pop-stamina) .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close, .btn-usual-close'
         )) as HTMLElement[];
         for (const btn of popBtns) {
           if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
@@ -909,14 +945,16 @@ export class CombatResolutionService {
 
       this.page.on('response', responseHandler);
 
+      let isPolling = false;
       const pollInterval = setInterval(async () => {
-        if (resolved) return;
+        if (resolved || isPolling) return;
         if (hasSeenSkill && (Date.now() - lastActionTime > 2500)) {
           console.log('[Combat] Full Auto skill sequence completed and settled.');
           finish(true);
           return;
         }
 
+        isPolling = true;
         try {
           const state = await this.page.evaluate((prev) => {
             const stage = (window as any).stage;
@@ -930,7 +968,9 @@ export class CombatResolutionService {
 
           if (state?.turnAdvanced) finish(true);
           else if (state?.isEnded) finish(true);
-        } catch {}
+        } catch {} finally {
+          isPolling = false;
+        }
       }, 80);
     });
   }

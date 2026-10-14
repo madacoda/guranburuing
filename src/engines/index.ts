@@ -17,3 +17,4 @@ export * from './daily-host.engine.js';
 export * from './gold-bar-hunter.engine.js';
 export * from './fate.engine.js';
 export * from './universal/index.js';
+export * from './event/index.js';

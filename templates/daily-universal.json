@@ -138,10 +138,10 @@
     },
     {
       "id": "step_16",
-      "name": "Navigate to https://game.granbluefantasy.jp/#mission",
+      "name": "Navigate to https://game.granbluefantasy.jp/#skyscope",
       "code": "navigate",
       "action": "navigate",
-      "target": "https://game.granbluefantasy.jp/#mission"
+      "target": "https://game.granbluefantasy.jp/#skyscope"
     },
     {
       "id": "step_17",

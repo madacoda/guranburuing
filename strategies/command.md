@@ -341,9 +341,8 @@ Execute any pre-packaged, modified, or custom workflow template dynamically.
    ```
 
 ### How to Customize Minimum and Maximum HP Targets (Raid & Leech)
-You can configure raid candidate filtering boundaries directly in the workflow JSON or Shorthand DSL:
+You can configure raid candidate filtering boundaries directly in the workflow JSON (`templates/*.json`):
 
-#### 1. In Template JSON (`templates/*.json`):
 ```json
 {
   "name": "Raid - The World (HL)",
@@ -366,23 +365,6 @@ You can configure raid candidate filtering boundaries directly in the workflow J
   - `"leech"` / `"otk_burst"`: Fast burst focus, prioritizes low HP raids for rapid drop turn-around.
 - **`minPlayers`** / **`maxPlayers`** (`number`): Enforces minimum clearing participants (e.g. `minPlayers: 3`) or max capacity ceiling (`maxPlayers: 29`).
 - **`minRaidScore`** (`number`): Minimum score needed to accept candidate (default: `0` for custom HP bands, `40` for standard honor raids).
-
-#### 2. In Shorthand DSL (`.dsl`):
-```yaml
-Name: Custom Raid Leech
-Quest: https://game.granbluefantasy.jp/#quest/assist
-Mode: assist
-Raid Slot: 1
-Strategy: leech
-Min HP: 10
-Max HP: 60
-Min Players: 3
-Max Players: 25
-Min Raid Score: 30
-
-# Or using concise range syntax:
-HP: 10-60%
-```
 
 ### How to Create a New Template
 1. Create `templates/my-custom-raid.json` (see [Full Guide](./docs/workflows/creating-and-modifying-workflows.md)).

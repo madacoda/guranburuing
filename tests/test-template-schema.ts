@@ -12,8 +12,14 @@ import path from 'path';
 // 1. Universal Workflow Template Validator (Dynamic All-in-One for all templates/*.json)
 console.log('--- 1. Universal Dynamic Workflow Template Validation (All JSON Templates) ---');
 const templatesDir = path.resolve(process.cwd(), 'templates');
-const templateFiles = fs.readdirSync(templatesDir).filter(f => f.endsWith('.json')).sort();
-console.log(`Discovered ${templateFiles.length} production templates in ${templatesDir}\n`);
+const allEntries = fs.readdirSync(templatesDir);
+const nonJsonFiles = allEntries.filter(f => !f.endsWith('.json'));
+if (nonJsonFiles.length > 0) {
+  console.error(`❌ [FAIL] Non-JSON workflow files found in templates/ directory (JSON-only policy violated): ${nonJsonFiles.join(', ')}`);
+  process.exit(1);
+}
+const templateFiles = allEntries.filter(f => f.endsWith('.json')).sort();
+console.log(`Discovered ${templateFiles.length} production JSON templates in ${templatesDir} (0 non-JSON/DSL files)\n`);
 
 const recognizedActionCodes = new Set([
   'skill', 'attack', 'summon', 'quick_call', 'reload', 'tap_ready',

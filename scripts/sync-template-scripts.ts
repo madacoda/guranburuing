@@ -18,8 +18,8 @@ function main() {
   const templateNames = new Set<string>();
 
   for (const f of templateFiles) {
-    if (f.endsWith('.json') || f.endsWith('.dsl') || f.endsWith('.yaml') || f.endsWith('.yml')) {
-      const base = f.replace(/\.(json|dsl|yaml|yml)$/, '');
+    if (f.endsWith('.json')) {
+      const base = f.replace(/\.json$/, '');
       templateNames.add(base);
     }
   }

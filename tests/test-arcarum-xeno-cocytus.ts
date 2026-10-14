@@ -90,36 +90,36 @@ for (let i = 0; i < tmpl.steps.length; i++) {
 }
 
 // -----------------------------------------------------------------------------
-// Test Group 3: Shorthand DSL Loading & Compilation
+// Test Group 3: JSON-Only Policy & Canonical Alias Verification
 // -----------------------------------------------------------------------------
-console.log('\n--- Test Group 3: Shorthand DSL Loading & Verification ---');
+console.log('\n--- Test Group 3: JSON-Only Policy & Canonical Alias Verification ---');
 
 const dslPath = path.resolve(process.cwd(), 'templates', 'arcarum-xeno-cocytus-militis-rotation.dsl');
-assert(fs.existsSync(dslPath), `DSL file exists on disk: ${dslPath}`);
+assert(!fs.existsSync(dslPath), `DSL file confirmed absent on disk (JSON-only policy enforced): ${dslPath}`);
 
-const dslParsed = TemplateParser.loadTemplate('arcarum-xeno-cocytus-militis-rotation');
-assert(!!dslParsed, 'DSL loaded and compiled cleanly');
+const jsonResolved = TemplateParser.loadTemplate('arcarum-xeno-cocytus-militis-rotation');
+assert(!!jsonResolved, 'Canonical JSON template loaded cleanly via alias');
 assert(
-  dslParsed.questUrl === 'https://game.granbluefantasy.jp/#replicard/supporter/7/7/15/816131/25/0/25083',
-  `DSL questUrl parsed correctly (${dslParsed.questUrl})`
+  jsonResolved.questUrl === 'https://game.granbluefantasy.jp/#replicard/supporter/7/7/15/816131/25/0/25083',
+  `JSON questUrl parsed correctly (${jsonResolved.questUrl})`
 );
 assert(
-  dslParsed.stageUrl === 'https://game.granbluefantasy.jp/#replicard/stage/7',
-  `DSL stageUrl parsed correctly (${dslParsed.stageUrl})`
+  jsonResolved.stageUrl === 'https://game.granbluefantasy.jp/#replicard/stage/7',
+  `JSON stageUrl parsed correctly (${jsonResolved.stageUrl})`
 );
-assert(dslParsed.steps.length === 16, `DSL compiled to exact 16 rotation steps (got ${dslParsed.steps.length})`);
+assert(jsonResolved.steps.length === 16, `JSON template contains exact 16 rotation steps (got ${jsonResolved.steps.length})`);
 
-const dslFirst = dslParsed.steps[0];
+const dslFirst = jsonResolved.steps[0];
 assert(dslFirst.code === 'skill' && dslFirst.character === 4 && dslFirst.skill === 1, 'First step is C4S1');
 assert(dslFirst.ensureCast === true, 'First step preserves ensureCast: true');
 
-const dslSummon4 = dslParsed.steps.find((s: any) => s.code === 'summon' && s.slot === 4);
-assert(!!dslSummon4, 'DSL correctly compiles Summon #4');
+const dslSummon4 = jsonResolved.steps.find((s: any) => s.code === 'summon' && s.slot === 4);
+assert(!!dslSummon4, 'JSON template contains Summon #4');
 
-const dslSummon3 = dslParsed.steps.find((s: any) => s.code === 'summon' && s.slot === 3);
-assert(!!dslSummon3, 'DSL correctly compiles Summon #3');
+const dslSummon3 = jsonResolved.steps.find((s: any) => s.code === 'summon' && s.slot === 3);
+assert(!!dslSummon3, 'JSON template contains Summon #3');
 
-const dslRerun = dslParsed.steps[dslParsed.steps.length - 1];
+const dslRerun = jsonResolved.steps[jsonResolved.steps.length - 1];
 assert(dslRerun.code === 'confirm_result', 'Terminal step is confirm_result (rerun)');
 
 // -----------------------------------------------------------------------------

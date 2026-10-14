@@ -209,6 +209,79 @@ try {
   }
   console.log('   ✅ Legacy 8-column table parsed flawlessly with blue chest dry streak inference');
 
+  console.log('\n11. Testing strict Gold Bar payload & HTML detection against false positives (Rupies 118520004, EXP, damage, treasure footer)...');
+  const { LootTrackerService } = await import('../src/services/telemetry/loot-tracker.service.js');
+
+  // False positive vector #1: Raid 47019788714 payload where player Rupies ("118520004") contains "20004" and Blue Chest (11) has Hollow Key (10_534)
+  const akashaFalsePositivePayload = {
+    user_point: 1413109,
+    gold: {
+      before_gold: '118520004',
+      after_gold: '118520592',
+      get_gold: 588
+    },
+    exp: {
+      before_exp: '99200041',
+      after_exp: '99201100'
+    },
+    rewards: {
+      reward_list: {
+        '3': {
+          '10_534': { item_id: '534', item_kind: '10', name: 'Hollow Key', count: '2' },
+          '10_5471': { item_id: '5471', item_kind: '10', name: 'Silver Centrum', count: '1' }
+        },
+        '11': {
+          '10_534': { item_id: '534', item_kind: '10', name: 'Hollow Key', count: '1' }
+        }
+      }
+    }
+  };
+  if (LootTrackerService.hasGoldBarInPayload(akashaFalsePositivePayload)) {
+    throw new Error('False positive! Payload with before_gold "118520004" and Hollow Key must NOT trigger Gold Bar detection');
+  }
+
+  // False positive vector #2: Non-evolution item_kind with id 20004
+  const wrongItemKindPayload = {
+    rewards: {
+      reward_list: {
+        '3': {
+          '10_20004': { item_id: '20004', item_kind: '10', name: 'Some Other Material', count: '1' }
+        }
+      }
+    }
+  };
+  if (LootTrackerService.hasGoldBarInPayload(wrongItemKindPayload)) {
+    throw new Error('False positive! item_kind "10" with id "20004" must NOT trigger Gold Bar detection');
+  }
+
+  // True positive vector #1: Genuine Gold Brick in Blue Chest (key 17_20004)
+  const genuineGoldBrickPayload = {
+    rewards: {
+      reward_list: {
+        '11': {
+          '17_20004': { item_id: '20004', item_kind: '17', name: 'Gold Brick', count: '1' }
+        }
+      }
+    }
+  };
+  if (!LootTrackerService.hasGoldBarInPayload(genuineGoldBrickPayload)) {
+    throw new Error('True positive missed! Genuine 17_20004 Gold Brick in reward_list must return true');
+  }
+
+  // True positive vector #2: Genuine Gold Bar in array reward_list
+  const genuineArrayPayload = {
+    rewards: {
+      reward_list: [
+        { item_id: '20004', item_kind: '17', name: 'ヒヒイロカネ' }
+      ]
+    }
+  };
+  if (!LootTrackerService.hasGoldBarInPayload(genuineArrayPayload)) {
+    throw new Error('True positive missed! Genuine Gold Bar in array reward_list must return true');
+  }
+
+  console.log('   ✅ Strict Gold Bar payload validator rejected Rupies/EXP/wrong-kind false positives and confirmed genuine 17_20004 drops');
+
   console.log('\n========================================================================');
   console.log('  🎉 ALL GOLD BAR TRACKER & URL INTEGRATION TESTS PASSED 100%!         ');
   console.log('========================================================================\n');

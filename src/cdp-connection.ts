@@ -13,6 +13,34 @@ export class CdpConnectionManager {
   private lastIsHeadless: boolean = true;
   private reconnectListeners: ((page: Page, browser: Browser) => void)[] = [];
 
+  private async withTimeoutThrow<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  private async withTimeoutFallback<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>(resolve => {
+          timer = setTimeout(() => resolve(fallback), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   public async connectWithRetry(
     maxRetries = 6,
     retryDelayMs = 2000,
@@ -73,12 +101,11 @@ export class CdpConnectionManager {
           connectOptions.browserURL = `http://127.0.0.1:${port}`;
         }
 
-        const connectPromise = puppeteer.connect(connectOptions);
-
-        this.browser = await Promise.race([
-          connectPromise,
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('puppeteer.connect timed out after 25000ms')), 25000))
-        ]);
+        this.browser = await this.withTimeoutThrow(
+          puppeteer.connect(connectOptions),
+          25000,
+          'puppeteer.connect timed out after 25000ms'
+        );
 
         this.browser.on('disconnected', () => {
           if (this.isExplicitDisconnect) return;
@@ -98,10 +125,7 @@ export class CdpConnectionManager {
             return u.includes('#raid/') || u.includes('#battle/') || u.includes('#result/') || u.includes('replicard');
           }) || gbfTargets[0];
 
-          targetPage = await Promise.race([
-            preferredTarget.page(),
-            new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 3000))
-          ]);
+          targetPage = await this.withTimeoutFallback(preferredTarget.page(), 3000, null);
 
           // Close duplicate stale GBF tabs to avoid socket/session desync
           if (gbfTargets.length > 1) {
@@ -113,15 +137,9 @@ export class CdpConnectionManager {
                   if (targetId) {
                     await fetch(`http://127.0.0.1:${port}/json/close/${targetId}`, { signal: AbortSignal.timeout(1500) }).catch(() => null);
                   } else {
-                    const extraPage = await Promise.race([
-                      t.page(),
-                      new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 1500))
-                    ]);
+                    const extraPage = await this.withTimeoutFallback(t.page(), 1500, null);
                     if (extraPage && !extraPage.isClosed()) {
-                      await Promise.race([
-                        extraPage.close(),
-                        new Promise(r => setTimeout(r, 1500))
-                      ]).catch(() => null);
+                      await this.withTimeoutFallback(extraPage.close(), 1500, undefined).catch(() => null);
                     }
                   }
                 } catch {}
@@ -134,10 +152,7 @@ export class CdpConnectionManager {
         if (!targetPage) {
           const blankTarget = targets.find(t => t.type() === 'page' && (t.url() === 'about:blank' || t.url() === '' || t.url() === 'chrome://newtab/'));
           if (blankTarget) {
-            targetPage = await Promise.race([
-              blankTarget.page(),
-              new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 3000))
-            ]);
+            targetPage = await this.withTimeoutFallback(blankTarget.page(), 3000, null);
             if (targetPage) {
               console.log('[CDP] Reusing blank tab. Navigating to https://game.granbluefantasy.jp/...');
               await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
@@ -148,10 +163,7 @@ export class CdpConnectionManager {
         // If still no page, open a clean dedicated page for GBF
         if (!targetPage) {
           console.log('[CDP] GBF tab not found in active browser. Opening dedicated https://game.granbluefantasy.jp/ tab...');
-          targetPage = await Promise.race([
-            this.browser.newPage(),
-            new Promise<puppeteer.Page | null>(r => setTimeout(() => r(null), 5000))
-          ]);
+          targetPage = await this.withTimeoutFallback(this.browser.newPage(), 5000, null);
           if (targetPage) {
             await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
           }
@@ -169,10 +181,11 @@ export class CdpConnectionManager {
           await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
         }
 
-        let pageTitle = await Promise.race([
+        let pageTitle = await this.withTimeoutFallback(
           this.gbfPage.title(),
-          new Promise<string>(resolve => setTimeout(() => resolve('Granblue Fantasy (Title Timeout)'), 2000))
-        ]).catch(() => 'Granblue Fantasy');
+          2000,
+          'Granblue Fantasy (Title Timeout)'
+        ).catch(() => 'Granblue Fantasy');
 
         if (pageTitle.toLowerCase().includes('error')) {
           console.warn('[CDP] Detected error page. Automatically recovering to https://game.granbluefantasy.jp/...');

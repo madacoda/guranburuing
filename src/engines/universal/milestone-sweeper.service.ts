@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { logNormalDelay, humanizedClick } from '../../human-motor.js';
 import { goldBarTracker } from '../../services/telemetry/gold-bar-tracker.service.js';
+import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
 import { discordPresence } from '../../relay/discord-presence.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 import { UniversalContext } from './types.js';
@@ -80,6 +81,13 @@ export class MilestoneSweeperService {
   public async claimPendingBattles(logPath: string, currentRuns: number, returnUrl?: string): Promise<number> {
     let claimedCount = 0;
     const maxClaims = 50;
+
+    const prevRaidId = this.ctx.state.currentRaidId;
+    const prevScore = this.ctx.state.currentScore;
+    const prevTurn = this.ctx.state.currentTurn;
+    const prevHadGoldBar = this.ctx.state.currentBattleHadGoldBar;
+    const prevHadBlueChest = this.ctx.state.currentBattleHadBlueChest;
+    this.ctx.state.isClaimingPending = true;
 
     try {
       console.log('[Workflow] Checking and clearing ALL unclaimed battles (#quest/assist/unclaimed/0/0)...');
@@ -218,7 +226,13 @@ export class MilestoneSweeperService {
         const activeClaimedRaidId = urlRaidMatch || this.ctx.state.currentRaidId;
 
         const domCheck = await this.combatResolution.inspectDomForGoldBar();
-        const dropDetected = domCheck.hasGoldBar;
+        const payloadHasGoldBar = LootTrackerService.hasGoldBarInPayload(this.ctx.state.latestRewardData);
+        const dropDetected = domCheck.hasGoldBar || payloadHasGoldBar;
+
+        const claimedHonors = await this.combatResolution.syncCurrentHonors();
+        if (claimedHonors > 0) {
+          console.log(`[Workflow] Claimed Battle #${claimedCount + 1} settled with ${claimedHonors.toLocaleString()} honors.`);
+        }
 
         if (dropDetected) {
           const finalRaidId = domCheck.raidId || activeClaimedRaidId || 'Pending Claim';
@@ -233,20 +247,29 @@ export class MilestoneSweeperService {
             fs.writeFileSync(proofPath, shotBuf);
           }
 
+          const honorsStr = this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-';
           await goldBarTracker.recordDrop({
             raidId: finalRaidId,
             questName: this.ctx.template.name,
-            honors: this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-',
-            turns: this.ctx.state.currentTurn || '-',
-            screenshotPath: proofPath,
+            honors: honorsStr,
+            turns: '-',
+            screenshotPath: shotBuf ? proofPath : undefined,
             screenshotBuffer: shotBuf ? Buffer.from(shotBuf) : undefined,
             source: 'pending_claim',
             accountId: this.ctx.accountId,
-            skipAlert: true
+            skipAlert: Boolean(this.ctx.dropLogger)
           }).catch(() => null);
 
           if (this.ctx.dropLogger) {
-            const stats = this.ctx.dropLogger.recordPendingGoldBar(finalRaidId, proofPath);
+            const stats = this.ctx.dropLogger.recordPendingGoldBar(finalRaidId, shotBuf ? proofPath : undefined);
+            await this.ctx.dropLogger.notifyGoldBarDrop({
+              raidId: finalRaidId,
+              honors: honorsStr,
+              turns: '-',
+              screenshotBuffer: shotBuf ? Buffer.from(shotBuf) : undefined,
+              screenshotPath: shotBuf ? proofPath : undefined,
+              accountId: this.ctx.accountId
+            }).catch(() => null);
             discordPresence.updateStatus({
               raidName: this.ctx.template.name,
               goldBars: stats.goldBars,
@@ -259,11 +282,6 @@ export class MilestoneSweeperService {
         }
 
         this.ctx.state.latestRewardData = null;
-
-        const claimedHonors = await this.combatResolution.syncCurrentHonors();
-        if (claimedHonors > 0) {
-          console.log(`[Workflow] Claimed Battle #${claimedCount + 1} settled with ${claimedHonors.toLocaleString()} honors.`);
-        }
 
         await this.page.evaluate(() => {
           const ok = document.querySelector(
@@ -307,6 +325,13 @@ export class MilestoneSweeperService {
 
     } catch (err: any) {
       console.warn('[Workflow] Notice claiming pending battles:', err.message);
+    } finally {
+      this.ctx.state.isClaimingPending = false;
+      this.ctx.state.currentRaidId = prevRaidId;
+      this.ctx.state.currentScore = prevScore;
+      this.ctx.state.currentTurn = prevTurn;
+      this.ctx.state.currentBattleHadGoldBar = prevHadGoldBar;
+      this.ctx.state.currentBattleHadBlueChest = prevHadBlueChest;
     }
 
     return claimedCount;

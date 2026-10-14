@@ -108,32 +108,32 @@ for (let i = 0; i < redemptionTemplate.steps.length; i++) {
 }
 
 // -----------------------------------------------------------------------------
-// Test Group 3: DSL Parsing & Round-Trip
+// Test Group 3: JSON-Only Policy & Canonical Alias Verification
 // -----------------------------------------------------------------------------
-console.log('\n--- Test Group 3: DSL Parsing & Round-Trip ---');
+console.log('\n--- Test Group 3: JSON-Only Policy & Canonical Alias Verification ---');
 
 const dslPath = path.resolve(process.cwd(), 'templates', 'arcarum-lady-of-redemption-rotation.dsl');
-assert(fs.existsSync(dslPath), `DSL file exists: ${dslPath}`);
+assert(!fs.existsSync(dslPath), `DSL file confirmed absent (JSON-only policy enforced): ${dslPath}`);
 
-const dslParsed = TemplateParser.loadTemplate('arcarum-lady-of-redemption-rotation');
+const jsonResolved = TemplateParser.loadTemplate('arcarum-lady-of-redemption-rotation');
 
-assert(!!dslParsed, 'DSL parsed successfully');
+assert(!!jsonResolved, 'Canonical JSON template resolved successfully');
 assert(
-  dslParsed.questUrl === 'https://game.granbluefantasy.jp/#replicard/supporter/7/7/7/816071/25',
-  `DSL questUrl parsed correctly (${dslParsed.questUrl})`
+  jsonResolved.questUrl === 'https://game.granbluefantasy.jp/#replicard/supporter/7/7/7/816071/25',
+  `JSON questUrl parsed correctly (${jsonResolved.questUrl})`
 );
-assert(dslParsed.steps.length === 16, `DSL parsed exact 16 rotation steps (got ${dslParsed.steps.length})`);
+assert(jsonResolved.steps.length === 16, `JSON template has exact 16 rotation steps (got ${jsonResolved.steps.length})`);
 
 // Verify C4S1 ensureCast
-const firstStep = dslParsed.steps[0];
+const firstStep = jsonResolved.steps[0];
 assert(firstStep.code === 'skill' && firstStep.character === 4 && firstStep.skill === 1, 'First step is C4S1');
 assert(firstStep.ensureCast === true, 'First step preserves ensureCast: true');
 
-// Verify Summons in DSL
-const summon4Step = dslParsed.steps[10];
+// Verify Summons in JSON
+const summon4Step = jsonResolved.steps[10];
 assert(summon4Step.code === 'summon' && summon4Step.slot === 4, 'Step 11 is Summon #4');
 
-const summon3Step = dslParsed.steps[13];
+const summon3Step = jsonResolved.steps[13];
 assert(summon3Step.code === 'summon' && summon3Step.slot === 3, 'Step 14 is Summon #3');
 
 // -----------------------------------------------------------------------------

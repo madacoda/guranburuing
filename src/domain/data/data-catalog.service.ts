@@ -68,11 +68,13 @@ export class DataCatalogService {
 
   private raidsById = new Map<string, RaidCatalogItem>();
   private raidsByQuestId = new Map<string, RaidCatalogItem>();
+  private raidsByCategory = new Map<string, RaidCatalogItem[]>();
   private categoriesById = new Map<string, RaidCategoryDefinition>();
   private modalsById = new Map<string, ModalDefinition>();
   private routesByHash = new Map<string, NavigationRouteDefinition>();
   private endpointsByName = new Map<string, EndpointDefinition>();
   private tasksByTagOrId = new Map<string, DailyAutomationTask>();
+  private allDailyTasksList: DailyAutomationTask[] = [];
   private elementsById = new Map<string, ElementDefinition>();
   private elementsByInternalId = new Map<number, ElementDefinition>();
   private matrixByKey = new Map<string, ElementMatrixItem>();
@@ -86,6 +88,7 @@ export class DataCatalogService {
   private plainMCById = new Map<string, PlainDamageMC>();
   private plainSolverPipeline: PlainDamageSolverStep[] = [];
   private plainRaidMappings: PlainDamageRaidOmenMapping[] = [];
+  private plainRaidMappingsByRaidId = new Map<string, PlainDamageRaidOmenMapping>();
 
   // KMS Extensions: Status Effects, Dispel & Cleanse
   private bossBuffsById = new Map<string, BossBuffDefinition>();
@@ -97,11 +100,13 @@ export class DataCatalogService {
   private cleanseSummons: CleanseSourceSummon[] = [];
   private cleanseCharacters: CleanseSourceCharacter[] = [];
   private zombifiedLockoutActions: string[] = [];
+  private zombifiedLockoutSet = new Set<string>();
 
   // KMS Extensions: Supporter Summons & Grid Archetypes
   private gridArchetypesById = new Map<string, GridArchetypeDefinition>();
   private elementalSupportersByElement = new Map<string, ElementalSupportersDefinition>();
   private supporterSelectionRules: SupporterSelectionMatrixItem[] = [];
+  private supporterRulesByQuestType = new Map<string, SupporterSelectionMatrixItem>();
 
   // KMS Extensions: Raid Evaluation & Action Priorities
   private raidActionPolicies: RaidActionPolicy[] = [];
@@ -134,6 +139,7 @@ export class DataCatalogService {
   private revansApexRaidsById = new Map<string, RevansApexRaidDefinition>();
   private revansApexCategories: RevansApexCategoryDefinition[] = [];
   private guildWarsStages: GuildWarsStageDefinition[] = [];
+  private guildWarsStagesById = new Map<string, GuildWarsStageDefinition>();
   private guildWarsMeat: GuildWarsMeatOptimizationDefinition[] = [];
   private guildWarsNightmares: GuildWarsNightmareStrategyDefinition[] = [];
 
@@ -163,6 +169,10 @@ export class DataCatalogService {
         for (const raid of data.raids || []) {
           this.raidsById.set(raid.id.toLowerCase(), raid);
           this.raidsByQuestId.set(raid.questId, raid);
+          const catKey = (raid.category || '').toLowerCase();
+          const catList = this.raidsByCategory.get(catKey) || [];
+          catList.push(raid);
+          this.raidsByCategory.set(catKey, catList);
         }
       }
 
@@ -213,7 +223,8 @@ export class DataCatalogService {
       const tasksPath = path.join(this.dataBasePath, 'automation', 'daily-routines.json');
       if (fs.existsSync(tasksPath)) {
         const data = JSON.parse(fs.readFileSync(tasksPath, 'utf-8'));
-        for (const task of data.tasks || []) {
+        this.allDailyTasksList = data.tasks || [];
+        for (const task of this.allDailyTasksList) {
           this.tasksByTagOrId.set(task.id.toLowerCase(), task);
           if (task.tag) this.tasksByTagOrId.set(task.tag.toLowerCase(), task);
         }
@@ -298,6 +309,9 @@ export class DataCatalogService {
         const data = JSON.parse(fs.readFileSync(plainEnginePath, 'utf-8'));
         this.plainSolverPipeline = data.solverPipeline || [];
         this.plainRaidMappings = data.raidOmenMappings || [];
+        for (const mapping of this.plainRaidMappings) {
+          this.plainRaidMappingsByRaidId.set(mapping.raidId.toLowerCase(), mapping);
+        }
       }
 
       // 15. Load Status Effects, Dispel & Cleanse Catalog
@@ -317,6 +331,9 @@ export class DataCatalogService {
         this.cleanseSummons = data.cleanseSources?.summons || [];
         this.cleanseCharacters = data.cleanseSources?.characterHighlights || [];
         this.zombifiedLockoutActions = data.decisionEngine?.zombifiedSafetyInterlock?.lockoutActions || [];
+        for (const act of this.zombifiedLockoutActions) {
+          this.zombifiedLockoutSet.add(act.toLowerCase());
+        }
       }
 
       // 16. Load Supporter Summons & Grid Archetypes
@@ -330,6 +347,9 @@ export class DataCatalogService {
           this.elementalSupportersByElement.set(elemSupp.element.toLowerCase(), elemSupp);
         }
         this.supporterSelectionRules = data.selectionMatrix || [];
+        for (const rule of this.supporterSelectionRules) {
+          this.supporterRulesByQuestType.set(rule.questType.toLowerCase(), rule);
+        }
       }
 
       // 17. Load Raid Join Decision Catalog
@@ -473,6 +493,9 @@ export class DataCatalogService {
       if (fs.existsSync(unfPath)) {
         const data = JSON.parse(fs.readFileSync(unfPath, 'utf-8'));
         this.guildWarsStages = data.stages || [];
+        for (const stage of this.guildWarsStages) {
+          this.guildWarsStagesById.set(stage.stageId.toLowerCase(), stage);
+        }
         this.guildWarsMeat = data.meatOptimization || [];
         this.guildWarsNightmares = data.nightmareStrategies || [];
       }
@@ -497,7 +520,7 @@ export class DataCatalogService {
   }
 
   public getRaidsByCategory(category: string): RaidCatalogItem[] {
-    return this.getAllRaids().filter(r => r.category.toLowerCase() === category.toLowerCase());
+    return this.raidsByCategory.get(category.toLowerCase()) || [];
   }
 
   // Category Queries
@@ -533,16 +556,7 @@ export class DataCatalogService {
   }
 
   public getAllDailyTasks(): DailyAutomationTask[] {
-    // Unique by id
-    const seen = new Set<string>();
-    const results: DailyAutomationTask[] = [];
-    for (const t of this.tasksByTagOrId.values()) {
-      if (!seen.has(t.id)) {
-        seen.add(t.id);
-        results.push(t);
-      }
-    }
-    return results;
+    return [...this.allDailyTasksList];
   }
 
   // Element Queries
@@ -643,7 +657,7 @@ export class DataCatalogService {
   }
 
   public getPlainDamageMappingForRaid(raidId: string): PlainDamageRaidOmenMapping | undefined {
-    return this.plainRaidMappings.find(m => m.raidId.toLowerCase() === raidId.toLowerCase());
+    return this.plainRaidMappingsByRaidId.get(raidId.toLowerCase());
   }
 
   // KMS Queries: Status Effects, Dispel & Cleanse
@@ -664,7 +678,7 @@ export class DataCatalogService {
   }
 
   public isActionBlockedByZombified(action: string): boolean {
-    return this.zombifiedLockoutActions.includes(action.toLowerCase());
+    return this.zombifiedLockoutSet.has(action.toLowerCase());
   }
 
   public getDispelSummons(): DispelSourceSummon[] {
@@ -689,7 +703,7 @@ export class DataCatalogService {
   }
 
   public getSupporterSelectionRule(questType: string): SupporterSelectionMatrixItem | undefined {
-    return this.supporterSelectionRules.find(r => r.questType.toLowerCase() === questType.toLowerCase());
+    return this.supporterRulesByQuestType.get(questType.toLowerCase());
   }
 
   // KMS Queries: Raid Join Decision & Evaluation
@@ -826,7 +840,7 @@ export class DataCatalogService {
   }
 
   public getGuildWarsStage(stageId: string): GuildWarsStageDefinition | undefined {
-    return this.guildWarsStages.find(s => s.stageId.toLowerCase() === stageId.toLowerCase());
+    return this.guildWarsStagesById.get(stageId.toLowerCase());
   }
 
   public getGuildWarsMeatOptimizations(): GuildWarsMeatOptimizationDefinition[] {

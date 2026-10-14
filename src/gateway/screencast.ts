@@ -151,5 +151,11 @@ export class ScreencastManager {
 
   public async stop(): Promise<void> {
     await this.stopStreaming();
+    if (this.cdpSession) {
+      try {
+        await this.cdpSession.detach();
+      } catch {}
+      this.cdpSession = null;
+    }
   }
 }

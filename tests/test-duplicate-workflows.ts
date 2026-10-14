@@ -38,11 +38,18 @@ function computeWorkflowSignature(template: WorkflowTemplate): string {
 }
 
 // -------------------------------------------------------------
-// Test 1: Scan All Production Template Files for Zero Duplicates
+// Test 1: Scan All Production Template Files for Zero Duplicates & JSON-Only Policy
 // -------------------------------------------------------------
-console.log('--- Test 1: Verifying 0 Duplicate Workflow Templates on Disk ---');
-const templateFiles = fs.readdirSync(templatesDir).filter(f => f.endsWith('.json')).sort();
-console.log(`Discovered ${templateFiles.length} template files to audit in ${templatesDir}\n`);
+console.log('--- Test 1: Verifying JSON-Only Policy & 0 Duplicate Workflow Templates on Disk ---');
+const allDirFiles = fs.readdirSync(templatesDir);
+const nonJsonTemplates = allDirFiles.filter(f => !f.endsWith('.json'));
+assert.strictEqual(
+  nonJsonTemplates.length,
+  0,
+  `Workflows must use .json only (found non-JSON files in templates/: ${nonJsonTemplates.join(', ')})`
+);
+const templateFiles = allDirFiles.filter(f => f.endsWith('.json')).sort();
+console.log(`Discovered ${templateFiles.length} JSON template files to audit in ${templatesDir} (0 .dsl files)\n`);
 
 const signatureToFiles = new Map<string, string[]>();
 

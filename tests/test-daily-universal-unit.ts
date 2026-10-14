@@ -109,6 +109,121 @@ mockSentinel.updatePage(newMockPage);
 assert('SentinelWatchdog.updatePage executed without error', true);
 
 // -----------------------------------------------------------------------------
+// Test 5: handleDismissPopups Protects Against Clicking .btn-usual-ok on Pro Modals
+// -----------------------------------------------------------------------------
+console.log('\n[Test 5] Verifying handleDismissPopups Close-Only Protection on Pro Modals...');
+{
+  let bulkOkClicked = false;
+  let closeBtnClicked = false;
+  const fakeCloseBtn = {
+    getBoundingClientRect: () => ({ width: 100, height: 40 }),
+    click: () => { closeBtnClicked = true; }
+  };
+  const fakeBulkOkBtn = {
+    getBoundingClientRect: () => ({ width: 100, height: 40 }),
+    click: () => { bulkOkClicked = true; }
+  };
+  const fakeModal = {
+    querySelector: (sel: string) => sel.includes('btn-usual-close') ? fakeCloseBtn : null
+  };
+
+  const origDoc = (globalThis as any).document;
+  const origWin = (globalThis as any).window;
+  (globalThis as any).window = {
+    getComputedStyle: () => ({ display: 'block', visibility: 'visible' })
+  };
+  let callIdx = 0;
+  (globalThis as any).document = {
+    querySelectorAll: (sel: string) => {
+      if (callIdx === 0 && sel.includes('.pop-pro-quest-list.pop-show')) {
+        callIdx++;
+        return [fakeModal];
+      }
+      if (sel.includes(':not(.pop-pro-quest-list)')) {
+        return [];
+      }
+      if (sel === '.pop-usual .btn-usual-ok') {
+        return [fakeBulkOkBtn];
+      }
+      return [];
+    }
+  };
+
+  await (engine as any).routineExecution.handleDismissPopups();
+  (globalThis as any).document = origDoc;
+  (globalThis as any).window = origWin;
+
+  assert('Clicked .btn-usual-close on .pop-pro-quest-list', closeBtnClicked);
+  assert('Never clicked .btn-usual-ok.bulk on .pop-pro-quest-list', !bulkOkClicked);
+}
+
+// -----------------------------------------------------------------------------
+// Test 6: navigateIfNeeded Self-Heals Corrupted #quest/extra View via Backbone
+// -----------------------------------------------------------------------------
+console.log('\n[Test 6] Verifying navigateIfNeeded Backbone Self-Healing on Corrupted #quest/extra...');
+{
+  let backboneLoadedRoute = '';
+  const origDoc = (globalThis as any).document;
+  const origWin = (globalThis as any).window;
+  (globalThis as any).window = {
+    location: { hash: '#quest/extra', href: 'https://game.granbluefantasy.jp/#quest/extra' },
+    getComputedStyle: (el: any) => ({ display: el?.id === 'ready' ? 'block' : 'none', visibility: 'visible' }),
+    Backbone: {
+      history: {
+        loadUrl: (fragment: string) => { backboneLoadedRoute = fragment; }
+      }
+    }
+  };
+  (globalThis as any).document = {
+    querySelector: (sel: string) => {
+      if (sel === '#ready') return { id: 'ready' };
+      if (sel === '#cnt-quest .prt-supporter-list') return {};
+      return null;
+    },
+    querySelectorAll: () => []
+  };
+
+  await (engine as any).routineExecution.navigateIfNeeded('https://game.granbluefantasy.jp/#quest/extra');
+  (globalThis as any).document = origDoc;
+  (globalThis as any).window = origWin;
+
+  assert('Reloaded quest/extra via Backbone.history.loadUrl when #ready/SupporterView corrupted view', backboneLoadedRoute === 'quest/extra');
+}
+
+// -----------------------------------------------------------------------------
+// Test 7: handleApRecoveryModal Supports .pop-stamina .btn-use-full & .pop-result
+// -----------------------------------------------------------------------------
+console.log('\n[Test 7] Verifying .pop-stamina .btn-use-full and .pop-result AP Recovery...');
+{
+  let useFullClicked = false;
+  let resultOkClicked = false;
+  const origDoc = (globalThis as any).document;
+  const origWin = (globalThis as any).window;
+  (globalThis as any).window = {
+    getComputedStyle: () => ({ display: 'block', visibility: 'visible' })
+  };
+  (globalThis as any).document = {
+    querySelector: (sel: string) => {
+      if (sel.includes('.pop-stamina .btn-use-full')) {
+        return { offsetParent: {}, click: () => { useFullClicked = true; } };
+      }
+      if (sel.includes('.pop-result .btn-usual-ok')) {
+        return { offsetParent: {}, click: () => { resultOkClicked = true; } };
+      }
+      return null;
+    }
+  };
+
+  const recovered = await (engine as any).routineExecution.handleApRecoveryModal();
+  (globalThis as any).document = origDoc;
+  (globalThis as any).window = origWin;
+
+  assert('handleApRecoveryModal returned true', recovered === true);
+  assert('Clicked .pop-stamina .btn-use-full', useFullClicked);
+  assert('Clicked .pop-result .btn-usual-ok', resultOkClicked);
+}
+
+// -----------------------------------------------------------------------------
 // Summary
 // -----------------------------------------------------------------------------
 console.log('\n========================================================================');

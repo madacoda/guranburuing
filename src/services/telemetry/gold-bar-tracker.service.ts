@@ -52,6 +52,8 @@ export class GoldBarTrackerService {
   private masterLedgerPath: string;
   private summaryMarkdownPath: string;
   private alertRelay = new AlertRelay();
+  private masterRecordsCache: GoldBarDropRecord[] | null = null;
+  private masterRecordsMtimeMs = -1;
 
   constructor(baseDir = 'logs/gold-bars') {
     this.baseDir = path.resolve(process.cwd(), baseDir);
@@ -123,18 +125,38 @@ export class GoldBarTrackerService {
   }
 
   /**
-   * Reads all master ledger records from disk.
+   * Reads all master ledger records from disk (with mtimeMs-validated in-memory caching).
    */
   public getMasterRecords(): GoldBarDropRecord[] {
     try {
       if (fs.existsSync(this.masterLedgerPath)) {
+        const stat = fs.statSync(this.masterLedgerPath);
+        if (this.masterRecordsCache && this.masterRecordsMtimeMs === stat.mtimeMs) {
+          return [...this.masterRecordsCache];
+        }
         const raw = fs.readFileSync(this.masterLedgerPath, 'utf-8');
-        return JSON.parse(raw);
+        const parsed: GoldBarDropRecord[] = JSON.parse(raw);
+        this.masterRecordsCache = parsed;
+        this.masterRecordsMtimeMs = stat.mtimeMs;
+        return [...parsed];
       }
+      this.masterRecordsCache = null;
+      this.masterRecordsMtimeMs = -1;
     } catch (e: any) {
       console.warn(`[GoldBarTracker] Warning loading master ledger: ${e.message}`);
     }
     return [];
+  }
+
+  private saveMasterRecords(records: GoldBarDropRecord[]): void {
+    fs.writeFileSync(this.masterLedgerPath, JSON.stringify(records, null, 2), 'utf-8');
+    try {
+      const stat = fs.statSync(this.masterLedgerPath);
+      this.masterRecordsCache = [...records];
+      this.masterRecordsMtimeMs = stat.mtimeMs;
+    } catch {
+      this.masterRecordsCache = [...records];
+    }
   }
 
   /**
@@ -153,6 +175,7 @@ export class GoldBarTrackerService {
     accountId?: string;
     customTimestamp?: Date;
     skipAlert?: boolean;
+    skipMarkdownUpdate?: boolean;
   }): Promise<GoldBarDropRecord> {
     const date = params.customTimestamp || new Date();
     const cleanRaidId = params.raidId.replace(/\D/g, '').trim() || 'Unknown';
@@ -185,6 +208,11 @@ export class GoldBarTrackerService {
       accountId: params.accountId || 'acc1'
     };
 
+    const isDefaultProdLedger = path.resolve(this.baseDir) === path.resolve(process.cwd(), 'logs/gold-bars');
+    if (isDefaultProdLedger && (params.accountId === 'test-acc' || params.questName === 'Unit Test Template')) {
+      return record;
+    }
+
     // 1. Update Master Ledger (with deduplication)
     const masterRecords = this.getMasterRecords();
     const existingIndex = masterRecords.findIndex(r => r.raidId === cleanRaidId && cleanRaidId !== 'Unknown');
@@ -195,7 +223,7 @@ export class GoldBarTrackerService {
     } else {
       masterRecords.push(record);
     }
-    fs.writeFileSync(this.masterLedgerPath, JSON.stringify(masterRecords, null, 2), 'utf-8');
+    this.saveMasterRecords(masterRecords);
 
     // 2. Update Daily Partition
     const dailyPath = path.resolve(this.dailyDir, `gold-bars-${gbfDay}.json`);
@@ -214,7 +242,9 @@ export class GoldBarTrackerService {
     fs.writeFileSync(dailyPath, JSON.stringify(dailyRecords, null, 2), 'utf-8');
 
     // 3. Update Summary Markdown
-    this.generateSummaryMarkdown();
+    if (!params.skipMarkdownUpdate) {
+      this.generateSummaryMarkdown();
+    }
 
     // 4. Send Instant Discord Alert (if not skipped)
     if (!params.skipAlert) {
@@ -236,7 +266,7 @@ export class GoldBarTrackerService {
     if (!target) return false;
 
     master = master.filter(r => r.raidId !== cleanRaidId);
-    fs.writeFileSync(this.masterLedgerPath, JSON.stringify(master, null, 2), 'utf-8');
+    this.saveMasterRecords(master);
 
     // Update Daily Partition
     const dailyPath = path.resolve(this.dailyDir, `gold-bars-${target.gbfDay}.json`);
@@ -414,7 +444,8 @@ export class GoldBarTrackerService {
                 chestType: 'blue_chest',
                 source: 'backfill',
                 customTimestamp: parsedDate,
-                skipAlert: true // Do not spam Discord for historical backfill
+                skipAlert: true, // Do not spam Discord for historical backfill
+                skipMarkdownUpdate: true
               });
               importedCount++;
             }

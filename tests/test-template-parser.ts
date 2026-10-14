@@ -30,28 +30,26 @@ Confirm a bit
 -----
 `;
 
-// Test parsing of full DSL
-const dummyFile = 'templates/test-advanced-dsl.txt';
-import fs from 'fs';
-fs.writeFileSync(dummyFile, dslSample, 'utf-8');
+// Test in-memory compilation and JSON round-trip validation
+const parsedDsl = TemplateParser.parseShorthandDsl(dslSample, 'test-advanced-dsl');
+const jsonSerialized = TemplateParser.serializeToJson(parsedDsl, true);
+const validatedJson = TemplateParser.validate(JSON.parse(jsonSerialized));
+if (!validatedJson.valid || !validatedJson.template) {
+  throw new Error(`JSON validation failed: ${validatedJson.errors.join(', ')}`);
+}
 
-try {
-  const parsedDsl = TemplateParser.loadTemplate('test-advanced-dsl');
-  console.log(`Parsed Advanced DSL successfully with ${parsedDsl.steps.length} steps:`);
-  parsedDsl.steps.forEach((s, idx) => {
-    console.log(`  [${idx + 1}] ${s.name} -> Action: ${s.action} ${s.minMs ? `(${s.minMs}-${s.maxMs}ms)` : ''}`);
-  });
+console.log(`Compiled and validated JSON workflow successfully with ${validatedJson.template.steps.length} steps:`);
+validatedJson.template.steps.forEach((s, idx) => {
+  console.log(`  [${idx + 1}] ${s.name} -> Action: ${s.action} ${s.minMs ? `(${s.minMs}-${s.maxMs}ms)` : ''}`);
+});
 
-  const actions = parsedDsl.steps.map(s => s.action);
-  const expected = ['tap_ready', 'wait_random', 'reload', 'skill', 'summon', 'guard', 'auto', 'touch_tap', 'wait_network', 'wait', 'reload', 'confirm_result'];
-  
-  const allMatch = expected.every(act => actions.includes(act as any));
-  if (allMatch) {
-    console.log('\n✅ All advanced actions parsed and verified successfully!');
-  } else {
-    console.error('\n❌ Missing actions in parsed output:', actions);
-    process.exit(1);
-  }
-} finally {
-  if (fs.existsSync(dummyFile)) fs.unlinkSync(dummyFile);
+const actions = validatedJson.template.steps.map(s => s.action);
+const expected = ['tap_ready', 'wait_random', 'reload', 'skill', 'summon', 'guard', 'auto', 'touch_tap', 'wait_network', 'wait', 'reload', 'confirm_result'];
+
+const allMatch = expected.every(act => actions.includes(act as any));
+if (allMatch) {
+  console.log('\n✅ All advanced actions compiled to JSON and verified successfully!');
+} else {
+  console.error('\n❌ Missing actions in compiled JSON output:', actions);
+  process.exit(1);
 }

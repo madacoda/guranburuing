@@ -27,16 +27,44 @@ export function getSpeedProfile(): SpeedProfile {
   return currentSpeedProfile;
 }
 
-// Persistent cursor tracker to avoid instantaneous teleports between clicks
-let currentCursorPos: Point = { x: 240, y: 480 };
+// Per-page cursor tracker to prevent multi-account swarms from clobbering each other's trajectory state
+const cursorPosByPage = new WeakMap<object, Point>();
+let fallbackCursorPos: Point = { x: 240, y: 480 };
+
+function getPageCursorPos(page: Page | null | undefined): Point {
+  if (page && typeof page === 'object') {
+    return cursorPosByPage.get(page) || { x: 240, y: 480 };
+  }
+  return fallbackCursorPos;
+}
+
+function setPageCursorPos(page: Page | null | undefined, pos: Point): void {
+  if (page && typeof page === 'object') {
+    cursorPosByPage.set(page, pos);
+  }
+  fallbackCursorPos = pos;
+}
+
+// Cached spare normal variate from Box-Muller transform to halve transcendental math overhead
+let hasSpareGaussian = false;
+let spareGaussian = 0;
 
 /**
- * Generates a standard normal random variable Z ~ N(0, 1) using the Box-Muller transform.
+ * Generates a standard normal random variable Z ~ N(0, 1) using the Box-Muller transform
+ * with spare variate caching.
  */
 export function sampleGaussian(mean = 0, stdDev = 1): number {
+  if (hasSpareGaussian) {
+    hasSpareGaussian = false;
+    return mean + spareGaussian * stdDev;
+  }
   const u1 = Math.max(1e-7, Math.random());
   const u2 = Math.random();
-  const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  const mag = Math.sqrt(-2.0 * Math.log(u1));
+  const angle = 2.0 * Math.PI * u2;
+  const z0 = mag * Math.cos(angle);
+  spareGaussian = mag * Math.sin(angle);
+  hasSpareGaussian = true;
   return mean + z0 * stdDev;
 }
 
@@ -179,14 +207,14 @@ export function evaluateCubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, 
  * Generates a continuous cursor trajectory scaled to the speed profile.
  */
 export async function moveMouseSmoothly(page: Page, target: Point): Promise<void> {
-  const start = { ...currentCursorPos };
+  const start = { ...getPageCursorPos(page) };
   const dx = target.x - start.x;
   const dy = target.y - start.y;
   const distance = Math.hypot(dx, dy);
 
   if (distance < 4 || currentSpeedProfile === 'turbo') {
     await page.mouse.move(target.x, target.y);
-    currentCursorPos = { ...target };
+    setPageCursorPos(page, { ...target });
     return;
   }
 
@@ -205,7 +233,7 @@ export async function moveMouseSmoothly(page: Page, target: Point): Promise<void
   };
 
   if (typeof page.mouse?.move !== 'function') {
-    currentCursorPos = { ...target };
+    setPageCursorPos(page, { ...target });
     return;
   }
 
@@ -228,7 +256,7 @@ export async function moveMouseSmoothly(page: Page, target: Point): Promise<void
     }
   }
 
-  currentCursorPos = { ...target };
+  setPageCursorPos(page, { ...target });
 }
 
 /**
@@ -310,18 +338,14 @@ export async function humanizedClick(
     throw new Error(`Target element not found: ${element}`);
   }
 
-  // 1. Scroll into view if offscreen
-  await el.evaluate((node: any) => {
-    if (typeof node?.scrollIntoView === 'function') {
-      node.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
-    }
-  }).catch(() => null);
-
   // Production VPS / DOM Mode Fast-Path:
-  // Dispatches touch/DOM event directly without synchronous layout calculation or multi-step CDP Bézier cursor delay
+  // Single atomic CDP round-trip for scrollIntoView + Zepto tap/DOM click without layout rect round-trips
   if (config.isProduction || config.EXECUTION_MODE === 'dom') {
     await el.evaluate((node: any) => {
       if (node) {
+        if (typeof node.scrollIntoView === 'function') {
+          node.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+        }
         const $ = (window as any).$ || (window as any).Zepto;
         if ($) $(node).trigger('tap');
         if (typeof node.click === 'function') node.click();
@@ -332,6 +356,13 @@ export async function humanizedClick(
     await new Promise(r => setTimeout(r, microJitter));
     return;
   }
+
+  // 1. Scroll into view if offscreen
+  await el.evaluate((node: any) => {
+    if (typeof node?.scrollIntoView === 'function') {
+      node.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+    }
+  }).catch(() => null);
 
   if (currentSpeedProfile === 'stealth') {
     await logNormalDelay(60, 0.15);
@@ -379,7 +410,7 @@ export async function humanizedClick(
       if (typeof page.mouse?.move === 'function') {
         await page.mouse.move(jitterPoint.x, jitterPoint.y);
       }
-      currentCursorPos = jitterPoint;
+      setPageCursorPos(page, jitterPoint);
     }
 
     // Physical click actuation (realistic microswitch hold duration: 40ms - 75ms)

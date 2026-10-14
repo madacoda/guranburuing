@@ -26,6 +26,7 @@ export class GatewayServer {
   private raidEngine: RaidEngine;
   private wsClients: Set<WebSocket> = new Set();
   private isBusy = false; // Async Mutex flag
+  private telemetryInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private page: Page,
@@ -155,7 +156,10 @@ export class GatewayServer {
     });
 
     // Keepalive Heartbeat & Telemetry Broadcaster (every 2.5 seconds)
-    setInterval(async () => {
+    if (this.telemetryInterval) {
+      clearInterval(this.telemetryInterval);
+    }
+    this.telemetryInterval = setInterval(async () => {
       if (this.wsClients.size === 0) return;
       try {
         const telemetry = {
@@ -190,27 +194,18 @@ export class GatewayServer {
   ): Promise<{ sanitizedCount: number; profile: VerifiedPlayerProfile | null }> {
     console.log(`[Gateway] Injecting ${cookies.length} cookies into browser session for account [${accountId}]...`);
 
-    const sanitizedCookies = cookies.map((c: any) => {
-      const item: any = {
-        name: c.name,
-        value: c.value,
-        domain: c.domain,
-        path: c.path || '/'
-      };
-      if (typeof c.secure === 'boolean') item.secure = c.secure;
-      if (typeof c.httpOnly === 'boolean') item.httpOnly = c.httpOnly;
-      if (c.sameSite && ['Strict', 'Lax', 'None'].includes(c.sameSite)) {
-        item.sameSite = c.sameSite;
-      }
-      if (typeof c.expires === 'number' && c.expires > 0) {
-        item.expires = c.expires;
-      }
-      return item;
-    });
+    const sanitizedCookies = AccountAuthManager.sanitizeCookiesForCDP(cookies);
 
-    const client = await this.page.target().createCDPSession();
-    await client.send('Network.clearBrowserCookies');
-    await client.send('Network.setCookies', { cookies: sanitizedCookies });
+    let client: any = null;
+    try {
+      client = await this.page.target().createCDPSession();
+      await client.send('Network.clearBrowserCookies');
+      await client.send('Network.setCookies', { cookies: sanitizedCookies });
+    } finally {
+      if (client && typeof client.detach === 'function') {
+        await client.detach().catch(() => null);
+      }
+    }
 
     // Persist cookies to data directory
     try {
@@ -405,6 +400,13 @@ export class GatewayServer {
   }
 
   public async stop(): Promise<void> {
+    if (this.telemetryInterval) {
+      clearInterval(this.telemetryInterval);
+      this.telemetryInterval = null;
+    }
+    try {
+      await this.screencast.stop();
+    } catch {}
     try {
       await this.app.close();
       console.log('[Gateway] Server shut down cleanly.');

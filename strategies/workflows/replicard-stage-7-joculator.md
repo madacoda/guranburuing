@@ -78,7 +78,6 @@ bun run arcarum:maiden 100
 ## 4. Technical Artifacts
 
 - **JSON Template**: [`templates/arcarum-lady-of-redemption-smart.json`](file:///c:/laragon/www/guranburuing/templates/arcarum-lady-of-redemption-smart.json)
-- **DSL Template**: [`templates/arcarum-lady-of-redemption-rotation.dsl`](file:///c:/laragon/www/guranburuing/templates/arcarum-lady-of-redemption-rotation.dsl)
 - **5-Gauge Template**: [`templates/arcarum-maiden-of-the-depths-smart.json`](file:///c:/laragon/www/guranburuing/templates/arcarum-maiden-of-the-depths-smart.json)
 - **Stage 7 Map Template**: [`templates/arcarum-stage-7-smart.json`](file:///c:/laragon/www/guranburuing/templates/arcarum-stage-7-smart.json)
 - **Controller Presets**: [`src/cli/run-arcarum.ts`](file:///c:/laragon/www/guranburuing/src/cli/run-arcarum.ts)

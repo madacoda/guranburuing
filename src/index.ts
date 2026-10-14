@@ -49,6 +49,10 @@ export async function bootstrap() {
   // Graceful Shutdown Handlers
   const shutdown = async (signal: string) => {
     console.log(`\n[Shutdown] Received ${signal}. Cleaning up resources...`);
+    try {
+      gateway.stop();
+      await cdpManager.disconnect();
+    } catch {}
     process.exit(0);
   };
 

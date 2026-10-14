@@ -162,7 +162,7 @@ The direct URL `https://game.granbluefantasy.jp/#replicard/supporter/3/3/10/8121
    - **Farming Role**: Green 5-Gauge mob that fills the gauge to spawn Lilywhite Paragon.
 
 ### 6.3 Authoritative Burst Rotation & Real-Time Enemy HP Telemetry
-The production template `templates/arcarum-lilywhite-paragon-smart.json` and DSL `templates/arcarum-lilywhite-paragon-rotation.dsl` execute:
+The production JSON template `templates/arcarum-lilywhite-paragon-smart.json` executes:
 ```text
 C4S1 (ensureCast: true) -> Quick Call -> Reload -> C3S1 -> C2S1 -> C2S2 -> C1S1 -> C1S3 -> Attack (350ms) -> Reload -> Summon #4 -> Attack (350ms) -> Reload -> Summon #3 -> Attack (350ms) -> Rerun (confirm_result)
 ```

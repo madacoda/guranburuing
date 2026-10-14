@@ -46,6 +46,7 @@ import { PbhlEngine } from './pbhl.engine.js';
 import { AkashaEngine } from './akasha.engine.js';
 import { GoEngine } from './go.engine.js';
 import { DropLogger, RaidCandidate, RaidWorkflowResult } from './drop-logger.js';
+import { LootTrackerService } from '../services/telemetry/loot-tracker.service.js';
 
 export type FarmRaidType = 'PBHL' | 'AKASHA' | 'GO';
 
@@ -94,6 +95,7 @@ export class FarmEngine {
   private stopRequested = false;
   private recentRaidMap = new Map<string, FarmRaidType>();
   private latestClaimRewardData: any = null;
+  private claimResponseListener: ((res: HTTPResponse) => void) | null = null;
 
   constructor(
     private page: Page,
@@ -588,9 +590,26 @@ export class FarmEngine {
     try {
       const dropInfo = await this.page.evaluate(() => {
         const text = document.body.innerText || '';
-        const hasText = text.includes('Gold Bar') || text.includes('Gold Brick') || text.includes('ヒヒイロカネ');
-        const hasImg = !!document.querySelector('img[src*="20004"], [data-item-name*="Gold Bar"], [data-item-name*="Gold Brick"], [alt*="Gold Bar"], [alt*="Gold Brick"], [alt*="ヒヒイロカネ"], [data-item-id="20004"]');
-        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(\d+)/);
+        const isInFooter = (el: Element | null): boolean => {
+          return !!el && !!el.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper');
+        };
+        const rewardModalText = Array.from(
+          document.querySelectorAll('.cnt-result, #cnt-result, .pop-raid-result, .prt-item-list, .prt-reward-item, .pop-treasure-detail, .pop-usual')
+        )
+          .filter(el => !isInFooter(el))
+          .map(el => (el as HTMLElement).innerText || '')
+          .join(' ');
+        const hasText =
+          rewardModalText.includes('Gold Bar') ||
+          rewardModalText.includes('Gold Brick') ||
+          rewardModalText.includes('ヒヒイロカネ');
+        const candidates = Array.from(
+          document.querySelectorAll(
+            '[data-key="17_20004"], img[src*="/item/evolution/"][src*="20004."], [data-item-name="Gold Bar"], [data-item-name="Gold Brick"], [data-item-name="ヒヒイロカネ"], [alt="Gold Bar"], [alt="Gold Brick"], [alt="ヒヒイロカネ"], .prt-item-list [data-item-id="20004"], .lis-treasure [data-item-id="20004"]'
+          )
+        ).filter(el => !isInFooter(el));
+        const hasImg = candidates.length > 0;
+        const raidIdMatch = window.location.hash.match(/result(?:_multi)?\/(?:detail\/)?(\d+)/);
 
         return {
           hasGoldBar: hasText || hasImg,
@@ -600,8 +619,7 @@ export class FarmEngine {
       });
 
       if (!dropInfo.hasGoldBar && this.latestClaimRewardData) {
-        const rewardStr = JSON.stringify(this.latestClaimRewardData);
-        if (rewardStr.includes('20004') || rewardStr.includes('Gold Bar') || rewardStr.includes('Gold Brick') || rewardStr.includes('ヒヒイロカネ')) {
+        if (LootTrackerService.hasGoldBarInPayload(this.latestClaimRewardData)) {
           dropInfo.hasGoldBar = true;
         }
       }
@@ -612,8 +630,20 @@ export class FarmEngine {
     }
   }
 
+  private detachClaimResponseListener(): void {
+    if (this.claimResponseListener) {
+      try {
+        this.page.off('response', this.claimResponseListener);
+      } catch {
+        // Ignore if page closed
+      }
+      this.claimResponseListener = null;
+    }
+  }
+
   private setupClaimResponseListener(): void {
-    this.page.on('response', async (res: HTTPResponse) => {
+    this.detachClaimResponseListener();
+    const listener = async (res: HTTPResponse) => {
       try {
         const url = res.url();
         if (url.includes('reward.json') || url.includes('result.json')) {
@@ -625,6 +655,8 @@ export class FarmEngine {
       } catch {
         // Ignore network telemetry errors
       }
-    });
+    };
+    this.claimResponseListener = listener;
+    this.page.on('response', listener);
   }
 }

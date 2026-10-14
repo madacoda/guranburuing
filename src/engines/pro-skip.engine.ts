@@ -383,18 +383,23 @@ export class ProSkipEngine {
   }
 
   private async handleApRecoveryIfPresent(autoReplenishAp: boolean): Promise<boolean> {
-    const apRecoveryModal = await this.page.$('.pop-usual .btn-use-item, .pop-usual .use-item, .pop-show .btn-use-item, .btn-use-item');
+    const apRecoveryModal = await this.page.$(
+      '.pop-stamina .btn-use-full[data-item-id="2"]:not(.disable), .pop-stamina .btn-use-full.index-1:not(.disable), .pop-stamina .btn-use-full:not(.disable), .pop-usual .btn-use-item, .pop-usual .use-item, .pop-show .btn-use-item, .btn-use-item'
+    );
     if (!apRecoveryModal) return false;
 
     if (!autoReplenishAp) {
-      const cancelBtn = await this.page.$('.pop-usual .btn-usual-cancel, .pop-show .btn-usual-cancel');
+      const cancelBtn = await this.page.$('.pop-stamina .btn-usual-cancel, .pop-usual .btn-usual-cancel, .pop-show .btn-usual-cancel');
       if (cancelBtn) await humanizedClick(this.page, cancelBtn);
       return false;
     }
 
     console.log('[ProSkipEngine] AP insufficient. Consuming Half-Elixir...');
     await humanizedClick(this.page, apRecoveryModal);
-    const confirmItemUse = await this.page.waitForSelector('.pop-usual .btn-usual-ok, .pop-show .btn-usual-ok', { visible: true, timeout: 5000 }).catch(() => null);
+    const confirmItemUse = await this.page.waitForSelector(
+      '.pop-result .btn-usual-ok:not(.select-num):not(.reuse-item), .pop-result .btn-usual-ok, .pop-usual .btn-usual-ok, .pop-show .btn-usual-ok',
+      { visible: true, timeout: 5000 }
+    ).catch(() => null);
     if (confirmItemUse) {
       await humanizedClick(this.page, confirmItemUse);
       await logNormalDelay(250, 0.15);
@@ -464,10 +469,12 @@ export class ProSkipEngine {
     await this.sentinel.assertSafe();
 
     // 7. Inspect for AP Replenishment Modal
-    const apRecoveryModal = await this.page.$('.pop-usual .btn-use-item');
+    const apRecoveryModal = await this.page.$(
+      '.pop-stamina .btn-use-full[data-item-id="2"]:not(.disable), .pop-stamina .btn-use-full.index-1:not(.disable), .pop-stamina .btn-use-full:not(.disable), .pop-usual .btn-use-item'
+    );
     if (apRecoveryModal) {
       if (!autoReplenishAp) {
-        const cancelBtn = await this.page.$('.pop-usual .btn-usual-cancel');
+        const cancelBtn = await this.page.$('.pop-stamina .btn-usual-cancel, .pop-usual .btn-usual-cancel');
         if (cancelBtn) await humanizedClick(this.page, cancelBtn);
         return {
           target,
@@ -482,7 +489,7 @@ export class ProSkipEngine {
       await this.sentinel.assertSafe();
 
       // Confirm item use dialog
-      const confirmItemUse = await this.page.waitForSelector('.pop-usual .btn-usual-ok', { visible: true, timeout: 8000 });
+      const confirmItemUse = await this.page.waitForSelector('.pop-result .btn-usual-ok, .pop-usual .btn-usual-ok', { visible: true, timeout: 8000 });
       if (confirmItemUse) {
         await humanizedClick(this.page, confirmItemUse);
         await logNormalDelay(250, 0.15);
@@ -491,7 +498,7 @@ export class ProSkipEngine {
     }
 
     // 8. Confirm Pro Skip Transaction Modal
-    const confirmModalBtn = await this.page.waitForSelector('.pop-usual .btn-usual-ok', { visible: true, timeout: 8000 });
+    const confirmModalBtn = await this.page.waitForSelector('.pop-pro-quest-skip .btn-usual-ok, .pop-usual .btn-usual-ok', { visible: true, timeout: 8000 });
     if (!confirmModalBtn) {
       throw new Error('Pro Skip confirmation modal did not appear.');
     }
@@ -521,26 +528,43 @@ export class ProSkipEngine {
   private async dismissAllPopups(maxIterations = 5): Promise<void> {
     for (let i = 0; i < maxIterations; i++) {
       const dismissed = await this.page.evaluate(() => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        const isVisible = (el: Element | null): el is HTMLElement => {
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        };
+
+        // 0. Close interactive quest-launch modals via Close/Cancel only
+        const closeOnlyModals = document.querySelectorAll(
+          '.pop-pro-quest-list.pop-show, .pop-bulk-pro-confirm.pop-show, .pop-pro-quest-skip.pop-show, .pop-treasure-raid.pop-show, .pop-start-assist.pop-show, .pop-stamina.pop-show'
+        );
+        for (const modal of Array.from(closeOnlyModals)) {
+          const closeBtn = modal.querySelector('.btn-usual-close, .btn-usual-cancel, .btn-close') as HTMLElement | null;
+          if (isVisible(closeBtn)) {
+            if ($) $(closeBtn).trigger('tap');
+            closeBtn.click();
+            return true;
+          }
+        }
+
         // 1. Explicitly check for error/processing popups
         const errorPopups = Array.from(document.querySelectorAll('.common-pop-error, .pop-show, .pop-usual'));
         for (const pop of errorPopups) {
           if (pop.textContent?.includes('Processing') || pop.textContent?.includes('Error')) {
-            const okBtn = pop.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close') as HTMLElement;
-            if (okBtn) {
-              const rect = okBtn.getBoundingClientRect();
-              if (rect.width > 0 && rect.height > 0) {
-                const $ = (window as any).$ || (window as any).Zepto;
-                if ($) $(okBtn).trigger('tap');
-                okBtn.click();
-                return true;
-              }
+            const okBtn = pop.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close') as HTMLElement | null;
+            if (isVisible(okBtn)) {
+              if ($) $(okBtn).trigger('tap');
+              okBtn.click();
+              return true;
             }
           }
         }
 
         // 2. Standard popup dismissal selectors
         const selectors = [
-          '.pop-usual .btn-usual-ok',
+          '.pop-usual:not(.pop-pro-quest-list):not(.pop-bulk-pro-confirm):not(.pop-pro-quest-skip):not(.pop-treasure-raid):not(.pop-start-assist):not(.pop-stamina) .btn-usual-ok',
           '.pop-usual .btn-usual-cancel',
           '.pop-usual .btn-usual-close',
           '.pop-level-up .btn-usual-ok',
@@ -549,7 +573,6 @@ export class ProSkipEngine {
           '.js-pop-skyscope-achieved .btn-usual-close',
           '.btn-result-close',
           '.btn-usual-close',
-          '.prt-popup-footer .btn-usual-ok',
           '.prt-popup-footer .btn-usual-close',
           '.prt-popup-header .btn-usual-close',
           '.pop-synopsis.pop-show .btn-usual-ok',
@@ -559,12 +582,9 @@ export class ProSkipEngine {
         for (const sel of selectors) {
           const els = Array.from(document.querySelectorAll(sel));
           for (const el of els) {
-            const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden') {
-              const $ = (window as any).$ || (window as any).Zepto;
+            if (isVisible(el)) {
               if ($) $(el).trigger('tap');
-              (el as HTMLElement).click();
+              el.click();
               return true;
             }
           }

@@ -36,7 +36,8 @@ import {
   CombatExecutionService,
   MilestoneSweeperService,
   QuestNavigationService,
-  RoutineExecutionService
+  RoutineExecutionService,
+  UniversalTelemetryService
 } from './universal/index.js';
 
 export interface WorkflowLoopOptions {
@@ -55,6 +56,7 @@ export class UniversalWorkflowEngine {
   public milestoneSweeper: MilestoneSweeperService;
   public questNavigation: QuestNavigationService;
   public routineExecution: RoutineExecutionService;
+  public telemetry: UniversalTelemetryService;
 
   // Legacy services retained for backward compatibility
   private recoveryModalService: RecoveryModalService;
@@ -63,7 +65,6 @@ export class UniversalWorkflowEngine {
   private combatActionService: CombatActionService;
   private lootTrackerService: LootTrackerService;
   private stepRegistry: StepHandlerRegistry;
-  private responseListenerInitialized = false;
 
   constructor(
     private _page: Page,
@@ -149,6 +150,10 @@ export class UniversalWorkflowEngine {
       isManualWorkflow: () => this.isManualWorkflow()
     });
 
+    this.telemetry = new UniversalTelemetryService(this.ctx, {
+      isSoloQuest: () => this.isSoloQuest()
+    });
+
     this.recoveryModalService = new RecoveryModalService(this._page);
     this.pendingBattleService = new PendingBattleService(this._page);
     this.supporterSelectionService = new SupporterSelectionService(this._page);
@@ -165,7 +170,7 @@ export class UniversalWorkflowEngine {
       questName: this.template.name
     });
 
-    this.setupResponseListener();
+    this.telemetry.setupResponseListener();
   }
 
   // --- Dynamic property delegates for backward compatibility ---
@@ -225,24 +230,11 @@ export class UniversalWorkflowEngine {
   public set dropLogger(dl: DropLogger | undefined) { this.ctx.dropLogger = dl; }
 
   public async syncInGamePlayerName(): Promise<string> {
-    try {
-      const name = await this.page.evaluate(() => {
-        const el = document.querySelector('.txt-user-name, .prt-user-name, .prt-user-id');
-        return el ? (el.textContent || '').trim() : '';
-      }).catch(() => '');
-
-      if (name) {
-        this.ctx.state.playerName = name;
-        this.sentinel?.setSessionContext?.({ playerName: name });
-        return name;
-      }
-    } catch {
-      // Best-effort extraction
-    }
-    return this.ctx.state.playerName || this.accountId;
+    return await this.telemetry.syncInGamePlayerName();
   }
 
   public updatePage(newPage: Page): void {
+    this.telemetry.detachResponseListener();
     this.ctx.updatePage(newPage);
     this.screenDiagnostic.updatePage(newPage);
     this.recoveryModalService = new RecoveryModalService(newPage);
@@ -250,8 +242,7 @@ export class UniversalWorkflowEngine {
     this.supporterSelectionService = new SupporterSelectionService(newPage);
     this.combatActionService = new CombatActionService(newPage);
     this.lootTrackerService = new LootTrackerService(newPage);
-    this.responseListenerInitialized = false;
-    this.setupResponseListener();
+    this.telemetry.setupResponseListener();
   }
 
   public async ensureViewportAndMobile(): Promise<void> {
@@ -268,233 +259,7 @@ export class UniversalWorkflowEngine {
   }
 
   private setupResponseListener(): void {
-    if (this.responseListenerInitialized) return;
-    this.responseListenerInitialized = true;
-
-    this.page.on('response', async (res: HTTPResponse) => {
-      const url = res.url();
-
-      try {
-        // 1. Initial Raid State or Mid-battle Re-sync
-        if (
-          url.includes('/quest/raid_info') ||
-          url.includes('start.json') ||
-          url.includes('raid_battle.json')
-        ) {
-          const json = await res.json().catch(() => null);
-          if (json) {
-            if (json.raid_id) {
-              this.ctx.state.currentRaidId = String(json.raid_id);
-              this.sentinel?.setSessionContext?.({ raidId: this.ctx.state.currentRaidId });
-            }
-
-            if (json.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(json.user_id);
-            let memberPoint: number | null = null;
-            if (Array.isArray(json.multi_raid_member_info)) {
-              const myId = String(this.ctx.state.myUserId || json.user_id || '');
-              const myName = this.ctx.state.playerName || '';
-              const me = json.multi_raid_member_info.find((m: any) => 
-                (myId && String(m.user_id) === myId) || 
-                (myName && (m.nickname === myName || m.name === myName)) ||
-                (m.is_host && json.is_host)
-              );
-              if (me) {
-                if (me.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(me.user_id);
-                if (me.point !== undefined) {
-                  const pt = parseInt(String(me.point).replace(/,/g, ''), 10);
-                  if (!isNaN(pt) && pt > 0) memberPoint = pt;
-                }
-              }
-            }
-
-            const serverPoint =
-              memberPoint ??
-              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
-              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null) ??
-              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
-              (typeof json.player?.point === 'number' && json.player.point > 0 ? json.player.point : null);
-            if (serverPoint !== null) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, serverPoint);
-            if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
-            else if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-          }
-        }
-
-        // 2. Normal Attack Result
-        if (url.includes('normal_attack_result.json')) {
-          this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
-          const json = await res.json().catch(() => null);
-          if (json) {
-            if (json.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(json.user_id);
-            let directPoint: number | null = null;
-
-            if (Array.isArray(json.multi_raid_member_info)) {
-              const myId = String(this.ctx.state.myUserId || json.user_id || '');
-              const myName = this.ctx.state.playerName || '';
-              const me = json.multi_raid_member_info.find((m: any) => 
-                (myId && String(m.user_id) === myId) || 
-                (myName && (m.nickname === myName || m.name === myName)) ||
-                (m.is_host && json.is_host)
-              );
-              if (me) {
-                if (me.user_id && !this.ctx.state.myUserId) this.ctx.state.myUserId = String(me.user_id);
-                if (me.point !== undefined) {
-                  const pt = parseInt(String(me.point).replace(/,/g, ''), 10);
-                  if (!isNaN(pt) && pt > 0) directPoint = pt;
-                }
-              }
-            }
-
-            if (directPoint === null) {
-              directPoint =
-                (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
-                (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
-                (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null) ??
-                (typeof json.player?.point === 'number' && json.player.point > 0 ? json.player.point : null);
-            }
-
-            if (this.isSoloQuest()) {
-              // Solo quests (Arcarum, Replicard, Fate Episode, etc.) have no multi-raid honors or blue chests
-              if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-              else if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
-              return;
-            }
-
-            const targetHonors = this.template.targetScore;
-            const payloadKey = `${json.raid_id || 'battle'}_t${json.status?.turn || json.turn || ''}_hp${json.status?.boss?.param?.[0]?.hp ?? ''}`;
-
-            if (directPoint !== null) {
-              this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, directPoint);
-              this.ctx.state.lastProcessedAttackKey = payloadKey;
-              if (targetHonors) {
-                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-                console.log(`[Combat] 🎯 Attack Honors Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
-              } else {
-                console.log(`[Combat] 🎯 Attack Honors Synced: ${this.ctx.state.currentScore.toLocaleString()} pt`);
-              }
-            } else if (this.ctx.state.lastProcessedAttackKey !== payloadKey) {
-              this.ctx.state.lastProcessedAttackKey = payloadKey;
-              const turnDmg = this.extractTurnDamage(json);
-              if (turnDmg > 0) {
-                const turnHonors = Math.floor(turnDmg / 100);
-                this.ctx.state.currentScore += turnHonors;
-                if (targetHonors) {
-                  const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-                  console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
-                } else {
-                  console.log(`[Combat] Turn Dmg: ${turnDmg.toLocaleString()} (~${turnHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
-                }
-              }
-            }
-            if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-            else if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
-          }
-        }
-
-        // 3. Ability Result
-        if (url.includes('ability_result.json')) {
-          const json = await res.json().catch(() => null);
-          if (json) {
-            const hasAttackCmd = Array.isArray(json.scenario) && json.scenario.some((s: any) => s && s.cmd === 'attack');
-            if (hasAttackCmd) {
-              this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
-            }
-
-            if (this.isSoloQuest()) {
-              if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-              return;
-            }
-
-            const abilityDmg = this.extractTurnDamage(json);
-            if (abilityDmg > 0) {
-              const abilityHonors = Math.floor(abilityDmg / 100);
-              this.ctx.state.currentScore += abilityHonors;
-              const targetHonors = this.template.targetScore;
-              if (targetHonors) {
-                const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-                console.log(`[Combat] ⚡ Skill Damage: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
-              } else {
-                console.log(`[Combat] ⚡ Skill Damage: ${abilityDmg.toLocaleString()} (~${abilityHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
-              }
-            }
-
-            const abilityPoint =
-              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
-              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
-              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null);
-            if (abilityPoint !== null) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, abilityPoint);
-            if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-          }
-        }
-
-        // 4. Summon Result
-        if (url.includes('summon_result.json')) {
-          const json = await res.json().catch(() => null);
-          if (json) {
-            if (this.isSoloQuest()) {
-              if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-              return;
-            }
-
-            const summonPoint =
-              (typeof json.status?.user_point === 'number' && json.status.user_point > 0 ? json.status.user_point : null) ??
-              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
-              (typeof json.point_info?.user_point === 'number' && json.point_info.user_point > 0 ? json.point_info.user_point : null);
-            if (summonPoint !== null) {
-              this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, summonPoint);
-            } else {
-              const summonDmg = this.extractTurnDamage(json);
-              if (summonDmg > 0) {
-                const summonHonors = Math.floor(summonDmg / 100);
-                this.ctx.state.currentScore += summonHonors;
-                const targetHonors = this.template.targetScore;
-                if (targetHonors) {
-                  const pct = ((this.ctx.state.currentScore / targetHonors) * 100).toFixed(1);
-                  console.log(`[Combat] 🔮 Summon Damage: ${summonDmg.toLocaleString()} (~${summonHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} / ${targetHonors.toLocaleString()} pt (${pct}%)`);
-                } else {
-                  console.log(`[Combat] 🔮 Summon Damage: ${summonDmg.toLocaleString()} (~${summonHonors.toLocaleString()} pt) | Total Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
-                }
-              }
-            }
-            if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
-          }
-        }
-
-        // 5. Battle Result & Rewards
-        if (
-          url.includes('resultmulti') ||
-          url.includes('result_multi') ||
-          url.includes('/result/data') ||
-          url.includes('/result/content') ||
-          url.includes('reward.json')
-        ) {
-          const json = await res.json().catch(() => null);
-          if (json) {
-            this.ctx.state.latestRewardData = json;
-            const resPoint =
-              (typeof json.user_point === 'number' && json.user_point > 0 ? json.user_point : null) ??
-              (typeof json.point === 'number' && json.point > 0 ? json.point : null) ??
-              (typeof json.total_point === 'number' && json.total_point > 0 ? json.total_point : null);
-            if (resPoint !== null) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, resPoint);
-
-            if (typeof json.data === 'string') {
-              try {
-                const decoded = decodeURIComponent(json.data);
-                const match = decoded.match(/class=["'](?:prt-user-point|txt-user-point)["'][^>]*>.*?([0-9,]+)/i);
-                if (match && match[1]) {
-                  const num = parseInt(match[1].replace(/,/g, ''), 10);
-                  if (!isNaN(num) && num > 0) this.ctx.state.currentScore = Math.max(this.ctx.state.currentScore, num);
-                }
-              } catch {}
-            }
-
-            this.checkForGoldBarDrop(json);
-            this.checkForBlueChestDrop(json);
-          }
-        }
-      } catch {
-        // Silently ignore parsing errors
-      }
-    });
+    this.telemetry.setupResponseListener();
   }
 
   public extractTurnDamage(data: any): number {
@@ -505,252 +270,20 @@ export class UniversalWorkflowEngine {
     return CombatResolutionService.extractTurnDamage(data);
   }
 
-  private checkForGoldBarDrop(payload: any): boolean {
-    if (!payload) return false;
-    let found = false;
-
-    const traverse = (node: any) => {
-      if (!node || found) return;
-      if (typeof node === 'object') {
-        const itemId = String(node.item_id || node.id || '');
-        const itemName = String(node.name || node.item_name || '');
-        if (itemId === '20004' || itemName.includes('Gold Bar') || itemName.includes('Gold Brick') || itemName.includes('ヒヒイロカネ')) {
-          found = true;
-          return;
-        }
-        for (const key of Object.keys(node)) {
-          traverse(node[key]);
-        }
-      }
-    };
-    traverse(payload);
-
-    if (!found) {
-      try {
-        const str = JSON.stringify(payload);
-        if (str.includes('20004') || str.includes('ヒヒイロカネ') || str.includes('Gold Bar') || str.includes('Gold Brick')) {
-          found = true;
-        }
-      } catch {}
-    }
-
-    if (!found && typeof payload.data === 'string') {
-      try {
-        if (
-          payload.data.includes('20004') ||
-          payload.data.includes('ヒヒイロカネ') ||
-          payload.data.includes('Gold%20Brick') ||
-          payload.data.includes('Gold%20Bar')
-        ) {
-          found = true;
-        } else {
-          const decoded = decodeURIComponent(payload.data);
-          if (
-            decoded.includes('20004') ||
-            decoded.includes('ヒヒイロカネ') ||
-            decoded.includes('Gold Bar') ||
-            decoded.includes('Gold Brick')
-          ) {
-            found = true;
-          }
-        }
-      } catch {
-        if (payload.data.includes('20004')) found = true;
-      }
-    }
-
-    if (found && !this.ctx.state.currentBattleHadGoldBar) {
-      this.ctx.state.currentBattleHadGoldBar = true;
-      this.ctx.state.totalGoldBarsAccumulated++;
-      this.broadcastGoldBarFound();
-    }
-
-    return found;
+  public checkForGoldBarDrop(payload: any): boolean {
+    return this.telemetry.checkForGoldBarDrop(payload);
   }
 
-  private checkForBlueChestDrop(payload: any): boolean {
-    if (!payload || this.isSoloQuest()) return false;
-    let found = false;
-
-    if (payload.special_reward_flag || payload.special_reward || payload.reward_box_11) {
-      found = true;
-    }
-
-    if (!found) {
-      const traverse = (node: any) => {
-        if (!node || found) return;
-        if (typeof node === 'object') {
-          const boxType = String(node.box_type || node.box_id || node.box || node.reward_type || '');
-          if (boxType === '11') {
-            found = true;
-            return;
-          }
-          for (const key of Object.keys(node)) {
-            traverse(node[key]);
-          }
-        }
-      };
-      traverse(payload);
-    }
-
-    if (!found && typeof payload.data === 'string') {
-      try {
-        if (
-          payload.data.includes('box_type="11"') ||
-          payload.data.includes('box_type=\\"11\\"') ||
-          payload.data.includes('special_reward') ||
-          payload.data.includes('特別報酬')
-        ) {
-          found = true;
-        }
-      } catch {}
-    }
-
-    if (found && !this.ctx.state.currentBattleHadBlueChest) {
-      this.ctx.state.currentBattleHadBlueChest = true;
-      this.ctx.state.totalBlueChestsAccumulated++;
-      console.log(`[Telemetry] 💎 Blue Chest drop confirmed! Total Blue Chests: ${this.ctx.state.totalBlueChestsAccumulated}`);
-    }
-
-    return found;
+  public checkForBlueChestDrop(payload: any): boolean {
+    return this.telemetry.checkForBlueChestDrop(payload);
   }
 
-  private async captureCleanLootProof(raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
-    const cleanRaidId = (raidId || this.ctx.state.currentRaidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
-    const capDir = path.resolve(process.cwd(), 'artifacts/captures');
-    if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-    const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
-
-    let shotBuf: Buffer | undefined;
-
-    try {
-      const currentUrl = this.page.url();
-      const isAlreadyOnResult = currentUrl.includes('result_multi') || currentUrl.includes('result');
-
-      if (!isAlreadyOnResult && cleanRaidId && /^\d+$/.test(cleanRaidId)) {
-        const resultUrl = `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`;
-        console.log(`[Workflow] 📸 Navigating to battle result for clean loot proof: ${resultUrl}`);
-        await this.page.goto(resultUrl, { waitUntil: 'domcontentloaded' }).catch(() => null);
-      }
-
-      const tWaitStart = Date.now();
-      while (Date.now() - tWaitStart < 7000) {
-        const ready = await this.page.evaluate(() => {
-          const hasLoot = !!document.querySelector(
-            '.cnt-result, #cnt-result, .prt-result-cnt, .prt-reward-item, .prt-item-list, .prt-box-special, .prt-special-reward-box, [data-item-id="20004"], img[src*="20004"], .prt-module'
-          );
-          const loadingEl = document.querySelector('#loading, .prt-loading, .cnt-loading, .loading-stage');
-          const isLoading = loadingEl && (loadingEl as HTMLElement).style.display !== 'none' && (loadingEl as HTMLElement).offsetParent !== null;
-          return hasLoot && !isLoading;
-        }).catch(() => false);
-
-        if (ready) break;
-        await new Promise(r => setTimeout(r, 250));
-      }
-      await logNormalDelay(600, 0.15);
-
-      await this.page.evaluate(() => {
-        const blueBox = document.querySelector(
-          '.prt-box-special, .prt-special-reward-box, [data-box-type="11"], .prt-box-item.special, .ico-box-special'
-        ) as HTMLElement;
-        if (blueBox && blueBox.offsetParent !== null) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(blueBox).trigger('tap');
-          blueBox.click();
-        }
-      }).catch(() => null);
-      await logNormalDelay(800, 0.15);
-
-      await this.page.evaluate(() => {
-        const okBtns = document.querySelectorAll(
-          '.pop-usual .btn-usual-ok, .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-close, .btn-settle, .btn-result-close'
-        );
-        okBtns.forEach((btn: any) => {
-          if (btn.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(btn).trigger('tap');
-            btn.click();
-          }
-        });
-      }).catch(() => null);
-      await logNormalDelay(400, 0.1);
-
-      const targetEl = await this.page.$(
-        '#cnt-result, .cnt-result, .prt-result-cnt, #wrapper, body'
-      );
-      if (targetEl) {
-        shotBuf = await targetEl.screenshot({ path: proofPath, type: 'png' }) as Buffer;
-      } else {
-        shotBuf = await this.page.screenshot({ path: proofPath, fullPage: false }) as Buffer;
-      }
-      console.log(`[Workflow] 📸 Proof screenshot captured: ${proofPath}`);
-    } catch (shotErr: any) {
-      console.warn(`[Workflow] Proof capture error: ${shotErr.message}`);
-    }
-
-    return { buffer: shotBuf, path: proofPath };
+  public async captureCleanLootProof(raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
+    return await this.telemetry.captureCleanLootProof(raidId);
   }
 
-  private async broadcastGoldBarFound(overrideRaidId?: string): Promise<void> {
-    const raidId = overrideRaidId || this.ctx.state.currentRaidId || '';
-    console.log(`\n========================================================================`);
-    console.log(`  🌟🌟🌟 [GOLD BAR FOUND!] Account: [${this.accountId}] Raid: ${raidId || 'Active'} 🌟🌟🌟`);
-    console.log(`========================================================================\n`);
-
-    process.stdout.write('\x07\x07\x07');
-
-    const battleUrl = raidId
-      ? `https://game.granbluefantasy.jp/#result_multi/detail/${raidId}/1/0/0`
-      : (this.page.url().includes('result') ? this.page.url() : 'https://game.granbluefantasy.jp/#quest/assist');
-
-    try {
-      const { buffer: shotBuffer, path: proofPath } = await this.captureCleanLootProof(raidId);
-
-      await goldBarTracker.recordDrop({
-        raidId: raidId || 'Raid',
-        questName: this.template.name,
-        honors: this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-',
-        turns: this.ctx.state.currentTurn || '-',
-        screenshotPath: proofPath,
-        screenshotBuffer: shotBuffer,
-        source: 'live_combat',
-        accountId: this.accountId,
-        skipAlert: true
-      }).catch(() => null);
-
-      if (this.ctx.dropLogger) {
-        await this.ctx.dropLogger.notifyGoldBarDrop({
-          raidId: raidId || 'Raid',
-          honors: this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-',
-          turns: this.ctx.state.currentTurn || '-',
-          screenshotBuffer: shotBuffer,
-          screenshotPath: proofPath,
-          accountId: this.accountId,
-        });
-      } else {
-        const playerName = this.accountId || 'acc1';
-        await this.ctx.alertRelay.sendEmergencyAlert(
-          `🌟 GOLD BAR DROP CONFIRMED for ${playerName}!\n• Raid: ${this.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.ctx.state.currentScore.toLocaleString()} pt\n• Total GB: ${this.ctx.state.totalGoldBarsAccumulated}`,
-          shotBuffer
-        );
-
-        if (discordDmRelay.isConfigured()) {
-          try {
-            await discordDmRelay.sendMessage(
-              `🌟 **Gold Brick Drop Confirmed** 🌟\n• **Raid**: ${this.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}\n• **Honors**: ${this.ctx.state.currentScore.toLocaleString()} pt\n• **Total GB**: ${this.ctx.state.totalGoldBarsAccumulated}`,
-              shotBuffer,
-              `gold-bar-${raidId || 'drop'}.png`,
-              undefined,
-              true
-            );
-          } catch (dmErr: any) {
-            console.error('[Workflow] Direct Discord DM dispatch error:', dmErr.message);
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error(`[Workflow] Error broadcasting Gold Bar:`, err.message);
-    }
+  public async broadcastGoldBarFound(overrideRaidId?: string): Promise<void> {
+    return await this.telemetry.broadcastGoldBarFound(overrideRaidId);
   }
 
   private calculateNextBatchThreshold(): number {
@@ -868,12 +401,6 @@ export class UniversalWorkflowEngine {
     while (totalCompleted < runs && !this.ctx.state.stopRequested) {
       const runNumber = totalCompleted + 1;
       const runStart = Date.now();
-      this.ctx.state.currentScore = 0;
-      this.ctx.state.currentTurn = 1;
-      this.ctx.state.currentBattleHadGoldBar = false;
-      this.ctx.state.currentBattleHadBlueChest = false;
-      this.ctx.state.totalCompletedRuns = totalCompleted;
-
       if (isAssistRaid && this.ctx.state.joinedInCurrentBatch >= this.ctx.state.currentBatchThreshold) {
         console.log(`\n[Workflow] Batch claim threshold (${this.ctx.state.currentBatchThreshold}) reached. Claiming pending battles...`);
         await this.milestoneSweeper.claimPendingBattles(activeLogPath, totalCompleted);
@@ -881,6 +408,13 @@ export class UniversalWorkflowEngine {
         this.ctx.state.currentBatchThreshold = this.calculateNextBatchThreshold();
         console.log(`[Workflow] Next pending claim scheduled in ${this.ctx.state.currentBatchThreshold} raids.\n`);
       }
+
+      // Ensure per-run state is clean even if claimPendingBattles ran above
+      this.ctx.state.currentScore = 0;
+      this.ctx.state.currentTurn = 1;
+      this.ctx.state.currentBattleHadGoldBar = false;
+      this.ctx.state.currentBattleHadBlueChest = false;
+      this.ctx.state.totalCompletedRuns = totalCompleted;
 
       if (this.ctx.state.stopRequested) break;
 
@@ -909,18 +443,7 @@ export class UniversalWorkflowEngine {
       if (this.template.mode === 'routine') {
         started = true;
         if (this.template.questUrl) {
-          const targetHash = this.template.questUrl.includes('#') ? '#' + this.template.questUrl.split('#')[1] : this.template.questUrl;
-          const curUrl = this.page.url();
-          if (targetHash.startsWith('#') && !curUrl.includes(targetHash)) {
-            await this.page.evaluate((h: string) => {
-              if (window.location.hash === h) {
-                window.location.reload();
-              } else {
-                window.location.hash = h;
-              }
-            }, targetHash).catch(() => null);
-            await logNormalDelay(600, 0.15);
-          }
+          await this.routineExecution.navigateIfNeeded(this.template.questUrl);
         }
       } else {
         try {
@@ -1004,8 +527,6 @@ export class UniversalWorkflowEngine {
         await this.combatResolution.handleConfirmResult();
         await this.combatResolution.syncCurrentHonors();
         this.ctx.state.totalHonorsAccumulated += this.ctx.state.currentScore;
-        // Phase 4: 5-Battle Milestone Unclaimed Sweep
-        await this.milestoneSweeper.checkFiveBattleMilestone(activeLogPath, totalCompleted + 1);
       }
 
       totalCompleted++;
@@ -1038,8 +559,13 @@ export class UniversalWorkflowEngine {
         });
       }
 
-      this.appendRunLog(activeLogPath, result);
+      this.appendRunLog(workflowLogPath, result);
       if (onProgress) onProgress(result);
+
+      // Phase 4: 5-Battle Milestone Unclaimed Sweep (runs AFTER logging the completed battle so turns/honors aren't overwritten)
+      if (this.template.mode !== 'routine') {
+        await this.milestoneSweeper.checkFiveBattleMilestone(activeLogPath, totalCompleted);
+      }
 
       if (this.ctx.dropLogger) {
         const stats = this.ctx.dropLogger.getStats();
@@ -1323,7 +849,7 @@ export class UniversalWorkflowEngine {
 
       case 'navigate':
         if (step.target) {
-          await this.page.evaluate((url: string) => { window.location.href = url; }, step.target).catch(() => null);
+          await this.routineExecution.navigateIfNeeded(step.target);
         }
         return true;
 
@@ -1413,93 +939,12 @@ export class UniversalWorkflowEngine {
     }
   }
 
-  private async handleLoopWhile(step: WorkflowStep, runNumber: number): Promise<boolean> {
-    const selector = step.target || step.conditionElement;
-    if (!selector || !step.subSteps || step.subSteps.length === 0) return true;
-    const maxLoops = step.maxLoops || 50;
-
-    console.log(`[Workflow] 🔄 Starting loop_while: "${selector}" (max loops: ${maxLoops})...`);
-
-    for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
-      if (this.ctx.state.stopRequested) return false;
-      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
-
-      let exists = false;
-      const waitLimit = loopIdx === 0 ? 3500 : 600;
-      const tCheckStart = Date.now();
-      while (Date.now() - tCheckStart < waitLimit) {
-        exists = await this.page.evaluate((sel: string) => {
-          const el = document.querySelector(sel) as HTMLElement;
-          if (!el) return false;
-          const rect = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-        }, selector).catch(() => false);
-
-        if (exists) break;
-        await new Promise(r => setTimeout(r, 200));
-      }
-
-      if (!exists) {
-        console.log(`[Workflow] ⏹️ loop_while condition met: element "${selector}" no longer present/visible. Loop completed at cycle ${loopIdx}.`);
-        break;
-      }
-
-      console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Target "${selector}" active. Executing sub-steps...`);
-
-      for (let s = 0; s < step.subSteps.length; s++) {
-        const sub = step.subSteps[s];
-        const ok = await this.executeSingleStep(sub, s + 1, runNumber);
-        if (!ok && !sub.optional) {
-          console.warn(`[Workflow] Sub-step ${s + 1} (${sub.code}) failed inside loop_while.`);
-          return false;
-        }
-      }
-
-      await logNormalDelay(300, 0.15);
-    }
-
-    return true;
+  public async handleLoopWhile(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    return await this.routineExecution.handleLoopWhile(step, runNumber);
   }
 
-  private async handleLoopUntil(step: WorkflowStep, runNumber: number): Promise<boolean> {
-    const selector = step.target || step.conditionElement;
-    if (!selector || !step.subSteps || step.subSteps.length === 0) return true;
-    const maxLoops = step.maxLoops || 50;
-
-    console.log(`[Workflow] 🔄 Starting loop_until: "${selector}" (max loops: ${maxLoops})...`);
-
-    for (let loopIdx = 0; loopIdx < maxLoops; loopIdx++) {
-      if (this.ctx.state.stopRequested) return false;
-      if (this.template.stopOnCaptcha !== false) await this.sentinel.assertSafe();
-
-      const exists = await this.page.evaluate((sel: string) => {
-        const el = document.querySelector(sel) as HTMLElement;
-        if (!el) return false;
-        const rect = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
-        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-      }, selector).catch(() => false);
-
-      if (exists) {
-        console.log(`[Workflow] ⏹️ loop_until target "${selector}" reached. Exiting loop at cycle ${loopIdx}.`);
-        break;
-      }
-
-      console.log(`[Workflow] [Cycle ${loopIdx + 1}/${maxLoops}] Target not yet met. Executing sub-steps...`);
-
-      for (let s = 0; s < step.subSteps.length; s++) {
-        const sub = step.subSteps[s];
-        const ok = await this.executeSingleStep(sub, s + 1, runNumber);
-        if (!ok && !sub.optional) {
-          return false;
-        }
-      }
-
-      await logNormalDelay(300, 0.15);
-    }
-
-    return true;
+  public async handleLoopUntil(step: WorkflowStep, runNumber: number): Promise<boolean> {
+    return await this.routineExecution.handleLoopUntil(step, runNumber);
   }
 
   // --- Delegated Sub-Service Methods for 100% Backward Compatibility ---
@@ -1812,41 +1257,10 @@ export class UniversalWorkflowEngine {
   }
 
   private ensureLogDirExists(logPath: string): void {
-    const dir = path.dirname(path.resolve(process.cwd(), logPath));
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    this.telemetry.ensureLogDirExists(logPath);
   }
 
   private appendRunLog(logPath: string, result: WorkflowRunResult): void {
-    const fullPath = path.resolve(process.cwd(), logPath);
-    if (!fs.existsSync(fullPath)) {
-      fs.writeFileSync(
-        fullPath,
-        `# Workflow Execution Log: ${this.template.name} (${this.accountId})\n\n| Run | Time | Duration | Status | Honors | Notes |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`,
-        'utf-8'
-      );
-    }
-    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
-    const line = `| ${result.runNumber} | ${timestamp} | ${(result.durationMs / 1000).toFixed(1)}s | ${result.status} | ${result.honors?.toLocaleString() || '0'} | ${result.message} |\n`;
-    fs.appendFileSync(fullPath, line, 'utf-8');
-
-    try {
-      const jsonlPath = fullPath.replace(/\.md$/i, '.jsonl');
-      const event = {
-        runNumber: result.runNumber,
-        timestamp: new Date().toISOString(),
-        timeStr: timestamp,
-        durationMs: result.durationMs,
-        status: result.status,
-        honors: result.honors || 0,
-        message: result.message,
-        accountId: this.accountId,
-        templateName: this.template.name
-      };
-      fs.appendFileSync(jsonlPath, JSON.stringify(event) + '\n', 'utf-8');
-    } catch {
-      // Non-critical logging failure
-    }
+    this.telemetry.appendRunLog(logPath, result);
   }
 }

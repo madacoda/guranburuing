@@ -664,41 +664,44 @@ export class GwMeatLightEngine {
         };
         this.page.on('response', attackHandler);
 
-        // Tap READY screen to trigger Attack
-        const atkReadyTapX = Math.round(240 + sampleGaussian(0, 10));
-        const atkReadyTapY = Math.round(370 + sampleGaussian(0, 10));
-        console.log(`[GwMeatLight] [Run ${runNumber}] Tapping READY screen at (${atkReadyTapX}, ${atkReadyTapY}) for Attack...`);
-        await this.page.touchscreen.tap(atkReadyTapX, atkReadyTapY).catch(() => null);
-        await this.page.mouse.click(atkReadyTapX, atkReadyTapY).catch(() => null);
-        await this.page.evaluate((x, y) => {
-          const stage = document.elementFromPoint(x, y) || document.querySelector('.prt-ready, #ready, canvas, .cnt-raid');
-          if (stage) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(stage).trigger('tap');
-            (stage as HTMLElement).click();
-          }
-        }, atkReadyTapX, atkReadyTapY).catch(() => null);
+        try {
+          // Tap READY screen to trigger Attack
+          const atkReadyTapX = Math.round(240 + sampleGaussian(0, 10));
+          const atkReadyTapY = Math.round(370 + sampleGaussian(0, 10));
+          console.log(`[GwMeatLight] [Run ${runNumber}] Tapping READY screen at (${atkReadyTapX}, ${atkReadyTapY}) for Attack...`);
+          await this.page.touchscreen.tap(atkReadyTapX, atkReadyTapY).catch(() => null);
+          await this.page.mouse.click(atkReadyTapX, atkReadyTapY).catch(() => null);
+          await this.page.evaluate((x, y) => {
+            const stage = document.elementFromPoint(x, y) || document.querySelector('.prt-ready, #ready, canvas, .cnt-raid');
+            if (stage) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(stage).trigger('tap');
+              (stage as HTMLElement).click();
+            }
+          }, atkReadyTapX, atkReadyTapY).catch(() => null);
 
-        // If attack not resolved in 400ms, use dispatchAttack fallback
-        const tAtk = Date.now();
-        while (!attackResolved && Date.now() - tAtk < 3500) {
-          if (Date.now() - tAtk > 400 && !attackResolved) {
-            await this.dispatchAttack();
-            break;
+          // If attack not resolved in 400ms, use dispatchAttack fallback
+          const tAtk = Date.now();
+          while (!attackResolved && Date.now() - tAtk < 3500) {
+            if (Date.now() - tAtk > 400 && !attackResolved) {
+              await this.dispatchAttack();
+              break;
+            }
+            await new Promise(r => setTimeout(r, 25));
           }
-          await new Promise(r => setTimeout(r, 25));
-        }
 
-        // Wait up to 3500ms total for normal_attack_result.json confirmation
-        const tWaitAtk = Date.now();
-        while (!attackResolved && Date.now() - tWaitAtk < 3500) {
-          if (await this.isBattleEnded()) {
-            attackResolved = true;
-            break;
+          // Wait up to 3500ms total for normal_attack_result.json confirmation
+          const tWaitAtk = Date.now();
+          while (!attackResolved && Date.now() - tWaitAtk < 3500) {
+            if (await this.isBattleEnded()) {
+              attackResolved = true;
+              break;
+            }
+            await new Promise(r => setTimeout(r, 25));
           }
-          await new Promise(r => setTimeout(r, 25));
+        } finally {
+          this.page.off('response', attackHandler);
         }
-        this.page.off('response', attackHandler);
 
         if (attackResolved) {
           console.log(`[GwMeatLight] [Run ${runNumber}] Attack confirmed by server!`);
@@ -833,235 +836,6 @@ export class GwMeatLightEngine {
   }
 
   /**
-   * Rapidly activates Character 1 Skill 3 (.ability-character-num-1-3).
-   */
-  private async executeChar1Skill3(): Promise<void> {
-    try {
-      let s3 = await this.page.$('.ability-character-num-1-3');
-      const isS3Visible = s3 ? await this.page.evaluate((el: any) => {
-        return el.offsetWidth > 0 && el.offsetHeight > 0;
-      }, s3).catch(() => false) : false;
-
-      if (!isS3Visible) {
-        // Tap Character 1 portrait in .prt-member to open ability tray
-        const char0 = await this.page.waitForSelector(
-          '.prt-command-chara[pos="0"], .prt-member .lis-character0.btn-command-character, .lis-character0.btn-command-character, .lis-character0',
-          { visible: true, timeout: 3000 }
-        ).catch(() => null);
-
-        if (char0) {
-          await humanReactionDelay(70, 0.12);
-          await humanizedClick(this.page, char0);
-        }
-
-        // Wait for Skill 3 to become visible
-        s3 = await this.page.waitForSelector('.ability-character-num-1-3', {
-          visible: true,
-          timeout: 2500
-        }).catch(() => null);
-      }
-
-      if (s3) {
-        let abilityResolved = false;
-        const abilityHandler = (res: any) => {
-          if (res.url().includes('ability_result.json') && res.status() === 200) {
-            abilityResolved = true;
-          }
-        };
-        this.page.on('response', abilityHandler);
-
-        await humanReactionDelay(70, 0.12);
-        await humanizedClick(this.page, s3);
-
-        // Wait for server resolution of ability_result.json (max 1200ms)
-        const start = Date.now();
-        while (!abilityResolved && Date.now() - start < 1200) {
-          await new Promise(r => setTimeout(r, 40));
-        }
-        this.page.off('response', abilityHandler);
-
-        if (abilityResolved) {
-          console.log('[GwMeatLight] Char 1 Skill 3 activated.');
-        }
-      } else {
-        console.warn('[GwMeatLight] Char 1 Skill 3 not found, continuing to attack...');
-      }
-    } catch (err: any) {
-      console.warn('[GwMeatLight] Notice during Char 1 Skill 3 execution:', err?.message || err);
-    }
-  }
-
-  /**
-   * Executes Quick Call (.btn-quick-summon.qs-ready), waiting for server resolution of summon_result.json.
-   */
-  private async executeQuickSummon(): Promise<boolean> {
-    try {
-      // 1. If ability drawer is open, tap back button first to reveal command menu
-      const backBtn = await this.page.$('.btn-command-back');
-      if (backBtn) {
-        const isBackVisible = await this.page.evaluate((el: any) => {
-          return el.offsetParent !== null && window.getComputedStyle(el).display !== 'none';
-        }, backBtn).catch(() => false);
-        if (isBackVisible) {
-          await humanizedClick(this.page, backBtn);
-          await logNormalDelay(150, 0.12);
-        }
-      }
-
-      // 2. Wait for Quick Summon button (.btn-quick-summon)
-      const qsBtn = await this.page.waitForSelector(
-        '.btn-quick-summon.qs-ready, #js-btn-quick-summon.qs-ready, .btn-quick-summon:not(.qs-hide), #js-btn-quick-summon:not(.qs-hide), .btn-quick-summon, #js-btn-quick-summon',
-        { visible: true, timeout: 4000 }
-      ).catch(() => null);
-
-      if (!qsBtn) {
-        console.warn('[GwMeatLight] Quick Summon button not found or not ready.');
-        return false;
-      }
-
-      return await this.dispatchSummonWithListener(qsBtn);
-    } catch (err: any) {
-      console.warn('[GwMeatLight] Notice during Quick Summon:', err?.message || err);
-      return false;
-    }
-  }
-
-  /**
-   * Dispatches Quick Summon click and awaits summon_result.json confirmation.
-   */
-  private async dispatchSummonWithListener(qsBtn: any): Promise<boolean> {
-    let summonResolved = false;
-    const summonHandler = (res: any) => {
-      if (res.url().includes('summon_result.json') && res.status() === 200) {
-        summonResolved = true;
-      }
-    };
-    this.page.on('response', summonHandler);
-
-    try {
-      await humanReactionDelay(50, 0.10);
-      await humanizedClick(this.page, qsBtn, { allowMultiClick: true, multiClickChance: 0.25 });
-
-      // Wait for server resolution of summon_result.json (max 3500ms)
-      const start = Date.now();
-      while (!summonResolved && Date.now() - start < 3500) {
-        await new Promise(r => setTimeout(r, 40));
-      }
-      this.page.off('response', summonHandler);
-
-      if (summonResolved) {
-        console.log(`[GwMeatLight] Quick Summon confirmed by server (${Date.now() - start}ms).`);
-      }
-
-      return summonResolved;
-    } catch (err: any) {
-      this.page.off('response', summonHandler);
-      console.warn('[GwMeatLight] Notice during summon execution:', err?.message || err);
-      return false;
-    }
-  }
-
-  /**
-   * Clicks Attack button, listens for normal_attack_result.json,
-   * dismisses any "Processing turn" modal with OK,
-   * and immediately triggers bookmark navigation to repeat to next run.
-   */
-  private async executeAttackAndRepeatToNextRun(): Promise<{ success: boolean; battleFinished: boolean }> {
-    // 1. Locate attack button (or clear blocking popup first)
-    let atkBtn = await this.page.waitForSelector('.btn-attack-start, .btn-attack', {
-      visible: true,
-      timeout: 4500
-    }).catch(() => null);
-
-    if (!atkBtn) {
-      const hadPopup = await this.checkAndDismissProcessingTurnPopup();
-      if (hadPopup) {
-        atkBtn = await this.page.waitForSelector('.btn-attack-start, .btn-attack', {
-          visible: true,
-          timeout: 2500
-        }).catch(() => null);
-      }
-    }
-
-    if (!atkBtn) {
-      const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      if (hash.includes('result') || hash.includes('supporter') || await this.isBattleEnded()) {
-        await this.triggerDirectBookmarkToNextRun();
-        return { success: true, battleFinished: true };
-      }
-      console.warn('[GwMeatLight] Attack button not found. Triggering bookmark fallback...');
-      await this.triggerDirectBookmarkToNextRun();
-      return { success: true, battleFinished: true };
-    }
-
-    let attackResolved = false;
-    let turnHonors = this.latestHonors || 126120;
-
-    const responseHandler = async (res: any) => {
-      if (res.url().includes('normal_attack_result.json') && res.status() === 200) {
-        attackResolved = true;
-        const data = await res.json().catch(() => null);
-        if (data?.status?.user_point) {
-          turnHonors = Number(data.status.user_point);
-        }
-      }
-    };
-
-    this.page.on('response', responseHandler);
-
-    try {
-      await humanReactionDelay(85, 0.15);
-      await humanizedClick(this.page, atkBtn);
-
-      // Poll for server confirmation, processing turn popup, or battle end
-      const start = Date.now();
-      while (Date.now() - start < 3500) {
-        // Check for "Processing turn" popup
-        const hadPopup = await this.checkAndDismissProcessingTurnPopup();
-        if (hadPopup) {
-          // If popup appeared before normal_attack_result was received, try a rapid click on attack in case it was blocked
-          if (!attackResolved) {
-            await logNormalDelay(120, 0.1);
-            const retryAtk = await this.page.$('.btn-attack-start, .btn-attack');
-            if (retryAtk) {
-              const isRetryVis = await this.page.evaluate((el: any) => el.offsetParent !== null, retryAtk).catch(() => false);
-              if (isRetryVis) {
-                await humanizedClick(this.page, retryAtk);
-              }
-            }
-          }
-          break;
-        }
-
-        if (attackResolved) {
-          console.log(`[GwMeatLight] Attack confirmed by server! (Honors: ${turnHonors.toLocaleString()} pt)`);
-          break;
-        }
-
-        if (await this.isBattleEnded()) {
-          break;
-        }
-
-        await new Promise(r => setTimeout(r, 40));
-      }
-
-      this.page.off('response', responseHandler);
-      this.latestHonors = turnHonors;
-
-      // Repeat to next run via direct bookmark navigation
-      await this.triggerDirectBookmarkToNextRun();
-
-      return { success: true, battleFinished: true };
-
-    } catch (err: any) {
-      this.page.off('response', responseHandler);
-      console.warn('[GwMeatLight] Notice during attack dispatch:', err?.message || err);
-      await this.triggerDirectBookmarkToNextRun();
-      return { success: true, battleFinished: true };
-    }
-  }
-
-  /**
    * Checks for and dismisses any "Processing turn" / "A turn is currently being processed" modal.
    * Clicks the OK button to close the modal.
    */
@@ -1127,83 +901,6 @@ export class GwMeatLightEngine {
   }
 
   /**
-   * Direct bookmark navigation to repeat to next run.
-   */
-  private async triggerDirectBookmarkToNextRun(): Promise<void> {
-    console.log('[GwMeatLight] Repeating to next run (direct bookmark navigation)...');
-    await this.page.evaluate(() => {
-      const bb = (window as any).Backbone;
-      if (bb?.history?.navigate) {
-        bb.history.navigate('quest/supporter/947551/1/0', { trigger: true });
-      }
-      window.location.hash = '#quest/supporter/947551/1/0';
-    }).catch(() => null);
-  }
-
-  /**
-   * Waits for page reload to settle into #result or combat HUD.
-   */
-  private async waitForTurnOrResultResolution(timeoutMs = 12000): Promise<void> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      const status = await this.page.evaluate(() => {
-        const hash = window.location.hash;
-        const isResult = hash.includes('result');
-        const hasAttack = !!document.querySelector('.btn-attack-start, .btn-attack');
-        const hasModal = !!document.querySelector('.pop-usual, .pop-raid-result');
-        return { isResult, hasAttack, hasModal };
-      }).catch(() => null);
-
-      if (status?.isResult || status?.hasAttack || status?.hasModal) {
-        break;
-      }
-      await new Promise(r => setTimeout(r, 100));
-    }
-    await logNormalDelay(250, 0.12);
-  }
-
-  /**
-   * Handles result screen popups, extracts honors and meat chunk loot rapidly without stalling.
-   */
-  private async handleResultScreen(): Promise<{ meatGained: number; honors: number }> {
-    let meatGained = 4; // EX+ base meat drop
-    let honors = this.latestHonors || 126120; // Captured from normal_attack_result.json
-
-    const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-    if (currentHash.includes('supporter/947551')) {
-      return { meatGained, honors };
-    }
-
-    try {
-      // Rapid check for result screen container (max 800ms)
-      const isResult = await this.page.waitForFunction(() => {
-        const hash = window.location.hash;
-        const hasHead = !!document.querySelector('.prt-result-head, .prt-navigation, .cnt-result, .pop-raid-result');
-        return hash.includes('result') || hasHead;
-      }, { timeout: 800 }).catch(() => null);
-
-      if (isResult) {
-        const data = await this.safeEvaluate(() => {
-          const bodyText = document.body ? document.body.innerText || '' : '';
-          const honorMatch = bodyText.match(/Total\s+honors:\s*([\d,]+)/i) || bodyText.match(/獲得貢献度[^\d]*([\d,]+)/);
-          const parsedHonors = honorMatch ? parseInt(honorMatch[1].replace(/,/g, ''), 10) : 0;
-          return { parsedHonors };
-        }, { parsedHonors: 0 });
-
-        if (data.parsedHonors > 0) {
-          honors = data.parsedHonors;
-        }
-
-        await this.dismissAllPopups(1);
-      }
-    } catch (err: any) {
-      console.warn('[GwMeatLight] Notice resolving result screen:', err?.message || err);
-    }
-
-    return { meatGained, honors };
-  }
-
-  /**
    * Consumes Half-Elixir if AP recovery popup appears.
    */
   private async handleApRecoveryIfPresent(autoReplenishAp: boolean): Promise<boolean> {
@@ -1251,26 +948,6 @@ export class GwMeatLightEngine {
   }
 
   /**
-   * Waits for combat HUD elements to become ready and interactable.
-   */
-  private async waitForCombatHudReady(timeoutMs = 20000): Promise<boolean> {
-    const start = Date.now();
-    try {
-      await this.page.waitForFunction(() => {
-        const hasAtk = !!document.querySelector('.btn-attack-start, .btn-attack');
-        const hasChara = !!document.querySelector('.prt-member .lis-character0, .lis-character0.btn-command-character, .lis-character0');
-        const isRes = window.location.hash.includes('result') || !!document.querySelector('.pop-raid-result');
-        return (hasAtk && hasChara) || isRes;
-      }, { timeout: timeoutMs });
-      // Settle delay for READY banner to finish fading
-      await logNormalDelay(250, 0.12);
-      return true;
-    } catch {
-      return Date.now() - start < timeoutMs;
-    }
-  }
-
-  /**
    * Strictly determines if a hash corresponds to an active raid/battle.
    * Prevents false positives with non-combat URLs like '#event/teamraid084'.
    */
@@ -1280,16 +957,15 @@ export class GwMeatLightEngine {
   }
 
   /**
-   * Checks if battle has concluded.
+   * Checks if battle has concluded in a single atomic CDP evaluation.
    */
   private async isBattleEnded(): Promise<boolean> {
     try {
-      const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
-      if (hash.includes('result') || hash.includes('supporter') || hash.includes('mypage') || hash.includes('event')) {
-        return true;
-      }
-
       return await this.page.evaluate(() => {
+        const hash = window.location.hash || '';
+        if (hash.includes('result') || hash.includes('supporter') || hash.includes('mypage') || hash.includes('event')) {
+          return true;
+        }
         if (document.querySelector('.pop-raid-result')) {
           return true;
         }
@@ -1311,31 +987,6 @@ export class GwMeatLightEngine {
       });
     } catch {
       return false;
-    }
-  }
-
-  /**
-   * Helper to wait for the page DOM and execution context to settle after reloads.
-   */
-  private async waitForPageSettle(timeoutMs = 6000): Promise<void> {
-    await new Promise(r => setTimeout(r, 350));
-    await this.page.waitForFunction(() => {
-      return document.readyState === 'interactive' || document.readyState === 'complete';
-    }, { timeout: timeoutMs }).catch(() => null);
-  }
-
-  /**
-   * Safe evaluate wrapper that recovers from transient detached Frame errors.
-   */
-  private async safeEvaluate<T>(fn: () => T, fallback: T): Promise<T> {
-    try {
-      return await this.page.evaluate(fn);
-    } catch (err: any) {
-      if (err?.message?.includes('detached Frame') || err?.message?.includes('Execution context was destroyed')) {
-        await new Promise(r => setTimeout(r, 300));
-        return await this.page.evaluate(fn).catch(() => fallback);
-      }
-      return fallback;
     }
   }
 

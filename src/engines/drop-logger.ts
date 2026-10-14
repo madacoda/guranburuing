@@ -65,6 +65,7 @@ export class DropLogger {
   private records: BattleRecord[] = [];
   private dryStreakMode: DryStreakMode;
   private minBlueChestHonor: number;
+  private lastSyncedMtimeMs: number = 0;
 
   constructor(
     private filePath: string,
@@ -92,6 +93,17 @@ export class DropLogger {
     }
   }
 
+  private syncIfModifiedOnDisk(): void {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const mtimeMs = fs.statSync(this.filePath).mtimeMs;
+        if (this.lastSyncedMtimeMs > 0 && Math.abs(mtimeMs - this.lastSyncedMtimeMs) > 1) {
+          this.loadExistingLog();
+        }
+      }
+    } catch {}
+  }
+
   /**
    * Parses existing log file to restore prior run counts, streaks, and drop history.
    * Supports 6-column, 8-column, 9-column, and 10-column tables for 100% backwards compatibility.
@@ -103,6 +115,7 @@ export class DropLogger {
 
     try {
       const content = fs.readFileSync(this.filePath, 'utf-8');
+      this.lastSyncedMtimeMs = fs.statSync(this.filePath).mtimeMs;
       const lines = content.split('\n');
       this.records = [];
 
@@ -353,6 +366,7 @@ export class DropLogger {
     timestamp?: string;
     screenshotPath?: string;
   }): { record: BattleRecord; stats: DropStats } {
+    this.syncIfModifiedOnDisk();
     const runNumber = this.records.length + 1;
     const timestamp = data.timestamp || new Date().toISOString().replace('T', ' ').slice(0, 19);
     const hasGoldBar = !!data.hasGoldBar;
@@ -449,6 +463,7 @@ export class DropLogger {
    * Updates an existing raid or appends a Gold Bar drop entry when discovered via pending battle claim.
    */
   public recordPendingGoldBar(raidId?: string, screenshotPath?: string): DropStats {
+    this.syncIfModifiedOnDisk();
     let matched = false;
 
     if (raidId && raidId !== 'PBHL' && raidId !== 'Akasha' && raidId !== 'GO') {
@@ -644,5 +659,8 @@ export class DropLogger {
     }
 
     fs.writeFileSync(this.filePath, md, 'utf-8');
+    try {
+      this.lastSyncedMtimeMs = fs.statSync(this.filePath).mtimeMs;
+    } catch {}
   }
 }

@@ -3,6 +3,7 @@ import { config } from '../../config.js';
 import { discordDmRelay, DiscordMessageResponse } from '../../relay/discord-dm-relay.js';
 import { processRunnerService, COMMAND_WHITELIST, ActiveJob } from './process-runner.service.js';
 import { dailyResetScheduler } from '../scheduler/daily-reset.scheduler.js';
+import { inventoryAuditorService } from '../behavior/inventory-auditor.service.js';
 
 export interface CommandGatewayOptions {
   pollingIntervalMs?: number;
@@ -57,14 +58,28 @@ export class DiscordCommandGatewayService {
     console.log(`Security Protocol:  Strict DM sender snowflake + Command Whitelist`);
     console.log('========================================================================\n');
 
-    // 1. Initial greeting to user DM
+    // 1. Initial greeting to user DM & Start background scheduler daemon
+    if (!dailyResetScheduler.getIsRunning()) {
+      try {
+        dailyResetScheduler.startDaemon();
+      } catch (err: any) {
+        console.warn(`[CommandGateway] Could not auto-start daily scheduler: ${err.message}`);
+      }
+    }
+
     try {
+      const schedInfo = dailyResetScheduler.getScheduleInfo();
       await discordDmRelay.sendMessage(
         '🛡️ **GBF Remote Cockpit Online**\n' +
         'Autonomous controller initialized and listening in secure private session.\n' +
-        '• Type `/help` for available commands.\n' +
-        '• Type `/run daily` to launch daily reset routine.\n' +
-        '• Type `/status` to inspect running jobs.'
+        `• **Daily Scheduler**: 🟢 ACTIVE (Next: \`${schedInfo.nextResetJstString}\` / **${schedInfo.formattedCountdown}**)\n` +
+        '• **Quick Commands**:\n' +
+        '  - `/gbf daily` — Launch daily reset routine immediately\n' +
+        '  - `/gbf scheduler:off` / `/gbf scheduler:on` — Pause/resume 05:00 JST scheduler\n' +
+        '  - `/gbf status` — View active job, scheduler state, and terminal output\n' +
+        '  - `/gbf stop` — Halt current active task\n' +
+        '  - `/gbf logs` — View recent terminal logs\n' +
+        '  - `/gbf help` — Display command list'
       );
     } catch (err: any) {
       console.warn(`[CommandGateway] Could not send initial greeting: ${err.message}`);
@@ -253,22 +268,49 @@ export class DiscordCommandGatewayService {
       return;
     }
 
-    const text = msg.content.trim();
+    let text = msg.content.trim();
     if (!text) return;
 
     console.log(`[CommandGateway] 📩 Operator Command received: "${text}"`);
 
+    // Normalize "/gbf <cmd>" to standard command format
+    if (text.startsWith('/gbf ') || text.startsWith('gbf ') || text === '/gbf' || text === 'gbf') {
+      text = text.replace(/^\/?gbf\s*/i, '').trim();
+      if (!text) text = 'status';
+    }
+
+    const lower = text.toLowerCase();
+
     // 2. Dispatch to command handlers
-    if (text.startsWith('/run') || text.startsWith('run')) {
+    if (lower === 'scheduler:off' || lower === '/scheduler:off' || lower === 'scheduler off' || lower === '/scheduler off') {
+      await this.handleSchedulerToggle(false);
+    } else if (lower === 'scheduler:on' || lower === '/scheduler:on' || lower === 'scheduler on' || lower === '/scheduler on') {
+      await this.handleSchedulerToggle(true);
+    } else if (lower === 'daily' || lower === '/daily' || lower.startsWith('daily ') || lower.startsWith('/daily ')) {
+      await this.handleRunCommand(`/run ${text.replace(/^\/?daily\s*/i, 'daily ')}`);
+    } else if (lower.startsWith('/run') || lower.startsWith('run')) {
       await this.handleRunCommand(text);
-    } else if (text === '/status' || text === 'status') {
+    } else if (lower === '/status' || lower === 'status') {
       await this.handleStatusCommand();
-    } else if (text === '/stop' || text === '/halt' || text === 'stop' || text === 'halt') {
+    } else if (lower === '/stop' || lower === '/halt' || lower === 'stop' || lower === 'halt') {
       await this.handleStopCommand();
-    } else if (text === '/reset' || text === '/next' || text === 'next' || text === 'reset') {
+    } else if (lower === '/reset' || lower === '/next' || lower === 'next' || lower === 'reset') {
       await this.handleResetInfoCommand();
-    } else if (text === '/help' || text === 'help') {
+    } else if (lower === '/logs' || lower === 'logs' || lower === '/log' || lower === 'log') {
+      await this.handleLogsCommand();
+    } else if (lower === '/inventory' || lower === 'inventory' || lower === '/supplies' || lower === 'supplies') {
+      await this.handleInventoryCommand();
+    } else if (lower === '/farm:human' || lower === 'farm:human' || lower === '/human' || lower === 'human') {
+      await this.handleRunCommand('/run farm:human');
+    } else if (lower === '/help' || lower === 'help') {
       await this.handleHelpCommand();
+    } else if (COMMAND_WHITELIST[lower.replace(/^\//, '')]) {
+      // Direct command like "gb-pbhl" or "/gb-pbhl"
+      await this.handleRunCommand(`/run ${text.replace(/^\//, '')}`);
+    } else {
+      await discordDmRelay.sendMessage(
+        `❓ **Unknown Command**: \`${msg.content.trim()}\`\nType \`/help\` or \`/gbf help\` to view all available commands.`
+      );
     }
   }
 
@@ -302,15 +344,19 @@ export class DiscordCommandGatewayService {
   private async handleStatusCommand(): Promise<void> {
     const status = processRunnerService.getStatus();
     const resetInfo = dailyResetScheduler.getScheduleInfo();
+    const schedulerRunning = dailyResetScheduler.getIsRunning();
+    const schedStatusStr = schedulerRunning
+      ? `🟢 ACTIVE (Next: \`${resetInfo.nextResetJstString}\` / **${resetInfo.formattedCountdown}**)`
+      : '⏸️ PAUSED (Scheduler is OFF)';
 
     if (!status.isBusy || !status.job) {
       const response = [
         '🟢 **GBF Automation Status: IDLE**',
         '• **Process**: No active automation job currently running.',
         '• **CDP Port**: 9222 (Unlocked & Ready)',
-        `• **Next Daily Reset**: \`${resetInfo.nextResetJstString}\` (${resetInfo.formattedCountdown})`,
+        `• **Daily Scheduler**: ${schedStatusStr}`,
         '',
-        '👉 Send `/run <command>` to launch a task, or `/help` for command list.'
+        '👉 Send `/gbf daily` to launch a task, or `/help` for command list.'
       ].join('\n');
 
       await discordDmRelay.sendMessage(response);
@@ -362,13 +408,85 @@ export class DiscordCommandGatewayService {
   }
 
   /**
+   * Handles scheduler on/off toggle commands.
+   */
+  private async handleSchedulerToggle(enable: boolean): Promise<void> {
+    if (enable) {
+      if (dailyResetScheduler.getIsRunning()) {
+        const info = dailyResetScheduler.getScheduleInfo();
+        await discordDmRelay.sendMessage(
+          `🟢 **Daily Scheduler is ALREADY ACTIVE**\n• Next Reset: \`${info.nextResetJstString}\` (**${info.formattedCountdown}**)`
+        );
+        return;
+      }
+      try {
+        dailyResetScheduler.startDaemon();
+        const info = dailyResetScheduler.getScheduleInfo();
+        await discordDmRelay.sendMessage(
+          `▶️ **Daily Reset Scheduler ACTIVATED**\n• Cadence: Daily 05:00:15 JST (UTC+9)\n• Next Reset: \`${info.nextResetJstString}\` (**${info.formattedCountdown}**)\n• Pipeline: Universal Pro Skips → Daily 16-Raid Suite`
+        );
+      } catch (err: any) {
+        await discordDmRelay.sendMessage(`❌ Failed to start scheduler: ${err.message}`);
+      }
+    } else {
+      if (!dailyResetScheduler.getIsRunning()) {
+        await discordDmRelay.sendMessage('⏸️ **Daily Scheduler is ALREADY PAUSED (OFF)**');
+        return;
+      }
+      dailyResetScheduler.stopDaemon();
+      await discordDmRelay.sendMessage(
+        '🛑 **Daily Reset Scheduler PAUSED (OFF)**\nAutonomous 05:00 JST triggers are suspended.\nSend `/gbf scheduler:on` to resume.'
+      );
+    }
+  }
+
+  /**
+   * Handles `/logs` command.
+   */
+  private async handleLogsCommand(): Promise<void> {
+    const lines = processRunnerService.getRecentLogs(15);
+    const logSnippet = lines.length > 0 ? `\`\`\`text\n${lines.join('\n')}\n\`\`\`` : '_No logs captured yet._';
+    await discordDmRelay.sendMessage(
+      `📜 **Recent Automation Terminal Logs (last 15 lines):**\n${logSnippet}`
+    );
+  }
+
+  /**
+   * Handles `/inventory` command.
+   */
+  private async handleInventoryCommand(): Promise<void> {
+    const snapshot = inventoryAuditorService.getLatestSnapshot();
+    if (snapshot) {
+      await discordDmRelay.sendMessage(
+        inventoryAuditorService.formatSnapshotForDiscord(snapshot)
+      );
+    } else {
+      await discordDmRelay.sendMessage(
+        '🔍 No cached inventory snapshot found. Launching live in-game inventory audit job on port 9222...'
+      );
+      await this.handleRunCommand('/run inventory');
+    }
+  }
+
+  /**
    * Handles `/help` command.
    */
   private async handleHelpCommand(): Promise<void> {
     const lines = [
       '📖 **GBF Remote Cockpit Commands**',
       '',
-      '**Available `/run` Presets:**'
+      '**Workflow & Scheduler Controls:**',
+      '• `/gbf daily` (or `/run daily`) — Launch complete daily reset routine immediately',
+      '• `/gbf scheduler:off` — Pause autonomous 05:00 JST scheduler',
+      '• `/gbf scheduler:on` — Resume autonomous 05:00 JST scheduler',
+      '• `/gbf status` — View active job, scheduler state, and terminal output',
+      '• `/gbf stop` (or `/halt`) — Gracefully terminate running task',
+      '• `/gbf logs` — View last 15 lines of live terminal output',
+      '• `/gbf inventory` — View current Gold Bar, Elixir, Berry, and Moon supplies',
+      '• `/gbf farm:human` — Launch 4-phase human cadence farming (GB + leech + rest + audit)',
+      '• `/gbf reset` — View countdown to next 05:00 JST daily reset',
+      '',
+      '**Available `/run <preset>` Presets:**'
     ];
 
     for (const [key, preset] of Object.entries(COMMAND_WHITELIST)) {
