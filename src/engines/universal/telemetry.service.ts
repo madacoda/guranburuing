@@ -386,47 +386,105 @@ export class UniversalTelemetryService {
     const capDir = path.resolve(process.cwd(), 'artifacts/captures');
     if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
     const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
+    const cleanProofPath = cleanRaidId ? path.resolve(capDir, `clean-gold-bar-${cleanRaidId}.png`) : undefined;
 
     let shotBuf: Buffer | undefined;
 
     try {
-      const currentUrl = this.page.url();
-      const isAlreadyOnResult = currentUrl.includes('result_multi') || currentUrl.includes('result');
+      console.log(`[Workflow] 📸 Initiating patient, high-fidelity Gold Bar proof capture for Raid ID: ${cleanRaidId || 'N/A'}...`);
 
-      if (!isAlreadyOnResult && cleanRaidId && /^\d+$/.test(cleanRaidId)) {
-        const resultUrl = `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`;
-        console.log(`[Workflow] 📸 Navigating to battle result for clean loot proof: ${resultUrl}`);
-        await this.page.goto(resultUrl, { waitUntil: 'domcontentloaded' }).catch(() => null);
-      }
+      // 1. Permanent detail view is the authoritative proof destination for every GBF raid
+      if (cleanRaidId && /^\d+$/.test(cleanRaidId)) {
+        const targetHash = `result_multi/detail/${cleanRaidId}/1/0/0`;
+        const currentHash = await this.page.evaluate(() => window.location.hash.replace(/^#/, '')).catch(() => '');
 
-      const tWaitStart = Date.now();
-      while (Date.now() - tWaitStart < 7000) {
-        const ready = await this.page.evaluate(() => {
-          const hasLoot = !!document.querySelector(
-            '.cnt-result, #cnt-result, .prt-result-cnt, .prt-reward-item, .prt-item-list, .prt-box-special, .prt-special-reward-box, [data-key="17_20004"], img[src*="/item/evolution/"][src*="20004."], .prt-module'
-          );
-          const loadingEl = document.querySelector('#loading, .prt-loading, .cnt-loading, .loading-stage');
-          const isLoading = loadingEl && (loadingEl as HTMLElement).style.display !== 'none' && (loadingEl as HTMLElement).offsetParent !== null;
-          return hasLoot && !isLoading;
-        }).catch(() => false);
+        if (!currentHash.includes(targetHash)) {
+          console.log(`[Workflow] 📸 Navigating to permanent battle result: https://game.granbluefantasy.jp/#${targetHash}`);
+          await this.page.evaluate((hash: string) => {
+            const Game = (window as any).Game;
+            if (Game?.router?.navigate) {
+              Game.router.navigate(hash, { trigger: true });
+            } else {
+              window.location.hash = '#' + hash;
+            }
+          }, targetHash).catch(() => null);
 
-        if (ready) break;
-        await new Promise(r => setTimeout(r, 250));
-      }
-      await logNormalDelay(600, 0.15);
-
-      await this.page.evaluate(() => {
-        const blueBox = document.querySelector(
-          '.prt-box-special, .prt-special-reward-box, [data-box-type="11"], .prt-box-item.special, .ico-box-special'
-        ) as HTMLElement;
-        if (blueBox && blueBox.offsetParent !== null) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(blueBox).trigger('tap');
-          blueBox.click();
+          if (typeof this.page.goto === 'function') {
+            await logNormalDelay(600, 0.1);
+            const verifiedHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+            if (!verifiedHash.includes(cleanRaidId)) {
+              await this.page.goto(`https://game.granbluefantasy.jp/#${targetHash}`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+            }
+          }
         }
-      }).catch(() => null);
-      await logNormalDelay(800, 0.15);
+      }
 
+      // 2. Patient Multi-Gate Waiting Loop: Never be hasty on Gold Bar capture
+      const tWaitStart = Date.now();
+      const maxWaitMs = 20000; // Allow up to 20 seconds for full loot and images to load
+      let isFullyLoaded = false;
+
+      while (Date.now() - tWaitStart < maxWaitMs) {
+        const status = await this.page.evaluate(() => {
+          // Gate A: Check for active loading spinners or overlays
+          const loadingEls = Array.from(document.querySelectorAll('#loading, .loading, .prt-loading, .cnt-loading, .loading-stage, .mask.show'));
+          const anyLoadingVisible = loadingEls.some(el => {
+            const html = el as HTMLElement;
+            if (!html || html.offsetParent === null) return false;
+            const style = window.getComputedStyle(html);
+            return style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0;
+          });
+
+          // Gate B: Check for in-flight jQuery/Zepto AJAX requests
+          const $ = (window as any).$ || (window as any).Zepto;
+          const ajaxIdle = $ ? ($.active === 0 || $.active === undefined) : true;
+
+          // Gate C: Check that the loot table has actually mounted with treasure cards
+          const lootCards = Array.from(document.querySelectorAll('.cnt-result .prt-reward-item .lis-treasure, .prt-reward-item .lis-treasure, .prt-item-list .lis-treasure, .btn-treasure-item'));
+          const hasLootCards = lootCards.length > 0;
+
+          // Gate D: Check if Gold Bar is rendered in DOM
+          const gbEl = document.querySelector([
+            '[data-key="17_20004"]',
+            'img[src*="/item/evolution/"][src*="20004."]',
+            '.lis-treasure[data-item-id="20004"]',
+            '#cnt-result [data-item-id="20004"]:not(.prt-treasure-wrapper)',
+            '.ico-treasure-11-mini',
+            '[data-box-type="11"]'
+          ].join(', '));
+          const hasGoldBarElement = !!(gbEl && (gbEl as HTMLElement).offsetParent !== null);
+
+          // Gate E: Check that all item images inside loot have finished loading pixels
+          const lootImgs = Array.from(document.querySelectorAll('.prt-reward-item img, .prt-item-list img'));
+          const allImagesSettled = lootImgs.length > 0 && lootImgs.every(img => {
+            const htmlImg = img as HTMLImageElement;
+            return htmlImg.complete && htmlImg.naturalWidth > 0;
+          });
+
+          // Gate F: Result title or defeat header present
+          const hasHeader = !!document.querySelector('.prt-result-title, .txt-enemy-name, .prt-defeat-info, .prt-result-detail');
+
+          return {
+            ready: !anyLoadingVisible && ajaxIdle && hasLootCards && allImagesSettled && hasHeader,
+            hasGoldBarElement,
+            cardsCount: lootCards.length,
+            ajaxIdle,
+            anyLoadingVisible,
+            allImagesSettled
+          };
+        }).catch(() => ({ ready: false, hasGoldBarElement: false, cardsCount: 0, ajaxIdle: true, anyLoadingVisible: true, allImagesSettled: false }));
+
+        if (status.ready) {
+          isFullyLoaded = true;
+          break;
+        }
+
+        await new Promise(r => setTimeout(r, 350));
+      }
+
+      console.log(`[Workflow] 📸 Loot screen settlement: ${isFullyLoaded ? '100% Fully Loaded & Verified' : 'Graceful timeout reached'}`);
+
+      // 3. Clear any modal popups that obscure the loot table
       await this.page.evaluate(() => {
         const okBtns = document.querySelectorAll(
           '.pop-usual .btn-usual-ok, .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-close, .btn-settle, .btn-result-close'
@@ -439,17 +497,38 @@ export class UniversalTelemetryService {
           }
         });
       }).catch(() => null);
-      await logNormalDelay(400, 0.1);
 
+      // 4. Intentional post-render settling delay for fonts, high-DPI scaling, and layout reflow
+      await logNormalDelay(1500, 0.15);
+
+      // 5. Scroll Battle Results & Loot Collected cleanly into viewport
+      await this.page.evaluate(() => {
+        const resultCard = document.querySelector('.cnt-result, .prt-module, .prt-result-detail');
+        if (resultCard) {
+          resultCard.scrollIntoView({ block: 'start', inline: 'nearest' });
+        } else {
+          window.scrollTo(0, 0);
+        }
+      }).catch(() => null);
+      await logNormalDelay(300, 0.1);
+
+      // 6. Capture full crisp viewport
       const targetEl = await this.page.$(
-        '#cnt-result, .cnt-result, .prt-result-cnt, #wrapper, body'
+        '#cnt-result, .cnt-result, .prt-result-cnt, #wrapper'
       );
       if (targetEl) {
         shotBuf = await targetEl.screenshot({ path: proofPath, type: 'png' }) as Buffer;
       } else {
         shotBuf = await this.page.screenshot({ path: proofPath, fullPage: false }) as Buffer;
       }
-      console.log(`[Workflow] 📸 Proof screenshot captured: ${proofPath}`);
+
+      if (shotBuf && cleanProofPath) {
+        try {
+          fs.writeFileSync(cleanProofPath, shotBuf);
+        } catch {}
+      }
+
+      console.log(`[Workflow] 📸 Pristine Gold Bar proof screenshot captured: ${proofPath}`);
     } catch (shotErr: any) {
       console.warn(`[Workflow] Proof capture error: ${shotErr.message}`);
     }

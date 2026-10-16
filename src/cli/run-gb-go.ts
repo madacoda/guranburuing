@@ -9,14 +9,14 @@ console.log('      (The Peacemaker\'s Wings Impossible / gb-go)    ');
 console.log('=====================================================');
 
 const runsArg = process.argv[2] || '';
-const scoreArg = process.argv[3] || '1480000';
+const scoreArg = process.argv[3] || '1500000';
 
 let runs = Infinity;
 if (runsArg && !isNaN(Number(runsArg))) {
   runs = Math.max(1, parseInt(runsArg, 10));
 }
 
-const targetScore = parseInt(scoreArg, 10) || 1480000;
+const targetScore = parseInt(scoreArg, 10) || 1500000;
 
 console.log(`[gb-go] Runs Planned:    ${runs === Infinity ? 'Continuous / Loop (Ctrl+C to stop)' : runs}`);
 console.log(`[gb-go] Honor Threshold: ${targetScore.toLocaleString()} pt`);

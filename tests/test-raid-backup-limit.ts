@@ -76,7 +76,15 @@ let mockClaimCalled = 0;
           id: 'tab-multi',
           getAttribute: () => 'multi',
           innerText: 'Joined',
+          textContent: 'Joined',
           offsetParent: {},
+          querySelector: (childSel: string) => {
+            if (childSel.includes('badge')) {
+              if (currentTabBadge === null) return null;
+              return { offsetParent: {}, textContent: currentTabBadge };
+            }
+            return null;
+          },
           click: () => {}
         }
       ];

@@ -29,7 +29,7 @@ if (!Array.isArray(pbhlTemplate.steps) || pbhlTemplate.steps.length === 0) {
 const validCodes = new Set([
   'skill', 'attack', 'summon', 'quick_call', 'reload', 'tap_ready',
   'smart_full_auto', 'repeat', 'confirm_result', 'wait', 'wait_network',
-  'exit_if_score', 'condition', 'heal', 'revive'
+  'exit_if_score', 'condition', 'heal', 'revive', 'wait_element', 'wait_random'
 ]);
 
 for (const step of pbhlTemplate.steps) {

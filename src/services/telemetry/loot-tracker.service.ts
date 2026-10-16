@@ -277,21 +277,124 @@ export class LootTrackerService implements ILootTrackerService {
     const capDir = path.resolve(process.cwd(), 'artifacts/captures');
     if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
     const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
+    const cleanProofPath = cleanRaidId ? path.resolve(capDir, `clean-gold-bar-${cleanRaidId}.png`) : undefined;
+
+    let shotBuf: Buffer | undefined;
 
     try {
-      await page.evaluate(() => {
-        // Dismiss obscuring dialogs
-        const pop = document.querySelector('.pop-usual, .prt-popup-body');
-        if (pop) {
-          const ok = pop.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-          if (ok) ok.click();
+      console.log(`[LootTracker] 📸 Initiating patient Gold Bar proof capture for Raid ID: ${cleanRaidId || 'N/A'}...`);
+
+      // 1. Navigate to permanent battle result detail URL
+      if (cleanRaidId && /^\d+$/.test(cleanRaidId)) {
+        const targetHash = `result_multi/detail/${cleanRaidId}/1/0/0`;
+        const currentHash = await page.evaluate(() => window.location.hash.replace(/^#/, '')).catch(() => '');
+
+        if (!currentHash.includes(targetHash)) {
+          console.log(`[LootTracker] 📸 Navigating to permanent battle log: https://game.granbluefantasy.jp/#${targetHash}`);
+          await page.evaluate((hash: string) => {
+            const Game = (window as any).Game;
+            if (Game?.router?.navigate) {
+              Game.router.navigate(hash, { trigger: true });
+            } else {
+              window.location.hash = '#' + hash;
+            }
+          }, targetHash).catch(() => null);
+
+          if (typeof page.goto === 'function') {
+            await new Promise(r => setTimeout(r, 600));
+            const verifiedHash = await page.evaluate(() => window.location.hash).catch(() => '');
+            if (!verifiedHash.includes(cleanRaidId)) {
+              await page.goto(`https://game.granbluefantasy.jp/#${targetHash}`, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
+            }
+          }
         }
+      }
+
+      // 2. Patient multi-gate readiness polling
+      const tStart = Date.now();
+      const maxWait = 20000;
+      let isFullyLoaded = false;
+
+      while (Date.now() - tStart < maxWait) {
+        const status = await page.evaluate(() => {
+          const loadingEls = Array.from(document.querySelectorAll('#loading, .loading, .prt-loading, .cnt-loading, .loading-stage, .mask.show'));
+          const anyLoadingVisible = loadingEls.some(el => {
+            const html = el as HTMLElement;
+            if (!html || html.offsetParent === null) return false;
+            const style = window.getComputedStyle(html);
+            return style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0;
+          });
+
+          const $ = (window as any).$ || (window as any).Zepto;
+          const ajaxIdle = $ ? ($.active === 0 || $.active === undefined) : true;
+
+          const lootCards = Array.from(document.querySelectorAll('.cnt-result .prt-reward-item .lis-treasure, .prt-reward-item .lis-treasure, .prt-item-list .lis-treasure, .btn-treasure-item'));
+          const hasLootCards = lootCards.length > 0;
+
+          const lootImgs = Array.from(document.querySelectorAll('.prt-reward-item img, .prt-item-list img'));
+          const allImagesSettled = lootImgs.length > 0 && lootImgs.every(img => {
+            const htmlImg = img as HTMLImageElement;
+            return htmlImg.complete && htmlImg.naturalWidth > 0;
+          });
+
+          const hasHeader = !!document.querySelector('.prt-result-title, .txt-enemy-name, .prt-defeat-info, .prt-result-detail');
+
+          return { ready: !anyLoadingVisible && ajaxIdle && hasLootCards && allImagesSettled && hasHeader };
+        }).catch(() => ({ ready: false }));
+
+        if (status.ready) {
+          isFullyLoaded = true;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 350));
+      }
+
+      console.log(`[LootTracker] 📸 Loot screen settlement: ${isFullyLoaded ? '100% Fully Loaded & Verified' : 'Timeout reached'}`);
+
+      // 3. Clear obscuring popups
+      await page.evaluate(() => {
+        const okBtns = document.querySelectorAll('.pop-usual .btn-usual-ok, .btn-usual-ok, .pop-usual .btn-usual-close, .btn-usual-close');
+        okBtns.forEach((btn: any) => {
+          if (btn.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(btn).trigger('tap');
+            btn.click();
+          }
+        });
       }).catch(() => null);
 
-      const shotBuf = await page.screenshot({ path: proofPath, fullPage: false }) as Buffer;
+      // 4. Settling delay
+      await new Promise(r => setTimeout(r, 1500));
+
+      // 5. Scroll Battle Results & Loot into view
+      await page.evaluate(() => {
+        const resultCard = document.querySelector('.cnt-result, .prt-module, .prt-result-detail');
+        if (resultCard) {
+          resultCard.scrollIntoView({ block: 'start', inline: 'nearest' });
+        } else {
+          window.scrollTo(0, 0);
+        }
+      }).catch(() => null);
+      await new Promise(r => setTimeout(r, 300));
+
+      // 6. Capture
+      const targetEl = await page.$('#cnt-result, .cnt-result, .prt-result-cnt, #wrapper');
+      if (targetEl) {
+        shotBuf = await targetEl.screenshot({ path: proofPath, type: 'png' }) as Buffer;
+      } else {
+        shotBuf = await page.screenshot({ path: proofPath, fullPage: false }) as Buffer;
+      }
+
+      if (shotBuf && cleanProofPath) {
+        try {
+          fs.writeFileSync(cleanProofPath, shotBuf);
+        } catch {}
+      }
+
+      console.log(`[LootTracker] 📸 Pristine Gold Bar proof screenshot captured: ${proofPath}`);
       return { buffer: shotBuf, path: proofPath };
     } catch {
-      return { path: proofPath };
+      return { buffer: shotBuf, path: proofPath };
     }
   }
 

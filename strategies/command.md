@@ -226,8 +226,8 @@ Dedicated Blue Chest honor burst workflows (1.4M–1.58M target honors) with dro
 | `bun run gb-pbhl:skill` | Proto Bahamut HL | 1.50M | Precise manual skill sequence (C4S3 $\rightarrow$ Call $\rightarrow$ C4S4 $\rightarrow$ C1S3) |
 | `bun run gb-pbhl:skill:windowed`| Proto Bahamut HL | 1.50M | Precise manual skill sequence in visible window |
 | `bun run gb-pbhl-fast` | Proto Bahamut HL | 1.50M | Ultra-fast 0-button reload burst rotation |
-| `bun run gb-akasha` | Akasha HL | 1.43M | Dark/Fire burst loop targeting Gold Bar & Keys |
-| `bun run gb-go` | Grand Order HL | 1.58M | Multi-turn burst for Heavenly Horns & Centrums |
+| `bun run gb-akasha` | Akasha HL | 1.50M | Standardized 2-turn burst loop targeting Gold Bar & Keys |
+| `bun run gb-go` | Grand Order HL | 1.50M | Standardized 2-turn burst for Heavenly Horns & Centrums |
 | `bun run gb-farm` | Tri-Raid Rotator | Dynamic | Concurrently rotates PBHL $\rightarrow$ Akasha $\rightarrow$ GOHL |
 | `bun run theworld:raid` / `world:raid` | The World (HL) | — | Finder Tab 1: C4S1 $\rightarrow$ C3S1 $\rightarrow$ C3S2 $\rightarrow$ C2S1 $\rightarrow$ Atk $\rightarrow$ Reload $\rightarrow$ Random Delay $\rightarrow$ Atk $\rightarrow$ Reload |
 | `bun run goldbar` | Telemetry | — | Tests permanent raid archive URL resolution & drops |

@@ -410,7 +410,13 @@ export class QuestNavigationService {
         if (!isSlotActive) {
           console.log(`[Workflow] Switching to Slot ${currentSlot}...`);
           await humanizedClick(this.page, slotBtn);
-          await logNormalDelay(500, 0.12);
+          await logNormalDelay(600, 0.15);
+          await this.page.waitForFunction((s: number) => {
+            const btn = document.querySelector(`.btn-search-switch.slot${s}, [data-slot="${s}"].btn-search-switch`);
+            const ajaxIdle = (window as any).$ ? (window as any).$.active === 0 : true;
+            return btn?.classList.contains('active') && ajaxIdle;
+          }, { timeout: 3500 }, currentSlot).catch(() => null);
+          await logNormalDelay(300, 0.1);
         }
       }
 
@@ -418,11 +424,36 @@ export class QuestNavigationService {
       await this.dismissFullOrEndedRaidPopup();
 
       // 2. Scan cards in #prt-search-list
-      const rawCandidates: RaidCandidate[] = await this.page.evaluate(() => {
+      const rawCandidates: RaidCandidate[] = await this.page.evaluate((tmplName: string) => {
         const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search'));
+        const lowerTmpl = (tmplName || '').toLowerCase();
+        const isAkasha = lowerTmpl.includes('akasha');
+        const isPbhl = lowerTmpl.includes('pbhl') || lowerTmpl.includes('proto bahamut');
+        const isGo = lowerTmpl.includes('go') || lowerTmpl.includes('grand order');
+
         return cards.map((c, i) => {
           const el = c as HTMLElement;
           if (el.offsetParent === null) return null;
+
+          const titleEl = el.querySelector('.prt-raid-name, .txt-raid-name, .name, [class*="raid-name"]') as HTMLElement;
+          const title = ((titleEl ? titleEl.innerText : el.innerText) || '').toLowerCase();
+          const imgEl = el.querySelector('img') as HTMLImageElement;
+          const imgSrc = imgEl?.src || '';
+
+          // Validate target raid to prevent cross-slot contamination:
+          if (isAkasha) {
+            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('バハムート') || title.includes('peacemaker') || title.includes('グランデ') || imgSrc.includes('301061') || imgSrc.includes('305161')) {
+              return null;
+            }
+          } else if (isPbhl) {
+            if (title.includes('broken skies') || title.includes('akasha') || title.includes('アーカーシャ') || title.includes('peacemaker') || title.includes('グランデ') || imgSrc.includes('303251') || imgSrc.includes('305161')) {
+              return null;
+            }
+          } else if (isGo) {
+            if (title.includes('broken skies') || title.includes('akasha') || title.includes('wings of terror') || title.includes('bahamut') || imgSrc.includes('303251') || imgSrc.includes('301061')) {
+              return null;
+            }
+          }
 
           const gauge = el.querySelector('.prt-raid-gauge-inner') as HTMLElement;
           const hpWidth = gauge?.style?.width || '0%';
@@ -447,7 +478,7 @@ export class QuestNavigationService {
             y: rect.top + rect.height / 2
           };
         }).filter(Boolean) as any[];
-      }).catch(() => []);
+      }, this.ctx.template.name).catch(() => []);
 
       // Prune dead raid IDs older than 2 minutes
       const now = Date.now();
@@ -514,7 +545,11 @@ export class QuestNavigationService {
         if (transitionState === 'ACTIVE_RAID_LIMIT_3') {
           console.warn('[Workflow] ⚠️ Active raid limit reached (3 simultaneous battles in progress).');
           this.ctx.state.lastStartFailureWasRaidLimit = true;
-          await this.deps.milestoneSweeper.resolveLingeringRaidLimit(logPath, currentRuns);
+          const resolved = await this.deps.milestoneSweeper.resolveLingeringRaidLimit(logPath, currentRuns);
+          if (resolved && Date.now() - t0 < maxSearchMs && !this.ctx.state.stopRequested) {
+            console.log('[Workflow] Returning directly to raid search after resolving lingering raids...');
+            continue;
+          }
           return false;
         }
 
@@ -664,17 +699,61 @@ export class QuestNavigationService {
           return 'DIRECT_COMBAT';
         }
 
-        // 2. Check for popups/modals
-        const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-        if (modal && (modal as HTMLElement).offsetParent !== null) {
-          const text = (modal as HTMLElement).innerText || '';
-          if (text.includes('already full') || text.includes('already ended') || text.includes('参加人数') || text.includes('終了')) {
-            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-            if (ok) ok.click();
+        // 2. Check for popups/modals (strictly inspect genuinely visible popups)
+        const modal = document.querySelector('.pop-usual.pop-show, .pop-show, .pop-usual, .prt-popup-body') as HTMLElement;
+        const isModalVisible = modal && modal.offsetParent !== null && (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function' || (() => {
+          const style = window.getComputedStyle(modal);
+          return style && style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0;
+        })());
+
+        if (isModalVisible && modal) {
+          const rawText = modal.innerText || modal.textContent || '';
+          const lowerText = rawText.toLowerCase();
+
+          // A. Full or Ended Raid
+          const isFullOrEnded = (
+            lowerText.includes('already full') ||
+            lowerText.includes('already ended') ||
+            lowerText.includes('battle has ended') ||
+            lowerText.includes('maximum number of participants') ||
+            lowerText.includes('capacity') ||
+            rawText.includes('定員に達している') ||
+            rawText.includes('定員') ||
+            rawText.includes('参戦人数') ||
+            rawText.includes('参加人数') ||
+            rawText.includes('終了') ||
+            rawText.includes('解散') ||
+            rawText.includes('すでに終了') ||
+            rawText.includes('既に終了') ||
+            rawText.includes('すでにバトルが終了')
+          );
+          if (isFullOrEnded) {
+            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close') as HTMLElement;
+            if (ok) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(ok).trigger('tap');
+              ok.click();
+            }
             return 'FULL_OR_ENDED';
           }
-          const rawText = (modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '';
-          const lowerText = text.toLowerCase();
+
+          // B. Already Joined this battle
+          const isAlreadyJoined = (
+            lowerText.includes('already participating') ||
+            rawText.includes('既に参戦中') ||
+            rawText.includes('すでに参戦中')
+          );
+          if (isAlreadyJoined) {
+            const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close') as HTMLElement;
+            if (ok) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(ok).trigger('tap');
+              ok.click();
+            }
+            return 'FULL_OR_ENDED';
+          }
+
+          // C. True 3-Raid Limit (strict multi-phrase matching)
           const isThreeRaidLimit = (
             lowerText.includes('three raid') ||
             lowerText.includes('up to three') ||
@@ -687,8 +766,7 @@ export class QuestNavigationService {
             lowerText.includes('up to 3') ||
             rawText.includes('3件まで') ||
             rawText.includes('同時に参戦できる') ||
-            rawText.includes('参戦中') ||
-            rawText.includes('3件')
+            (rawText.includes('3件') && (rawText.includes('マルチバトル') || rawText.includes('救援')))
           );
           if (isThreeRaidLimit) {
             const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
@@ -699,15 +777,22 @@ export class QuestNavigationService {
             }
             return 'ACTIVE_RAID_LIMIT_3';
           }
-          if (
+
+          // D. Unclaimed / Pending Battles Limit (5+ battles)
+          const isPending = (
             lowerText.includes('pending') ||
             lowerText.includes('unclaimed') ||
             rawText.includes('未確認') ||
             lowerText.includes('five or more') ||
             rawText.includes('5件')
-          ) {
+          );
+          if (isPending) {
             const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
-            if (ok) ok.click();
+            if (ok) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(ok).trigger('tap');
+              ok.click();
+            }
             return 'PENDING_LIMIT';
           }
         }

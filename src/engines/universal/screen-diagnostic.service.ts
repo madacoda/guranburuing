@@ -134,21 +134,21 @@ export class ScreenDiagnosticService {
         };
       }
 
-      // Priority 3: 3-Raid Backup Limit
+      // Priority 3: 3-Raid Backup Limit (Strict check against genuinely active popup)
       if (
-        lower.includes('three raid') ||
-        lower.includes('up to three') ||
-        lower.includes('provide backup in up to') ||
-        lower.includes('only provide backup') ||
-        lower.includes('3 battles') ||
-        lower.includes('3 raid') ||
-        lower.includes('participating in 3') ||
-        lower.includes('more than 3') ||
-        lower.includes('up to 3') ||
-        rawText.includes('3件まで') ||
-        rawText.includes('同時に参戦できる') ||
-        rawText.includes('参戦中') ||
-        rawText.includes('3件')
+        screenInfo.hasPopup &&
+        (lower.includes('three raid') ||
+          lower.includes('up to three') ||
+          lower.includes('provide backup in up to') ||
+          lower.includes('only provide backup') ||
+          lower.includes('3 battles') ||
+          lower.includes('3 raid') ||
+          lower.includes('participating in 3') ||
+          lower.includes('more than 3') ||
+          lower.includes('up to 3') ||
+          rawText.includes('3件まで') ||
+          rawText.includes('同時に参戦できる') ||
+          (rawText.includes('3件') && (rawText.includes('マルチバトル') || rawText.includes('救援'))))
       ) {
         return {
           condition: 'ACTIVE_RAID_LIMIT_3',
@@ -184,8 +184,16 @@ export class ScreenDiagnosticService {
         lower.includes('already full') ||
         lower.includes('has ended') ||
         lower.includes('battle has already concluded') ||
+        lower.includes('maximum number of participants') ||
+        lower.includes('capacity') ||
+        rawText.includes('定員に達している') ||
+        rawText.includes('定員') ||
+        rawText.includes('参戦人数') ||
         rawText.includes('参加人数') ||
         rawText.includes('終了') ||
+        rawText.includes('解散') ||
+        rawText.includes('すでに終了') ||
+        rawText.includes('既に終了') ||
         rawText.includes('すでにバトルが終了')
       ) {
         return {
@@ -589,11 +597,38 @@ export class ScreenDiagnosticService {
   public async dismissFullOrEndedRaidPopup(): Promise<boolean> {
     try {
       return await this.page.evaluate(() => {
-        const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+        const modals = Array.from(document.querySelectorAll('.pop-usual.pop-show, .pop-show, #pop .pop-usual.pop-show, .pop-usual:not([style*="display: none"])'));
+        const modal = modals.find(m => {
+          const el = m as HTMLElement;
+          if (el.offsetParent === null) return false;
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0;
+        }) as HTMLElement;
+
         if (!modal) return false;
-        const text = (modal as HTMLElement).innerText || '';
-        if (text.includes('already ended') || text.includes('already full') || text.includes('参加人数') || text.includes('終了')) {
-          const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close') as HTMLElement;
+        const text = modal.innerText || modal.textContent || '';
+        const lower = text.toLowerCase();
+        const isFullOrEnded = (
+          lower.includes('already ended') ||
+          lower.includes('already full') ||
+          lower.includes('battle has ended') ||
+          lower.includes('maximum number of participants') ||
+          lower.includes('capacity') ||
+          text.includes('定員に達している') ||
+          text.includes('定員') ||
+          text.includes('参戦人数') ||
+          text.includes('参加人数') ||
+          text.includes('終了') ||
+          text.includes('解散') ||
+          text.includes('すでに終了') ||
+          text.includes('既に終了') ||
+          text.includes('すでにバトルが終了') ||
+          text.includes('既に参戦中') ||
+          text.includes('すでに参戦中')
+        );
+
+        if (isFullOrEnded) {
+          const ok = modal.querySelector('.btn-usual-ok, .btn-usual-close, .btn-close') as HTMLElement;
           if (ok && ok.offsetParent !== null) {
             const $ = (window as any).$ || (window as any).Zepto;
             if ($) $(ok).trigger('tap');

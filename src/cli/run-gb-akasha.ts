@@ -9,14 +9,14 @@ console.log('               (Akasha HL / gb-akasha)               ');
 console.log('=====================================================');
 
 const runsArg = process.argv[2] || '';
-const scoreArg = process.argv[3] || '1560000';
+const scoreArg = process.argv[3] || '1500000';
 
 let runs = Infinity;
 if (runsArg && !isNaN(Number(runsArg))) {
   runs = Math.max(1, parseInt(runsArg, 10));
 }
 
-const targetScore = parseInt(scoreArg, 10) || 1560000;
+const targetScore = parseInt(scoreArg, 10) || 1500000;
 
 console.log(`[gb-akasha] Runs Planned:    ${runs === Infinity ? 'Continuous / Loop (Ctrl+C to stop)' : runs}`);
 console.log(`[gb-akasha] Honor Threshold: ${targetScore.toLocaleString()} pt`);

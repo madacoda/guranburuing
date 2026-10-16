@@ -69,11 +69,60 @@ export class CombatExecutionService {
         }
       }
 
+      // Check targetScore honorGuard before starting iteration
+      if (this.ctx.template.honorGuard !== false && this.ctx.template.targetScore && this.ctx.state.currentScore >= this.ctx.template.targetScore) {
+        console.log(`[Run ${runNumber}] Target score already reached (${this.ctx.state.currentScore.toLocaleString()} >= ${this.ctx.template.targetScore.toLocaleString()} pt). Exiting repeat block.`);
+        return true;
+      }
+
       console.log(`[Run ${runNumber}] Repeat loop ${r + 1}/${count}...`);
 
       for (let s = 0; s < step.subSteps.length; s++) {
         const sub = step.subSteps[s];
         if (this.ctx.state.stopRequested) return false;
+
+        const subAction = sub.code || sub.action;
+
+        // Honor exit_if_score directly within repeat loop to break out of repeat block immediately
+        if (subAction === 'exit_if_score') {
+          if (this.isSoloQuest()) {
+            const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+            if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.deps.combatResolution.isBattleEnded())) {
+              console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated (evaluated at exit_if_score). Exiting repeat block early.`);
+              return true;
+            }
+            continue;
+          }
+          await this.deps.combatResolution.syncCurrentHonors();
+          const threshold = sub.targetScore || this.ctx.template.targetScore || 1480000;
+          if (this.ctx.state.currentScore >= threshold) {
+            console.log(`[Run ${runNumber}] Honor threshold met (${this.ctx.state.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat pipeline early.`);
+            (this.ctx.state as any).targetScoreMet = true;
+            return true;
+          }
+          continue;
+        }
+
+        if (subAction === 'exit_if_dead') {
+          const isDead = await this.handleExitIfDead();
+          if (isDead) return true;
+          continue;
+        }
+
+        if (subAction === 'exit_if_hp') {
+          const isBelow = await this.handleExitIfHp(sub);
+          if (isBelow) return true;
+          continue;
+        }
+
+        // Suppress attacks if targetScore has already been met
+        if ((subAction === 'attack' || subAction === 'tap_ready') &&
+            this.ctx.template.honorGuard !== false &&
+            this.ctx.template.targetScore &&
+            this.ctx.state.currentScore >= this.ctx.template.targetScore) {
+          console.log(`[Run ${runNumber}] Target score already satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.ctx.template.targetScore.toLocaleString()} pt). Suppressing attack in repeat block.`);
+          return true;
+        }
 
         let ok = false;
         if (this.deps.executeSingleStep) {
@@ -1348,6 +1397,13 @@ export class CombatExecutionService {
    */
   public async handleAttack(step: WorkflowStep): Promise<boolean> {
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
+
+    // HonorGuard: Suppress attack immediately if targetScore has already been met
+    if (this.ctx.template.honorGuard !== false && this.ctx.template.targetScore && this.ctx.state.currentScore >= this.ctx.template.targetScore) {
+      console.log(`[Combat] Target score already satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.ctx.template.targetScore.toLocaleString()} pt). Suppressing attack.`);
+      return true;
+    }
+
     const targetNet = step.waitForNetwork || 'normal_attack_result.json';
     const maxAttempts = 3;
     const initialTurn = this.ctx.state.currentTurn;

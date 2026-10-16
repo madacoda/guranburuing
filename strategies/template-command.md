@@ -55,9 +55,9 @@ npm run acc1 <template-name> [runs] [--windowed]
 
 | Command | Raid | Slot / Strategy |
 | :--- | :--- | :--- |
-| `bun run gb-pbhl` | Proto Bahamut HL | Slot 4 assist search, 1.48M pt threshold |
-| `bun run gb-akasha` | Akasha HL | Slot 3 assist search, 1.48M pt threshold |
-| `bun run gb-go` | Grand Order HL | Slot 2 assist search, 1.48M pt threshold |
+| `bun run gb-pbhl` | Proto Bahamut HL | Slot 4 assist search, 1.50M pt threshold |
+| `bun run gb-akasha` | Akasha HL | Slot 3 assist search, 1.50M pt threshold |
+| `bun run gb-go` | Grand Order HL | Slot 2 assist search, 1.50M pt threshold |
 | `bun run gb-farm` | Multi-Raid Rotator | Auto-rotates PBHL -> Akasha -> GO HL |
 | `bun run acc1 gb-pbhl-fast` | PBHL 0-Button | Fast 0-button burst setup |
 

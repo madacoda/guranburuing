@@ -240,12 +240,10 @@ export class MilestoneSweeperService {
           console.log(`  🌟🌟🌟 [GOLD BAR CONFIRMED IN CLAIMED BATTLE!] Raid: ${finalRaidId} 🌟🌟🌟`);
           console.log(`========================================================================\n`);
 
-          const proofPath = path.resolve(process.cwd(), `artifacts/captures/gold-bar-${finalRaidId}-${Date.now()}.png`);
-          const shotBuf = await this.page.screenshot({ fullPage: false }).catch(() => undefined);
-          if (shotBuf) {
-            fs.mkdirSync(path.dirname(proofPath), { recursive: true });
-            fs.writeFileSync(proofPath, shotBuf);
-          }
+          const lootTracker = new LootTrackerService(this.page);
+          const proof = await lootTracker.captureCleanLootProof(this.page, finalRaidId);
+          const shotBuf = proof.buffer;
+          const proofPath = proof.path;
 
           const honorsStr = this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-';
           await goldBarTracker.recordDrop({
@@ -346,8 +344,15 @@ export class MilestoneSweeperService {
     }
   ): Promise<boolean> {
     const modalType = await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-      if (!modal || (modal as HTMLElement).offsetParent === null) return null;
+      const modal = document.querySelector('.pop-usual.pop-show, .pop-show, .pop-usual, .prt-popup-body') as HTMLElement;
+      if (!modal || modal.offsetParent === null) return null;
+      if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+        const style = window.getComputedStyle(modal);
+        if (style && (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0)) {
+          return null;
+        }
+      }
+
       const text = ((modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '').toLowerCase();
       const rawText = (modal as HTMLElement).innerText || (modal as HTMLElement).textContent || '';
 
@@ -363,8 +368,7 @@ export class MilestoneSweeperService {
         text.includes('up to 3') ||
         rawText.includes('3件まで') ||
         rawText.includes('同時に参戦できる') ||
-        rawText.includes('参戦中') ||
-        rawText.includes('3件')
+        (rawText.includes('3件') && (rawText.includes('マルチバトル') || rawText.includes('救援')))
       );
       if (isThreeRaidLimit) return 'ACTIVE_RAID_LIMIT_3';
 
@@ -445,19 +449,35 @@ export class MilestoneSweeperService {
   public async getLingeringJoinedRaidCount(): Promise<number> {
     try {
       return await this.page.evaluate(() => {
-        const multiTab = document.querySelector('#tab-multi, .btn-tabs#tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"]');
-        if (multiTab) {
-          const badge = multiTab.querySelector('.prt-badge, .ico-badge, .cnt-badge');
-          if (badge) {
-            const num = parseInt(badge.textContent || '0', 10);
-            return isNaN(num) ? 0 : num;
+        // 1. Check all tab candidates for Joined / Recent / 参戦中
+        const tabs = Array.from(document.querySelectorAll('.btn-tabs, .tab, .tab-item, .prt-tabs > div, .cnt-tabs > div, #tab-multi, [data-tab]'));
+        for (const t of tabs) {
+          const text = (t.textContent || '').trim().toLowerCase();
+          const id = t.id || '';
+          const dataTab = t.getAttribute('data-tab') || '';
+          const isJoinedTab = id === 'tab-multi' || dataTab === 'multi' || dataTab === 'recent' || dataTab === 'joined' || text.includes('参戦中') || text.includes('recent') || text.includes('joined');
+          if (isJoinedTab && !text.includes('search') && id !== 'tab-search') {
+            const badge = t.querySelector('.prt-badge, .ico-badge, .cnt-badge, .badge');
+            if (badge && (badge as HTMLElement).offsetParent !== null) {
+              const num = parseInt(badge.textContent || '0', 10);
+              return isNaN(num) ? 0 : num;
+            }
+            return 0; // Tab found without a badge -> exactly 0 active raids!
           }
-          return 0;
         }
-        return -1;
+
+        // 2. Direct card scan if currently on Joined tab
+        const joinedCards = document.querySelectorAll('#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid');
+        const visibleJoined = Array.from(joinedCards).filter(c => (c as HTMLElement).offsetParent !== null);
+        if (visibleJoined.length > 0) {
+          return visibleJoined.length;
+        }
+
+        // Default to 0 slots taken if no badge / cards found
+        return 0;
       });
     } catch {
-      return -1;
+      return 0;
     }
   }
 

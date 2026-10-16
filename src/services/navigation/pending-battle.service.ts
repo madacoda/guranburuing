@@ -21,10 +21,17 @@ export class PendingBattleService implements IPendingBattleService {
    */
   public async checkAndClearPendingBattles(targetUrlAfterClean = 'https://game.granbluefantasy.jp/#quest/assist'): Promise<PendingBattleResolution> {
     const isLimitActive = await this.page.evaluate(() => {
-      const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
-      if (!modal || (modal as HTMLElement).offsetParent === null) return false;
-      const text = ((modal as HTMLElement).innerText || '').toLowerCase();
-      const rawText = (modal as HTMLElement).innerText || '';
+      const modals = Array.from(document.querySelectorAll('.pop-usual.pop-show, .pop-show, #pop .pop-usual.pop-show, .pop-usual:not([style*="display: none"])'));
+      const modal = modals.find(m => {
+        const el = m as HTMLElement;
+        if (el.offsetParent === null) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0;
+      }) as HTMLElement;
+
+      if (!modal) return false;
+      const text = (modal.innerText || modal.textContent || '').toLowerCase();
+      const rawText = modal.innerText || modal.textContent || '';
       return (
         text.includes('three raid') ||
         text.includes('up to three') ||
@@ -41,8 +48,7 @@ export class PendingBattleService implements IPendingBattleService {
         text.includes('up to 3') ||
         rawText.includes('3件まで') ||
         rawText.includes('同時に参戦できる') ||
-        rawText.includes('参戦中') ||
-        rawText.includes('3件') ||
+        (rawText.includes('3件') && (rawText.includes('マルチバトル') || rawText.includes('救援'))) ||
         rawText.includes('5件')
       );
     }).catch(() => false);

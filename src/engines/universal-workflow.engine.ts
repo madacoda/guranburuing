@@ -700,6 +700,15 @@ export class UniversalWorkflowEngine {
         }
       }
 
+      if (this.template.mode !== 'routine' && i > 0 && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
+        const stepAction = step.code || step.action;
+        const isDamagingOrCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'skill' || stepAction === 'summon' || stepAction === 'quick_call' || stepAction === 'smart_full_auto' || stepAction === 'repeat';
+        if (isDamagingOrCombatAction) {
+          console.log(`[Run ${runNumber}] Target score satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Skipping combat Step ${i + 1} (${stepAction}).`);
+          continue;
+        }
+      }
+
       console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
 
       const success = await this.executeSingleStep(step, i + 1, runNumber);

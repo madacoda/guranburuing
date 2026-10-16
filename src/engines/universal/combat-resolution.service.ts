@@ -4,6 +4,9 @@ import { humanizedClick, logNormalDelay, sampleGaussian, getSpeedProfile } from 
 import { UniversalContext } from './types.js';
 import { config } from '../../config.js';
 import { isSoloWorkflowTemplate } from '../../types/workflow.types.js';
+import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
+import { goldBarTracker } from '../../services/telemetry/gold-bar-tracker.service.js';
+import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 
 /**
  * Service orchestrating combat readiness, turn polling, honors synchronization,
@@ -521,11 +524,58 @@ export class CombatResolutionService {
     console.log(`========================================================================\n`);
 
     try {
-      await this.ctx.alertRelay.sendEmergencyAlert(
-        `🏆 [GOLD BAR FOUND] Account [${accConfig}] looted a GOLD BAR! Raid: ${this.ctx.template.name} | Raid ID: ${raidId}`
-      );
+      const lootTracker = new LootTrackerService(this.page);
+      const proof = await lootTracker.captureCleanLootProof(this.page, raidId);
+      const shotBuffer = proof.buffer;
+      const proofPath = proof.path;
+
+      const honorsStr = this.ctx.state.currentScore > 0 ? this.ctx.state.currentScore.toLocaleString() + ' pt' : '-';
+      const turnsStr = this.ctx.state.currentTurn ? String(this.ctx.state.currentTurn) : '-';
+
+      await goldBarTracker.recordDrop({
+        raidId: raidId || 'Raid',
+        questName: this.ctx.template.name,
+        honors: honorsStr,
+        turns: turnsStr,
+        screenshotPath: proofPath,
+        screenshotBuffer: shotBuffer,
+        source: 'live_combat',
+        accountId: this.ctx.accountId,
+        skipAlert: true
+      }).catch(() => null);
+
+      if (this.ctx.dropLogger) {
+        await this.ctx.dropLogger.notifyGoldBarDrop({
+          raidId: raidId || 'Raid',
+          honors: honorsStr,
+          turns: turnsStr,
+          screenshotBuffer: shotBuffer,
+          screenshotPath: proofPath,
+          accountId: this.ctx.accountId,
+        });
+      } else {
+        const battleUrl = raidId
+          ? `https://game.granbluefantasy.jp/#result_multi/detail/${raidId}/1/0/0`
+          : (this.page.url().includes('result') ? this.page.url() : 'https://game.granbluefantasy.jp/#quest/assist');
+
+        await this.ctx.alertRelay.sendEmergencyAlert(
+          `🏆 [GOLD BAR FOUND] Account [${accConfig}] looted a GOLD BAR! Raid: ${this.ctx.template.name} | Raid ID: ${raidId}\n• Battle Log: ${battleUrl}\n• Honors: ${honorsStr}`,
+          shotBuffer
+        );
+
+        if (discordDmRelay.isConfigured()) {
+          try {
+            await discordDmRelay.sendMessage(
+              `🌟 **Gold Brick Drop Confirmed** 🌟\n• **Raid**: ${this.ctx.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${accConfig}\n• **Honors**: ${honorsStr}\n• **Total GB**: ${this.ctx.state.totalGoldBarsAccumulated}`,
+              shotBuffer
+            );
+          } catch (err: any) {
+            console.warn(`[DiscordDM] Failed to dispatch Gold Bar DM: ${err.message}`);
+          }
+        }
+      }
     } catch (err: any) {
-      console.warn(`[AlertRelay] Failed to broadcast Gold Bar alert: ${err.message}`);
+      console.warn(`[GoldBarBroadcast] Failed to capture/dispatch Gold Bar alert: ${err.message}`);
     }
   }
 

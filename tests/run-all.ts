@@ -228,6 +228,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Human Behavioral Mimicry & Account Cadence Tests',
     file: 'tests/test-human-behavioral-mimicry.ts',
     description: 'Verify inventory supply auditing, 1st-of-month shop reset detection, cadence lifecycle, and Discord operator integration'
+  },
+  {
+    name: 'Standardized Gold Bar Rotations & 1.5M Honor Verification Tests',
+    file: 'tests/test-gold-bar-standardized-rotations.ts',
+    description: 'Verify gb-akasha, gb-pbhl, and gb-go step uniformity, 1.5M min honor threshold, and DSL round-trip fidelity'
   }
 ];
 

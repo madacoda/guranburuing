@@ -1,6 +1,6 @@
 {
   "name": "GB Farm - Proto Bahamut HL",
-  "description": "PBHL Gold Bar 5-turn speed burst with minimum honor guard: C4S3 -> Reload -> Tap Ready -> Reload -> Tap Ready -> Reload -> Tap Ready -> Reload -> Tap Ready -> Summon 2 -> Reload -> Tap Ready -> Repeat if <1.5M -> Done",
+  "description": "PBHL Gold Bar rotation: Wait for interactable -> C4S1 (ensured) -> Quick Call -> Reload -> C3S1 -> C2S1 -> Attack -> Reload -> Wait Random -> Attack -> Reload -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "raidSlot": 4,
   "targetScore": 1500000,
@@ -9,7 +9,8 @@
     "Agni",
     "Bahamut",
     "Shiva",
-    "Michael"
+    "Michael",
+    "Hades"
   ],
   "humanMotor": true,
   "stopOnCaptcha": true,
@@ -19,71 +20,75 @@
   "speedProfile": "fast",
   "steps": [
     {
+      "code": "wait_element",
+      "name": "Wait for Combat Loading & Buttons Interactable",
+      "target": ".btn-attack-start",
+      "timeoutMs": 6000
+    },
+    {
+      "code": "wait_random",
+      "name": "Human Delay for UI Interactable",
+      "minMs": 400,
+      "maxMs": 800
+    },
+    {
       "code": "skill",
+      "name": "Character 4 Skill 1 (Ensured)",
       "character": 4,
-      "skill": 3,
-      "optional": true,
+      "skill": 1,
+      "ensureCast": true,
       "waitForNetwork": "ability_result.json"
     },
     {
-      "code": "reload"
-    },
-    {
-      "code": "tap_ready"
-    },
-    {
-      "code": "reload"
-    },
-    {
-      "code": "tap_ready"
-    },
-    {
-      "code": "reload"
-    },
-    {
-      "code": "tap_ready"
-    },
-    {
-      "code": "reload"
-    },
-    {
-      "code": "tap_ready"
-    },
-    {
-      "code": "reload"
-    },
-    {
-      "code": "tap_ready"
-    },
-    {
-      "code": "summon",
-      "slot": 2,
+      "code": "quick_call",
+      "name": "Quick Summon Call",
       "waitForNetwork": "summon_result.json"
     },
     {
-      "code": "reload"
+      "code": "reload",
+      "name": "Reload F5 (Post-Summon Animation Cancel)"
     },
     {
-      "code": "tap_ready"
+      "code": "skill",
+      "name": "Character 3 Skill 1",
+      "character": 3,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
     },
     {
-      "code": "repeat",
-      "repeatCount": 15,
-      "subSteps": [
-        {
-          "code": "exit_if_score",
-          "targetScore": 1500000
-        },
-        {
-          "code": "reload"
-        },
-        {
-          "code": "tap_ready"
-        }
-      ]
+      "code": "skill",
+      "name": "Character 2 Skill 1",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
     },
     {
-      "code": "confirm_result"
+      "code": "attack",
+      "name": "Execute Attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Attack Animation Cancel)"
+    },
+    {
+      "code": "wait_random",
+      "name": "Human-like Random Delay",
+      "minMs": 500,
+      "maxMs": 1500
+    },
+    {
+      "code": "attack",
+      "name": "Execute Attack Again",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Attack Animation Cancel)"
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Claim Loot"
     }
   ]
 }

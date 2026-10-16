@@ -53,7 +53,7 @@ const RX_ACT_DO_UNTIL = /^(?:do_until_finish|loop_until_finish|until_finish|run_
 const RX_ACT_READY = /(?:tab|tap)(?:[\s_]+the)?[\s_]*ready|^ready(?:\s*:\s*click)?/i;
 const RX_ACT_HAS_ATTACK = /(?:attack|atk)/i;
 const RX_ACT_RELOAD = /^f5|^reload|^refresh/i;
-const RX_ACT_ATTACK = /^(?:attack|atk)(?:[\s_]+(?:wait[\s_]+)?(\d+)(?:ms)?)?/i;
+const RX_ACT_ATTACK = /^(?:attack|atk)(?:[\s_]+again)?(?:[\s_]+(?:wait[\s_]+)?(\d+)(?:ms)?)?/i;
 const RX_ACT_QUICK_CALL = /^quick[\s_]*(?:call|summon)|^qs\b/i;
 const RX_ACT_CONFIRM = /^(?:confirm|loot|dismiss|result|done|finish|rerun|next)(?:[\s_]+a[\s_]+bit)?/i;
 const RX_ACT_LOG_HP_1 = /^(?:log|check|print)[\s_]*(?:enemy[\s_]*)?hp\b/i;
@@ -70,7 +70,8 @@ const RX_ACT_HEAL = /(?:heal|potion)[\s_]*(green|blue|elixir)/i;
 const RX_ACT_BACKUP = /backup(?:[\s_]*request)?|request[\s_]+backup/i;
 const RX_ACT_EXIT_SCORE = /(?:exit[\s_]*if[\s_]*score|exit[\s_]*on[\s_]*score)[\s_]*(\d+)|if\s+score\s*>=\s*(\d+)\s+exit/i;
 const RX_ACT_WAIT_TURN = /wait[\s_]*turn[\s_]*(\d+)/i;
-const RX_ACT_WAIT_RANDOM = /^(?:wait[\s_]*random(?:ize)?|delay[\s_]*random|random[\s_]*delay|random[\s_]*wait)(?:[\s_]+(\d+)[\s_]+(\d+))?$/i;
+const RX_ACT_WAIT_RANDOM = /^(?:wait[\s_]*random(?:ize)?|delay[\s_]*random|random[\s_]*delay|random[\s_]*wait|wait[\s_]+(?:a[\s_]+bit,?\s*)?(?:randomize[\s_]+a[\s_]+bit|human[\s_]*like))(?:[\s_]+(\d+)[\s_]+(\d+))?$/i;
+const RX_ACT_WAIT_INTERACTABLE = /^(?:wait[\s_]+(?:for[\s_]+)?(?:loading|ready|screen)|wait[\s_]+(?:a[\s_]+bit,?\s*)?(?:only[\s_]+a[\s_]+bit,?\s*)?(?:make[\s_]+sure[\s_]+(?:all\s+)?interactable))/i;
 const RX_ACT_WAIT_NETWORK = /wait[\s_]*network[\s_]+(.+)/i;
 const RX_ACT_WAIT_ELEMENT = /wait[\s_]*element[\s_]+(.+)/i;
 const RX_ACT_WAIT_MS = /(?:wait|sleep|delay)\s*(\d+)/i;
@@ -764,6 +765,17 @@ export function parseSingleDslAction(
       code: 'wait_turn',
       action: 'wait_turn',
       condition: { type: 'turn_at_least', value: turn }
+    };
+  }
+
+  // 13b. Wait for Loading / Interactable
+  if (RX_ACT_WAIT_INTERACTABLE.test(cleanLine)) {
+    return {
+      id: `step_${stepIndex}`,
+      name: 'Wait for Combat Loading & Buttons Interactable',
+      code: 'wait_element',
+      action: 'wait_element',
+      target: '.btn-attack-start'
     };
   }
 

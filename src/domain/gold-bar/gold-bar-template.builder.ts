@@ -30,20 +30,76 @@ export function buildGoldBarWorkflowTemplate(
     autoElixir: false,
     autoBerry: true,
     steps: [
-      { code: 'tap_ready' },
-      { code: 'quick_call', optional: true },
-      { code: 'skill', character: 4, skill: 1 },
-      { code: 'skill', character: 4, skill: 2, targetCharacter: 2 },
-      { code: 'summon', slot: 3 },
-      { code: 'skill', character: 2, skill: 1 },
       {
-        code: 'repeat',
-        repeatCount: 10,
-        subSteps: [
-          { code: 'exit_if_score', targetScore },
-          { code: 'attack' },
-          { code: 'reload' }
-        ]
+        code: 'wait_element',
+        name: 'Wait for Combat Loading & Buttons Interactable',
+        target: '.btn-attack-start',
+        timeoutMs: 6000
+      },
+      {
+        code: 'wait_random',
+        name: 'Human Delay for UI Interactable',
+        minMs: 400,
+        maxMs: 800
+      },
+      {
+        code: 'skill',
+        name: 'Character 4 Skill 1 (Ensured)',
+        character: 4,
+        skill: 1,
+        ensureCast: true,
+        waitForNetwork: 'ability_result.json'
+      },
+      {
+        code: 'quick_call',
+        name: 'Quick Summon Call',
+        waitForNetwork: 'summon_result.json'
+      },
+      {
+        code: 'reload',
+        name: 'Reload F5 (Post-Summon Animation Cancel)'
+      },
+      {
+        code: 'skill',
+        name: 'Character 3 Skill 1',
+        character: 3,
+        skill: 1,
+        waitForNetwork: 'ability_result.json'
+      },
+      {
+        code: 'skill',
+        name: 'Character 2 Skill 1',
+        character: 2,
+        skill: 1,
+        waitForNetwork: 'ability_result.json'
+      },
+      {
+        code: 'attack',
+        name: 'Execute Attack',
+        waitForNetwork: 'normal_attack_result.json'
+      },
+      {
+        code: 'reload',
+        name: 'Reload F5 (Post-Attack Animation Cancel)'
+      },
+      {
+        code: 'wait_random',
+        name: 'Human-like Random Delay',
+        minMs: 500,
+        maxMs: 1500
+      },
+      {
+        code: 'attack',
+        name: 'Execute Attack Again',
+        waitForNetwork: 'normal_attack_result.json'
+      },
+      {
+        code: 'reload',
+        name: 'Reload F5 (Post-Attack Animation Cancel)'
+      },
+      {
+        code: 'confirm_result',
+        name: 'Confirm Battle Result & Claim Loot'
       }
     ]
   };

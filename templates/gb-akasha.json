@@ -1,9 +1,9 @@
 {
   "name": "GB Farm - Akasha HL",
-  "description": "Akasha Gold Bar rotation: Summon Hades -> Quick Call -> C2S1 -> C3S1 -> Attack -> Reload -> Attack -> Honor Guard Loop",
+  "description": "Akasha Gold Bar rotation: Wait for interactable -> C4S1 (ensured) -> Quick Call -> Reload -> C3S1 -> C2S1 -> Attack -> Reload -> Wait Random -> Attack -> Reload -> Confirm Result",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "raidSlot": 3,
-  "targetScore": 1430000,
+  "targetScore": 1500000,
   "logPath": "logs/gb-akasha.md",
   "supporterPriority": [
     "Hades",
@@ -14,67 +14,78 @@
   "autoElixir": false,
   "autoBerry": true,
   "defaultRuns": 500,
-  "speedProfile": "turbo",
+  "speedProfile": "fast",
   "steps": [
     {
-      "code": "summon",
-      "target": "hades",
-      "optional": true,
-      "waitForNetwork": "summon_result.json"
+      "code": "wait_element",
+      "name": "Wait for Combat Loading & Buttons Interactable",
+      "target": ".btn-attack-start",
+      "timeoutMs": 6000
+    },
+    {
+      "code": "wait_random",
+      "name": "Human Delay for UI Interactable",
+      "minMs": 400,
+      "maxMs": 800
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1 (Ensured)",
+      "character": 4,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
     },
     {
       "code": "quick_call",
-      "optional": true,
+      "name": "Quick Summon Call",
       "waitForNetwork": "summon_result.json"
     },
     {
-      "code": "skill",
-      "character": 2,
-      "skill": 1,
-      "optional": true,
-      "waitForNetwork": "ability_result.json"
+      "code": "reload",
+      "name": "Reload F5 (Post-Summon Animation Cancel)"
     },
     {
       "code": "skill",
+      "name": "Character 3 Skill 1",
       "character": 3,
       "skill": 1,
-      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1",
+      "character": 2,
+      "skill": 1,
       "waitForNetwork": "ability_result.json"
     },
     {
       "code": "attack",
+      "name": "Execute Attack",
       "waitForNetwork": "normal_attack_result.json"
     },
     {
-      "code": "reload"
+      "code": "reload",
+      "name": "Reload F5 (Post-Attack Animation Cancel)"
+    },
+    {
+      "code": "wait_random",
+      "name": "Human-like Random Delay",
+      "minMs": 500,
+      "maxMs": 1500
     },
     {
       "code": "attack",
+      "name": "Execute Attack Again",
       "waitForNetwork": "normal_attack_result.json"
     },
     {
-      "code": "repeat",
-      "repeatCount": 10,
-      "subSteps": [
-        {
-          "code": "reload"
-        },
-        {
-          "code": "exit_if_score",
-          "targetScore": 1430000
-        },
-        {
-          "code": "attack",
-          "optional": true,
-          "waitForNetwork": "normal_attack_result.json"
-        }
-      ]
+      "code": "reload",
+      "name": "Reload F5 (Post-Attack Animation Cancel)"
     },
     {
-      "code": "reload"
-    },
-    {
-      "code": "confirm_result"
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Claim Loot"
     }
   ]
 }
