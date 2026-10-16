@@ -85,6 +85,7 @@ for (const file of templateFiles) {
       targetEnemy: json.targetEnemy,
       element: json.element,
       raidSlot: json.raidSlot,
+      raidSlots: json.raidSlots || (json.raidSlot ? [json.raidSlot] : undefined),
       targetScore: json.targetScore,
       steps: json.steps
     });

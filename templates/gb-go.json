@@ -6,8 +6,7 @@
   "targetScore": 1500000,
   "logPath": "logs/gb-go.md",
   "supporterPriority": [
-    "Hades",
-    "Bahamut"
+    "Hades"
   ],
   "humanMotor": true,
   "stopOnCaptcha": true,

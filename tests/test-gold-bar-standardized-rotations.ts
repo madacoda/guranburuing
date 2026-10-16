@@ -10,59 +10,76 @@ console.log('   Standardized Gold Bar Rotations Verification Test Suite         
 console.log('   (gb-akasha, gb-pbhl, gb-go step uniformity & 1.5M honor threshold)   ');
 console.log('========================================================================\n');
 
-// 1. Load the three production templates
+// 1. Load the four production templates
 const akasha = TemplateParser.loadTemplate('gb-akasha');
 const pbhl = TemplateParser.loadTemplate('gb-pbhl');
 const go = TemplateParser.loadTemplate('gb-go');
+const farm = TemplateParser.loadTemplate('gb-farm');
 
 console.log('--- 1. Testing Schema Compliance ---');
 const valAkasha = validateWorkflowTemplate(akasha);
 const valPbhl = validateWorkflowTemplate(pbhl);
 const valGo = validateWorkflowTemplate(go);
+const valFarm = validateWorkflowTemplate(farm);
 
 assert(valAkasha.valid, `gb-akasha schema invalid: ${valAkasha.errors.join(', ')}`);
 assert(valPbhl.valid, `gb-pbhl schema invalid: ${valPbhl.errors.join(', ')}`);
 assert(valGo.valid, `gb-go schema invalid: ${valGo.errors.join(', ')}`);
-console.log('  ✅ [PASS] All 3 templates passed strict Zod schema validation');
+assert(valFarm.valid, `gb-farm schema invalid: ${valFarm.errors.join(', ')}`);
+console.log('  ✅ [PASS] All 4 templates passed strict Zod schema validation');
 
 console.log('\n--- 2. Testing 1,500,000 pt Target Honor Threshold ---');
 assert.strictEqual(akasha.targetScore, 1500000, `gb-akasha targetScore must be 1,500,000, got ${akasha.targetScore}`);
 assert.strictEqual(pbhl.targetScore, 1500000, `gb-pbhl targetScore must be 1,500,000, got ${pbhl.targetScore}`);
 assert.strictEqual(go.targetScore, 1500000, `gb-go targetScore must be 1,500,000, got ${go.targetScore}`);
+assert.strictEqual(farm.targetScore, 1500000, `gb-farm targetScore must be 1,500,000, got ${farm.targetScore}`);
 
 assert.strictEqual(GOLD_BAR_RAID_CATALOG.akasha.defaultTargetScore, 1500000, 'Catalog akasha defaultTargetScore is 1,500,000');
 assert.strictEqual(GOLD_BAR_RAID_CATALOG.pbhl.defaultTargetScore, 1500000, 'Catalog pbhl defaultTargetScore is 1,500,000');
 assert.strictEqual(GOLD_BAR_RAID_CATALOG.go.defaultTargetScore, 1500000, 'Catalog go defaultTargetScore is 1,500,000');
-console.log('  ✅ [PASS] All 3 templates & catalog entries have targetScore = 1,500,000 pt');
+console.log('  ✅ [PASS] All 4 templates & catalog entries have targetScore = 1,500,000 pt');
 
-console.log('\n--- 3. Testing Step Uniformity Across All Three Raids ---');
+console.log('\n--- 3. Testing Step Uniformity Across All Gold Bar Raids (Including Multi-Raid Rotator) ---');
 assert.strictEqual(akasha.steps.length, 13, `gb-akasha step count must be 13, got ${akasha.steps.length}`);
 assert.strictEqual(pbhl.steps.length, 13, `gb-pbhl step count must be 13, got ${pbhl.steps.length}`);
 assert.strictEqual(go.steps.length, 13, `gb-go step count must be 13, got ${go.steps.length}`);
+assert.strictEqual(farm.steps.length, 13, `gb-farm step count must be 13, got ${farm.steps.length}`);
 
-// Compare each step across all three
+// Compare each step across all four
 for (let i = 0; i < akasha.steps.length; i++) {
   const sA = akasha.steps[i];
   const sP = pbhl.steps[i];
   const sG = go.steps[i];
+  const sF = farm.steps[i];
 
   assert.strictEqual(sA.code, sP.code, `Step ${i + 1} code mismatch: akasha (${sA.code}) vs pbhl (${sP.code})`);
   assert.strictEqual(sA.code, sG.code, `Step ${i + 1} code mismatch: akasha (${sA.code}) vs go (${sG.code})`);
+  assert.strictEqual(sA.code, sF.code, `Step ${i + 1} code mismatch: akasha (${sA.code}) vs farm (${sF.code})`);
 
   if (sA.character !== undefined) {
     assert.strictEqual(sA.character, sP.character, `Step ${i + 1} character mismatch: ${sA.character} vs ${sP.character}`);
     assert.strictEqual(sA.character, sG.character, `Step ${i + 1} character mismatch: ${sA.character} vs ${sG.character}`);
+    assert.strictEqual(sA.character, sF.character, `Step ${i + 1} character mismatch: ${sA.character} vs ${sF.character}`);
   }
   if (sA.skill !== undefined) {
     assert.strictEqual(sA.skill, sP.skill, `Step ${i + 1} skill mismatch: ${sA.skill} vs ${sP.skill}`);
     assert.strictEqual(sA.skill, sG.skill, `Step ${i + 1} skill mismatch: ${sA.skill} vs ${sG.skill}`);
+    assert.strictEqual(sA.skill, sF.skill, `Step ${i + 1} skill mismatch: ${sA.skill} vs ${sF.skill}`);
   }
   if (sA.ensureCast !== undefined) {
     assert.strictEqual(sA.ensureCast, sP.ensureCast, `Step ${i + 1} ensureCast mismatch: ${sA.ensureCast} vs ${sP.ensureCast}`);
     assert.strictEqual(sA.ensureCast, sG.ensureCast, `Step ${i + 1} ensureCast mismatch: ${sA.ensureCast} vs ${sG.ensureCast}`);
+    assert.strictEqual(sA.ensureCast, sF.ensureCast, `Step ${i + 1} ensureCast mismatch: ${sA.ensureCast} vs ${sF.ensureCast}`);
   }
 }
-console.log('  ✅ [PASS] Step-by-step pipeline is 100% IDENTICAL across gb-akasha, gb-pbhl, and gb-go');
+console.log('  ✅ [PASS] Step-by-step pipeline is 100% IDENTICAL across gb-akasha, gb-pbhl, gb-go, and gb-farm');
+
+console.log('\n--- 3b. Testing Unified Supporter Party Selection (All Same Party) ---');
+assert.deepStrictEqual(akasha.supporterPriority, ['Hades'], 'gb-akasha must use Hades party');
+assert.deepStrictEqual(pbhl.supporterPriority, ['Hades'], 'gb-pbhl must use Hades party');
+assert.deepStrictEqual(go.supporterPriority, ['Hades'], 'gb-go must use Hades party');
+assert.deepStrictEqual(farm.supporterPriority, ['Hades'], 'gb-farm must use Hades party');
+console.log('  ✅ [PASS] Supporter priority unified to ["Hades"] across all Gold Bar routines');
 
 console.log('\n--- 4. Testing Exact Required Steps Sequence ---');
 // Step 1: Wait for loading / interactable
@@ -139,7 +156,7 @@ for (let i = 0; i < builtPbhl.steps.length; i++) {
 console.log('  ✅ [PASS] buildGoldBarWorkflowTemplate generates identical 13-step sequence');
 
 console.log('\n--- 6. Testing Lossless DSL Round-Trip Serialization ---');
-for (const tmpl of [akasha, pbhl, go]) {
+for (const tmpl of [akasha, pbhl, go, farm]) {
   const dsl = TemplateParser.serializeToDsl(tmpl);
   const reloaded = TemplateParser.parseShorthandDsl(dsl, tmpl.name);
   assert.strictEqual(reloaded.steps.length, tmpl.steps.length, `${tmpl.name} DSL step count mismatch`);

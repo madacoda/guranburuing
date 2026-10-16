@@ -6,10 +6,6 @@
   "targetScore": 1500000,
   "logPath": "logs/gb-pbhl.md",
   "supporterPriority": [
-    "Agni",
-    "Bahamut",
-    "Shiva",
-    "Michael",
     "Hades"
   ],
   "humanMotor": true,

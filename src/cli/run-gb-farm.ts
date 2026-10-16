@@ -53,9 +53,9 @@ try {
   const summary = await engine.runFarmLoop({
     runs,
     autoReplenishEp: true,
-    pbhlTargetScore: 1480000,
-    akashaTargetScore: 1560000,
-    goTargetScore: 1480000
+    pbhlTargetScore: 1500000,
+    akashaTargetScore: 1500000,
+    goTargetScore: 1500000
   });
 
   console.log('\n========================================================================');

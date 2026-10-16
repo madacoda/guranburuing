@@ -22,6 +22,7 @@ function computeWorkflowSignature(template: WorkflowTemplate): string {
     targetEnemy: template.targetEnemy,
     element: template.element,
     raidSlot: template.raidSlot,
+    raidSlots: template.raidSlots,
     targetScore: template.targetScore,
     steps: template.steps.map(s => ({
       code: s.code || s.action,

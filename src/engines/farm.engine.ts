@@ -57,9 +57,9 @@ export interface FarmOptions {
   minBatchClaim?: number; // Default: 3
   maxBatchClaim?: number; // Default: 5
   batchClaimSize?: number; // Fixed override if provided
-  pbhlTargetScore?: number; // Default: 1,480,000 pt
-  akashaTargetScore?: number; // Default: 1,560,000 pt
-  goTargetScore?: number; // Default: 1,480,000 pt
+  pbhlTargetScore?: number; // Default: 1,500,000 pt
+  akashaTargetScore?: number; // Default: 1,500,000 pt
+  goTargetScore?: number; // Default: 1,500,000 pt
   pbhlLogPath?: string; // Default: 'logs/gb-pbhl.md'
   akashaLogPath?: string; // Default: 'logs/gb-akasha.md'
   goLogPath?: string; // Default: 'logs/gb-go.md'
@@ -139,9 +139,9 @@ export class FarmEngine {
       minBatchClaim = 3,
       maxBatchClaim = 5,
       batchClaimSize,
-      pbhlTargetScore = 1480000,
-      akashaTargetScore = 1560000,
-      goTargetScore = 1480000,
+      pbhlTargetScore = 1500000,
+      akashaTargetScore = 1500000,
+      goTargetScore = 1500000,
       pbhlLogPath = 'logs/gb-pbhl.md',
       akashaLogPath = 'logs/gb-akasha.md',
       goLogPath = 'logs/gb-go.md'
