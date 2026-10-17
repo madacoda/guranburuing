@@ -7,11 +7,11 @@
   "raidSlot": 1,
   "supporterPriority": ["Titan"],
   "evaluatorStrategy": "leech",
-  "maxHpPct": 20,
+  "maxHpPct": 40,
   "minHpPct": 1,
-  "minPlayers": 3,
+  "minPlayers": 2,
   "maxPlayers": 29,
-  "minRaidScore": 40,
+  "minRaidScore": 30,
   "minBatchClaim": 3,
   "maxBatchClaim": 3,
   "speedProfile": "fast",
@@ -21,27 +21,61 @@
   "stopOnCaptcha": true,
   "steps": [
     {
-      "code": "quick_call",
-      "optional": true,
-      "waitForNetwork": "summon_result.json"
+      "code": "skill",
+      "name": "Character 1 Skill 2",
+      "character": 1,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
     },
     {
       "code": "skill",
+      "name": "Character 1 Skill 1",
       "character": 1,
       "skill": 1,
-      "optional": true
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 3",
+      "character": 1,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 2",
+      "character": 3,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1",
+      "character": 4,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "summon",
+      "name": "Summon Slot 3",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json"
     },
     {
       "code": "attack",
-      "waitForNetwork": "normal_attack_result.json",
-      "delayAfterMs": 350
-    },
-    {
-      "code": "reload"
+      "name": "Execute Attack",
+      "waitForNetwork": "normal_attack_result.json"
     },
     {
       "code": "confirm_result",
-      "optional": true
+      "name": "Confirm Battle Result & Rerun"
     }
   ]
 }

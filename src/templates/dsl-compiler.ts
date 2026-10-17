@@ -71,7 +71,7 @@ const RX_ACT_BACKUP = /backup(?:[\s_]*request)?|request[\s_]+backup/i;
 const RX_ACT_EXIT_SCORE = /(?:exit[\s_]*if[\s_]*score|exit[\s_]*on[\s_]*score)[\s_]*(\d+)|if\s+score\s*>=\s*(\d+)\s+exit/i;
 const RX_ACT_WAIT_TURN = /wait[\s_]*turn[\s_]*(\d+)/i;
 const RX_ACT_WAIT_RANDOM = /^(?:wait[\s_]*random(?:ize)?|delay[\s_]*random|random[\s_]*delay|random[\s_]*wait|wait[\s_]+(?:a[\s_]+bit,?\s*)?(?:randomize[\s_]+a[\s_]+bit|human[\s_]*like))(?:[\s_]+(\d+)[\s_]+(\d+))?$/i;
-const RX_ACT_WAIT_INTERACTABLE = /^(?:wait[\s_]+(?:for[\s_]+)?(?:loading|ready|screen)|wait[\s_]+(?:a[\s_]+bit,?\s*)?(?:only[\s_]+a[\s_]+bit,?\s*)?(?:make[\s_]+sure[\s_]+(?:all\s+)?interactable))/i;
+const RX_ACT_WAIT_INTERACTABLE = /^(?:wait[\s_]+(?:for[\s_]+)?(?:loading|ready|screen|full[\s_]*load)|wait[\s_]+(?:a[\s_]+bit,?\s*)?(?:only[\s_]+a[\s_]+bit,?\s*)?(?:make[\s_]+sure[\s_]+(?:all\s+)?interactable)|make[\s_]+sure[\s_]+(?:all[\s_]+)?(?:interactable|loaded|full[\s_]*load))/i;
 const RX_ACT_WAIT_NETWORK = /wait[\s_]*network[\s_]+(.+)/i;
 const RX_ACT_WAIT_ELEMENT = /wait[\s_]*element[\s_]+(.+)/i;
 const RX_ACT_WAIT_MS = /(?:wait|sleep|delay)\s*(\d+)/i;

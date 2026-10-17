@@ -1,0 +1,73 @@
+{
+  "name": "Raid - Long Live the King",
+  "description": "Multi-battle assist raid farmer for Long Live the King / Beelzebub (HL): Finder Tab 1, low HP & active players filter, Make sure full load -> Reload (initial attack animation cancel) -> C4S1 -> C3S1 -> C3S2 -> C2S1 -> Attack -> Rerun.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "mode": "assist",
+  "targetEnemy": "Long Live the King",
+  "raidSlot": 1,
+  "supporterPriority": [
+    "Hades"
+  ],
+  "speedProfile": "fast",
+  "defaultRuns": 500,
+  "autoBerry": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "minBatchClaim": 3,
+  "maxBatchClaim": 5,
+  "evaluatorStrategy": "leech",
+  "minHpPct": 3,
+  "maxHpPct": 60,
+  "minPlayers": 2,
+  "maxPlayers": 6,
+  "minRaidScore": 30,
+  "steps": [
+    {
+      "code": "wait_element",
+      "name": "Make sure combat full load & interactable",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Initial Enemy Attack Animation Cancel)"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1",
+      "character": 4,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 1",
+      "character": 3,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 2",
+      "character": 3,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Execute Attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Rerun"
+    }
+  ]
+}

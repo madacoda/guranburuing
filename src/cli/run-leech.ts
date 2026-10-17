@@ -38,6 +38,21 @@ function resolveLeechTemplateName(input: string): string {
   if (clean === 'theworld' || clean === 'world' || clean === 'the-world' || clean === 'theworld-raid' || clean === 'raid-the-world') {
     return 'raid-the-world';
   }
+  if (clean === 'faahl' || clean === 'faa-hl' || clean === 'dark-rapture' || clean === 'dark-rapture-hard' || clean === 'dark-rapture-hl' || clean === 'lucilius' || clean === 'lucilius-hard' || clean === 'lucilius-hl' || clean === 'raid-dark-rapture-hard') {
+    return 'raid-dark-rapture-hard';
+  }
+  if (clean === 'belial' || clean === 'belial-hl' || clean === 'cunning' || clean === 'fallen-angel' || clean === 'fallen-angel-of-cunning' || clean === 'the-fallen-angel-of-cunning' || clean === 'raid-belial' || clean === 'raid-the-fallen-angel-of-cunning') {
+    return 'raid-the-fallen-angel-of-cunning';
+  }
+  if (clean === 'bubz' || clean === 'bubz-hl' || clean === 'bubs' || clean === 'bubs-hl' || clean === 'beelzebub' || clean === 'beelzebub-hl' || clean === 'long-live-the-king' || clean === 'the-birth-of-new-king' || clean === 'birth-of-new-king' || clean === 'raid-beelzebub' || clean === 'raid-bubz' || clean === 'raid-long-live-the-king') {
+    return 'raid-long-live-the-king';
+  }
+  if (clean === 'fediel' || clean === 'fediel-hl' || clean === 'raid-fediel') {
+    return 'raid-fediel';
+  }
+  if (clean === 'wilnas' || clean === 'wilnas-hl' || clean === 'raid-wilnas') {
+    return 'raid-wilnas';
+  }
 
   // Fallback to direct name or leech prefix
   if (input.startsWith('leech-')) return input;

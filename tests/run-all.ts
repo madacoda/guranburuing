@@ -215,6 +215,31 @@ const TEST_SUITES: TestSuite[] = [
     description: 'Verify The World (HL) multi-battle assist raid template, Finder Tab 1, 10-step burst, random delay, and DSL round-trip'
   },
   {
+    name: 'Raid: Dark Rapture (Hard) Multi-Battle Template & DSL Tests',
+    file: 'tests/test-raid-dark-rapture-hard-template.ts',
+    description: 'Verify Dark Rapture (Hard) / FaaHL assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'
+  },
+  {
+    name: 'Raid: The Fallen Angel of Cunning (HL) Multi-Battle Template & DSL Tests',
+    file: 'tests/test-raid-the-fallen-angel-of-cunning-template.ts',
+    description: 'Verify The Fallen Angel of Cunning / Belial HL assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'
+  },
+  {
+    name: 'Raid: Long Live the King (HL) Multi-Battle Template & DSL Tests',
+    file: 'tests/test-raid-long-live-the-king-template.ts',
+    description: 'Verify Long Live the King / Beelzebub HL assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'
+  },
+  {
+    name: 'Raid: Fediel (Impossible) Multi-Battle Template & DSL Tests',
+    file: 'tests/test-raid-fediel-template.ts',
+    description: 'Verify Fediel (Impossible) / Six Dragons assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'
+  },
+  {
+    name: 'Raid: Wilnas (Impossible) Multi-Battle Template & DSL Tests',
+    file: 'tests/test-raid-wilnas-template.ts',
+    description: 'Verify Wilnas (Impossible) / Six Dragons assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'
+  },
+  {
     name: 'Arcarum Stage 7 (Xeno Cocytus Militis) Template & DSL Tests',
     file: 'tests/test-arcarum-xeno-cocytus.ts',
     description: 'Verify Xeno Cocytus Militis template, Quest 816131, Division 15, Paragon step equivalence, DSL round-trip, and Joculator presets'

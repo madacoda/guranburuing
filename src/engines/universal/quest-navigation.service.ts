@@ -430,6 +430,11 @@ export class QuestNavigationService {
         const isAkasha = lowerTmpl.includes('akasha');
         const isPbhl = lowerTmpl.includes('pbhl') || lowerTmpl.includes('proto bahamut');
         const isGo = lowerTmpl.includes('go') || lowerTmpl.includes('grand order');
+        const isFaa = lowerTmpl.includes('dark rapture') || lowerTmpl.includes('lucilius') || lowerTmpl.includes('faahl') || lowerTmpl.includes('faa-hl');
+        const isBelial = lowerTmpl.includes('belial') || lowerTmpl.includes('cunning') || lowerTmpl.includes('fallen angel');
+        const isBubz = lowerTmpl.includes('king') || lowerTmpl.includes('beelzebub') || lowerTmpl.includes('bubz') || lowerTmpl.includes('bubs') || lowerTmpl.includes('new king');
+        const isFediel = lowerTmpl.includes('fediel') || lowerTmpl.includes('フェディエル');
+        const isWilnas = lowerTmpl.includes('wilnas') || lowerTmpl.includes('ウィルナス');
 
         return cards.map((c, i) => {
           const el = c as HTMLElement;
@@ -451,6 +456,26 @@ export class QuestNavigationService {
             }
           } else if (isGo) {
             if (title.includes('broken skies') || title.includes('akasha') || title.includes('wings of terror') || title.includes('bahamut') || imgSrc.includes('303251') || imgSrc.includes('301061')) {
+              return null;
+            }
+          } else if (isFaa) {
+            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('cunning') || title.includes('belial') || title.includes('king') || title.includes('beelzebub') || title.includes('fediel') || title.includes('wilnas') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('305381') || imgSrc.includes('305141') || imgSrc.includes('305241') || imgSrc.includes('305191')) {
+              return null;
+            }
+          } else if (isBelial) {
+            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('king') || title.includes('beelzebub') || title.includes('fediel') || title.includes('wilnas') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305141') || imgSrc.includes('305241') || imgSrc.includes('305191')) {
+              return null;
+            }
+          } else if (isBubz) {
+            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('cunning') || title.includes('belial') || title.includes('fediel') || title.includes('wilnas') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305381') || imgSrc.includes('305241') || imgSrc.includes('305191')) {
+              return null;
+            }
+          } else if (isFediel) {
+            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('cunning') || title.includes('belial') || title.includes('king') || title.includes('beelzebub') || title.includes('wilnas') || title.includes('wamdus') || title.includes('galleon') || title.includes('ewiyar') || title.includes('lu woh') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305381') || imgSrc.includes('305141') || imgSrc.includes('305191')) {
+              return null;
+            }
+          } else if (isWilnas) {
+            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('cunning') || title.includes('belial') || title.includes('king') || title.includes('beelzebub') || title.includes('fediel') || title.includes('wamdus') || title.includes('galleon') || title.includes('ewiyar') || title.includes('lu woh') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305381') || imgSrc.includes('305141') || imgSrc.includes('305241')) {
               return null;
             }
           }
