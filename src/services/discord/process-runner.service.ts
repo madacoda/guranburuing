@@ -90,6 +90,77 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     defaultArgs: ['celeste-ater'],
     description: 'Celeste Ater Fast Leech (1-turn fast damage, immediate exit to next raid)'
   },
+  'leech:faahl': {
+    key: 'leech:faahl',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['faahl'],
+    description: 'Dark Rapture Hard (Lucilius) Fast Leech'
+  },
+  'leech:belial': {
+    key: 'leech:belial',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['belial'],
+    description: 'The Fallen Angel of Cunning (Belial) Fast Leech'
+  },
+  'leech:bubz': {
+    key: 'leech:bubz',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['bubz'],
+    description: 'Long Live the King (Beelzebub) Fast Leech'
+  },
+  'leech:wilnas': {
+    key: 'leech:wilnas',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['wilnas'],
+    description: 'Wilnas Impossible Fast Leech'
+  },
+  'leech:fediel': {
+    key: 'leech:fediel',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['fediel'],
+    description: 'Fediel Impossible Fast Leech'
+  },
+  'faahl': {
+    key: 'faahl',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-dark-rapture-hard'],
+    description: 'Dark Rapture Hard (Lucilius) Workflow'
+  },
+  'belial': {
+    key: 'belial',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-the-fallen-angel-of-cunning'],
+    description: 'The Fallen Angel of Cunning (Belial) Workflow'
+  },
+  'bubz': {
+    key: 'bubz',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-long-live-the-king'],
+    description: 'Long Live the King (Beelzebub) Workflow'
+  },
+  'wilnas': {
+    key: 'wilnas',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-wilnas'],
+    description: 'Wilnas Impossible Raid Workflow'
+  },
+  'fediel': {
+    key: 'fediel',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-fediel'],
+    description: 'Fediel Impossible Raid Workflow'
+  },
+  'workflow': {
+    key: 'workflow',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1'],
+    description: 'Run arbitrary workflow template (e.g. /run workflow raid-wilnas)'
+  },
+  'leech': {
+    key: 'leech',
+    script: 'src/cli/run-leech.ts',
+    description: 'Run arbitrary raid leech (e.g. /run leech colossus-ira)'
+  },
   'goldbar': {
     key: 'goldbar',
     script: 'src/cli/report-gold-bars.ts',
