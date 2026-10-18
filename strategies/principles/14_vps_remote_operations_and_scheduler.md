@@ -161,6 +161,24 @@ Operators can toggle the background scheduler on the fly via Discord:
 | `/gbf reset` | `/gbf next` | Displays the exact countdown remaining until the next 05:00:15 JST reset. |
 | `/gbf help` | — | Displays the operator command manual. |
 
+### 5.1 Preemptive Task Switching (Hot Task Replacement)
+
+The Remote Controller supports **seamless preemptive task replacement**. Operators never have to manually send `/gbf stop` before launching a different task:
+
+- **Automatic Preemption Flow**:
+  1. **Validation First**: When an operator sends a command (e.g. `/gbf leech:leviathan` while `/gbf gb-akasha 100` is running), the controller first verifies the preset/template against the strict whitelist. If the command is invalid, it is rejected and the running task continues uninterrupted.
+  2. **Graceful Halting**: The active job is signaled with `SIGINT` (or escalated to `SIGKILL` if unyielding within 4 seconds) to release exclusive CDP port 9222.
+  3. **Immediate Launch**: Once the previous process releases its lock and socket, the new job is spawned immediately.
+  4. **Single Unified Notice**: The controller delivers a single unified status message in Discord:
+     ```markdown
+     🔄 **Task Switched**: Terminated `gb-akasha` (PID `77123`, ran for `1m 20s`).
+
+     🚀 **Job Launched**: `leech:leviathan` (PID: `77150`)
+     • **Description**: Leviathan Mare Fast Leech (1-turn fast damage, immediate exit to next raid)
+     • **Command**: `bun src/cli/run-leech.ts leviathan-mare`
+     ```
+  5. **Notification De-Duplication**: Standalone "Operator Cancelled" alerts are automatically suppressed when preemption occurs to avoid operator notification spam.
+
 ---
 
 ## 6. Process Supervision & 24/7 Resilience Runbook

@@ -521,6 +521,14 @@ export class DiscordCommandGatewayService {
    * Informs operator with exact root cause, account state, and actionable recovery commands.
    */
   private async notifyJobCompletion(job: ActiveJob, exitCode: number | null, durationMs: number): Promise<void> {
+    // If the job was preempted to switch tasks, the new command's response
+    // already acknowledges the termination and reports the new launch.
+    // Suppress redundant/confusing "Automation Stopped" DM to avoid operator spam.
+    if (job.preemptedBy) {
+      console.log(`[CommandGateway] ℹ️ Job \`${job.key}\` (PID ${job.pid}) was preempted by \`${job.preemptedBy}\`. Suppressing standalone exit DM.`);
+      return;
+    }
+
     const durationSec = Math.round(durationMs / 1000);
     const durStr = `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
     const buffer = job.outputBuffer;

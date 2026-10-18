@@ -390,10 +390,19 @@ Run the companion server for phone/tablet remote control, live screencasts, and 
 
 | Command | Description |
 | :--- | :--- |
-| `bun run discord:controller` | Starts 2-way Discord DM Gateway (remote `/run`, `/stop`, `/status`) |
+| `bun run discord:controller` | Starts 2-way Discord DM Gateway (remote `/gbf`, `/stop`, `/status`) |
 | `bun run discord:bot` | Alias for Discord Remote Controller & CAPTCHA Relay |
 | `bun run solve-captcha [answer]` | Injects CAPTCHA solution directly into game DOM from terminal |
-| `bun run test:discord` | Tests Discord webhook and DM relay connection |
+| `bun run test:discord` | Tests Discord webhook, DM relay connection, and command parsing |
+
+### Discord Operator Slash Commands (`/gbf <command>`)
+- `/gbf <preset> [args]`: Executes whitelisted preset or template (e.g. `/gbf daily`, `/gbf daily:host`, `/gbf gb-akasha 100`, `/gbf leech:leviathan`).
+- **Preemptive Task Switching**: If a task is already executing (e.g. `/gbf gb-akasha 100`) and you issue another command (e.g. `/gbf leech:leviathan`), the controller **automatically terminates the running task and launches the new task immediately** without requiring a manual `/gbf stop`.
+- `/gbf stop` (or `/gbf halt`): Gracefully terminates active running job and releases CDP port 9222.
+- `/gbf status`: Displays active job, PID, uptime, scheduler state, and latest terminal output snippet.
+- `/gbf scheduler:off` / `/gbf scheduler:on`: Pauses or resumes autonomous 05:00 JST daily reset scheduler.
+- `/gbf logs`: Displays last 15 lines of live terminal output.
+- `/gbf help`: Displays the operator command reference.
 
 ---
 

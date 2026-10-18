@@ -211,6 +211,7 @@ export interface ActiveJob {
   process: ChildProcess;
   outputBuffer: string[];
   stoppedByOperator?: boolean;
+  preemptedBy?: string;
 }
 
 export interface ProcessStartResult {
@@ -218,6 +219,11 @@ export interface ProcessStartResult {
   message: string;
   pid?: number;
   job?: ActiveJob;
+  preemptedJob?: {
+    key: string;
+    pid: number;
+    uptimeFormatted: string;
+  };
 }
 
 export interface ProcessStatusResult {
@@ -236,7 +242,8 @@ export interface ProcessStatusResult {
 /**
  * Hardened Process Runner Service for Discord Remote Controller.
  * Enforces a strict single-process concurrency lock on CDP port 9222,
- * zero arbitrary shell code execution (strict whitelist only), and real-time output streaming.
+ * zero arbitrary shell code execution (strict whitelist only), real-time output streaming,
+ * and automatic preemptive task switching (hot task replacement).
  */
 export class ProcessRunnerService {
   private activeJob: ActiveJob | null = null;
@@ -266,19 +273,11 @@ export class ProcessRunnerService {
 
   /**
    * Starts a whitelisted command preset.
+   * If another automation job is already running on exclusive CDP port 9222,
+   * automatically halts and preempts the existing job first before launching the new job.
    */
   public async startCommand(commandKey: string, customArgs: string[] = []): Promise<ProcessStartResult> {
-    // 1. Concurrency Check: CDP port 9222 is exclusive
-    if (this.activeJob) {
-      const uptimeSec = Math.floor((Date.now() - this.activeJob.startedAt.getTime()) / 1000);
-      const uptimeStr = `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`;
-      return {
-        success: false,
-        message: `⚠️ **Process Concurrency Lock**: Job \`${this.activeJob.key}\` (PID ${this.activeJob.pid}) is currently running (${uptimeStr}). Send \`/gbf stop\` or \`/gbf halt\` first before launching a new job.`
-      };
-    }
-
-    // 2. Whitelist Verification: Strictly reject unmapped commands
+    // 1. Whitelist Verification: Strictly validate preset before touching any active process
     const normalizedKey = commandKey.toLowerCase().trim();
     let preset = COMMAND_WHITELIST[normalizedKey];
 
@@ -312,6 +311,29 @@ export class ProcessRunnerService {
         success: false,
         message: `❌ **Unknown Command**: \`${commandKey}\` is not in the authorized command whitelist.\n\nAvailable presets: ${available}\n\nType \`/gbf help\` to view all commands.`
       };
+    }
+
+    // 2. Preemptive Task Switching: Gracefully terminate running job to free CDP port 9222
+    let preemptedInfo: { key: string; pid: number; uptimeFormatted: string } | null = null;
+
+    if (this.activeJob) {
+      const prevJob = this.activeJob;
+      const uptimeSec = Math.floor((Date.now() - prevJob.startedAt.getTime()) / 1000);
+      const uptimeStr = `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`;
+
+      preemptedInfo = {
+        key: prevJob.key,
+        pid: prevJob.pid,
+        uptimeFormatted: uptimeStr
+      };
+
+      console.log(`[ProcessRunner] 🔄 Preempting running job \`${prevJob.key}\` (PID ${prevJob.pid}, uptime ${uptimeStr}) to start \`${preset.key}\`...`);
+      prevJob.preemptedBy = preset.key;
+      prevJob.stoppedByOperator = true;
+
+      await this.stopActiveProcess();
+      // Grace period to ensure OS socket release on port 9222
+      await new Promise(r => setTimeout(r, 400));
     }
 
     // 3. Assemble and sanitize execution parameters
@@ -380,6 +402,9 @@ export class ProcessRunnerService {
         if (activeJob.stoppedByOperator && finishedJob) {
           finishedJob.stoppedByOperator = true;
         }
+        if (activeJob.preemptedBy && finishedJob) {
+          finishedJob.preemptedBy = activeJob.preemptedBy;
+        }
         this.activeJob = null;
 
         if (finishedJob) {
@@ -398,11 +423,17 @@ export class ProcessRunnerService {
         appendOutput(`[Process Error]: ${err.message}`);
       });
 
+      let launchMessage = `🚀 **Job Launched**: \`${preset.key}\` (PID: \`${child.pid}\`)\n• **Description**: ${preset.description}\n• **Command**: \`bun ${finalArgs.join(' ')}\``;
+      if (preemptedInfo) {
+        launchMessage = `🔄 **Task Switched**: Terminated \`${preemptedInfo.key}\` (PID \`${preemptedInfo.pid}\`, ran for \`${preemptedInfo.uptimeFormatted}\`).\n\n` + launchMessage;
+      }
+
       return {
         success: true,
-        message: `🚀 **Job Launched**: \`${preset.key}\` (PID: \`${child.pid}\`)\n• **Description**: ${preset.description}\n• **Command**: \`bun ${finalArgs.join(' ')}\``,
+        message: launchMessage,
         pid: child.pid,
-        job: activeJob
+        job: activeJob,
+        preemptedJob: preemptedInfo || undefined
       };
 
     } catch (err: any) {
@@ -430,18 +461,21 @@ export class ProcessRunnerService {
     console.log(`[ProcessRunner] 🛑 Terminating job \`${key}\` (PID ${pid})...`);
 
     try {
-      // 1. Send SIGINT (graceful shutdown)
-      child.kill('SIGINT');
+      if (child.exitCode === null && !child.killed) {
+        // 1. Send SIGINT (graceful shutdown)
+        child.kill('SIGINT');
 
-      // 2. Wait up to 4 seconds for process to exit
-      const exited = await Promise.race([
-        new Promise<boolean>(resolve => child.on('close', () => resolve(true))),
-        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 4000))
-      ]);
+        // 2. Wait up to 4 seconds for process to exit
+        const exited = await Promise.race([
+          new Promise<boolean>(resolve => child.once('close', () => resolve(true))),
+          new Promise<boolean>(resolve => setTimeout(() => resolve(false), 4000))
+        ]);
 
-      if (!exited) {
-        console.log(`[ProcessRunner] ⚠️ SIGINT timed out for PID ${pid}. Sending SIGKILL...`);
-        child.kill('SIGKILL');
+        if (!exited && child.exitCode === null) {
+          console.log(`[ProcessRunner] ⚠️ SIGINT timed out for PID ${pid}. Sending SIGKILL...`);
+          child.kill('SIGKILL');
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
 
       this.activeJob = null;
@@ -450,6 +484,7 @@ export class ProcessRunnerService {
         message: `🛑 **Process Halted**: Job \`${key}\` (PID \`${pid}\`) has been successfully terminated.`
       };
     } catch (err: any) {
+      this.activeJob = null;
       return {
         success: false,
         message: `⚠️ Error terminating process PID \`${pid}\`: ${err.message}`
