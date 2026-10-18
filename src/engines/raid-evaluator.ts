@@ -1,7 +1,7 @@
 // src/engines/raid-evaluator.ts
 
 export type RaidGrade = 'S+' | 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
-export type RaidEvaluatorStrategy = 'honor' | 'otk_burst' | 'leech';
+export type RaidEvaluatorStrategy = 'honor' | 'otk_burst' | 'leech' | 'farm';
 
 /**
  * Bitmask flags representing specific disqualification criteria.
@@ -55,17 +55,18 @@ export interface RaidCandidate {
 export type AsyncRaidCondition = (candidate: RaidCandidate) => Promise<boolean> | boolean;
 
 export interface RaidEvaluationOptions {
-  strategy?: RaidEvaluatorStrategy; // 'honor' (default, high HP/low players) or 'otk_burst' (low HP/active players)
-  minScore?: number;        // Minimum score to be eligible to join (default: 40)
-  minHpPct?: number;        // Hard minimum HP% (default: 25 for honor, 1 for otk_burst)
-  maxHpPct?: number;        // Hard maximum HP% (default: 20 for otk_burst)
-  minPlayers?: number;      // Hard minimum players (default: 1 for honor, 3 for otk_burst)
-  maxPlayers?: number;      // Hard max players (default: 8 for honor, 29 for otk_burst)
+  strategy?: RaidEvaluatorStrategy; // 'honor' (high HP/low players), 'otk_burst' / 'leech' (low HP/active players), or 'farm' (damage output, high players, lowest HP)
+  minScore?: number;        // Minimum score to be eligible to join (default: 40 for honor, 30 for leech, 20 for farm)
+  minHpPct?: number;        // Hard minimum HP% (default: 25 for honor, 1 for otk_burst/farm)
+  maxHpPct?: number;        // Hard maximum HP% (default: 20 for otk_burst, 95 for farm)
+  minPlayers?: number;      // Hard minimum players (default: 1 for honor, 3 for otk_burst, 2 for farm)
+  maxPlayers?: number;      // Hard max players (default: 8 for honor, 29 for otk_burst/farm)
   deadRaidIds?: string[] | Set<string> | Map<string, any>; // Blacklisted / recently ended or full raid IDs
   useCache?: boolean;       // Enable high-speed LRU result memoization (default: false)
   cacheTtlMs?: number;      // Cache time-to-live in ms (default: 5000)
   asyncConditions?: AsyncRaidCondition[]; // Multiple async conditions evaluated in parallel
   asyncValidator?: AsyncRaidCondition;   // Single async predicate evaluated in parallel
+  adaptive?: boolean;       // Enable adaptive fallback: if no candidate meets strict S/A thresholds, degrade to pick best most-joined active raid
 }
 
 export interface ParallelEvaluationOptions {
@@ -128,6 +129,9 @@ export class RaidEvaluator {
   public static readonly DEFAULT_MAX_PLAYERS = 8;
   public static readonly DEFAULT_OTK_MAX_HP = 20;
   public static readonly DEFAULT_OTK_MIN_PLAYERS = 3;
+  public static readonly DEFAULT_FARM_MIN_SCORE = 20;
+  public static readonly DEFAULT_FARM_MAX_HP = 95;
+  public static readonly DEFAULT_FARM_MIN_PLAYERS = 2;
 
   /**
    * Fast normalization of deadRaidIds to Set<string> for O(1) membership lookup.
@@ -154,9 +158,10 @@ export class RaidEvaluator {
 
   /**
    * Evaluates a single candidate raid synchronously and calculates a quality/viability score (0 - 100).
-   * Supports two distinct strategies:
+   * Supports three distinct strategies:
    * 1. 'honor' (default): Targets fresh raids (HP > 85%, players <= 2) to build max honors for Blue Chest.
-   * 2. 'otk_burst': Targets dying raids (HP <= 20%, players >= 3) for rapid leech/participation drops and fast clear.
+   * 2. 'otk_burst' / 'leech': Targets dying raids (HP <= 20%, players >= 3) for rapid leech/participation drops and fast clear.
+   * 3. 'farm': Targets active, highly-joined raids (many players) with lowest HP for rapid damage clearing and fast rerun cadence without idle waiting.
    */
   public static evaluateCandidate(
     hpPct: number,
@@ -174,7 +179,9 @@ export class RaidEvaluator {
     }
 
     let result: RaidEvaluationResult;
-    if (options.strategy === 'otk_burst' || options.strategy === 'leech') {
+    if (options.strategy === 'farm') {
+      result = this.evaluateFarmCandidate(hpPct, players, maxPlayers, options, raidId, precomputedDeadSet);
+    } else if (options.strategy === 'otk_burst' || options.strategy === 'leech') {
       result = this.evaluateOtkBurstCandidate(hpPct, players, maxPlayers, options, raidId, precomputedDeadSet);
     } else {
       result = this.evaluateHonorCandidate(hpPct, players, maxPlayers, options, raidId, precomputedDeadSet);
@@ -553,6 +560,182 @@ export class RaidEvaluator {
   }
 
   /**
+   * Evaluates candidate raid using the 'farm' strategy.
+   * Priority: Active, highly-joined raids (many players) with lowest HP to ensure fast clear and rapid rerun cadence.
+   * Unlike pure leech (which requires HP <= 20% or 40%), farm allows dealing full rotation damage (HP up to 90-95%)
+   * while heavily weighting player density to ensure the boss melts quickly and the raid clears.
+   */
+  private static evaluateFarmCandidate(
+    hpPct: number,
+    players: number,
+    maxPlayers: number = 30,
+    options: RaidEvaluationOptions = {},
+    raidId?: string,
+    precomputedDeadSet?: Set<string>
+  ): RaidEvaluationResult {
+    const minScore = options.minScore ?? RaidEvaluator.DEFAULT_FARM_MIN_SCORE;
+    const minHp = options.minHpPct ?? 1;
+    const maxHp = options.maxHpPct ?? RaidEvaluator.DEFAULT_FARM_MAX_HP;
+    const minP = options.minPlayers ?? RaidEvaluator.DEFAULT_FARM_MIN_PLAYERS;
+    const maxP = options.maxPlayers ?? (maxPlayers - 1);
+    const deadSet = precomputedDeadSet || this.normalizeDeadIds(options.deadRaidIds);
+
+    let flags = RaidDisqualificationReason.NONE;
+    const flagSummaries: string[] = [];
+
+    // 1. Blacklist check - Instant O(1)
+    if (raidId && deadSet.has(raidId)) {
+      flags |= RaidDisqualificationReason.BLACKLISTED;
+      flagSummaries.push('BLACKLISTED');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: 'Raid marked full or ended in recent attempts (blacklisted)',
+        details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
+      };
+    }
+
+    // 2. Full raid check
+    if (players >= maxPlayers || players > maxP) {
+      flags |= RaidDisqualificationReason.FULL;
+      flagSummaries.push('FULL');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `Raid is full (${players}/${maxPlayers} players)`,
+        details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
+      };
+    }
+
+    // 3. Boss already dead or 0% HP check
+    if (hpPct < minHp) {
+      flags |= RaidDisqualificationReason.HP_BELOW_MIN;
+      flagSummaries.push('HP_BELOW_MIN');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `Raid HP (${hpPct}%) is below minimum (${minHp}%): boss already defeated`,
+        details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
+      };
+    }
+
+    // 4. Hard maximum HP check
+    if (hpPct > maxHp) {
+      flags |= RaidDisqualificationReason.HP_ABOVE_MAX;
+      flagSummaries.push('HP_ABOVE_MAX');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `Raid HP (${hpPct}%) exceeds farm threshold (${maxHp}%)`,
+        details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
+      };
+    }
+
+    // 5. Minimum player check (prevent dead solo hosts unless HP is nearly 0)
+    if (players < minP && hpPct > 10) {
+      flags |= RaidDisqualificationReason.PLAYERS_BELOW_MIN;
+      flagSummaries.push('PLAYERS_BELOW_MIN');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `Players (${players}) is below minimum (${minP}): risk of stalled / abandoned raid`,
+        details: { hpScore: 0, playerScore: 0, sweetSpotBonus: 0, burnPenalty: 0, hpPerPlayer: 0, flags, flagsSummary: flagSummaries }
+      };
+    }
+
+    const effectivePlayers = Math.max(players, 1);
+    const hpPerPlayer = round2(hpPct / effectivePlayers);
+
+    // 6. Player Count Score (0 to 45 points) - Heavily favors "most joined raid"
+    // More players = faster clear speed = faster turnaround and more reruns
+    let playerScore = 0;
+    if (players >= 20) playerScore = 45;
+    else if (players >= 15) playerScore = 40;
+    else if (players >= 10) playerScore = 35;
+    else if (players >= 7) playerScore = 30;
+    else if (players >= 5) playerScore = 25;
+    else if (players >= 3) playerScore = 18;
+    else if (players >= 2) playerScore = 12;
+    else playerScore = 5;
+
+    // 7. HP Score (0 to 45 points) - Prioritizes lowest HP for faster raid finish
+    let hpScore = 0;
+    if (hpPct <= 15) {
+      hpScore = 45;
+    } else if (hpPct <= 30) {
+      hpScore = 40 + Math.round(((30 - hpPct) / 15) * 4); // 40 to 44
+    } else if (hpPct <= 50) {
+      hpScore = 32 + Math.round(((50 - hpPct) / 20) * 7); // 32 to 39
+    } else if (hpPct <= 70) {
+      hpScore = 22 + Math.round(((70 - hpPct) / 20) * 9); // 22 to 31
+    } else if (hpPct <= 85) {
+      hpScore = 12 + Math.round(((85 - hpPct) / 15) * 9); // 12 to 21
+    } else {
+      hpScore = Math.max(5, Math.round(10 - ((hpPct - 85) / 15) * 5)); // 5 to 10
+    }
+
+    // 8. Swarm Synergy & Burn Rate Bonus (0 to 10 points)
+    let sweetSpotBonus = 0;
+    // Golden sweet spot: Many players (10+) and HP <= 50% -> raid will melt instantly!
+    if (players >= 10 && hpPct <= 50) {
+      sweetSpotBonus += 6;
+    } else if (players >= 6 && hpPct <= 70) {
+      sweetSpotBonus += 3;
+    }
+
+    // High burn rate bonus: remaining HP per player <= 3.5%
+    if (hpPerPlayer <= 3.5 && players >= 5) {
+      sweetSpotBonus += 4;
+    } else if (hpPerPlayer > 30.0 && players < 3) {
+      // Sluggish penalty: high HP per player with few players
+      sweetSpotBonus -= 10;
+    }
+
+    const rawScore = hpScore + playerScore + sweetSpotBonus;
+    const finalScore = Math.max(0, Math.min(100, Math.round(rawScore)));
+
+    let grade: RaidGrade = 'F';
+    if (finalScore >= 95) grade = 'S+';
+    else if (finalScore >= 90) grade = 'S';
+    else if (finalScore >= 75) grade = 'A';
+    else if (finalScore >= 60) grade = 'B';
+    else if (finalScore >= 40) grade = 'C';
+    else if (finalScore >= 20) grade = 'D';
+    else grade = 'F';
+
+    const viable = finalScore >= minScore;
+    if (!viable) {
+      flags |= RaidDisqualificationReason.SCORE_BELOW_MIN;
+      flagSummaries.push('SCORE_BELOW_MIN');
+    }
+
+    const reason = viable
+      ? `Viable farm raid (Score: ${finalScore} pt, Grade: ${grade}, HP: ${hpPct}%, Players: ${players}/${maxPlayers})`
+      : `Score ${finalScore} pt (Grade ${grade}) is below minimum acceptable threshold (${minScore} pt)`;
+
+    return {
+      score: finalScore,
+      grade,
+      viable,
+      reason,
+      details: {
+        hpScore: round1(hpScore),
+        playerScore,
+        sweetSpotBonus,
+        burnPenalty: sweetSpotBonus < 0 ? Math.abs(sweetSpotBonus) : 0,
+        hpPerPlayer,
+        flags,
+        flagsSummary: flagSummaries
+      }
+    };
+  }
+
+  /**
    * Evaluates multiple arbitrary conditions against a candidate concurrently in parallel.
    */
   public static async checkConditionsParallel(
@@ -614,11 +797,43 @@ export class RaidEvaluator {
     const nonViableCandidates = evaluated.filter(c => !c.viable);
 
     if (viableCandidates.length === 0) {
+      if (options.adaptive) {
+        const adaptiveCandidates = evaluated.filter(c => {
+          if (c.raidId && deadSet.has(c.raidId)) return false;
+          if (c.players >= (c.maxPlayers || 30)) return false;
+          if (c.hpPct < (options.minHpPct ?? 1)) return false;
+          if (options.maxHpPct !== undefined && c.hpPct > options.maxHpPct) return false;
+          if (c.players < 1) return false;
+          return true;
+        });
+
+        if (adaptiveCandidates.length > 0) {
+          adaptiveCandidates.sort((a, b) => {
+            if (b.players !== a.players) {
+              return b.players - a.players;
+            }
+            return a.hpPct - b.hpPct;
+          });
+
+          const bestAdaptive = adaptiveCandidates[0];
+          bestAdaptive.viable = true;
+          bestAdaptive.score = Math.max(bestAdaptive.score || 0, 30);
+          bestAdaptive.grade = bestAdaptive.score >= 60 ? 'B' : (bestAdaptive.score >= 40 ? 'C' : 'D');
+          bestAdaptive.reason = `Adaptively selected most-joined raid (HP: ${bestAdaptive.hpPct}%, Players: ${bestAdaptive.players}/${bestAdaptive.maxPlayers || 30}) to ensure fast clear and prevent idle standby`;
+
+          return {
+            best: bestAdaptive,
+            viableCandidates: [bestAdaptive],
+            nonViableCandidates: evaluated.filter(c => c !== bestAdaptive)
+          };
+        }
+      }
+
       nonViableCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
       return { best: null, viableCandidates: [], nonViableCandidates };
     }
 
-    this.sortViableCandidates(viableCandidates, options.strategy === 'otk_burst' || options.strategy === 'leech');
+    this.sortViableCandidates(viableCandidates, options.strategy);
 
     return {
       best: viableCandidates[0],
@@ -720,11 +935,44 @@ export class RaidEvaluator {
     const nonViableCandidates = evaluated.filter(c => !c.viable);
 
     if (viableCandidates.length === 0) {
+      if (options.adaptive) {
+        const deadSet = this.normalizeDeadIds(options.deadRaidIds);
+        const adaptiveCandidates = evaluated.filter(c => {
+          if (c.raidId && deadSet.has(c.raidId)) return false;
+          if (c.players >= (c.maxPlayers || 30)) return false;
+          if (c.hpPct < (options.minHpPct ?? 1)) return false;
+          if (options.maxHpPct !== undefined && c.hpPct > options.maxHpPct) return false;
+          if (c.players < 1) return false;
+          return true;
+        });
+
+        if (adaptiveCandidates.length > 0) {
+          adaptiveCandidates.sort((a, b) => {
+            if (b.players !== a.players) {
+              return b.players - a.players;
+            }
+            return a.hpPct - b.hpPct;
+          });
+
+          const bestAdaptive = adaptiveCandidates[0];
+          bestAdaptive.viable = true;
+          bestAdaptive.score = Math.max(bestAdaptive.score || 0, 30);
+          bestAdaptive.grade = bestAdaptive.score >= 60 ? 'B' : (bestAdaptive.score >= 40 ? 'C' : 'D');
+          bestAdaptive.reason = `Adaptively selected most-joined raid (HP: ${bestAdaptive.hpPct}%, Players: ${bestAdaptive.players}/${bestAdaptive.maxPlayers || 30}) to ensure fast clear and prevent idle standby`;
+
+          return {
+            best: bestAdaptive,
+            viableCandidates: [bestAdaptive],
+            nonViableCandidates: evaluated.filter(c => c !== bestAdaptive)
+          };
+        }
+      }
+
       nonViableCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
       return { best: null, viableCandidates: [], nonViableCandidates };
     }
 
-    this.sortViableCandidates(viableCandidates, options.strategy === 'otk_burst' || options.strategy === 'leech');
+    this.sortViableCandidates(viableCandidates, options.strategy);
 
     return {
       best: viableCandidates[0],
@@ -779,13 +1027,22 @@ export class RaidEvaluator {
   /**
    * Sorts viable candidates in place based on strategy priority.
    */
-  private static sortViableCandidates(viableCandidates: RaidCandidate[], isOtk: boolean): void {
+  private static sortViableCandidates(viableCandidates: RaidCandidate[], strategyOrIsOtk?: RaidEvaluatorStrategy | boolean): void {
+    const isFarm = strategyOrIsOtk === 'farm';
+    const isOtk = strategyOrIsOtk === 'otk_burst' || strategyOrIsOtk === 'leech' || strategyOrIsOtk === true;
+
     viableCandidates.sort((a, b) => {
       // Primary: Score descending
       if ((b.score || 0) !== (a.score || 0)) {
         return (b.score || 0) - (a.score || 0);
       }
-      if (isOtk) {
+      if (isFarm) {
+        // In farm mode: Most players first ("most joined raid" clears fastest), then lowest HP
+        if (b.players !== a.players) {
+          return b.players - a.players;
+        }
+        return a.hpPct - b.hpPct;
+      } else if (isOtk) {
         // In OTK burst mode: Lowest HP first (dies sooner), then most players first (clears faster)
         if (a.hpPct !== b.hpPct) {
           return a.hpPct - b.hpPct;

@@ -122,5 +122,46 @@ console.log('  ✅ [PASS] Invalid prompt ID rejection in waitForReply verified')
 // Restore original
 (discordDmRelay as any).sendMessage = origSend;
 
+// 6. Test Mode Anti-Spam Single-Message Limit Verification
+const { DiscordDmRelay } = await import('../src/relay/discord-dm-relay.js');
+DiscordDmRelay.resetTestMessageCounter();
+const prevEnv = process.env.NODE_ENV;
+const prevLimit = process.env.DISCORD_MAX_TEST_MESSAGES;
+process.env.NODE_ENV = 'test';
+process.env.DISCORD_MAX_TEST_MESSAGES = '1';
+
+// First call in test mode: records single allowed message slot
+const testRes1 = await discordDmRelay.sendMessage('Test Message 1');
+if (DiscordDmRelay.getTestMessageCount() !== 1) {
+  throw new Error(`Expected test message count to be 1, got ${DiscordDmRelay.getTestMessageCount()}`);
+}
+
+// Second call in test mode: must be intercepted by anti-spam guard and suppressed!
+const testRes2 = await discordDmRelay.sendMessage('Test Message 2');
+if (!testRes2.id.startsWith('test-suppressed-')) {
+  throw new Error(`Expected testRes2 to be suppressed by anti-spam guard, got ID: ${testRes2.id}`);
+}
+if (DiscordDmRelay.getTestMessageCount() !== 1) {
+  throw new Error(`Expected test message count to stay capped at 1, got ${DiscordDmRelay.getTestMessageCount()}`);
+}
+
+// Third call with DISCORD_MAX_TEST_MESSAGES = 0: must immediately suppress
+process.env.DISCORD_MAX_TEST_MESSAGES = '0';
+const testRes3 = await discordDmRelay.sendMessage('Test Message 3');
+if (!testRes3.id.startsWith('test-suppressed-')) {
+  throw new Error(`Expected testRes3 to be suppressed when limit=0, got ID: ${testRes3.id}`);
+}
+
+// Cleanup
+DiscordDmRelay.resetTestMessageCounter();
+process.env.NODE_ENV = prevEnv;
+if (prevLimit !== undefined) {
+  process.env.DISCORD_MAX_TEST_MESSAGES = prevLimit;
+} else {
+  delete process.env.DISCORD_MAX_TEST_MESSAGES;
+}
+console.log('  ✅ [PASS] Test-mode anti-spam single message limit (max 1 dispatch) verified');
+
 console.log('🎉 All Notification Deduplication tests passed!\n');
+process.exit(0);
 

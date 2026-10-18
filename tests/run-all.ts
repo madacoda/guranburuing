@@ -1,6 +1,7 @@
 // tests/run-all.ts
 import { spawn } from 'child_process';
 import path from 'path';
+import { DiscordDmRelay } from '../src/relay/discord-dm-relay.js';
 
 interface TestSuite {
   name: string;
@@ -113,6 +114,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Magna 3 Leech & Fast Burst 6-Element Evaluator Unit Tests',
     file: 'tests/test-leech-evaluator.ts',
     description: 'Fast burst raid evaluation (HP <= 20%, players >= 3), 6-element Magna 3 primal supporter validation, and active assist limit recovery'
+  },
+  {
+    name: 'Leviathan Mare Farm Evaluator & Adaptive Strategy Test Suite',
+    file: 'tests/test-farm-evaluator.ts',
+    description: 'Adaptive damage farm raid evaluation, high player density ("most joined") prioritization, lowest HP preference, and zero idle standby fallback'
   },
   {
     name: 'Raid Evaluator Parallel Multi-Condition & High-Performance Tests',
@@ -277,7 +283,11 @@ async function runSuite(suite: TestSuite): Promise<TestResult> {
     const spawnArgs = isBun ? [filePath] : ['--import', 'tsx', filePath];
     const proc = spawn(process.execPath, spawnArgs, {
       cwd: process.cwd(),
-      env: { ...process.env, NODE_ENV: 'test' }
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        DISCORD_MAX_TEST_MESSAGES: process.env.DISCORD_MAX_TEST_MESSAGES || '1'
+      }
     });
 
     let output = '';
@@ -298,6 +308,10 @@ async function runSuite(suite: TestSuite): Promise<TestResult> {
 async function main() {
   const wallStart = Date.now();
   const concurrency = Math.max(1, parseInt(process.env.TEST_CONCURRENCY || '6', 10) || 6);
+
+  // Initialize test session counter (guarantees max 1 Discord message across all 51 suites)
+  DiscordDmRelay.resetTestMessageCounter();
+  process.env.DISCORD_MAX_TEST_MESSAGES = process.env.DISCORD_MAX_TEST_MESSAGES || '1';
 
   console.log('\n========================================================================');
   console.log('       Granblue Fantasy Remote Controller - Unified Test Runner         ');
@@ -359,10 +373,12 @@ async function main() {
       }
     }
     console.log('========================================================================\n');
+    DiscordDmRelay.resetTestMessageCounter();
     process.exit(1);
   } else {
     console.log('Status:       🎉 ALL TEST SUITES PASSED (100% GOLD INDUSTRY STANDARD)');
     console.log('========================================================================\n');
+    DiscordDmRelay.resetTestMessageCounter();
     process.exit(0);
   }
 }

@@ -5,7 +5,7 @@ import { MilestoneSweeperService } from './milestone-sweeper.service.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
 import { ScreenDiagnosticService } from './screen-diagnostic.service.js';
 import { humanizedClick, logNormalDelay } from '../../human-motor.js';
-import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions } from '../raid-evaluator.js';
+import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions, RaidEvaluatorStrategy } from '../raid-evaluator.js';
 import { discordPresence } from '../../relay/discord-presence.js';
 
 export interface QuestNavigationDependencies {
@@ -512,16 +512,24 @@ export class QuestNavigationService {
       }
 
       const isOtk = this.ctx.template.evaluatorStrategy === 'otk_burst' || this.ctx.template.evaluatorStrategy === 'leech';
+      const isFarm = this.ctx.template.evaluatorStrategy === 'farm';
       const hasCustomHp = this.ctx.template.minHpPct !== undefined || this.ctx.template.maxHpPct !== undefined;
+      const strategy: RaidEvaluatorStrategy = this.ctx.template.evaluatorStrategy
+        || (isFarm ? 'farm' : (hasCustomHp && (this.ctx.template.maxHpPct ?? 100) <= 50 ? 'leech' : 'honor'));
+
+      // If in farm mode or after initial search passes, enable adaptive degradation to pick best active raid
+      const enableAdaptive = isFarm || this.ctx.template.adaptive === true || (this.ctx.template.adaptive !== false && Date.now() - t0 > 8000);
+
       const evalOptions: RaidEvaluationOptions = {
-        strategy: this.ctx.template.evaluatorStrategy || (hasCustomHp && (this.ctx.template.maxHpPct ?? 100) <= 50 ? 'leech' : 'honor'),
-        minScore: this.ctx.template.minRaidScore ?? (hasCustomHp ? 0 : RaidEvaluator.DEFAULT_MIN_SCORE),
-        minHpPct: this.ctx.template.minHpPct ?? (isOtk ? 1 : RaidEvaluator.DEFAULT_MIN_HP),
-        maxHpPct: this.ctx.template.maxHpPct ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MAX_HP : undefined),
-        minPlayers: this.ctx.template.minPlayers ?? (isOtk ? RaidEvaluator.DEFAULT_OTK_MIN_PLAYERS : 1),
-        maxPlayers: this.ctx.template.maxPlayers ?? (isOtk ? 29 : RaidEvaluator.DEFAULT_MAX_PLAYERS),
+        strategy,
+        minScore: this.ctx.template.minRaidScore ?? (isFarm ? RaidEvaluator.DEFAULT_FARM_MIN_SCORE : (hasCustomHp ? 0 : RaidEvaluator.DEFAULT_MIN_SCORE)),
+        minHpPct: this.ctx.template.minHpPct ?? (isFarm ? 1 : (isOtk ? 1 : RaidEvaluator.DEFAULT_MIN_HP)),
+        maxHpPct: this.ctx.template.maxHpPct ?? (isFarm ? RaidEvaluator.DEFAULT_FARM_MAX_HP : (isOtk ? RaidEvaluator.DEFAULT_OTK_MAX_HP : undefined)),
+        minPlayers: this.ctx.template.minPlayers ?? (isFarm ? RaidEvaluator.DEFAULT_FARM_MIN_PLAYERS : (isOtk ? RaidEvaluator.DEFAULT_OTK_MIN_PLAYERS : 1)),
+        maxPlayers: this.ctx.template.maxPlayers ?? (isFarm ? 29 : (isOtk ? 29 : RaidEvaluator.DEFAULT_MAX_PLAYERS)),
         deadRaidIds: this.ctx.state.deadRaidIds,
-        useCache: true
+        useCache: true,
+        adaptive: enableAdaptive
       };
 
       const selection = RaidEvaluator.selectBestCandidate(rawCandidates, evalOptions);
@@ -536,7 +544,8 @@ export class QuestNavigationService {
           players: `${candidate.players}/${candidate.maxPlayers || 30}`
         });
 
-        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, Score: ${candidate.score} pt [Grade ${candidate.grade}], HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30}). Joining...`);
+        const adaptiveTag = candidate.reason?.includes('Adaptively') ? ' [ADAPTIVE SELECTION]' : '';
+        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, Score: ${candidate.score} pt [Grade ${candidate.grade}], HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30})${adaptiveTag}. Joining...`);
 
         const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search');
         const targetCard = cardElements[candidate.index];
@@ -626,22 +635,26 @@ export class QuestNavigationService {
       this.ctx.state.consecutiveEmptyRaidSearches++;
       this.ctx.state.lastStartFailureWasRaidWait = true;
 
-      const waitSeconds = this.ctx.state.consecutiveEmptyRaidSearches === 1
-        ? 60
-        : this.ctx.state.consecutiveEmptyRaidSearches === 2
-          ? 180
-          : 300;
+      const isFarm = this.ctx.template.evaluatorStrategy === 'farm';
+      const waitSeconds = isFarm
+        ? (this.ctx.state.consecutiveEmptyRaidSearches === 1 ? 15 : 30)
+        : (this.ctx.state.consecutiveEmptyRaidSearches === 1
+            ? 60
+            : this.ctx.state.consecutiveEmptyRaidSearches === 2
+              ? 180
+              : 300);
 
       console.log(`\n========================================================================`);
       console.log(`  ⏳ PATIENCE STANDBY MODE (Round #${this.ctx.state.consecutiveEmptyRaidSearches})`);
       console.log(`  No eligible raids found across slot(s) [${slotList.join(', ')}]`);
       console.log(`  Standby duration: ${waitSeconds}s (${Math.round(waitSeconds / 60)} min)`);
-      console.log(`  Checking periodically every 5 minutes (will resume immediately if raids appear)`);
+      console.log(`  Checking periodically every ${isFarm ? '5 seconds' : '5 minutes'} (will resume immediately if raids appear)`);
       console.log(`========================================================================\n`);
 
       const tStandbyStart = Date.now();
       const waitMs = waitSeconds * 1000;
       let lastCheckSec = 0;
+      const checkIntervalSec = isFarm ? 5 : 20;
 
       while (Date.now() - tStandbyStart < waitMs && !this.ctx.state.stopRequested) {
         const elapsedSec = Math.floor((Date.now() - tStandbyStart) / 1000);
@@ -655,8 +668,8 @@ export class QuestNavigationService {
           status: `Standby (${remainingSec}s)`
         }, true);
 
-        // Check for early raid arrival or pending battle completion every 20 seconds
-        if (elapsedSec > 0 && elapsedSec % 20 === 0 && elapsedSec !== lastCheckSec) {
+        // Check for early raid arrival or pending battle completion periodically
+        if (elapsedSec > 0 && elapsedSec % checkIntervalSec === 0 && elapsedSec !== lastCheckSec) {
           lastCheckSec = elapsedSec;
           console.log(`[Patience Standby] Standby active (${remainingSec}s remaining). Checking finder...`);
           const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');

@@ -1,4 +1,6 @@
 // src/relay/discord-dm-relay.ts
+import fs from 'fs';
+import path from 'path';
 import { config } from '../config.js';
 
 export interface DiscordMessageResponse {
@@ -32,6 +34,51 @@ export interface CaptchaContext {
 export class DiscordDmRelay {
   private dmChannelId: string | null = null;
   private readonly baseUrl = 'https://discord.com/api/v10';
+  private static testMessagesSent = 0;
+  private static testSessionFile = path.resolve(process.cwd(), 'data', '.test-discord-counter.json');
+
+  /**
+   * Returns how many messages have been dispatched during the current test session across all workers.
+   */
+  public static getTestMessageCount(): number {
+    try {
+      if (fs.existsSync(DiscordDmRelay.testSessionFile)) {
+        const raw = fs.readFileSync(DiscordDmRelay.testSessionFile, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.count === 'number') return parsed.count;
+      }
+    } catch {}
+    return DiscordDmRelay.testMessagesSent;
+  }
+
+  /**
+   * Records a dispatched message during test mode and persists the counter.
+   */
+  public static recordTestMessageSent(): number {
+    const current = DiscordDmRelay.getTestMessageCount();
+    const next = current + 1;
+    DiscordDmRelay.testMessagesSent = next;
+    try {
+      const dir = path.dirname(DiscordDmRelay.testSessionFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(DiscordDmRelay.testSessionFile, JSON.stringify({ count: next, lastSent: new Date().toISOString() }));
+    } catch {}
+    return next;
+  }
+
+  /**
+   * Resets the test message counter for a clean test run.
+   */
+  public static resetTestMessageCounter(): void {
+    DiscordDmRelay.testMessagesSent = 0;
+    try {
+      if (fs.existsSync(DiscordDmRelay.testSessionFile)) {
+        fs.unlinkSync(DiscordDmRelay.testSessionFile);
+      }
+    } catch {}
+  }
 
   /**
    * Checks if Discord DM relay has the required environment credentials.
@@ -135,6 +182,28 @@ export class DiscordDmRelay {
     dedupeKey?: string,
     force = false
   ): Promise<DiscordMessageResponse> {
+    // 0. Test Mode Anti-Spam Guard: strictly caps test dispatches to at most 1 message per test run
+    const isTestMode = process.env.NODE_ENV === 'test' || process.env.GBF_TEST_MODE === '1';
+    if (isTestMode) {
+      const maxAllowed = parseInt(process.env.DISCORD_MAX_TEST_MESSAGES ?? '1', 10);
+      const currentSent = DiscordDmRelay.getTestMessageCount();
+      if (currentSent >= maxAllowed) {
+        console.log(
+          `[DiscordDmRelay] 🛡️ [TEST ANTI-SPAM] Suppressed Discord message (${currentSent}/${maxAllowed} limit reached for test run). Preview: "${content.replace(/\r?\n/g, ' ').slice(0, 60)}..."`
+        );
+        return {
+          id: `test-suppressed-${Date.now()}`,
+          content,
+          author: { id: 'bot', username: 'GBF Relay (Test Guard)', bot: true },
+          timestamp: new Date().toISOString()
+        };
+      }
+      DiscordDmRelay.recordTestMessageSent();
+      console.log(
+        `[DiscordDmRelay] ℹ️ [TEST MODE] Dispatching allowed test message (${currentSent + 1}/${maxAllowed}). Subsequent test messages will be suppressed.`
+      );
+    }
+
     // Deduplication check (bypassed if force === true)
     if (!force && this.isDuplicateAlert(content, dedupeKey)) {
       console.log(`[DiscordDmRelay] ⏭️ Suppressing duplicate notification for DM.`);
@@ -144,6 +213,19 @@ export class DiscordDmRelay {
         author: { id: 'bot', username: 'GBF Relay', bot: true },
         timestamp: new Date().toISOString()
       };
+    }
+
+    if (!this.isConfigured()) {
+      if (isTestMode) {
+        console.log(`[DiscordDmRelay] ℹ️ [TEST MODE] Credentials unconfigured in test mode. Returning mock response.`);
+        return {
+          id: `test-unconfigured-${Date.now()}`,
+          content,
+          author: { id: 'bot', username: 'GBF Relay (Test Mock)', bot: true },
+          timestamp: new Date().toISOString()
+        };
+      }
+      throw new Error('[DiscordDmRelay] DISCORD_BOT_TOKEN and DISCORD_USER_ID must be set in .env');
     }
 
     const channelId = await this.getDmChannelId();

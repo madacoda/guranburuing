@@ -95,6 +95,13 @@ const CANONICAL_ALIASES: Readonly<Record<string, string>> = {
   'leech-wilnas': 'raid-wilnas',
   'six-dragons-wilnas': 'raid-wilnas',
   'dragon-wilnas': 'raid-wilnas',
+  'farm-leviathan': 'farm-leviathan-mare',
+  'farm-levi': 'farm-leviathan-mare',
+  'farm:leviathan': 'farm-leviathan-mare',
+  'farm:levi': 'farm-leviathan-mare',
+  'raid-leviathan-mare': 'farm-leviathan-mare',
+  'raid-leviathan': 'farm-leviathan-mare',
+  'raid-levi': 'farm-leviathan-mare',
 };
 
 const RX_TEMPLATE_EXT = /\.(json|txt|dsl|yaml|yml)$/i;

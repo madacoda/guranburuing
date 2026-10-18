@@ -10,6 +10,20 @@ async function runTests() {
   let passed = 0;
   let total = 0;
 
+  // Global Mock for Discord DM Relay: Prevent sending live messages during test suite
+  const { discordDmRelay } = await import('../src/relay/discord-dm-relay.js');
+  const interceptedDmMessages: string[] = [];
+  const realRelaySendMessage = discordDmRelay.sendMessage.bind(discordDmRelay);
+  discordDmRelay.sendMessage = async (content: string) => {
+    interceptedDmMessages.push(content);
+    return {
+      id: `mock-dm-${interceptedDmMessages.length}`,
+      content,
+      author: { id: 'bot', username: 'GBF Relay (Test Mock)', bot: true },
+      timestamp: new Date().toISOString()
+    };
+  };
+
   function assert(condition: boolean, testName: string) {
     total++;
     if (condition) {
@@ -325,11 +339,9 @@ async function runTests() {
 
     // C. Verify notifyJobCompletion suppresses duplicate exit DM when preemptedBy is set
     let messageSent = false;
-    const { discordDmRelay } = await import('../src/relay/discord-dm-relay.js');
-    const origSend = discordDmRelay.sendMessage.bind(discordDmRelay);
     discordDmRelay.sendMessage = async () => {
       messageSent = true;
-      return true;
+      return { id: 'mock', content: '', author: { id: 'b', username: 'b' }, timestamp: '' };
     };
 
     const preemptedJob = {
@@ -348,7 +360,7 @@ async function runTests() {
     assert(!messageSent, 'notifyJobCompletion suppresses redundant exit DM when preemptedBy is present');
 
     // Clean up mocks
-    discordDmRelay.sendMessage = origSend;
+    discordDmRelay.sendMessage = realRelaySendMessage;
     processRunnerService.stopActiveProcess = realStopActiveProcess;
   }
 
@@ -356,6 +368,7 @@ async function runTests() {
   if (passed !== total) {
     throw new Error(`Discord Remote Controller tests failed: ${passed}/${total}`);
   }
+  process.exit(0);
 }
 
 runTests().catch(err => {

@@ -1,0 +1,97 @@
+{
+  "name": "Farm Raid - Leviathan Mare (Adaptive Damage Farm)",
+  "description": "High-efficiency adaptive raid farmer for Leviathan Mare: Finder Tab 1, Titan/Earth supporter, adaptive most-joined raid selection with lowest HP prioritization for rapid clear, full damage injection, and fast rerun cadence without idle waiting.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "mode": "assist",
+  "targetEnemy": "Leviathan Mare",
+  "element": "Earth",
+  "raidSlot": 1,
+  "supporterPriority": [
+    "Titan",
+    "Yggdrasil",
+    "Uriel"
+  ],
+  "evaluatorStrategy": "farm",
+  "minHpPct": 1,
+  "maxHpPct": 95,
+  "minPlayers": 2,
+  "maxPlayers": 29,
+  "minRaidScore": 20,
+  "adaptive": true,
+  "minBatchClaim": 3,
+  "maxBatchClaim": 5,
+  "speedProfile": "fast",
+  "defaultRuns": 500,
+  "autoBerry": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "steps": [
+    {
+      "code": "wait_element",
+      "name": "Make sure combat full load & interactable",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Initial Enemy Attack Animation Cancel)"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 2",
+      "character": 1,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 1",
+      "character": 1,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 3",
+      "character": 1,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 2",
+      "character": 3,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1",
+      "character": 4,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "summon",
+      "name": "Summon Slot 3",
+      "slot": 3,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Execute Attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Rerun"
+    }
+  ]
+}

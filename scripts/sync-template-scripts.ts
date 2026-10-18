@@ -26,10 +26,13 @@ function main() {
 
   let addedCount = 0;
   for (const name of Array.from(templateNames).sort()) {
+    const isFarm = name.startsWith('farm-') || name.startsWith('farm');
     const isLeech = name.startsWith('leech-') || name.startsWith('leech') || name.startsWith('otkraid-') || name.startsWith('otkraid');
-    const runnerCmd = isLeech
-      ? `bun src/cli/run-leech.ts ${name}`
-      : `bun src/cli/run-workflow.ts ${name}`;
+    const runnerCmd = isFarm
+      ? `bun src/cli/run-farm.ts ${name}`
+      : (isLeech
+        ? `bun src/cli/run-leech.ts ${name}`
+        : `bun src/cli/run-workflow.ts ${name}`);
     const windowedCmd = `${runnerCmd} --windowed`;
 
     if (!pkg.scripts[name]) {

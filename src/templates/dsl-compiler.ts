@@ -33,7 +33,7 @@ const RX_META_MAX_HP = /^(?:max[\s_]?hp(?:[\s_]?pct)?|max[\s_]?health)\s*:\s*(\d
 const RX_META_HP_RANGE = /^hp(?:[\s_]?pct)?\s*:\s*(\d+)\s*(?:-|to|\.\.)\s*(\d+)\s*%?$/i;
 const RX_META_MIN_PLAYERS = /^min[\s_]?players?\s*:\s*(\d+)$/i;
 const RX_META_MAX_PLAYERS = /^max[\s_]?players?\s*:\s*(\d+)$/i;
-const RX_META_STRATEGY = /^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech)$/i;
+const RX_META_STRATEGY = /^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech|farm)$/i;
 const RX_META_MIN_RAID_SCORE = /^min[\s_]?(?:raid[\s_]?)?score\s*:\s*(\d+)$/i;
 
 // Control Flow Block Headers
@@ -124,7 +124,7 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
   let minPlayers: number | undefined;
   let maxPlayers: number | undefined;
   let minRaidScore: number | undefined;
-  let evaluatorStrategy: 'honor' | 'otk_burst' | 'leech' | undefined;
+  let evaluatorStrategy: 'honor' | 'otk_burst' | 'leech' | 'farm' | undefined;
   let logPath: string | undefined;
   let isSolo: boolean | undefined;
   let sector: string | undefined;
@@ -283,7 +283,7 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
       continue;
     }
     if ((m = RX_META_STRATEGY.exec(line))) {
-      evaluatorStrategy = m[1].toLowerCase() as 'honor' | 'otk_burst' | 'leech';
+      evaluatorStrategy = m[1].toLowerCase() as 'honor' | 'otk_burst' | 'leech' | 'farm';
       continue;
     }
     if ((m = RX_META_MIN_RAID_SCORE.exec(line))) {

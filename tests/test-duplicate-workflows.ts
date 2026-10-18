@@ -200,7 +200,7 @@ availableTemplates.add('gb-pbhl-universal');
 let auditedScripts = 0;
 for (const [scriptName, scriptCmd] of Object.entries<string>(pkg.scripts)) {
   const tokens = scriptCmd.trim().split(/\s+/);
-  const rwIdx = tokens.findIndex(t => t.endsWith('run-workflow.ts') || t.endsWith('run-leech.ts'));
+  const rwIdx = tokens.findIndex(t => t.endsWith('run-workflow.ts') || t.endsWith('run-leech.ts') || t.endsWith('run-farm.ts'));
   if (rwIdx !== -1 && tokens.length > rwIdx + 1) {
     let target = tokens[rwIdx + 1];
     if (/^acc\d+$/i.test(target)) {

@@ -339,3 +339,5 @@ console.log(`  ✅ [PASS] RaidEngine correctly returned status: "${raidResult.st
 console.log('\n========================================================================');
 console.log('  🎉 ALL 3-RAID BACKUP LIMIT & 5-BATTLE MILESTONE TESTS PASSED (100%)    ');
 console.log('========================================================================\n');
+process.exit(0);
+

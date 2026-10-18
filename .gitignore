@@ -23,6 +23,8 @@ accounts*.json
 !accounts.config.example.json
 data/*-cookies.json
 *-cookies.json
+data/.test-*
+.test-*
 
 
 

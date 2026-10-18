@@ -84,6 +84,24 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     defaultArgs: ['tiamat-aura'],
     description: 'Tiamat Aura Fast Leech (1-turn fast damage, immediate exit to next raid)'
   },
+  'farm': {
+    key: 'farm',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['leviathan-mare'],
+    description: 'Adaptive Raid Farm (Leviathan Mare: high player density, lowest HP, continuous damage)'
+  },
+  'farm:leviathan': {
+    key: 'farm:leviathan',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['leviathan-mare'],
+    description: 'Leviathan Mare Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
+  'farm:levi': {
+    key: 'farm:levi',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['leviathan-mare'],
+    description: 'Leviathan Mare Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
   'leech:leviathan': {
     key: 'leech:leviathan',
     script: 'src/cli/run-leech.ts',

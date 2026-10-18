@@ -118,6 +118,11 @@ async function runTests() {
     assert(fs.existsSync(inventoryScript), `Target file exists for inventory: ${inventoryScript}`);
 
     const authUserId = config.DISCORD_USER_ID || '350293029825019915';
+    const { discordDmRelay } = await import('../src/relay/discord-dm-relay.js');
+    const origSend = discordDmRelay.sendMessage.bind(discordDmRelay);
+    discordDmRelay.sendMessage = async (content: string) => {
+      return { id: 'mock-inventory', content, author: { id: 'b', username: 'b' }, timestamp: '' };
+    };
 
     // Operator sends /gbf inventory
     await discordCommandGatewayService.handleOperatorMessage({
@@ -127,12 +132,14 @@ async function runTests() {
       timestamp: new Date().toISOString()
     });
     assert(true, 'Operator command "/gbf inventory" handled without error');
+    discordDmRelay.sendMessage = origSend;
   }
 
   console.log(`\nHuman Behavioral Mimicry Tests: ${passed}/${total} passed.\n`);
   if (passed !== total) {
     throw new Error(`Human Behavioral Mimicry tests failed: ${passed}/${total}`);
   }
+  process.exit(0);
 }
 
 runTests().catch(err => {

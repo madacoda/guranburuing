@@ -116,7 +116,12 @@
     "gb-pbhl:reload-skills": "bun src/cli/run-workflow.ts acc1 gb-pbhl-reload-skills",
     "gb-akasha": "bun src/cli/run-workflow.ts gb-akasha",
     "gb-go": "bun src/cli/run-workflow.ts gb-go",
-    "gb-farm": "bun src/cli/run-workflow.ts gb-farm",
+    "farm": "bun src/cli/run-farm.ts",
+    "farm:windowed": "bun src/cli/run-farm.ts --windowed",
+    "farm:leviathan": "bun src/cli/run-farm.ts leviathan-mare",
+    "farm:leviathan:windowed": "bun src/cli/run-farm.ts leviathan-mare --windowed",
+    "farm:levi": "bun src/cli/run-farm.ts leviathan-mare",
+    "farm:levi:windowed": "bun src/cli/run-farm.ts leviathan-mare --windowed",
     "leech": "bun src/cli/run-leech.ts",
     "leech:colossus": "bun src/cli/run-leech.ts colossus-ira",
     "leech:colossus:windowed": "bun src/cli/run-leech.ts colossus-ira --windowed",
@@ -468,7 +473,9 @@
     "raid-fediel": "bun src/cli/run-workflow.ts raid-fediel",
     "raid-fediel:windowed": "bun src/cli/run-workflow.ts raid-fediel --windowed",
     "raid-wilnas": "bun src/cli/run-workflow.ts raid-wilnas",
-    "raid-wilnas:windowed": "bun src/cli/run-workflow.ts raid-wilnas --windowed"
+    "raid-wilnas:windowed": "bun src/cli/run-workflow.ts raid-wilnas --windowed",
+    "farm-leviathan-mare": "bun src/cli/run-farm.ts farm-leviathan-mare",
+    "farm-leviathan-mare:windowed": "bun src/cli/run-farm.ts farm-leviathan-mare --windowed"
   },
   "dependencies": {
     "puppeteer-core": "^23.3.0",
