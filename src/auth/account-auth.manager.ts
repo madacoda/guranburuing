@@ -189,9 +189,13 @@ export class AccountAuthManager {
 
       // If on an in-game page and DOM didn't yield all fields, perform a passive API check via /user/status
       const hash = await page.evaluate(() => window.location.hash || '').catch(() => '');
-      if (hash.includes('mypage') || hash.includes('quest') || hash.includes('raid') || hash.includes('profile')) {
+      if (!hash.includes('authentication')) {
         const apiProfile = await page.evaluate(async () => {
           try {
+            if (document.querySelector('.btn-auth-platform, .prt-select-auth')) {
+              return null;
+            }
+
             const g = (window as any).Game;
             let version = g?.version || (window as any).version || '';
             if (!version) {
@@ -216,8 +220,8 @@ export class AccountAuthManager {
               return null;
             }
 
-            const uid = statusJson?.status?.user_id;
-            const level = statusJson?.status?.level;
+            const uid = statusJson?.status?.user_id || g?.userId;
+            const level = statusJson?.status?.level || g?.userRank;
             const rawName = statusJson?.status?.name || g?.userName;
             const name = rawName ? String(rawName).trim() : null;
 
@@ -226,14 +230,11 @@ export class AccountAuthManager {
               String(level) !== 'Unknown' &&
               uid &&
               uid !== '0' &&
-              uid !== 0 &&
-              name &&
-              name !== 'Player' &&
-              name !== 'Guest' &&
-              name !== 'undefined'
+              uid !== 0
             ) {
+              const safeName = (name && name !== 'Guest' && name !== 'undefined') ? name : 'Player';
               return {
-                name,
+                name: safeName,
                 rank: String(level),
                 id: String(uid)
               };
@@ -254,10 +255,71 @@ export class AccountAuthManager {
   }
 
   /**
+   * Resiliently polls for an authenticated profile over an adaptive timeout window.
+   * Periodically checks DOM/Game state, dismisses harmless blocking modals (e.g. ended raids, notices),
+   * and refreshes the page if the SPA is slow to mount.
+   */
+  public static async waitForVerifiedProfile(
+    page: Page,
+    timeoutMs: number = 12000,
+    dismissModals: boolean = true
+  ): Promise<VerifiedPlayerProfile | null> {
+    const startTime = Date.now();
+    let reloadAttempted = false;
+
+    while (Date.now() - startTime < timeoutMs) {
+      const profile = await this.getVerifiedProfile(page);
+      if (profile) {
+        return profile;
+      }
+
+      // Check if CAPTCHA or verification challenge is active
+      const hasVerification = await page.evaluate(() => {
+        return !!document.querySelector(
+          '.cnt-verification, .pop-usual.verification, .prt-verification, [class*="captcha"], #wrapper .cnt-captcha'
+        );
+      }).catch(() => false);
+
+      if (hasVerification) {
+        console.warn('[Auth] 🚨 Verification Challenge / CAPTCHA detected on screen!');
+        return null;
+      }
+
+      // If requested, dismiss lingering non-destructive modals (e.g., ended battles, notices)
+      if (dismissModals) {
+        await page.evaluate(() => {
+          if (document.querySelector('.cnt-verification, .pop-usual.verification')) return;
+          const okOrClose = document.querySelector(
+            '.pop-usual .btn-usual-ok, .pop-usual .btn-close, .btn-usual-close, .pop-announcement .btn-close, .prt-popup-header .btn-close'
+          ) as HTMLElement | null;
+          if (okOrClose) {
+            okOrClose.click();
+          }
+        }).catch(() => null);
+      }
+
+      const elapsed = Date.now() - startTime;
+      // If after 5.5s the page hasn't resolved and we haven't reloaded yet, perform a gentle reload to unstick the SPA
+      if (elapsed > 5500 && !reloadAttempted) {
+        reloadAttempted = true;
+        const curUrl = safeUrl(page);
+        if (curUrl && curUrl.includes('granbluefantasy.jp') && !curUrl.includes('authentication')) {
+          console.log('[Auth] SPA initialization taking longer than normal. Triggering gentle reload to sync session...');
+          await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => null);
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 750));
+    }
+
+    return await this.getVerifiedProfile(page);
+  }
+
+  /**
    * Fast check to verify if the account's existing session is active.
    */
   public static async isSessionActive(page: Page): Promise<boolean> {
-    const profile = await this.getVerifiedProfile(page);
+    const profile = await this.waitForVerifiedProfile(page, 2500, false);
     return !!profile;
   }
 
@@ -538,14 +600,15 @@ export class AccountAuthManager {
     await installMobageSessionImmunity(page).catch(() => null);
 
     console.log(`[Auth] Verifying active session for account [${account.name}]...`);
-    let profile = await this.getVerifiedProfile(page);
+    // Step 1: Check active session with adaptive polling (up to 4s) to allow idle/throttled tabs or modals to resolve
+    let profile = await this.waitForVerifiedProfile(page, 4000, true);
     if (profile) {
       console.log(`[Auth] ✅ Authenticated: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
       await this.saveCookiesSafely(page, account);
       return profile;
     }
 
-    // Attempt restoring session from data/${account.id}-cookies.json unless skipCookieRestore requested
+    // Step 2: Attempt restoring session from data/${account.id}-cookies.json unless skipCookieRestore requested
     const cookieFile = path.resolve(process.cwd(), 'data', `${account.id}-cookies.json`);
     if (!options?.skipCookieRestore && fs.existsSync(cookieFile)) {
       try {
@@ -583,10 +646,10 @@ export class AccountAuthManager {
             }
           }
 
-          await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
-          await new Promise(r => setTimeout(r, 3000));
+          // Navigate cleanly to #mypage and wait adaptively for SPA to mount and sync session
+          await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
 
-          profile = await this.getVerifiedProfile(page);
+          profile = await this.waitForVerifiedProfile(page, 12000, true);
           if (profile) {
             console.log(`[Auth] ✅ Authenticated via cached cookies: Player "${profile.name}" (Rank ${profile.rank} | ID: ${profile.id})`);
             await this.saveCookiesSafely(page, account);
@@ -598,8 +661,22 @@ export class AccountAuthManager {
       }
     }
 
+    // Step 3: Diagnostic inspection before declaring session expired
+    const diag = await page.evaluate(() => {
+      const hash = window.location.hash || '';
+      const isAuthScreen = hash.includes('authentication') || !!document.querySelector('.btn-auth-platform, .prt-select-auth');
+      const isCaptcha = !!document.querySelector('.cnt-verification, .pop-usual.verification, .prt-verification');
+      return { url: window.location.href, hash, isAuthScreen, isCaptcha };
+    }).catch(() => ({ url: safeUrl(page) || 'unknown', hash: '', isAuthScreen: false, isCaptcha: false }));
+
+    if (diag.isCaptcha) {
+      console.warn(`\n[Auth] 🚨 Verification Challenge / CAPTCHA detected on account [${account.name}]!`);
+      console.warn(`[Auth] 👉 Session cookies are valid, but manual verification challenge must be solved first.\n`);
+      return null;
+    }
+
     if (!options?.interactive) {
-      console.warn(`\n[Auth] ⚠️ Account [${account.name}] session has expired or requires re-authentication.`);
+      console.warn(`\n[Auth] ⚠️ Account [${account.name}] session could not be authenticated (Current URL: ${diag.url}).`);
       console.warn(`[Auth] 👉 Please log in via desktop browser window:\n       bun run account:setup ${account.id} --windowed\n`);
       return null;
     }
