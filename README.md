@@ -21,7 +21,7 @@ An enterprise-grade, high-performance, and state-aware automation system and rem
   - [1. Declarative Universal Workflow Engine](#1-declarative-universal-workflow-engine)
   - [2. Gold Bar Farming Suite & Tactical Rotations](#2-gold-bar-farming-suite--tactical-rotations)
   - [3. Two-Way Discord Remote Controller & CAPTCHA DM Relay](#3-two-way-discord-remote-controller--captcha-dm-relay)
-  - [4. Daily Reset Scheduler Daemon (JST 05:00)](#4-daily-reset-scheduler-daemon-jst-0500)
+  - [4. Peak-Hour Scheduler Daemon (JST 21:00 / WIB 19:00)](#4-peak-hour-scheduler-daemon-jst-2100--wib-1900)
   - [5. Magna 3 Six-Element Leech Engine](#5-magna-3-six-element-leech-engine)
   - [6. Multi-Account Swarm & Profile Isolation](#6-multi-account-swarm--profile-isolation)
   - [7. Biomechanical Human Motor Simulation](#7-biomechanical-human-motor-simulation)
@@ -88,7 +88,7 @@ flowchart TB
         DSL["DSL Compiler & Zod Schema Validator"]
         Sentinel["Safety Sentinel & Watchdog"]
         DropLogger["Raid Drop Telemetry Logger"]
-        Scheduler["Daily Reset Scheduler (JST 05:00)"]
+        Scheduler["Peak-Hour Scheduler (JST 21:00 / WIB 19:00)"]
         Motor["Human Motor Synthesizer (Bézier/Gaussian)"]
     end
 
@@ -145,14 +145,14 @@ Comprehensive high-difficulty raid farming suite with honor tracking:
   4. The user types the answer directly in Discord.
   5. The bot replays the answer with realistic human typing jitter, clicks "Send" (`.btn-post`), verifies dismissal, and resumes the workflow automatically.
 
-### 4. Daily Reset Scheduler Daemon (JST 05:00)
-- **Automatic JST Timing**: Accurately calculates the exact countdown to Japan Standard Time (UTC+9) 05:00:00 reset.
+### 4. Peak-Hour Scheduler Daemon (JST 21:00 / WIB 19:00)
+- **Automatic Peak Golden Time Timing**: Accurately calculates the exact countdown to Japan Standard Time (UTC+9) `21:00:15 JST` (`19:00:15 WIB`) — the peak GBF Golden Time & Strike Time hour when active player concurrency and Raid Finder backup clears are fastest.
 - **Anti-Drift Timer**: Employs wall-clock reconciliation to prevent background process drift.
-- **Full Daily Maintenance**:
+- **Full Daily Maintenance & Hosting**:
   - Magna Pro & Hard Pro instant skips
   - Ennead Pro skips
   - 100-Draw Rupie Gacha auto-pull
-  - Arcarum Fast Expeditions
+  - 16-Raid Daily Host Suite (HL Gold Bar raids, Magna 3, Six Dragons)
 
 ### 5. Magna 3 Six-Element Leech Engine
 - **Parallel Raid Evaluator**: Multi-slot concurrent checking of raid health, participant count, and optimal entry windows.
@@ -337,7 +337,7 @@ The suite includes dedicated, battle-tested automation engines for every sector 
 | :--- | :--- | :--- |
 | **Daily Maintenance** | `bun run daily`<br/>`bun run daily:all` | 12 Pro Skips, 100-Draw Rupie Gacha, Skyscope missions, Casino pots |
 | **Daily Raid Hosting** | `bun run daily:host`<br/>`bun run daily:host:hl` | Hosts all daily 16-raid rotation (HL, Magna 3, Six Dragons) with retry pass |
-| **05:00 JST Scheduler** | `bun run daily:scheduler`<br/>`bun run daily:routine` | 24/7 background daemon executing daily reset chores at 05:00:15 JST |
+| **21:00 JST Scheduler** | `bun run daily:scheduler`<br/>`bun run daily:routine` | 24/7 background daemon executing daily routine at 21:00:15 JST (19:00:15 WIB Peak Golden Time) |
 | **Arcarum: Zone Mundus** | `bun run prometheus:smart`<br/>`bun run morrigna:smart`<br/>`bun run ca-ong:smart`<br/>`bun run gilgamesh:smart`<br/>`bun run stage10` | 0ms supporter select, Defender & Militis Smart Full Auto, AAP recovery |
 | **Arcarum: The World** | `bun run arcarum-theworld` | Zone Mundus boss with Plain Damage Omen counter (Beelzebub) |
 | **Gold Bar (GB) Hunting** | `bun run gb-pbhl`<br/>`bun run gb-pbhl:skill`<br/>`bun run gb-akasha`<br/>`bun run gb-go`<br/>`bun run gb-farm` | Blue Chest honor burst loops (PBHL, Akasha, GOHL), permanent URL archives |
@@ -409,7 +409,7 @@ The suite includes dedicated, battle-tested automation engines for every sector 
 | `bun run daily:all` | Swarm mode: runs daily cycle across all enabled accounts |
 | `bun run daily:windowed` | Runs daily cycle with visible browser window |
 | `bun run daily:host` | Hosts all daily 16-raid rotation (HL, Magna 3, Six Dragons) |
-| `bun run daily:scheduler` | Starts background daemon that triggers dailies at JST 05:00 |
+| `bun run daily:scheduler` | Starts background daemon that triggers dailies at JST 21:00 (WIB 19:00) |
 
 ### Gold Bar & Raid Automation
 

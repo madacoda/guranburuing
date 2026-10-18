@@ -72,14 +72,14 @@ export class DiscordCommandGatewayService {
       await discordDmRelay.sendMessage(
         '🛡️ **GBF Remote Cockpit Online**\n' +
         'Autonomous controller initialized and listening in secure private session.\n' +
-        `• **Daily Scheduler**: 🟢 ACTIVE (Next: \`${schedInfo.nextResetJstString}\` / **${schedInfo.formattedCountdown}**)\n` +
+        `• **Daily Scheduler**: 🟢 ACTIVE (Next: \`${schedInfo.nextResetJstString}\` / \`${schedInfo.nextResetWibString}\` — **${schedInfo.formattedCountdown}**)\n` +
         '• **Quick Commands**:\n' +
         '  - `/gbf daily` — Launch daily Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Casino)\n' +
         '  - `/gbf daily:host` — Launch full 16-raid Daily Hosting suite (HL, Magna 3, Dragons)\n' +
         '  - `/gbf daily:hostgb` — Host Gold Bar daily raids only (PBHL, Akasha, GOHL, Lindwurm)\n' +
         '  - `/gbf gb-akasha` — Akasha Blue Chest Gold Bar Farm\n' +
         '  - `/gbf gb-pbhl` — PBHL Blue Chest Gold Bar Farm\n' +
-        '  - `/gbf scheduler:off` / `/gbf scheduler:on` — Pause/resume 05:00 JST scheduler\n' +
+        '  - `/gbf scheduler:off` / `/gbf scheduler:on` — Pause/resume 21:00 JST (19:00 WIB) Peak-Hour scheduler\n' +
         '  - `/gbf status` — View active job, scheduler state, and terminal output\n' +
         '  - `/gbf stop` — Halt current active task\n' +
         '  - `/gbf help` — Display full command list'
@@ -348,7 +348,7 @@ export class DiscordCommandGatewayService {
     const resetInfo = dailyResetScheduler.getScheduleInfo();
     const schedulerRunning = dailyResetScheduler.getIsRunning();
     const schedStatusStr = schedulerRunning
-      ? `🟢 ACTIVE (Next: \`${resetInfo.nextResetJstString}\` / **${resetInfo.formattedCountdown}**)`
+      ? `🟢 ACTIVE (Next: \`${resetInfo.nextResetJstString}\` / \`${resetInfo.nextResetWibString}\` — **${resetInfo.formattedCountdown}**)`
       : '⏸️ PAUSED (Scheduler is OFF)';
 
     if (!status.isBusy || !status.job) {
@@ -399,10 +399,10 @@ export class DiscordCommandGatewayService {
   private async handleResetInfoCommand(): Promise<void> {
     const info = dailyResetScheduler.getScheduleInfo();
     const response = [
-      '⏰ **GBF Daily Server Reset Schedule**',
-      `• **Next Reset**: \`${info.nextResetJstString}\``,
+      '⏰ **GBF Peak-Hour Daily Routine Schedule**',
+      `• **Next Execution**: \`${info.nextResetJstString}\` (\`${info.nextResetWibString}\`)`,
       `• **Time Remaining**: **${info.formattedCountdown}**`,
-      '• **Cadence**: Daily 05:00:15 JST (UTC+9)',
+      '• **Cadence**: Daily 21:00:15 JST / 19:00:15 WIB (Peak Golden Time & Strike Time)',
       '• **Autonomous Pipeline**: Universal Pro Skips → Daily Raid Hosting Suite → Self-Healing Retry Pass'
     ].join('\n');
 
@@ -417,7 +417,7 @@ export class DiscordCommandGatewayService {
       if (dailyResetScheduler.getIsRunning()) {
         const info = dailyResetScheduler.getScheduleInfo();
         await discordDmRelay.sendMessage(
-          `🟢 **Daily Scheduler is ALREADY ACTIVE**\n• Next Reset: \`${info.nextResetJstString}\` (**${info.formattedCountdown}**)`
+          `🟢 **Daily Scheduler is ALREADY ACTIVE**\n• Next Execution: \`${info.nextResetJstString}\` / \`${info.nextResetWibString}\` (**${info.formattedCountdown}**)`
         );
         return;
       }
@@ -425,7 +425,7 @@ export class DiscordCommandGatewayService {
         dailyResetScheduler.startDaemon();
         const info = dailyResetScheduler.getScheduleInfo();
         await discordDmRelay.sendMessage(
-          `▶️ **Daily Reset Scheduler ACTIVATED**\n• Cadence: Daily 05:00:15 JST (UTC+9)\n• Next Reset: \`${info.nextResetJstString}\` (**${info.formattedCountdown}**)\n• Pipeline: Universal Pro Skips → Daily 16-Raid Suite`
+          `▶️ **Daily Peak-Hour Scheduler ACTIVATED**\n• Cadence: Daily 21:00:15 JST / 19:00:15 WIB (Peak Golden Time)\n• Next Execution: \`${info.nextResetJstString}\` / \`${info.nextResetWibString}\` (**${info.formattedCountdown}**)\n• Pipeline: Universal Pro Skips → Daily 16-Raid Suite`
         );
       } catch (err: any) {
         await discordDmRelay.sendMessage(`❌ Failed to start scheduler: ${err.message}`);
@@ -437,7 +437,7 @@ export class DiscordCommandGatewayService {
       }
       dailyResetScheduler.stopDaemon();
       await discordDmRelay.sendMessage(
-        '🛑 **Daily Reset Scheduler PAUSED (OFF)**\nAutonomous 05:00 JST triggers are suspended.\nSend `/gbf scheduler:on` to resume.'
+        '🛑 **Daily Peak-Hour Scheduler PAUSED (OFF)**\nAutonomous 21:00 JST (19:00 WIB) triggers are suspended.\nSend `/gbf scheduler:on` to resume.'
       );
     }
   }
@@ -506,9 +506,9 @@ export class DiscordCommandGatewayService {
       '**System & Scheduler Controls:**',
       '• `/gbf status` — View running job, PID, uptime, and terminal output',
       '• `/gbf stop` (or `/gbf halt`) — Gracefully terminate active running task',
-      '• `/gbf scheduler:off` — Pause autonomous 05:00 JST scheduler',
-      '• `/gbf scheduler:on` — Resume autonomous 05:00 JST scheduler',
-      '• `/gbf reset` (or `/gbf next`) — View countdown to next 05:00 JST daily reset',
+      '• `/gbf scheduler:off` — Pause autonomous 21:00 JST (19:00 WIB) peak scheduler',
+      '• `/gbf scheduler:on` — Resume autonomous 21:00 JST (19:00 WIB) peak scheduler',
+      '• `/gbf reset` (or `/gbf next`) — View countdown to next 21:00 JST (19:00 WIB) scheduled run',
       '• `/gbf logs` — View last 15 lines of live terminal output',
       '• `/gbf help` — Display this manual'
     );

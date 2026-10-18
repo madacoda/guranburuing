@@ -1,7 +1,7 @@
 /**
  * PM2 Ecosystem Configuration for Granblue Fantasy Remote Controller
  *
- * Runs the Discord Remote Command Gateway and 05:00 JST Autonomous Scheduler 24/7 on your VPS.
+ * Runs the Discord Remote Command Gateway and 21:00 JST (19:00 WIB) Peak-Hour Autonomous Scheduler 24/7 on your VPS.
  *
  * Usage:
  *   pm2 start ecosystem.config.cjs

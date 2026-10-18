@@ -9,7 +9,19 @@ async function main() {
   const skipHosts = args.includes('--no-hosts');
   const triggerNow = args.includes('--now');
 
-  const accountArg = args.find((a) => !a.startsWith('--'));
+  let targetHourJst: number | undefined;
+  const hourFlagIdx = args.findIndex((a) => a === '--hour' || a.startsWith('--hour='));
+  if (hourFlagIdx !== -1) {
+    const rawVal = args[hourFlagIdx].includes('=')
+      ? args[hourFlagIdx].split('=')[1]
+      : args[hourFlagIdx + 1];
+    const parsed = Number(rawVal);
+    if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 23) {
+      targetHourJst = parsed;
+    }
+  }
+
+  const accountArg = args.find((a, idx) => !a.startsWith('--') && (hourFlagIdx === -1 || idx !== hourFlagIdx + 1 || args[hourFlagIdx].includes('=')));
   const accountId = accountArg || 'acc1';
 
   if (triggerNow) {
@@ -27,7 +39,8 @@ async function main() {
     accountId,
     isWindowed,
     skipProSkips,
-    skipHosts
+    skipHosts,
+    targetHourJst
   });
 
   // Handle graceful termination

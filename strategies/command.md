@@ -11,7 +11,7 @@ Fast, categorized terminal reference for all operational commands, workflows, da
 - [2. Browser Control & CDP Host](#2-browser-control--cdp-host)
 - [3. Daily Maintenance & Pro Skips](#3-daily-maintenance--pro-skips)
 - [4. Daily Raid Hosting Suite](#4-daily-raid-hosting-suite)
-- [5. Autonomous Daily Reset Scheduler (05:00 JST)](#5-autonomous-daily-reset-scheduler-0500-jst)
+- [5. Autonomous Peak-Hour Scheduler (21:00 JST / 19:00 WIB)](#5-autonomous-peak-hour-scheduler-2100-jst--1900-wib)
 - [6. Replicard Sandbox: Zone Mundus (Stage 10) Militis Bosses](#6-replicard-sandbox-zone-mundus-stage-10-militis-bosses)
 - [7. Replicard Sandbox: Zone Goliath (Stage 3) Bosses & Defenders](#7-replicard-sandbox-zone-goliath-stage-3-bosses--defenders)
 - [8. Replicard Sandbox: Zone Eletio / Fayum Militis & World](#8-replicard-sandbox-zone-eletio--fayum-militis--world)
@@ -112,13 +112,13 @@ Autonomous daily raid hosting with transient DOM sanitization and material defic
 
 ---
 
-## 5. Autonomous Daily Reset Scheduler (05:00 JST)
+## 5. Autonomous Peak-Hour Scheduler (21:00 JST / 19:00 WIB)
 
-24/7 background scheduler aligned to Granblue Fantasy server daily reset (05:00:15 JST / 20:00:15 UTC).
+24/7 background scheduler aligned to Granblue Fantasy peak player Golden Time & Strike Time (21:00:15 JST / 19:00:15 WIB / 12:00:15 UTC) for maximum Raid Finder backup join speed and fastest clears.
 
 | Command | Mode | Description |
 | :--- | :---: | :--- |
-| `bun run daily:scheduler` | Daemon | Starts background daemon that triggers routine at 05:00 JST |
+| `bun run daily:scheduler` | Daemon | Starts background daemon that triggers routine at 21:00:15 JST (19:00:15 WIB) |
 | `bun run daily:routine` | Immediate | Executes complete 2-phase pipeline right now (Pro Skips $\rightarrow$ Raids) |
 | `bun run daily:routine --windowed` | Windowed | Runs on-demand daily pipeline in visible browser window |
 | `bun run daily:routine --no-hosts` | Skips Only | Runs universal Pro Skips only, skipping hosted raids |
@@ -400,7 +400,7 @@ Run the companion server for phone/tablet remote control, live screencasts, and 
 - **Preemptive Task Switching**: If a task is already executing (e.g. `/gbf gb-akasha 100`) and you issue another command (e.g. `/gbf leech:leviathan`), the controller **automatically terminates the running task and launches the new task immediately** without requiring a manual `/gbf stop`.
 - `/gbf stop` (or `/gbf halt`): Gracefully terminates active running job and releases CDP port 9222.
 - `/gbf status`: Displays active job, PID, uptime, scheduler state, and latest terminal output snippet.
-- `/gbf scheduler:off` / `/gbf scheduler:on`: Pauses or resumes autonomous 05:00 JST daily reset scheduler.
+- `/gbf scheduler:off` / `/gbf scheduler:on`: Pauses or resumes autonomous 21:00 JST (19:00 WIB) Peak-Hour daily scheduler.
 - `/gbf logs`: Displays last 15 lines of live terminal output.
 - `/gbf help`: Displays the operator command reference.
 
