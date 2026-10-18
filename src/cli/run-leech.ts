@@ -156,6 +156,15 @@ async function main() {
   try {
     await engine.runLoop({ runs: targetRuns });
   } finally {
+    try {
+      if (page && !page.isClosed()) {
+        const url = page.url();
+        if (!url.includes('#mypage') && !url.includes('#authentication')) {
+          console.log('[Leech] 🏠 Returning browser safely to homescreen (#mypage)...');
+          await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
+        }
+      }
+    } catch {}
     await cdpManager.disconnect();
   }
 }

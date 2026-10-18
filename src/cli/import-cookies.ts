@@ -176,11 +176,30 @@ async function main() {
   console.log(`[Import] Injecting cookies into browser session via Network.setCookies...`);
   await client.send('Network.setCookies', { cookies: sanitizedCookies });
 
+  // Also set CHIPS partitioned variants for Mobage session cookies so session_iframe matches
+  const partitionedVariants: any[] = [];
+  for (const sc of sanitizedCookies) {
+    if (['CSSID', 'CSID_P', 'USE_CHIPS', 'CTID_P'].includes(sc.name)) {
+      partitionedVariants.push({
+        ...sc,
+        secure: true,
+        sameSite: 'None',
+        partitionKey: {
+          topLevelSite: 'https://granbluefantasy.jp',
+          hasCrossSiteAncestor: true
+        }
+      });
+    }
+  }
+  if (partitionedVariants.length > 0) {
+    await client.send('Network.setCookies', { cookies: partitionedVariants }).catch(() => null);
+  }
+
   console.log(`[Import] Cookies successfully committed to SQLite storage.`);
   console.log(`[Import] Verifying active session on #mypage...`);
 
-  await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded' }).catch(() => null);
-  await new Promise(r => setTimeout(r, 3000));
+  await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => null);
+  await new Promise(r => setTimeout(r, 4000));
 
   // If on #top title screen, click Game Start
   const currentHash = await page.evaluate(() => window.location.hash).catch(() => '');
@@ -193,7 +212,7 @@ async function main() {
         start.click();
       }
     }).catch(() => null);
-    await new Promise(r => setTimeout(r, 2500));
+    await new Promise(r => setTimeout(r, 3500));
   }
 
   const profile = await AccountAuthManager.ensureAuthenticated(page, currentAccount);

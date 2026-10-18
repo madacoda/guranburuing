@@ -48,6 +48,7 @@
     "daily:host:all": "bun src/cli/run-daily-host.ts --all-accounts",
     "daily:host:windowed": "bun src/cli/run-daily-host.ts --windowed",
     "daily:host:hl": "bun src/cli/run-daily-host.ts hl",
+    "daily:hostgb": "bun src/cli/run-daily-host.ts hl",
     "daily:host:m3": "bun src/cli/run-daily-host.ts m3",
     "daily:host:dragons": "bun src/cli/run-daily-host.ts dragons",
     "daily:routine": "bun src/cli/run-daily-routine.ts",

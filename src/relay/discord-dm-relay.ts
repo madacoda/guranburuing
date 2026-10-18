@@ -196,6 +196,15 @@ export class DiscordDmRelay {
       });
     }
 
+    if (res.status === 429) {
+      try {
+        const rateLimitData = await res.json();
+        const retryAfterMs = Math.ceil((rateLimitData.retry_after || 1) * 1000) + 100;
+        await new Promise(r => setTimeout(r, retryAfterMs));
+        return await this.sendMessage(content, attachments, dedupeKey);
+      } catch {}
+    }
+
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(`[DiscordDmRelay] Failed to send message to DM (Status ${res.status}): ${errText}`);

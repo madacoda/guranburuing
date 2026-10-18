@@ -369,3 +369,53 @@ Total Accounts Processed: 1 | Elapsed: 29.4s
    ```bash
    bun run daily
    ```
+
+---
+
+## 5. Cross-Platform VPS & Remote Operation Failure Post-Mortem
+
+### Root Cause 7: The Windows `cmd.exe` Subprocess Splitting Trap in Session Synchronization
+
+#### Technical Mechanism:
+In `scripts/sync-session.ts`, the remote session import was triggered via:
+```ts
+// Flawed implementation:
+const remoteCmd = `cd ${remoteWorkingDir} && bun src/cli/import-cookies.ts ${accountId} --file data/${accountId}-cookies.json`;
+spawnSync('ssh', [`root@${host}`, remoteCmd], { shell: true });
+```
+When `shell: true` is set on Windows, `spawnSync` executes:
+`cmd.exe /d /s /c "ssh root@<host> cd /var/www/guranburuing && bun src/cli/import-cookies.ts acc1 ..."`
+
+Because `cmd.exe` interprets unquoted `&&`, it split the pipeline into two commands:
+1. `ssh root@<host> cd /var/www/guranburuing` (executed on remote VPS and exited 0).
+2. `bun src/cli/import-cookies.ts acc1 ...` (executed **locally on Windows**, against the local browser!).
+
+This resulted in a false positive where local Windows console logged `SUCCESS: Account [『Hamada』] Successfully Synchronized!`, while the VPS Chrome instance was never actually updated.
+
+#### Permanent Architectural Solution:
+Removed `shell: true` and passed command arrays directly to `ssh` and `scp` as single arguments:
+```ts
+// Hardened implementation:
+spawnSync('ssh', [`root@${host}`, remoteCmd], { stdio: 'inherit', shell: false });
+```
+Windows `spawnSync` without a shell invokes `ssh.exe` directly, passing `remoteCmd` as a single parameter that the remote Linux shell executes on the VPS.
+
+---
+
+### Root Cause 8: CAPTCHA Challenge Timeout Revocation vs. Non-Logout Safe Homescreen Fallback
+
+#### Technical Mechanism:
+When Granblue Fantasy issues an in-game CAPTCHA verification challenge during combat farming:
+1. If the operator does not solve the puzzle within the 10-minute timeout window, the runner terminated.
+2. Leaving the browser hanging on an active CAPTCHA iframe caused Cygames' backend authentication servers to drop the `midship` cookie, kicking the player to `#top`.
+3. Subsequent automation runs saw `#top`, attempted to restore from an outdated cookie file, and repeatedly failed authentication.
+
+#### Permanent Architectural Solution:
+1. **Defensive Non-Logout Golden Rule**: A failed or timed-out CAPTCHA **must never** trigger a logout, clear cookies, or navigate to `#authentication`.
+2. **Safe Homescreen Return**: When `waitForUserToSolveCaptcha` times out after 10 minutes, [safelyReturnToHomescreenWithoutLogout()](file:///c:/laragon/www/guranburuing/src/sentinel-watchdog.ts) navigates the browser to `https://game.granbluefantasy.jp/#mypage`, keeping all session cookies and tokens intact.
+3. **Emergency Alert & Stoppage Diagnostic**: An immediate Discord DM alert informs the operator:
+   - That automation has stopped in progress.
+   - The exact reason (CAPTCHA wait timed out after 10 minutes).
+   - The browser state (Returned to `#mypage`, session preserved).
+   - Actionable recovery instructions (Solve via `bun run vps:login` or launch next task via Discord).
+

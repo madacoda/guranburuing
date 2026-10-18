@@ -340,15 +340,29 @@ Syncing cookies across machines via files can be brittle due to Mobage IP bindin
 - The CDP connection timeout in `src/cdp-connection.ts` is standardized to **25,000ms** (25 seconds).
 - If connection stalls due to zombie sockets, the runner automatically re-launches with `--force` / `-Force` to kill stale sockets on port 9222.
 
-### Alternative Cookie Sync (Local Windows ➔ VPS):
-To sync existing session cookies directly to the VPS:
+### Reliable 1-Click Cookie Sync (Local Windows ➔ VPS):
+To synchronize your active local session cookies directly into the remote VPS Chrome instance:
 ```bash
-# Sync acc1 cookies to VPS:
-bun run session:sync acc1 --remote http://<VPS_IP>:3000
-
-# Or via SSH directly:
+# Sync acc1 session to VPS via direct SSH/SCP:
 bun run session:sync acc1 --ssh
 ```
+This transfers `data/<account>-cookies.json` via SCP and invokes `src/cli/import-cookies.ts` directly on the VPS, injecting standard and CHIPS partitioned cookies, returning to `#mypage`, and validating in-game player identity.
+
+### Non-Logout CAPTCHA Timeout Safety Policy:
+- When an in-game CAPTCHA verification challenge times out (10 minutes), the watchdog **MUST NEVER** log out, clear cookies, or navigate to `#authentication`.
+- Instead, the browser safely navigates to `#mypage` to preserve the session and prevent backend cookie revocation.
+- A Discord DM notification is immediately dispatched informing the operator that the task stopped in progress and why, confirming that the session is preserved.
+
+### Discord Remote Controller ChatOps Standard:
+All commands require the `/gbf` prefix:
+- `/gbf daily` — **Pro Skips Only** (Hard+, Omega, Omega HL, Regalia, Angel Halo, Primarchs)
+- `/gbf daily:host` — **All 16 Daily Raids** (HL + Magna 3 + Six Dragons)
+- `/gbf daily:hostgb` — **Gold Bar Daily Raids Only** (PBHL + Akasha + GOHL + Lindwurm)
+- `/gbf daily:routine` — **Full Daily Chores** (Pro Skips + Rupie Gacha + Skyscope + Casino)
+- `/gbf <preset> [runs]` — Direct raid or leech run (e.g. `/gbf gb-akasha 250`, `/gbf leech:leviathan`)
+- `/gbf stop` — Gracefully stops running job and returns to `#mypage`
+- `/gbf status` — Displays running job, PID, and terminal snippet
+- `/gbf logs` — Fetches last 15 lines of output
 
 ---
 

@@ -47,6 +47,7 @@ async function runDailyForAccount(account: AccountConfig, templateId: string, ru
 
   const template = TemplateParser.loadTemplate(templateId);
   const cdp = new CdpConnectionManager();
+  let activePage: any = null;
 
   try {
     const conn = await cdp.connectWithRetry(6, 2000, !isWindowed, {
@@ -55,7 +56,7 @@ async function runDailyForAccount(account: AccountConfig, templateId: string, ru
       proxy: account.proxy
     });
 
-    let activePage = conn.page;
+    activePage = conn.page;
 
     // Verify in-game authentication on #profile (handles automated/on-demand login if required)
     const profile = await AccountAuthManager.ensureAuthenticated(activePage, account);
@@ -95,11 +96,28 @@ async function runDailyForAccount(account: AccountConfig, templateId: string, ru
     });
 
     process.removeListener('SIGINT', sigintHandler);
+    try {
+      if (activePage && !activePage.isClosed()) {
+        const url = activePage.url();
+        if (!url.includes('#mypage') && !url.includes('#authentication')) {
+          console.log('[DailyCLI] 🏠 Returning browser safely to homescreen (#mypage)...');
+          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
+        }
+      }
+    } catch {}
     await cdp.disconnect();
     return { account: account.name, success: true, summary };
 
   } catch (err: any) {
     console.error(`\n🚨 [DailyCLI] Execution Failed for [${account.name}]:`, err.message);
+    try {
+      if (activePage && !activePage.isClosed()) {
+        const url = activePage.url();
+        if (!url.includes('#mypage') && !url.includes('#authentication')) {
+          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
+        }
+      }
+    } catch {}
     await cdp.disconnect().catch(() => null);
     return { account: account.name, success: false, error: err.message };
   }

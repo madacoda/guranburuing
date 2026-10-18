@@ -3,8 +3,25 @@
 # Allows you to view, click, type, log in, and solve CAPTCHAs directly on the VPS!
 
 param(
-    [string]$VpsHost = $(if ($env:VPS_HOST) { $env:VPS_HOST } elseif ($env:VPS_IP) { $env:VPS_IP } else { "localhost" }),
-    [string]$User = $(if ($env:VPS_USER) { $env:VPS_USER } else { "root" }),
+    [string]$VpsHost = $(
+        $target = if ($env:VPS_HOST) { $env:VPS_HOST } elseif ($env:VPS_IP) { $env:VPS_IP } else { $null }
+        if (-not $target -and (Test-Path ".env")) {
+            Get-Content ".env" | ForEach-Object {
+                if ($_ -match "^\s*VPS_IP\s*=\s*(.+)$") { $target = $matches[1].Trim().Trim('"').Trim("'") }
+                if ($_ -match "^\s*VPS_HOST\s*=\s*(.+)$") { $target = $matches[1].Trim().Trim('"').Trim("'") }
+            }
+        }
+        if ($target) { $target } else { "localhost" }
+    ),
+    [string]$User = $(
+        $u = if ($env:VPS_USER) { $env:VPS_USER } else { $null }
+        if (-not $u -and (Test-Path ".env")) {
+            Get-Content ".env" | ForEach-Object {
+                if ($_ -match "^\s*VPS_USER\s*=\s*(.+)$") { $u = $matches[1].Trim().Trim('"').Trim("'") }
+            }
+        }
+        if ($u) { $u } else { "root" }
+    ),
     [int]$RemotePort = 9222,
     [int]$LocalPort = 9222
 )

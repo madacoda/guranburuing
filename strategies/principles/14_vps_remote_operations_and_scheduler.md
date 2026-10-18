@@ -141,17 +141,25 @@ Operators can toggle the background scheduler on the fly via Discord:
 
 ## 5. Discord Operator Command Reference
 
-| Command | Shorthand | Description |
+| Command | Alias / Variation | Description |
 | :--- | :--- | :--- |
-| `/gbf daily` | `/run daily` | Immediately launches the chained daily reset routine (Pro Skips → 16 Hosts → Retry). |
-| `/gbf scheduler:off` | `/scheduler off` | Pauses autonomous 05:00 JST execution. |
-| `/gbf scheduler:on` | `/scheduler on` | Resumes autonomous 05:00 JST execution. |
-| `/gbf status` | `/status` | Returns busy/idle state, active job, uptime, scheduler state, and latest terminal output lines. |
-| `/gbf stop` | `/halt` | Gracefully stops the active automation job and unlocks CDP port 9222. |
-| `/gbf logs` | `/logs` | Displays the last 15 lines of live terminal output from `logs/automation.log`. |
-| `/gbf reset` | `/reset` | Displays the exact countdown remaining until the next 05:00:15 JST reset. |
-| `/run <preset>` | — | Runs any whitelisted preset (`gb-pbhl`, `gb-akasha`, `gb-go`, `gb-farm`, `fate`, `leech:colossus`, etc.). |
-| `/gbf help` | `/help` | Displays the operator command manual. |
+| `/gbf daily` | `/gbf run daily`, `/gbf daily:skips` | Launches Universal Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Skyscope, Casino). |
+| `/gbf daily:host` | `/gbf run daily:host` | Launches full 16-Raid Daily Hosting suite (HL, Magna 3, Six Dragons). |
+| `/gbf daily:hostgb` | `/gbf run daily:hostgb`, `/gbf hostgb` | Launches Gold Bar Daily Raids Hosting only (PBHL, Akasha, GOHL, Lindwurm). |
+| `/gbf daily:routine` | `/gbf run daily:routine` | Launches chained daily routine (Pro Skips → 16 Hosts → Self-Healing Retry). |
+| `/gbf gb-akasha` | `/gbf run gb-akasha` | Immediately launches Akasha HL Blue Chest Gold Bar farm. |
+| `/gbf gb-pbhl` | `/gbf run gb-pbhl` | Immediately launches Proto Bahamut HL Blue Chest Gold Bar farm. |
+| `/gbf gb-go` | `/gbf run gb-go` | Immediately launches Grand Order HL Blue Chest Gold Bar farm. |
+| `/gbf gb-farm` | `/gbf run gb-farm` | Immediately launches Tri-Raid Blue Chest Gold Bar rotator (PBHL → Akasha → GOHL). |
+| `/gbf <preset>` | `/gbf run <preset>` | Runs any whitelisted preset or template (`fate`, `leech:colossus`, `leech-leviathan-mare`, `raid-wilnas`, etc.). |
+| `/gbf scheduler:off` | `/gbf scheduler off` | Pauses autonomous 05:00 JST execution. |
+| `/gbf scheduler:on` | `/gbf scheduler on` | Resumes autonomous 05:00 JST execution. |
+| `/gbf status` | `/gbf` | Returns busy/idle state, active job, uptime, scheduler state, and latest terminal output lines. |
+| `/gbf stop` | `/gbf halt` | Gracefully stops the active automation job and unlocks CDP port 9222. |
+| `/gbf logs` | `/gbf log` | Displays the last 15 lines of live terminal output from `logs/automation.log`. |
+| `/gbf inventory` | `/gbf supplies` | Displays current Gold Bar, Elixir, Berry, and Moon supplies. |
+| `/gbf reset` | `/gbf next` | Displays the exact countdown remaining until the next 05:00:15 JST reset. |
+| `/gbf help` | — | Displays the operator command manual. |
 
 ---
 
@@ -228,3 +236,142 @@ Every stdout and stderr line emitted by spawned automation jobs is captured and 
    - Preserved in RAM to provide sub-second responses when the operator sends `/gbf status` or `/gbf logs` from Discord without disk I/O thrashing.
 3. **Exit Summary Webhook**:
    - When a job terminates (success or failure), an exit notification is dispatched with total duration and the final lines of error output if applicable.
+
+---
+
+## 8. Mid-Execution Stoppage & Diagnostic Reporting Architecture
+
+When an automation job stops in the middle of execution, the operator must immediately know:
+1. **That the task stopped mid-way** (rather than running indefinitely or completing successfully).
+2. **The exact root cause** of the stoppage (operator manual cancel, CAPTCHA timeout, expired session, daily limit, maintenance, or crash).
+3. **The current state of the account and browser** (whether the session is preserved, whether the browser returned to `#mypage`, and whether CDP port 9222 is unlocked).
+4. **Actionable recovery instructions** (the exact command to resolve the issue or resume).
+
+```mermaid
+flowchart TD
+    JobExit[Child Process Close Event] --> Analyze[Output Buffer & Operator Signal Analysis]
+    Analyze --> IsOp{job.stoppedByOperator?}
+    IsOp -- Yes --> OpReport[🛑 Automation Stopped in Progress: Operator Cancelled]
+    IsOp -- No --> IsCap{Buffer contains CAPTCHA / SENTINEL_HALT?}
+    IsCap -- Yes --> CapReport[🛑 Automation Stopped in Progress: CAPTCHA Wait Timed Out]
+    IsCap -- No --> IsAuth{Buffer contains session expired / re-auth?}
+    IsAuth -- Yes --> AuthReport[⚠️ Automation Stopped in Progress: Session Expired]
+    IsAuth -- No --> IsLimit{Buffer contains daily limit / no mats?}
+    IsLimit -- Yes --> LimitReport[ℹ️ Automation Concluded: Daily Limits Reached]
+    IsLimit -- No --> IsMaint{Buffer contains maintenance?}
+    IsMaint -- Yes --> MaintReport[🛠️ Automation Stopped: Game Under Maintenance]
+    IsMaint -- No --> IsZero{Exit Code 0?}
+    IsZero -- Yes --> SuccessReport[🏁 Automation Completed Successfully]
+    IsZero -- No --> ErrorReport[⚠️ Automation Stopped in Progress: Unexpected Error]
+    
+    OpReport & CapReport & AuthReport & LimitReport & MaintReport & SuccessReport & ErrorReport --> DM[Dispatch Rich Diagnostic Report to Discord DM]
+```
+
+### Diagnostic Stoppage Categories:
+- **Operator Cancelled (`/gbf stop`)**: Reports PID, elapsed runtime, and confirms that the browser is cleanly seated at homescreen (`#mypage`) with port 9222 released.
+- **CAPTCHA Wait Timed Out**: Explicitly states that verification puzzle timed out after 10 minutes, reports player identity, confirms session was **NOT logged out**, and instructs how to solve via `bun run vps:login` or resume via Discord.
+- **Session Expired**: Informs operator that cookies need renewal and recommends running `bun run session:sync acc1` from local PC.
+- **Daily Limits Reached**: Explains that all available daily hosts were cleared or host treasures exhausted.
+- **Unexpected Error**: Formats the last 4-5 terminal output lines showing the exact exception trace.
+
+---
+
+## 9. In-Game CAPTCHA Timeout Safety & Non-Logout Policy
+
+### The Non-Logout Golden Rule:
+> **Under NO circumstances should a failed or timed-out CAPTCHA trigger a session logout, cookie deletion, or redirect to `#authentication`.**
+
+### Failure Mode & Why It Occurred Previously:
+1. When a CAPTCHA appeared during combat farming, Granblue's client froze interaction.
+2. If the user did not answer the Discord DM challenge within 10 minutes, the watchdog timed out.
+3. Leaving the browser hanging on an active CAPTCHA iframe caused Cygames' backend to drop `midship`, kicking the client to `#top`.
+4. Subsequent automation runs saw `#top`, attempted to restore from an outdated cookie file, and entered an authentication failure loop.
+
+### The Defensive Architecture:
+In [src/sentinel-watchdog.ts](file:///c:/laragon/www/guranburuing/src/sentinel-watchdog.ts):
+1. **Immediate Safe Return**: When `waitForUserToSolveCaptcha` reaches its 10-minute timeout, [safelyReturnToHomescreenWithoutLogout()](file:///c:/laragon/www/guranburuing/src/sentinel-watchdog.ts) navigates the page back to `https://game.granbluefantasy.jp/#mypage`.
+2. **Zero Cookie Mutation**: Cookies in SQLite and CDP are preserved completely untouched. No `c.logout()`, `Network.clearBrowserCookies`, or auth button clicks are ever issued.
+3. **Emergency Alert**: A dedicated Discord DM notification is fired alerting the user:
+   ```
+   🛑 Automation Stopped in Progress: CAPTCHA Wait Timed Out
+   • Player: 『Hamada』 (acc1)
+   • Reason: Verification puzzle appeared and timed out after 10 minutes without resolution.
+   • Action Taken: Safely stopped running automation and returned browser to Homescreen (#mypage).
+   • Session Status: 🛡️ Session Preserved (NOT logged out).
+   • Next Steps: Solve challenge directly via bun run vps:login or launch next task with /gbf <command>.
+   ```
+4. **Clean Process Exit**: The runner releases port 9222 cleanly, allowing immediate operator reconnection.
+
+---
+
+## 10. Seamless Session Synchronization & VPS Login Workflows
+
+There are two verified, reliable ways to maintain an authenticated Granblue session on the VPS:
+
+### Method 1: 1-Click Cookie Synchronizer (Local ➔ VPS)
+Captures cookies from your authenticated local browser and transfers them directly into the VPS Chrome instance via SSH/SCP:
+
+```bash
+# On local Windows PC:
+bun run session:sync acc1 --ssh
+```
+
+**Technical Pipeline**:
+1. [scripts/export-session.ts](file:///c:/laragon/www/guranburuing/scripts/export-session.ts) attaches to local Chrome on port 9222, extracting all 28+ cookies across `granbluefantasy.jp`, `mobage.jp`, and `sp.mbga.jp` (including `midship`, `access_gbtk`, `CSSID`, `CSID_P`, `USE_CHIPS`, and `CTID_P`).
+2. [scripts/sync-session.ts](file:///c:/laragon/www/guranburuing/scripts/sync-session.ts) transfers the JSON jar via `scp` using direct process arguments (bypassing Windows `cmd.exe` shell splitting).
+3. The remote VPS executes [src/cli/import-cookies.ts](file:///c:/laragon/www/guranburuing/src/cli/import-cookies.ts), injecting standard and CHIPS partitioned cookies, navigating to `#mypage`, and verifying `window.Game.userId`.
+
+### Method 2: Interactive Remote Mirror (`bun run vps:login`)
+Logs directly into the VPS browser from your desktop PC through an encrypted SSH tunnel, registering the session natively under the VPS's public IP address:
+
+```powershell
+# On local Windows PC:
+bun run vps:login
+# or
+.\scripts\vps-browser.ps1
+```
+
+**What it does**:
+1. Automatically parses `.env` to read `VPS_IP`.
+2. Establishes an SSH tunnel forwarding VPS port 9222 to local `localhost:9222`.
+3. Opens local Chrome to `chrome://inspect`.
+4. Under **Remote Target**, click **"inspect"** next to **Granblue Fantasy**.
+5. You see the live remote browser canvas. Click buttons, enter Mobage credentials, or solve CAPTCHA puzzles using your mouse and keyboard. All session cookies are saved directly into the VPS profile directory (`/var/www/guranburuing/data/accounts/acc1`).
+
+---
+
+## 11. Production Operational Cheat Sheet & Discord Command Reference
+
+All commands require the strict `/gbf` prefix. Messages without this prefix are ignored.
+
+### Core Automation Commands:
+| Discord Command | Function | Target Script |
+| :--- | :--- | :--- |
+| `/gbf daily` | **Pro Skips Only** (Hard+, Omega, Omega HL, Regalia, Angel Halo, Primarch) | `src/cli/run-daily.ts` |
+| `/gbf daily:host` | **All 16 Daily Raids** (HL + Magna 3 + Six Dragons) | `src/cli/run-daily-host.ts` |
+| `/gbf daily:hostgb` | **Gold Bar Daily Raids Only** (PBHL + Akasha + GOHL + Lindwurm) | `src/cli/run-daily-host.ts hl` |
+| `/gbf daily:routine` | **Universal Routine** (Pro Skips + Rupie Gacha + Skyscope + Casino) | `src/cli/run-daily-routine.ts` |
+| `/gbf <preset> [runs]` | Run any raid, leech, or combat preset directly | e.g. `bun src/cli/run-workflow.ts` |
+| `/gbf stop` (or `/gbf halt`) | Gracefully terminate the running task and return safely to `#mypage` | `processRunnerService.stopActiveProcess()` |
+| `/gbf status` | Display active job name, PID, uptime, and live terminal snippet | Internal Status Reporter |
+| `/gbf logs` | Fetch the last 15 lines of live terminal output | Output Buffer Reader |
+| `/gbf inventory` | Audit Gold Bars, Half-Elixirs, Soul Berries, and Moons | `src/cli/run-inventory-audit.ts` |
+| `/gbf reset` | Countdown to the 05:00 JST daily reset | JST Math Calculator |
+| `/gbf scheduler:off` | Pause the autonomous 05:00 JST daily trigger | Scheduler Daemon |
+| `/gbf scheduler:on` | Resume the autonomous 05:00 JST daily trigger | Scheduler Daemon |
+| `/gbf help` | Display full operational manual | Gateway Manual |
+
+### Direct Combat & Leech Presets:
+- `/gbf gb-akasha 250` — Farm Akasha HL (250 runs)
+- `/gbf gb-pbhl 100` — Farm Proto Bahamut HL
+- `/gbf gb-go 100` — Farm Grand Order HL
+- `/gbf gb-farm 500` — Multi-Raid Rotator (PBHL + Akasha + GOHL)
+- `/gbf leech:leviathan` — Leech Leviathan Mare (M3 Water)
+- `/gbf leech:tiamat` — Leech Tiamat Aura (M3 Wind)
+- `/gbf leech:colossus` — Leech Colossus Ira (M3 Fire)
+- `/gbf leech:faahl` — Leech Lucilius Hard
+- `/gbf leech:bubz` — Leech Beelzebub
+- `/gbf leech:belial` — Leech Belial
+- `/gbf fate` — Farm 10 unread character Fate episodes
+- `/gbf farm:human` — Human behavioral cadence farming with rest gaps
+

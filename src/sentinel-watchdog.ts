@@ -463,7 +463,8 @@ export class SentinelWatchdog {
     if (this.isLocked) {
       const resolved = await this.handleVerificationChallenge();
       if (!resolved) {
-        throw new Error('SENTINEL_LOCKED: Automation frozen awaiting human manual resolution.');
+        await this.safelyReturnToHomescreenWithoutLogout();
+        throw new Error('SENTINEL_LOCKED: Automation frozen awaiting human manual resolution. Returned to homescreen without logout.');
       }
       return;
     }
@@ -472,7 +473,8 @@ export class SentinelWatchdog {
     if (hasCaptcha) {
       const resolved = await this.handleVerificationChallenge();
       if (!resolved) {
-        throw new Error('SENTINEL_HALT: Captcha detected and not resolved. Execution terminated to protect account.');
+        await this.safelyReturnToHomescreenWithoutLogout();
+        throw new Error('SENTINEL_HALT: Captcha detected and not resolved. Automation safely stopped and returned to homescreen without logout.');
       }
     }
   }
@@ -862,7 +864,47 @@ export class SentinelWatchdog {
     }
 
     console.error(`[Sentinel] ❌ Captcha wait timed out after ${Math.round(timeoutMs / 60000)} minutes.`);
+
+    // User directive: on failed CAPTCHA timeout, do NOT log out; return safely to homescreen (#mypage)
+    await this.safelyReturnToHomescreenWithoutLogout();
+
+    if (discordDmRelay.isConfigured()) {
+      const displayName = this.sessionContext.playerName
+        ? `${this.sessionContext.playerName}${this.sessionContext.accountId && this.sessionContext.accountId !== this.sessionContext.playerName ? ` (${this.sessionContext.accountId})` : ''}`
+        : (this.sessionContext.accountId || 'Player');
+      await discordDmRelay.sendMessage(
+        `🛑 **Automation Stopped in Progress: CAPTCHA Wait Timed Out**\n\n` +
+        `• **Player**: **${displayName}**\n` +
+        `• **Reason**: Verification puzzle appeared during runs and timed out after ${Math.round(timeoutMs / 60000)} minutes without resolution.\n` +
+        `• **Action Taken**: Safely stopped running automation and returned browser to Homescreen (\`#mypage\`).\n` +
+        `• **Session Status**: 🛡️ Session Preserved (NOT logged out).\n` +
+        `• **Next Steps**: Solve challenge directly via \`bun run vps:login\` or launch your next task with \`/gbf <command>\` when ready.`
+      ).catch(() => null);
+    }
+
     return false;
+  }
+
+  /**
+   * Safely returns the browser to the homescreen (#mypage) without triggering logout.
+   * Dismisses any active verification overlay while strictly preserving all session cookies and tokens.
+   */
+  public async safelyReturnToHomescreenWithoutLogout(): Promise<void> {
+    try {
+      console.log('[Sentinel] 🏠 Safely navigating browser to homescreen (#mypage) without logout...');
+      if (this.page && typeof this.page.goto === 'function') {
+        const currentUrl = typeof this.page.url === 'function' ? this.page.url() : '';
+        if (!currentUrl.includes('#mypage') && !currentUrl.includes('#authentication')) {
+          await this.page.goto('https://game.granbluefantasy.jp/#mypage', {
+            waitUntil: 'domcontentloaded',
+            timeout: 15000
+          }).catch(() => null);
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Sentinel] Notice returning to homescreen:', e.message);
+    }
   }
 
   /**

@@ -85,7 +85,7 @@ async function syncViaSsh(host: string): Promise<boolean> {
   const scpRes = spawnSync('scp', [
     cookieFile,
     `root@${host}:${remoteWorkingDir}/data/${accountId}-cookies.json`
-  ], { stdio: 'inherit', shell: true });
+  ], { stdio: 'inherit', shell: false });
 
   if (scpRes.status !== 0) {
     console.error(`\n❌ SCP transfer failed with exit code ${scpRes.status}.`);
@@ -97,7 +97,7 @@ async function syncViaSsh(host: string): Promise<boolean> {
   const sshRes = spawnSync('ssh', [
     `root@${host}`,
     remoteCmd
-  ], { stdio: 'inherit', shell: true });
+  ], { stdio: 'inherit', shell: false });
 
   if (sshRes.status === 0) {
     console.log('\n========================================================================');

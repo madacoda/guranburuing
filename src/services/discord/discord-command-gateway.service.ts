@@ -74,12 +74,15 @@ export class DiscordCommandGatewayService {
         'Autonomous controller initialized and listening in secure private session.\n' +
         `• **Daily Scheduler**: 🟢 ACTIVE (Next: \`${schedInfo.nextResetJstString}\` / **${schedInfo.formattedCountdown}**)\n` +
         '• **Quick Commands**:\n' +
-        '  - `/gbf daily` — Launch daily reset routine immediately\n' +
+        '  - `/gbf daily` — Launch daily Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Casino)\n' +
+        '  - `/gbf daily:host` — Launch full 16-raid Daily Hosting suite (HL, Magna 3, Dragons)\n' +
+        '  - `/gbf daily:hostgb` — Host Gold Bar daily raids only (PBHL, Akasha, GOHL, Lindwurm)\n' +
+        '  - `/gbf gb-akasha` — Akasha Blue Chest Gold Bar Farm\n' +
+        '  - `/gbf gb-pbhl` — PBHL Blue Chest Gold Bar Farm\n' +
         '  - `/gbf scheduler:off` / `/gbf scheduler:on` — Pause/resume 05:00 JST scheduler\n' +
         '  - `/gbf status` — View active job, scheduler state, and terminal output\n' +
         '  - `/gbf stop` — Halt current active task\n' +
-        '  - `/gbf logs` — View recent terminal logs\n' +
-        '  - `/gbf help` — Display command list'
+        '  - `/gbf help` — Display full command list'
       );
     } catch (err: any) {
       console.warn(`[CommandGateway] Could not send initial greeting: ${err.message}`);
@@ -268,71 +271,70 @@ export class DiscordCommandGatewayService {
       return;
     }
 
-    let text = msg.content.trim();
-    if (!text) return;
+    const raw = msg.content.trim();
+    if (!raw) return;
 
-    console.log(`[CommandGateway] 📩 Operator Command received: "${text}"`);
-
-    // Normalize "/gbf <cmd>" to standard command format
-    if (text.startsWith('/gbf ') || text.startsWith('gbf ') || text === '/gbf' || text === 'gbf') {
-      text = text.replace(/^\/?gbf\s*/i, '').trim();
-      if (!text) text = 'status';
+    // STRICT PREFIX FILTER: Only listen to commands with prefix /gbf
+    if (!/^\/gbf([\s:]+.*|$)/i.test(raw)) {
+      // Silently discard any message that does not start with /gbf
+      return;
     }
 
-    const lower = text.toLowerCase();
+    console.log(`[CommandGateway] 📩 Operator Command received: "${raw}"`);
+
+    // Extract command body after /gbf prefix
+    let commandBody = raw.replace(/^\/gbf[\s:]*/i, '').trim();
+
+    // Default to 'status' if /gbf sent alone
+    if (!commandBody) {
+      commandBody = 'status';
+    }
+
+    // Strip optional redundant "run" keyword (e.g. "/gbf run daily" -> "daily", "/gbf run gb-akasha" -> "gb-akasha")
+    if (/^run[\s:]+/i.test(commandBody)) {
+      commandBody = commandBody.replace(/^run[\s:]+/i, '').trim();
+    }
+
+    const parts = commandBody.split(/\s+/).filter(p => p.length > 0);
+    const action = parts[0]?.toLowerCase() || 'status';
+    const extraArgs = parts.slice(1);
 
     // 2. Dispatch to command handlers
-    if (lower === 'scheduler:off' || lower === '/scheduler:off' || lower === 'scheduler off' || lower === '/scheduler off') {
+    if (action === 'scheduler:off' || (action === 'scheduler' && extraArgs[0]?.toLowerCase() === 'off')) {
       await this.handleSchedulerToggle(false);
-    } else if (lower === 'scheduler:on' || lower === '/scheduler:on' || lower === 'scheduler on' || lower === '/scheduler on') {
+    } else if (action === 'scheduler:on' || (action === 'scheduler' && extraArgs[0]?.toLowerCase() === 'on')) {
       await this.handleSchedulerToggle(true);
-    } else if (lower === 'daily' || lower === '/daily' || lower.startsWith('daily ') || lower.startsWith('/daily ')) {
-      await this.handleRunCommand(`/run ${text.replace(/^\/?daily\s*/i, 'daily ')}`);
-    } else if (lower.startsWith('/run') || lower.startsWith('run')) {
-      await this.handleRunCommand(text);
-    } else if (lower === '/status' || lower === 'status') {
+    } else if (action === 'status') {
       await this.handleStatusCommand();
-    } else if (lower === '/stop' || lower === '/halt' || lower === 'stop' || lower === 'halt') {
+    } else if (action === 'stop' || action === 'halt') {
       await this.handleStopCommand();
-    } else if (lower === '/reset' || lower === '/next' || lower === 'next' || lower === 'reset') {
+    } else if (action === 'reset' || action === 'next') {
       await this.handleResetInfoCommand();
-    } else if (lower === '/logs' || lower === 'logs' || lower === '/log' || lower === 'log') {
+    } else if (action === 'logs' || action === 'log') {
       await this.handleLogsCommand();
-    } else if (lower === '/inventory' || lower === 'inventory' || lower === '/supplies' || lower === 'supplies') {
+    } else if (action === 'inventory' || action === 'supplies') {
       await this.handleInventoryCommand();
-    } else if (lower === '/farm:human' || lower === 'farm:human' || lower === '/human' || lower === 'human') {
-      await this.handleRunCommand('/run farm:human');
-    } else if (lower === '/help' || lower === 'help') {
+    } else if (action === 'farm:human' || action === 'human') {
+      await this.handleRunCommand('farm:human', extraArgs);
+    } else if (action === 'help') {
       await this.handleHelpCommand();
-    } else if (COMMAND_WHITELIST[lower.replace(/^\//, '')]) {
-      // Direct command like "gb-pbhl" or "/gb-pbhl"
-      await this.handleRunCommand(`/run ${text.replace(/^\//, '')}`);
     } else {
-      await discordDmRelay.sendMessage(
-        `❓ **Unknown Command**: \`${msg.content.trim()}\`\nType \`/help\` or \`/gbf help\` to view all available commands.`
-      );
+      // Execute whitelisted preset or template (e.g. "daily", "gb-akasha", "gb-pbhl", "leech", "workflow")
+      await this.handleRunCommand(action, extraArgs);
     }
   }
 
   /**
-   * Handles `/run <target> [args]` command.
+   * Handles `/gbf <target> [args]` command.
    */
-  private async handleRunCommand(rawText: string): Promise<void> {
-    const parts = rawText.split(/\s+/).filter(p => p.length > 0);
-    // Remove leading '/run' or 'run'
-    parts.shift();
-
-    if (parts.length === 0) {
+  private async handleRunCommand(targetKey: string, extraArgs: string[] = []): Promise<void> {
+    if (!targetKey) {
       await discordDmRelay.sendMessage(
-        '⚠️ **Usage**: `/run <command>`\n\n' +
-        'Example: `/run daily` or `/run gb-pbhl`\n' +
-        'Type `/help` to see all available presets.'
+        '⚠️ **Usage**: `/gbf <command>` (e.g. `/gbf daily`, `/gbf gb-akasha`)\n' +
+        'Send `/gbf help` to view all available commands.'
       );
       return;
     }
-
-    const targetKey = parts[0].toLowerCase();
-    const extraArgs = parts.slice(1);
 
     const result = await processRunnerService.startCommand(targetKey, extraArgs);
     await discordDmRelay.sendMessage(result.message);
@@ -356,7 +358,7 @@ export class DiscordCommandGatewayService {
         '• **CDP Port**: 9222 (Unlocked & Ready)',
         `• **Daily Scheduler**: ${schedStatusStr}`,
         '',
-        '👉 Send `/gbf daily` to launch a task, or `/help` for command list.'
+        '👉 Send `/gbf daily` to launch a task, or `/gbf help` for command list.'
       ].join('\n');
 
       await discordDmRelay.sendMessage(response);
@@ -377,7 +379,7 @@ export class DiscordCommandGatewayService {
       '**Latest Terminal Output:**',
       lastOutputSnippet,
       '',
-      '👉 Send `/stop` or `/halt` if you wish to terminate this job.'
+      '👉 Send `/gbf stop` or `/gbf halt` if you wish to terminate this job.'
     ].join('\n');
 
     await discordDmRelay.sendMessage(response);
@@ -464,7 +466,7 @@ export class DiscordCommandGatewayService {
       await discordDmRelay.sendMessage(
         '🔍 No cached inventory snapshot found. Launching live in-game inventory audit job on port 9222...'
       );
-      await this.handleRunCommand('/run inventory');
+      await this.handleRunCommand('inventory');
     }
   }
 
@@ -474,60 +476,129 @@ export class DiscordCommandGatewayService {
   private async handleHelpCommand(): Promise<void> {
     const lines = [
       '📖 **GBF Remote Cockpit Commands**',
+      'All commands use the unified `/gbf` prefix:',
       '',
-      '**Workflow & Scheduler Controls:**',
-      '• `/gbf daily` (or `/run daily`) — Launch complete daily reset routine immediately',
-      '• `/gbf scheduler:off` — Pause autonomous 05:00 JST scheduler',
-      '• `/gbf scheduler:on` — Resume autonomous 05:00 JST scheduler',
-      '• `/gbf status` — View active job, scheduler state, and terminal output',
-      '• `/gbf stop` (or `/halt`) — Gracefully terminate running task',
-      '• `/gbf logs` — View last 15 lines of live terminal output',
-      '• `/gbf inventory` — View current Gold Bar, Elixir, Berry, and Moon supplies',
-      '• `/gbf farm:human` — Launch 4-phase human cadence farming (GB + leech + rest + audit)',
-      '• `/gbf reset` — View countdown to next 05:00 JST daily reset',
+      '**Quick Routine & Farming Commands:**',
+      '• `/gbf daily` (or `/gbf run daily`) — Universal Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Casino)',
+      '• `/gbf daily:host` — Complete 16-Raid Daily Hosting Suite (HL, Magna 3, Dragons)',
+      '• `/gbf daily:hostgb` — Daily Gold Bar Raids Hosting only (PBHL, Akasha, GOHL, Lindwurm)',
+      '• `/gbf daily:routine` — Chained Daily Reset Routine (Pro Skips → 16 Hosts → Retry)',
+      '• `/gbf gb-akasha` — Akasha HL Blue Chest Gold Bar Farm',
+      '• `/gbf gb-pbhl` — Proto Bahamut HL Blue Chest Gold Bar Farm',
+      '• `/gbf gb-go` — Grand Order HL Blue Chest Gold Bar Farm',
+      '• `/gbf gb-farm` — Tri-Raid Blue Chest Gold Bar Rotation (PBHL → Akasha → GOHL)',
+      '• `/gbf farm:human` — Human behavioral cadence farming (GB + leech + rest + audit)',
+      '• `/gbf fate` — Autonomous Fate Episode Skip (10 episodes)',
+      '• `/gbf inventory` — In-Game Inventory & Supply Audit (#item Gold Bars, Pots, Berries, Moons)',
+      '• `/gbf goldbar` — Gold Bar drops & battle audit summary',
+      '• `/gbf leech <raid>` — Fast leech raid (e.g. `/gbf leech colossus-ira`, `/gbf leech:tiamat`)',
+      '• `/gbf workflow <template>` — Run template (e.g. `/gbf workflow raid-wilnas`)',
       '',
-      '**Available `/run <preset>` Presets:**'
+      '**Available Preset Tasks (`/gbf <preset>`):**'
     ];
 
     for (const [key, preset] of Object.entries(COMMAND_WHITELIST)) {
-      lines.push(`• \`/run ${key}\` — ${preset.description}`);
+      lines.push(`• \`/gbf ${key}\` — ${preset.description}`);
     }
 
     lines.push(
       '',
-      '**System Controls:**',
-      '• `/status` — View current running job, PID, uptime, and terminal output',
-      '• `/stop` (or `/halt`) — Gracefully terminate active running task',
-      '• `/reset` — View exact countdown until next 05:00 JST GBF daily reset',
-      '• `/help` — Display this manual'
+      '**System & Scheduler Controls:**',
+      '• `/gbf status` — View running job, PID, uptime, and terminal output',
+      '• `/gbf stop` (or `/gbf halt`) — Gracefully terminate active running task',
+      '• `/gbf scheduler:off` — Pause autonomous 05:00 JST scheduler',
+      '• `/gbf scheduler:on` — Resume autonomous 05:00 JST scheduler',
+      '• `/gbf reset` (or `/gbf next`) — View countdown to next 05:00 JST daily reset',
+      '• `/gbf logs` — View last 15 lines of live terminal output',
+      '• `/gbf help` — Display this manual'
     );
 
     await discordDmRelay.sendMessage(lines.join('\n'));
   }
 
   /**
-   * Dispatches summary notification upon background job completion.
+   * Dispatches summary notification upon background job completion or mid-execution stoppage.
+   * Informs operator with exact root cause, account state, and actionable recovery commands.
    */
   private async notifyJobCompletion(job: ActiveJob, exitCode: number | null, durationMs: number): Promise<void> {
     const durationSec = Math.round(durationMs / 1000);
     const durStr = `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`;
-    const isSuccess = exitCode === 0;
+    const buffer = job.outputBuffer;
 
-    const lastLines = job.outputBuffer.slice(-4).join('\n');
-    const snippet = lastLines.length > 0 ? `\`\`\`\n${lastLines}\n\`\`\`` : '';
+    // Detect stoppage cause from runtime output buffer and operator signals
+    const isCaptchaHalt = buffer.some(l => /CAPTCHA|SENTINEL_HALT|Captcha wait timed out|VERIFICATION CHALLENGE/i.test(l));
+    const isSessionExpired = buffer.some(l => /session has expired|re-authentication|could not be authenticated/i.test(l));
+    const isDailyLimit = buffer.some(l => /daily host limit reached|insufficient materials|host treasure|0 daily hosts remaining/i.test(l));
+    const isMaintenance = buffer.some(l => /under maintenance|Maintenance Announcement/i.test(l));
+    const isOperatorStopped = !!job.stoppedByOperator || buffer.some(l => /Terminating job|Ctrl\+C detected|Stop requested/i.test(l));
+    const isSuccess = exitCode === 0 && !isOperatorStopped && !isCaptchaHalt && !isSessionExpired;
 
-    const lines = [
-      isSuccess ? '🏁 **Automation Job Finished**' : '⚠️ **Automation Job Halted with Errors**',
-      `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
-      `• **Result**: ${isSuccess ? '✅ Success (Exit Code 0)' : `❌ Exit Code ${exitCode}`}`,
-      `• **Duration**: \`${durStr}\``
-    ];
+    const lines: string[] = [];
 
-    if (snippet) {
-      lines.push('', '**Terminal Summary:**', snippet);
+    if (isOperatorStopped) {
+      lines.push(
+        '🛑 **Automation Stopped in Progress: Operator Cancelled**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Reason**: Stopped in the middle of execution via operator command (\`/gbf stop\`).`,
+        `• **Duration**: \`${durStr}\``,
+        `• **Account State**: 🏠 Safe at homescreen (\`#mypage\`). Session preserved.`
+      );
+    } else if (isCaptchaHalt) {
+      lines.push(
+        '🛑 **Automation Stopped in Progress: CAPTCHA Challenge Timed Out**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Reason**: Verification puzzle appeared during runs and timed out without being resolved.`,
+        `• **Duration**: \`${durStr}\``,
+        `• **Action Taken**: Execution halted to protect account. Browser returned safely to Homescreen (\`#mypage\`).`,
+        `• **Session Status**: 🛡️ Session preserved (NOT logged out).`,
+        `• **Next Steps**: Solve challenge via \`bun run vps:login\` or run next task with \`/gbf <command>\` when ready.`
+      );
+    } else if (isSessionExpired) {
+      lines.push(
+        '⚠️ **Automation Stopped in Progress: Session Expired**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Reason**: Account session expired or requires fresh authentication.`,
+        `• **Duration**: \`${durStr}\``,
+        `• **Next Steps**: Synchronize session from local PC with \`bun run session:sync acc1\` or log in via \`bun run vps:login\`.`
+      );
+    } else if (isDailyLimit) {
+      lines.push(
+        'ℹ️ **Automation Concluded: Daily Limits Reached**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Reason**: Daily hosting limits reached or host materials depleted for today.`,
+        `• **Duration**: \`${durStr}\``,
+        `• **Next Steps**: Check inventory with \`/gbf inventory\` or view next reset with \`/gbf reset\`.`
+      );
+    } else if (isMaintenance) {
+      lines.push(
+        '🛠️ **Automation Stopped: Game Under Maintenance**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Reason**: Granblue Fantasy servers are currently undergoing scheduled maintenance.`,
+        `• **Duration**: \`${durStr}\``
+      );
+    } else if (isSuccess) {
+      lines.push(
+        '🏁 **Automation Completed Successfully**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Result**: ✅ Finished cleanly (Exit Code 0)`,
+        `• **Duration**: \`${durStr}\``
+      );
+    } else {
+      lines.push(
+        '⚠️ **Automation Stopped in Progress: Unexpected Error**',
+        `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
+        `• **Result**: ❌ Exited with code ${exitCode}`,
+        `• **Duration**: \`${durStr}\``,
+        `• **Reason**: Automation encountered an unexpected error during execution and aborted.`
+      );
     }
 
-    lines.push('', 'CDP Port 9222 is now released and ready for new commands.');
+    const lastLines = buffer.slice(-4).join('\n');
+    if (lastLines.length > 0) {
+      lines.push('', '**Terminal Summary:**', `\`\`\`\n${lastLines}\n\`\`\``);
+    }
+
+    lines.push('', '🔓 CDP Port 9222 is now released and ready for new commands.');
 
     await discordDmRelay.sendMessage(lines.join('\n'));
   }

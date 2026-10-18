@@ -50,7 +50,7 @@ for (const arg of positionalArgs) {
     assistActivity = lower;
   } else if (registeredAccounts.some(a => a.id.toLowerCase() === lower)) {
     targetAccountStr = registeredAccounts.find(a => a.id.toLowerCase() === lower)!.id;
-  } else if (lower === 'hl' || lower === 'high' || lower === 'goldbrick') {
+  } else if (lower === 'hl' || lower === 'high' || lower === 'goldbrick' || lower === 'gb' || lower === 'hostgb' || lower === 'host:gb') {
     categoryFilter = 'hl';
   } else if (lower === 'm3' || lower === 'magna3' || lower === 'omega3' || lower === 'magna') {
     categoryFilter = 'magna3';
@@ -83,6 +83,7 @@ async function runDailyHostForAccount(account: AccountConfig, options: DailyHost
   console.log('========================================================================\n');
 
   const cdp = new CdpConnectionManager();
+  let activePage: any = null;
 
   try {
     const conn = await cdp.connectWithRetry(6, 2000, !isWindowed, {
@@ -91,7 +92,7 @@ async function runDailyHostForAccount(account: AccountConfig, options: DailyHost
       proxy: account.proxy
     });
 
-    let activePage = conn.page;
+    activePage = conn.page;
 
     // Verify in-game authentication on #profile (handles automated/on-demand login if required)
     const profile = await AccountAuthManager.ensureAuthenticated(activePage, account);
@@ -126,11 +127,28 @@ async function runDailyHostForAccount(account: AccountConfig, options: DailyHost
     const summary = await engine.runDailyHost(options);
 
     process.removeListener('SIGINT', sigintHandler);
+    try {
+      if (activePage && !activePage.isClosed()) {
+        const url = activePage.url();
+        if (!url.includes('#mypage') && !url.includes('#authentication')) {
+          console.log('[DailyHostCLI] 🏠 Returning browser safely to homescreen (#mypage)...');
+          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
+        }
+      }
+    } catch {}
     await cdp.disconnect();
     return { account: account.name, success: true, summary };
 
   } catch (error: any) {
     console.error(`\n[DailyHostCLI] ❌ Fatal error on account [${account.name}]:`, error.message);
+    try {
+      if (activePage && !activePage.isClosed()) {
+        const url = activePage.url();
+        if (!url.includes('#mypage') && !url.includes('#authentication')) {
+          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
+        }
+      }
+    } catch {}
     try { await cdp.disconnect(); } catch {}
     return { account: account.name, success: false, error: error.message };
   }

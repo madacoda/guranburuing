@@ -12,8 +12,13 @@ export interface CommandPreset {
 export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
   'daily': {
     key: 'daily',
-    script: 'src/cli/run-daily-routine.ts',
-    description: 'Chained Universal Pro Skips + Daily Raid Hosting Suite with Self-Healing Retry'
+    script: 'src/cli/run-daily.ts',
+    description: 'Universal Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Skyscope, Casino)'
+  },
+  'daily:skips': {
+    key: 'daily:skips',
+    script: 'src/cli/run-daily.ts',
+    description: 'Universal Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Skyscope, Casino)'
   },
   'daily:routine': {
     key: 'daily:routine',
@@ -25,10 +30,23 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     script: 'src/cli/run-daily-host.ts',
     description: 'Daily Raid Hosting Suite (HL, Magna 3, Six Dragons)'
   },
-  'daily:skips': {
-    key: 'daily:skips',
-    script: 'src/cli/run-daily.ts',
-    description: 'Universal Pro Skips only (Favorites, Hard+, Omega, Halo)'
+  'daily:hostgb': {
+    key: 'daily:hostgb',
+    script: 'src/cli/run-daily-host.ts',
+    defaultArgs: ['hl'],
+    description: 'Daily Gold Bar Raids Hosting only (PBHL, Akasha, GOHL, Lindwurm)'
+  },
+  'daily:host:gb': {
+    key: 'daily:host:gb',
+    script: 'src/cli/run-daily-host.ts',
+    defaultArgs: ['hl'],
+    description: 'Daily Gold Bar Raids Hosting only (PBHL, Akasha, GOHL, Lindwurm)'
+  },
+  'hostgb': {
+    key: 'hostgb',
+    script: 'src/cli/run-daily-host.ts',
+    defaultArgs: ['hl'],
+    description: 'Daily Gold Bar Raids Hosting only (PBHL, Akasha, GOHL, Lindwurm)'
   },
   'gb-pbhl': {
     key: 'gb-pbhl',
@@ -39,19 +57,19 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
   'gb-akasha': {
     key: 'gb-akasha',
     script: 'src/cli/run-workflow.ts',
-    defaultArgs: ['gb-akasha'],
+    defaultArgs: ['acc1', 'gb-akasha'],
     description: 'Akasha HL Blue Chest Gold Bar Farm (1.43M min honor rotation)'
   },
   'gb-go': {
     key: 'gb-go',
     script: 'src/cli/run-workflow.ts',
-    defaultArgs: ['gb-go'],
+    defaultArgs: ['acc1', 'gb-go'],
     description: 'Grand Order HL Blue Chest Gold Bar Farm (1.58M min honor rotation)'
   },
   'gb-farm': {
     key: 'gb-farm',
     script: 'src/cli/run-workflow.ts',
-    defaultArgs: ['gb-farm'],
+    defaultArgs: ['acc1', 'gb-farm'],
     description: 'Tri-Raid Blue Chest Gold Bar Rotation (PBHL -> Akasha -> GOHL)'
   },
   'leech:colossus': {
@@ -154,12 +172,12 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     key: 'workflow',
     script: 'src/cli/run-workflow.ts',
     defaultArgs: ['acc1'],
-    description: 'Run arbitrary workflow template (e.g. /run workflow raid-wilnas)'
+    description: 'Run arbitrary workflow template (e.g. /gbf workflow raid-wilnas)'
   },
   'leech': {
     key: 'leech',
     script: 'src/cli/run-leech.ts',
-    description: 'Run arbitrary raid leech (e.g. /run leech colossus-ira)'
+    description: 'Run arbitrary raid leech (e.g. /gbf leech colossus-ira)'
   },
   'goldbar': {
     key: 'goldbar',
@@ -192,6 +210,7 @@ export interface ActiveJob {
   startedAt: Date;
   process: ChildProcess;
   outputBuffer: string[];
+  stoppedByOperator?: boolean;
 }
 
 export interface ProcessStartResult {
@@ -255,18 +274,43 @@ export class ProcessRunnerService {
       const uptimeStr = `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`;
       return {
         success: false,
-        message: `⚠️ **Process Concurrency Lock**: Job \`${this.activeJob.key}\` (PID ${this.activeJob.pid}) is currently running (${uptimeStr}). Send \`/stop\` or \`/halt\` first before launching a new job.`
+        message: `⚠️ **Process Concurrency Lock**: Job \`${this.activeJob.key}\` (PID ${this.activeJob.pid}) is currently running (${uptimeStr}). Send \`/gbf stop\` or \`/gbf halt\` first before launching a new job.`
       };
     }
 
     // 2. Whitelist Verification: Strictly reject unmapped commands
     const normalizedKey = commandKey.toLowerCase().trim();
-    const preset = COMMAND_WHITELIST[normalizedKey];
+    let preset = COMMAND_WHITELIST[normalizedKey];
+
+    // If not in static whitelist, check if it's an existing template in templates/
+    if (!preset && /^[a-zA-Z0-9_\-.:]+$/.test(normalizedKey)) {
+      const templateFile = normalizedKey.endsWith('.json') ? normalizedKey : `${normalizedKey}.json`;
+      const templatePath = path.resolve(process.cwd(), 'templates', templateFile);
+      if (fs.existsSync(templatePath)) {
+        const baseName = templateFile.replace(/\.json$/i, '');
+        if (baseName.startsWith('leech-')) {
+          preset = {
+            key: baseName,
+            script: 'src/cli/run-leech.ts',
+            defaultArgs: [baseName],
+            description: `Auto-resolved leech workflow (${baseName})`
+          };
+        } else {
+          preset = {
+            key: baseName,
+            script: 'src/cli/run-workflow.ts',
+            defaultArgs: ['acc1', baseName],
+            description: `Auto-resolved template workflow (${baseName})`
+          };
+        }
+      }
+    }
+
     if (!preset) {
       const available = Object.keys(COMMAND_WHITELIST).map(k => `\`${k}\``).join(', ');
       return {
         success: false,
-        message: `❌ **Unknown Command**: \`${commandKey}\` is not in the authorized command whitelist.\n\nAvailable presets: ${available}`
+        message: `❌ **Unknown Command**: \`${commandKey}\` is not in the authorized command whitelist.\n\nAvailable presets: ${available}\n\nType \`/gbf help\` to view all commands.`
       };
     }
 
@@ -332,7 +376,10 @@ export class ProcessRunnerService {
         const durationMs = Date.now() - startedAt.getTime();
         console.log(`[ProcessRunner] 🏁 Job \`${preset.key}\` (PID ${child.pid}) exited with code ${code} in ${(durationMs / 1000).toFixed(1)}s.`);
         
-        const finishedJob = this.activeJob;
+        const finishedJob = this.activeJob || activeJob;
+        if (activeJob.stoppedByOperator && finishedJob) {
+          finishedJob.stoppedByOperator = true;
+        }
         this.activeJob = null;
 
         if (finishedJob) {
@@ -379,6 +426,7 @@ export class ProcessRunnerService {
     }
 
     const { key, pid, process: child } = this.activeJob;
+    this.activeJob.stoppedByOperator = true;
     console.log(`[ProcessRunner] 🛑 Terminating job \`${key}\` (PID ${pid})...`);
 
     try {

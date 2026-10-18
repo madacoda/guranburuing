@@ -26,6 +26,7 @@ async function runTests() {
     'daily',
     'daily:routine',
     'daily:host',
+    'daily:hostgb',
     'daily:skips',
     'gb-pbhl',
     'gb-akasha',
@@ -44,6 +45,11 @@ async function runTests() {
   for (const preset of requiredPresets) {
     assert(Boolean(COMMAND_WHITELIST[preset]), `Whitelist contains preset: "${preset}"`);
   }
+
+  // Verify daily separation: daily = pro skips, daily:host = 16 hosts, daily:hostgb = gb hosts only
+  assert(COMMAND_WHITELIST['daily'].script === 'src/cli/run-daily.ts', 'Preset "daily" executes pro skips only (run-daily.ts)');
+  assert(COMMAND_WHITELIST['daily:host'].script === 'src/cli/run-daily-host.ts', 'Preset "daily:host" executes full daily host suite (run-daily-host.ts)');
+  assert(COMMAND_WHITELIST['daily:hostgb'].script === 'src/cli/run-daily-host.ts' && COMMAND_WHITELIST['daily:hostgb'].defaultArgs?.includes('hl'), 'Preset "daily:hostgb" executes Gold Bar daily hosts only');
 
   // 2. Target File Existence for all presets
   for (const [key, preset] of Object.entries(COMMAND_WHITELIST)) {
@@ -76,7 +82,7 @@ async function runTests() {
     // Simulating message from unauthorized user
     const maliciousMsg = {
       id: '999999999999999999',
-      content: '/run daily',
+      content: '/gbf daily',
       author: {
         id: '123456789012345678', // Unauthorized random ID
         username: 'Attacker',
@@ -94,7 +100,7 @@ async function runTests() {
   {
     const botMsg = {
       id: '888888888888888888',
-      content: '/run daily',
+      content: '/gbf daily',
       author: {
         id: config.DISCORD_USER_ID || '350293029825019915',
         username: 'BotSelf',
@@ -105,6 +111,32 @@ async function runTests() {
 
     await discordCommandGatewayService.handleOperatorMessage(botMsg);
     assert(!processRunnerService.isBusy(), 'Discards message sent with bot flag');
+  }
+
+  // 7. Strict /gbf Prefix Enforcement Filter
+  {
+    const authUserId = config.DISCORD_USER_ID || '350293029825019915';
+
+    // Messages without /gbf prefix MUST be completely ignored (no job, no response)
+    const nonGbfMessages = [
+      '/run daily',
+      '/run gb-akasha',
+      '/daily',
+      'daily',
+      '/status',
+      'status',
+      'hello bot'
+    ];
+
+    for (let i = 0; i < nonGbfMessages.length; i++) {
+      await discordCommandGatewayService.handleOperatorMessage({
+        id: `66666666666666666${i}`,
+        content: nonGbfMessages[i],
+        author: { id: authUserId, username: 'Operator', bot: false },
+        timestamp: new Date().toISOString()
+      });
+      assert(!processRunnerService.isBusy(), `Ignores message without /gbf prefix: "${nonGbfMessages[i]}"`);
+    }
   }
 
   // 7. Scheduler Toggle & Operator Commands (/gbf scheduler:off & /gbf scheduler:on)
@@ -145,6 +177,87 @@ async function runTests() {
   {
     const logs = processRunnerService.getRecentLogs(5);
     assert(Array.isArray(logs) && logs.length > 0, 'Recent log retrieval returns array of log lines');
+  }
+
+  // 9. Command Normalization (/gbf run <cmd> vs /gbf <cmd>)
+  {
+    // Mock startCommand temporarily to intercept normalized key and args
+    const originalStartCommand = processRunnerService.startCommand.bind(processRunnerService);
+    let lastKey = '';
+    let lastArgs: string[] = [];
+
+    processRunnerService.startCommand = async (cmdKey: string, customArgs: string[] = []) => {
+      lastKey = cmdKey;
+      lastArgs = customArgs;
+      return { success: true, message: `Mocked: started ${cmdKey}` };
+    };
+
+    const authUserId = config.DISCORD_USER_ID || '350293029825019915';
+
+    // Test /gbf daily
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '555555555555555501',
+      content: '/gbf daily',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(lastKey === 'daily', 'Operator command "/gbf daily" resolves to targetKey "daily"');
+
+    // Test /gbf run daily (must normalize identically)
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '555555555555555502',
+      content: '/gbf run daily',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(lastKey === 'daily', 'Operator command "/gbf run daily" normalizes to targetKey "daily"');
+
+    // Test /gbf gb-akasha
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '555555555555555503',
+      content: '/gbf gb-akasha',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(lastKey === 'gb-akasha', 'Operator command "/gbf gb-akasha" resolves to targetKey "gb-akasha"');
+
+    // Test /gbf run gb-akasha (must normalize identically)
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '555555555555555504',
+      content: '/gbf run gb-akasha',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(lastKey === 'gb-akasha', 'Operator command "/gbf run gb-akasha" normalizes to targetKey "gb-akasha"');
+
+    // Test /gbf daily:host
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '555555555555555505',
+      content: '/gbf daily:host',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(lastKey === 'daily:host', 'Operator command "/gbf daily:host" resolves to targetKey "daily:host"');
+
+    // Test /gbf daily:hostgb
+    await discordCommandGatewayService.handleOperatorMessage({
+      id: '555555555555555506',
+      content: '/gbf daily:hostgb',
+      author: { id: authUserId, username: 'Operator', bot: false },
+      timestamp: new Date().toISOString()
+    });
+    assert(lastKey === 'daily:hostgb', 'Operator command "/gbf daily:hostgb" resolves to targetKey "daily:hostgb"');
+
+    // Restore original startCommand
+    processRunnerService.startCommand = originalStartCommand;
+  }
+
+  // 10. Dynamic Template Resolution in processRunnerService
+  {
+    // Test that leech-leviathan-mare resolves dynamically to run-leech.ts
+    const templateName = 'leech-leviathan-mare';
+    const templatePath = path.resolve(process.cwd(), 'templates', `${templateName}.json`);
+    assert(fs.existsSync(templatePath), `Target template exists: ${templateName}.json`);
   }
 
   console.log(`\nDiscord Remote Controller Tests: ${passed}/${total} passed.\n`);
