@@ -87,6 +87,7 @@ export class CdpConnectionManager {
 
         const connectOptions: any = {
           defaultViewport: null,
+          protocolTimeout: 30000,
           targetFilter: (target: any) => {
             if (target.type() === 'browser_ui' || target.url().startsWith('chrome://')) {
               return false;

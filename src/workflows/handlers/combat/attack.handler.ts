@@ -42,8 +42,8 @@ export class AttackStepHandler implements IStepHandler {
       }, { timeout: isTurbo ? 1200 : 3000 }).then(() => page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
 
       if (!atkBtn) {
-        await context.services.combat.dismissCombatDrawersAndPopups();
-        atkBtn = await page.$('.btn-attack-start.display-on, .btn-attack-start');
+        await context.services.combat.dismissCombatDrawersAndPopups().catch(() => false);
+        atkBtn = await page.$('.btn-attack-start.display-on, .btn-attack-start').catch(() => null);
       }
 
       if (template.humanMotor !== false && !isTurbo) {

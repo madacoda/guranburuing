@@ -1440,8 +1440,18 @@ export class CombatExecutionService {
       }, { timeout: isTurbo ? 1200 : 3000 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
 
       if (!atkBtn) {
-        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-        atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start');
+        if (await this.deps.combatResolution.isBattleEnded()) {
+          await this.deps.combatResolution.syncCurrentHonors();
+          console.log(`[Combat] Battle concluded before attack dispatch. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+          return true;
+        }
+        await this.deps.combatResolution.dismissCombatDrawersAndPopups().catch(() => false);
+        if (await this.deps.combatResolution.isBattleEnded()) {
+          await this.deps.combatResolution.syncCurrentHonors();
+          console.log(`[Combat] Battle concluded after dismissing drawers. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+          return true;
+        }
+        atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start').catch(() => null);
       }
 
       if (this.ctx.template.humanMotor !== false && !isTurbo) {
@@ -1453,7 +1463,7 @@ export class CombatExecutionService {
 
       let tapped = false;
       if (atkBtn) {
-        const box = await atkBtn.boundingBox();
+        const box = await atkBtn.boundingBox().catch(() => null);
         if (box && box.width > 0 && box.height > 0) {
           const tapX = Math.round(box.x + box.width / 2 + (isTurbo ? 0 : sampleGaussian(0, 3)));
           const tapY = Math.round(box.y + box.height / 2 + (isTurbo ? 0 : sampleGaussian(0, 2)));
@@ -1461,7 +1471,7 @@ export class CombatExecutionService {
           await this.page.mouse.click(tapX, tapY).catch(() => null);
           tapped = true;
         } else {
-          await humanizedClick(this.page, atkBtn);
+          await humanizedClick(this.page, atkBtn).catch(() => null);
           tapped = true;
         }
 
@@ -1477,6 +1487,11 @@ export class CombatExecutionService {
       }
 
       if (!tapped) {
+        if (await this.deps.combatResolution.isBattleEnded()) {
+          await this.deps.combatResolution.syncCurrentHonors();
+          console.log(`[Combat] Battle concluded before fallback tap. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+          return true;
+        }
         const vp = this.page.viewport() || { width: 480, height: 960 };
         const atkX = Math.round(vp.width * 0.75);
         const atkY = Math.round(vp.height * 0.46);
