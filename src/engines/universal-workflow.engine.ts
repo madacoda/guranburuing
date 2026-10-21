@@ -22,7 +22,7 @@ import {
   WorkflowSummary
 } from '../types/workflow.types.js';
 import { AccountRegistry } from '../auth/account-registry.js';
-import { RecoveryModalService, PendingBattleService, SupporterSelectionService } from '../services/navigation/index.js';
+import { RecoveryModalService, PendingBattleService, SupporterSelectionService, FinderSlotConfiguratorService } from '../services/navigation/index.js';
 import { CombatActionService } from '../services/combat/index.js';
 import { LootTrackerService } from '../services/telemetry/index.js';
 import { StepHandlerRegistry, createDefaultStepHandlerRegistry, WorkflowExecutionContext } from '../workflows/index.js';
@@ -57,6 +57,7 @@ export class UniversalWorkflowEngine {
   public questNavigation: QuestNavigationService;
   public routineExecution: RoutineExecutionService;
   public telemetry: UniversalTelemetryService;
+  public finderSlotConfigurator: FinderSlotConfiguratorService;
 
   // Legacy services retained for backward compatibility
   private recoveryModalService: RecoveryModalService;
@@ -133,11 +134,13 @@ export class UniversalWorkflowEngine {
       resolveLingeringRaidLimit: (logPath, currentRuns) => this.resolveLingeringRaidLimit(logPath, currentRuns)
     });
 
+    this.finderSlotConfigurator = new FinderSlotConfiguratorService();
     this.questNavigation = new QuestNavigationService(this.ctx, {
       milestoneSweeper: this.milestoneSweeper,
       combatResolution: this.combatResolution,
       screenDiagnostic: this.screenDiagnostic,
-      handleAapRecoveryModal: (autoReplenish) => this.routineExecution.handleAapRecoveryModal(autoReplenish)
+      handleAapRecoveryModal: (autoReplenish) => this.routineExecution.handleAapRecoveryModal(autoReplenish),
+      finderSlotConfigurator: this.finderSlotConfigurator
     });
 
     this.routineExecution = new RoutineExecutionService(this.ctx, {

@@ -114,6 +114,9 @@ export interface WorkflowTemplate {
   autoReplenishEp?: boolean; // Alias for autoBerry
   raidSlot?: number;        // Slot filter (1-4) on Finder tab (#quest/assist)
   raidSlots?: number[];     // Multi-slot rotation filter list (e.g. [4, 3, 2]) on Finder tab
+  autoSetRaid?: boolean;    // Automatically configure Finder Tab/Slot (e.g. Tab 1) to target raid in search settings if needed
+  autoSetRaidSlot?: number; // Optional slot override to configure (defaults to raidSlot || 1)
+  targetRaidQuestId?: string | number; // Explicit quest ID override for finder slot configuration
   defaultRuns?: number;
   speedProfile?: 'stealth' | 'fast' | 'turbo';
   targetScore?: number;     // Default score to exit raid (e.g. 1480000 for Blue Chest)

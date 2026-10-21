@@ -134,6 +134,9 @@ export function serializeToDsl(template: WorkflowTemplate): string {
   } else if (template.raidSlot) {
     lines.push(`Slot: ${template.raidSlot}`);
   }
+  if (template.autoSetRaid !== undefined) lines.push(`Auto Set Raid: ${template.autoSetRaid}`);
+  if (template.autoSetRaidSlot !== undefined) lines.push(`Auto Set Raid Slot: ${template.autoSetRaidSlot}`);
+  if (template.targetRaidQuestId !== undefined) lines.push(`Target Raid Quest ID: ${template.targetRaidQuestId}`);
   if (template.targetScore) lines.push(`TargetScore: ${template.targetScore}`);
   if (template.isSolo !== undefined) lines.push(`Solo: ${template.isSolo}`);
   if (template.logPath) lines.push(`LogPath: ${template.logPath}`);

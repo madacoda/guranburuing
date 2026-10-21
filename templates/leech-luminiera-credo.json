@@ -5,7 +5,9 @@
   "element": "Dark",
   "targetEnemy": "Luminiera Credo",
   "raidSlot": 1,
-  "supporterPriority": ["Hades"],
+  "supporterPriority": [
+    "Hades"
+  ],
   "evaluatorStrategy": "leech",
   "maxHpPct": 20,
   "minHpPct": 1,
@@ -43,5 +45,6 @@
       "code": "confirm_result",
       "optional": true
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

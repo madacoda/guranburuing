@@ -5,7 +5,9 @@
   "element": "Fire",
   "targetEnemy": "Tiamat Aura",
   "raidSlot": 1,
-  "supporterPriority": ["Agni"],
+  "supporterPriority": [
+    "Agni"
+  ],
   "evaluatorStrategy": "leech",
   "maxHpPct": 20,
   "minHpPct": 1,
@@ -43,5 +45,6 @@
       "code": "confirm_result",
       "optional": true
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

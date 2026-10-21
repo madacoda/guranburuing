@@ -236,6 +236,11 @@ const TEST_SUITES: TestSuite[] = [
     description: 'Verify Long Live the King / Beelzebub HL assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'
   },
   {
+    name: 'Finder Slot Configurator & Auto Set Raid Tests',
+    file: 'tests/test-finder-slot-configurator.ts',
+    description: 'Verify Search Raid Catalog, resolveSearchRaid resolver, autoSetRaid schema validation, and slot reconfigurator'
+  },
+  {
     name: 'Raid: Fediel (Impossible) Multi-Battle Template & DSL Tests',
     file: 'tests/test-raid-fediel-template.ts',
     description: 'Verify Fediel (Impossible) / Six Dragons assist raid template, Finder Tab 1, low HP & active player join filter, 8-step burst, and DSL round-trip'

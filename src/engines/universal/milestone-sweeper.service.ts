@@ -418,38 +418,55 @@ export class MilestoneSweeperService {
 
     await this.dismissPopupModal();
 
+    // 1. Initial sweep: attempt to claim all completed/unclaimed battles
     const initialClaimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
     if (initialClaimed > 0) {
       this.ctx.state.totalJoinedAndClearedBattles += initialClaimed;
-      console.log(`[Workflow] 🎉 Initial sweep claimed ${initialClaimed} pending battle(s).`);
+      console.log(`[Workflow] 🎉 Initial sweep claimed ${initialClaimed} pending battle(s). Slot freed up!`);
       await this.checkFiveBattleMilestone(logPath, currentRuns);
-    }
-
-    const lingeringCount = await this.getLingeringJoinedRaidCount();
-    if (lingeringCount >= 0 && lingeringCount < 3) {
-      console.log(`[Workflow] ✅ Active raids in progress dropped to ${lingeringCount}/3. Slot freed up!`);
-      this.ctx.state.joinedInCurrentBatch = lingeringCount;
       return true;
     }
 
-    const isOtk = this.ctx.template?.evaluatorStrategy === 'otk_burst' || this.ctx.template?.evaluatorStrategy === 'leech';
-    const shouldActivelyHelp = isOtk || (Math.random() < 0.80);
+    // CRITICAL: If 0 battles were claimed, we are STILL at 3/3 active backup limit!
+    // We must NOT falsely assume 0 slots are taken.
+    console.log('[Workflow] No unclaimed battles found. All 3 backup slots are still occupied by in-progress raids.');
+    console.log('[Workflow] ⚔️ Entering active assist & wait mode to help reduce enemy HP and free up a slot...');
 
-    if (shouldActivelyHelp) {
-      console.log(`[Workflow] ⚔️ Strategy chosen: ACTIVE ASSIST (${isOtk ? '100% OTK burst clearing' : '~80% probability'}).`);
+    const maxResolutionCycles = 5;
+    for (let cycle = 1; cycle <= maxResolutionCycles && !this.ctx.state.stopRequested; cycle++) {
+      console.log(`\n[Workflow] --- Lingering Raid Resolution Cycle #${cycle}/${maxResolutionCycles} ---`);
+
+      // 1. Active Assist: go to Recent tab, pick higher HP or random joined raid, and help deal damage
       const assisted = await this.performActiveAssistCycle(logPath, currentRuns);
-      if (assisted) return true;
-    } else {
-      console.log(`[Workflow] ⏳ Strategy chosen: PASSIVE WAIT (~20% probability).`);
+      if (assisted) {
+        console.log(`[Workflow] ✅ Active raid resolved during assist cycle #${cycle}. Slot freed up!`);
+        return true;
+      }
+
+      // 2. Passive Wait: wait and poll for lingering raids to conclude
+      const waited = await this.performPassiveWaitCycle(logPath, currentRuns);
+      if (waited) {
+        console.log(`[Workflow] ✅ Active raid concluded and claimed during wait poll in cycle #${cycle}. Slot freed up!`);
+        return true;
+      }
     }
 
-    return await this.performPassiveWaitCycle(logPath, currentRuns);
+    // Final sweep attempt
+    const finalSweep = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+    if (finalSweep > 0) {
+      this.ctx.state.totalJoinedAndClearedBattles += finalSweep;
+      console.log(`[Workflow] 🎉 Final sweep claimed ${finalSweep} battle(s). Slot freed up!`);
+      return true;
+    }
+
+    console.warn('[Workflow] ⚠️ Active backup limit could not be resolved after all cycles. Raids still in progress.');
+    return false;
   }
 
   public async getLingeringJoinedRaidCount(): Promise<number> {
     try {
       return await this.page.evaluate(() => {
-        // 1. Check all tab candidates for Joined / Recent / 参戦中
+        // 1. Check all tab candidates for Joined / Recent / 参戦中 with a badge
         const tabs = Array.from(document.querySelectorAll('.btn-tabs, .tab, .tab-item, .prt-tabs > div, .cnt-tabs > div, #tab-multi, [data-tab]'));
         for (const t of tabs) {
           const text = (t.textContent || '').trim().toLowerCase();
@@ -462,18 +479,20 @@ export class MilestoneSweeperService {
               const num = parseInt(badge.textContent || '0', 10);
               return isNaN(num) ? 0 : num;
             }
-            return 0; // Tab found without a badge -> exactly 0 active raids!
           }
         }
 
-        // 2. Direct card scan if currently on Joined tab
-        const joinedCards = document.querySelectorAll('#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid');
-        const visibleJoined = Array.from(joinedCards).filter(c => (c as HTMLElement).offsetParent !== null);
+        // 2. Direct card scan if currently on Joined / Recent tab
+        const joinedCards = document.querySelectorAll('#prt-assist-multi .btn-multi-raid, #prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid');
+        const visibleJoined = Array.from(joinedCards).filter(c => {
+          const isSearch = typeof (c as any).closest === 'function' ? ((c as any).closest('#prt-search-list') || (c as any).closest('#prt-assist-search') || (c as any).closest('.cnt-search')) : false;
+          return !isSearch && (c as HTMLElement).offsetParent !== null;
+        });
         if (visibleJoined.length > 0) {
           return visibleJoined.length;
         }
 
-        // Default to 0 slots taken if no badge / cards found
+        // Default: If no badge and no visible joined cards, return 0
         return 0;
       });
     } catch {
@@ -498,23 +517,32 @@ export class MilestoneSweeperService {
       const candidates = await this.scanJoinedRaidCards();
       if (candidates.length === 0) {
         console.log('[Workflow] No active joined raids found on Recent tab. Checking pending claims...');
-        await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
-        return true;
+        const claimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+        if (claimed > 0) {
+          this.ctx.state.totalJoinedAndClearedBattles += claimed;
+          await this.checkFiveBattleMilestone(logPath, currentRuns);
+          return true;
+        }
+        return false;
       }
 
-      candidates.sort((a, b) => {
-        const aLow = a.hpPct <= 40;
-        const bLow = b.hpPct <= 40;
-        if (aLow && !bLow) return -1;
-        if (!aLow && bLow) return 1;
-        if (aLow && bLow) return a.hpPct - b.hpPct;
-        const hpDiff = a.hpPct - b.hpPct;
-        if (Math.abs(hpDiff) > 5) return hpDiff;
-        return b.players - a.players;
-      });
+      // User instruction: "assist randomly or the higher hp to make sure help them reduce the enemy hp faster"
+      let selected: typeof candidates[0];
+      const chooseRandom = Math.random() < 0.40 && candidates.length > 1;
 
-      const selected = candidates[0];
-      console.log(`[Workflow] ⚔️ Selected lingering raid to help: "${selected.questName || 'Unknown'}" (HP: ${selected.hpPct}%, Players: ${selected.players}/${selected.maxPlayers}, ID: ${selected.raidId})`);
+      if (chooseRandom) {
+        selected = candidates[Math.floor(Math.random() * candidates.length)];
+        console.log(`[Workflow] 🎲 Strategy: RANDOM ASSIST -> "${selected.questName || 'Unknown'}" (HP: ${selected.hpPct}%, Players: ${selected.players}/${selected.maxPlayers}, ID: ${selected.raidId})`);
+      } else {
+        // Higher HP first (descending: b.hpPct - a.hpPct), then fewer players (a.players - b.players)
+        candidates.sort((a, b) => {
+          const hpDiff = b.hpPct - a.hpPct;
+          if (Math.abs(hpDiff) > 2) return hpDiff;
+          return a.players - b.players;
+        });
+        selected = candidates[0];
+        console.log(`[Workflow] ⚔️ Strategy: HIGHER HP ASSIST -> "${selected.questName || 'Unknown'}" (HP: ${selected.hpPct}%, Players: ${selected.players}/${selected.maxPlayers}, ID: ${selected.raidId})`);
+      }
 
       if (selected.raidId && /^\d+$/.test(selected.raidId)) {
         console.log(`[Workflow] 🚀 Joining lingering battle via direct hash: #raid_multi/${selected.raidId}...`);
@@ -537,26 +565,50 @@ export class MilestoneSweeperService {
         await this.combatResolution.handleConfirmResult();
         this.ctx.state.totalJoinedAndClearedBattles++;
         await this.checkFiveBattleMilestone(logPath, currentRuns);
+        return true;
       } else if (mountState === 'MOUNTED') {
-        console.log('[Workflow] ⚔️ Active combat mounted! Assisting participants with optimal skills and attack...');
+        console.log('[Workflow] ⚔️ Active combat mounted! Assisting participants to reduce enemy HP faster...');
+
+        // Check if knocked out and need to salute to buff participants
+        const handledSalute = await this.page.evaluate(() => {
+          const pop = document.querySelector('.pop-usual, #pop, .prt-popup-body');
+          if (pop && (pop as HTMLElement).offsetParent !== null) {
+            const text = (pop.textContent || '').toLowerCase();
+            if (text.includes('salute') || text.includes('knocked out') || text.includes('全滅') || text.includes('応援')) {
+              const ok = pop.querySelector('.btn-usual-ok, .btn-salute, .btn-usual-close') as HTMLElement;
+              if (ok) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(ok).trigger('tap');
+                ok.click();
+                return true;
+              }
+            }
+          }
+          return false;
+        }).catch(() => false);
+        if (handledSalute) {
+          console.log('[Workflow] 🫡 Saluted participants to buff remaining players with charge bar!');
+          await logNormalDelay(400, 0.1);
+        }
 
         if (this.combatDelegate) {
+          // Request backup to invite more players to deal damage
           await this.combatDelegate.handleBackupRequest().catch(() => null);
           await logNormalDelay(250, 0.1);
 
           if (!await this.combatResolution.isBattleEnded()) {
-            await this.combatDelegate.handleAttack({ code: 'attack', waitForNetwork: 'normal_attack_result.json' });
+            await this.combatDelegate.handleAttack({ code: 'attack', waitForNetwork: 'normal_attack_result.json' }).catch(() => null);
             await logNormalDelay(250, 0.1);
           }
 
           if (!await this.combatResolution.isBattleEnded()) {
-            await this.combatDelegate.handleReload({ code: 'reload' });
+            await this.combatDelegate.handleReload({ code: 'reload' }).catch(() => null);
             await this.combatResolution.waitForCombatInputReady(3000).catch(() => null);
           }
         }
 
         const tStart = Date.now();
-        while (Date.now() - tStart < 4000 && !this.ctx.state.stopRequested) {
+        while (Date.now() - tStart < 5000 && !this.ctx.state.stopRequested) {
           if (await this.combatResolution.isBattleEnded()) break;
           await new Promise(r => setTimeout(r, 600));
         }
@@ -566,30 +618,25 @@ export class MilestoneSweeperService {
           await this.combatResolution.handleConfirmResult();
           this.ctx.state.totalJoinedAndClearedBattles++;
           await this.checkFiveBattleMilestone(logPath, currentRuns);
+          return true;
         }
       }
 
-      console.log('[Workflow] Returning to Backup Requests (#quest/assist) to recheck lingering slots...');
+      console.log('[Workflow] Returning to Backup Requests (#quest/assist) to check if any raid concluded...');
       await Promise.all([
         this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 12000 }).catch(() => null),
         this.page.evaluate(() => { window.location.href = 'https://game.granbluefantasy.jp/#quest/assist'; }).catch(() => null)
       ]);
       await logNormalDelay(1000, 0.15);
 
-      await this.switchToRecentJoinedTab();
-      await logNormalDelay(800, 0.15);
-
-      const remainingJoined = await this.scanJoinedRaidCards();
-      const badgeCount = await this.getLingeringJoinedRaidCount();
-      const lingeringRemaining = remainingJoined.length > 0 ? remainingJoined.length : (badgeCount >= 0 ? badgeCount : 0);
-
-      if (lingeringRemaining < 3) {
-        console.log(`[Workflow] ✅ Lingering raids reduced to ${lingeringRemaining}/3. Slot freed up! Resuming primary GB farm...`);
-        this.ctx.state.joinedInCurrentBatch = lingeringRemaining;
+      const postAssistClaimed = await this.claimPendingBattles(logPath, currentRuns, 'https://game.granbluefantasy.jp/#quest/assist');
+      if (postAssistClaimed > 0) {
+        this.ctx.state.totalJoinedAndClearedBattles += postAssistClaimed;
+        console.log(`[Workflow] 🎉 Post-assist sweep claimed ${postAssistClaimed} battle(s). Slot freed up!`);
+        await this.checkFiveBattleMilestone(logPath, currentRuns);
         return true;
       }
 
-      console.log(`[Workflow] Lingering raids still at ${lingeringRemaining}/3.`);
       return false;
     } catch (err: any) {
       console.warn('[Workflow] Notice during active assist cycle:', err.message);
@@ -600,8 +647,8 @@ export class MilestoneSweeperService {
   public async performPassiveWaitCycle(logPath: string, currentRuns: number): Promise<boolean> {
     const isLongWait = Math.random() < 0.12;
     const waitSeconds = isLongWait
-      ? Math.floor(Math.random() * (900 - 180 + 1)) + 180
-      : Math.floor(Math.random() * (180 - 30 + 1)) + 30;
+      ? Math.floor(Math.random() * (180 - 90 + 1)) + 90
+      : Math.floor(Math.random() * (90 - 30 + 1)) + 30;
 
     const t0 = Date.now();
     const maxWaitMs = waitSeconds * 1000;
@@ -611,7 +658,7 @@ export class MilestoneSweeperService {
 
     while (Date.now() - t0 < maxWaitMs && !this.ctx.state.stopRequested) {
       pollCount++;
-      const pollDelay = Math.floor(Math.random() * 3000) + 12000;
+      const pollDelay = Math.floor(Math.random() * 3000) + 10000;
       await new Promise(r => setTimeout(r, pollDelay));
       if (this.ctx.state.stopRequested) return false;
 
@@ -623,56 +670,47 @@ export class MilestoneSweeperService {
         await this.checkFiveBattleMilestone(logPath, currentRuns);
         return true;
       }
-
-      const activeCount = await this.getLingeringJoinedRaidCount();
-      if (activeCount >= 0 && activeCount < 3) {
-        console.log(`[Workflow] ✅ Active battles in progress dropped to ${activeCount}/3. Slot freed up!`);
-        this.ctx.state.joinedInCurrentBatch = activeCount;
-        return true;
-      }
     }
 
-    console.log(`[Workflow] Passive wait interval (${waitSeconds}s) finished. Rechecking state...`);
-    return true;
+    console.log(`[Workflow] Passive wait interval (${waitSeconds}s) finished. Proceeding to next cycle...`);
+    return false;
   }
 
   private async switchToRecentJoinedTab(): Promise<void> {
     try {
-      let recentTab = await this.page.$('#tab-multi, .tab-multi, [data-tab="multi"], [data-tab="recent"], [data-tab="joined"]');
-      if (!recentTab) {
-        const allTabs = await this.page.$$('.btn-tabs, .tab, .tab-item, .prt-tabs > div, .cnt-tabs > div, #tab-multi');
-        for (const tab of allTabs) {
-          const isMatch = await tab.evaluate((el: any) => {
-            const text = (el.innerText || el.textContent || '').toLowerCase();
-            const id = el.id || '';
-            const dataTab = el.getAttribute('data-tab') || '';
-            return (
-              id === 'tab-multi' ||
-              dataTab === 'multi' ||
-              dataTab === 'recent' ||
-              dataTab === 'joined' ||
-              text.includes('recent') ||
-              text.includes('joined') ||
-              text.includes('参戦中') ||
-              text.includes('救援中')
-            ) && !text.includes('search') && id !== 'tab-search';
-          }).catch(() => false);
-
-          if (isMatch) {
-            recentTab = tab;
-            break;
-          }
+      const switched = await this.page.evaluate(() => {
+        const tab = document.querySelector('#tab-multi, .btn-tabs[data-tab="multi"], [data-tab="recent"], [data-tab="joined"]') as HTMLElement;
+        if (tab) {
+          const isActive = tab.classList.contains('active') || tab.classList.contains('selected');
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(tab).trigger('tap');
+          tab.click();
+          return !isActive;
         }
+        return false;
+      }).catch(() => false);
+
+      if (switched) {
+        console.log('[Workflow] Switching to Recent / Joined tab (#tab-multi)...');
+        await logNormalDelay(800, 0.15);
       }
 
+      // Check selector if not active yet
+      const recentTab = await this.page.$('#tab-multi, .btn-tabs[data-tab="multi"]');
       if (recentTab) {
-        const isAlreadyActive = await recentTab.evaluate((el: any) => el.classList.contains('active') || el.classList.contains('selected')).catch(() => false);
-        if (!isAlreadyActive) {
-          console.log('[Workflow] Switching to Recent / Joined tab (#tab-multi)...');
+        const isActive = await recentTab.evaluate((el: any) => el.classList.contains('active') || el.classList.contains('selected')).catch(() => false);
+        if (!isActive) {
           await humanizedClick(this.page, recentTab);
           await logNormalDelay(800, 0.15);
         }
       }
+
+      // Wait for content container #prt-assist-multi or cards to be populated
+      await this.page.waitForFunction(() => {
+        const container = document.querySelector('#prt-assist-multi, .cnt-quest-assist');
+        const cards = document.querySelectorAll('#prt-assist-multi .btn-multi-raid, #prt-assist-multi .lis-raid');
+        return (container !== null && container.classList.contains('active')) || cards.length > 0;
+      }, { timeout: 3500 }).catch(() => null);
     } catch {}
   }
 
@@ -688,12 +726,13 @@ export class MilestoneSweeperService {
   }>> {
     return await this.page.evaluate(() => {
       const rawCards = Array.from(document.querySelectorAll(
-        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .prt-multi-list .btn-multi-raid, .prt-multi-list .lis-raid'
+        '#prt-assist-multi .btn-multi-raid, #prt-assist-multi .lis-raid, #prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid, .prt-multi-list .btn-multi-raid, .prt-multi-list .lis-raid'
       )) as HTMLElement[];
 
       const filteredCards = rawCards.filter((el: any) => {
-        const isSearch = typeof el.closest === 'function' ? (el.closest('#prt-search-list') || el.closest('.cnt-search') || el.closest('#prt-search')) : false;
+        const isSearch = typeof el.closest === 'function' ? (el.closest('#prt-search-list') || el.closest('#prt-assist-search') || el.closest('.cnt-search') || el.closest('#prt-search')) : false;
         if (isSearch) return false;
+        if (el.classList?.contains('search')) return false;
         if (el.offsetParent === null) return false;
         const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
         if (style && style.display === 'none') return false;
@@ -701,18 +740,18 @@ export class MilestoneSweeperService {
       });
 
       return filteredCards.map((el, i) => {
-        const gauge = el.querySelector('.prt-raid-gauge-inner, .prt-gauge-inner, .prt-hp-gauge-inner') as HTMLElement;
+        const gauge = el.querySelector('.prt-raid-gauge-inner, .prt-gauge-inner, .prt-hp-gauge-inner, .prt-gauge-bar, .prt-hp-gauge') as HTMLElement;
         const hpWidth = gauge?.style?.width || '100%';
         const hpPct = parseFloat(hpWidth) || 100;
 
-        const playerEl = el.querySelector('.prt-flees-in, .prt-member, .txt-member, .prt-raid-gauge') as HTMLElement;
-        const playerText = playerEl ? (playerEl.innerText || '') : '';
+        const playerEl = el.querySelector('.prt-flees-in, .prt-member, .txt-member, .prt-raid-gauge, .prt-user-count, .txt-user-count') as HTMLElement;
+        const playerText = playerEl ? (playerEl.innerText || playerEl.textContent || '') : (el.innerText || '');
         const match = playerText.match(/(\d+)\s*\/\s*(\d+)/);
         const players = match ? parseInt(match[1], 10) : 1;
         const maxPlayers = match ? parseInt(match[2], 10) : 30;
 
-        const nameEl = el.querySelector('.txt-quest-name, .prt-quest-name, .txt-name, .txt-title, .prt-raid-name') as HTMLElement;
-        const questName = nameEl ? (nameEl.innerText?.trim() || '') : '';
+        const nameEl = el.querySelector('.txt-quest-name, .prt-quest-name, .txt-name, .txt-title, .txt-raid-name') as HTMLElement;
+        const questName = (nameEl ? (nameEl.innerText || nameEl.textContent) : '')?.trim() || el.dataset?.chapterName || '';
 
         let raidId = el.getAttribute('data-raid-id') || el.dataset?.raidId || '';
         if (!raidId) {
@@ -752,9 +791,9 @@ export class MilestoneSweeperService {
 
     const clicked = await this.page.evaluate((idx: number) => {
       const cards = Array.from(document.querySelectorAll(
-        '#prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid'
+        '#prt-assist-multi .btn-multi-raid, #prt-assist-multi .lis-raid, #prt-multi-list .btn-multi-raid, .cnt-quest-multi .btn-multi-raid, #prt-multi-list .lis-raid, .cnt-quest-multi .lis-raid'
       )).filter((c: any) => {
-        const isSearch = typeof c.closest === 'function' ? (c.closest('#prt-search-list') || c.closest('.cnt-search')) : false;
+        const isSearch = typeof c.closest === 'function' ? (c.closest('#prt-search-list') || c.closest('#prt-assist-search') || c.closest('.cnt-search')) : false;
         return !isSearch && (c as HTMLElement).offsetParent !== null;
       }) as HTMLElement[];
       const card = cards[idx];

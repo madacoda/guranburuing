@@ -8,18 +8,26 @@ import { humanizedClick, logNormalDelay } from '../../human-motor.js';
 import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions, RaidEvaluatorStrategy } from '../raid-evaluator.js';
 import { discordPresence } from '../../relay/discord-presence.js';
 
+import { FinderSlotConfiguratorService } from '../../services/navigation/finder-slot-configurator.service.js';
+import { resolveSearchRaid } from '../../domain/assist/search-raid.catalog.js';
+
 export interface QuestNavigationDependencies {
   milestoneSweeper: MilestoneSweeperService;
   combatResolution: CombatResolutionService;
   screenDiagnostic: ScreenDiagnosticService;
   handleAapRecoveryModal?: (autoReplenish: boolean) => Promise<boolean>;
+  finderSlotConfigurator?: FinderSlotConfiguratorService;
 }
 
 export class QuestNavigationService {
+  private finderSlotConfigurator: FinderSlotConfiguratorService;
+
   constructor(
     private ctx: UniversalContext,
     private deps: QuestNavigationDependencies
-  ) {}
+  ) {
+    this.finderSlotConfigurator = deps.finderSlotConfigurator || new FinderSlotConfiguratorService();
+  }
 
   public get page(): Page {
     return this.ctx.page;
@@ -390,6 +398,30 @@ export class QuestNavigationService {
       if (!isActive) {
         await humanizedClick(this.page, finderTab);
         await logNormalDelay(600, 0.15);
+      }
+    }
+
+    // Auto-configure Finder slot (defaults to Slot 1 / tab 1) if autoSetRaid is enabled in workflow template
+    // or if the workflow targets Finder Tab 1 (slot 1) and autoSetRaid is not explicitly disabled
+    const isTab1Assist = (this.ctx.template.raidSlot === 1 || (!this.ctx.template.raidSlot && !this.ctx.template.raidSlots));
+    const shouldAutoSet = this.ctx.template.autoSetRaid === true || (this.ctx.template.autoSetRaid !== false && isTab1Assist);
+
+    if (shouldAutoSet) {
+      const targetRaid = resolveSearchRaid({
+        questId: this.ctx.template.targetRaidQuestId || this.ctx.template.questId,
+        targetEnemy: this.ctx.template.targetEnemy,
+        name: this.ctx.template.name,
+        description: this.ctx.template.description
+      });
+
+      if (targetRaid) {
+        const targetSlot = this.ctx.template.autoSetRaidSlot || this.ctx.template.raidSlot || 1;
+        await this.finderSlotConfigurator.ensureSlotConfigured(this.page, {
+          slot: targetSlot,
+          targetRaid
+        });
+      } else if (this.ctx.template.autoSetRaid === true) {
+        console.warn(`[Workflow] ⚠️ autoSetRaid enabled, but could not resolve target raid definition for "${this.ctx.template.name}".`);
       }
     }
 

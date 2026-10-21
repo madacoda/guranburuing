@@ -35,6 +35,9 @@ const RX_META_MIN_PLAYERS = /^min[\s_]?players?\s*:\s*(\d+)$/i;
 const RX_META_MAX_PLAYERS = /^max[\s_]?players?\s*:\s*(\d+)$/i;
 const RX_META_STRATEGY = /^(?:evaluator[\s_]?strategy|strategy)\s*:\s*(honor|otk_burst|leech|farm)$/i;
 const RX_META_MIN_RAID_SCORE = /^min[\s_]?(?:raid[\s_]?)?score\s*:\s*(\d+)$/i;
+const RX_META_AUTO_SET_RAID = /^(?:auto[\s_]*set[\s_]*raid)\s*:\s*(true|false)$/i;
+const RX_META_AUTO_SET_RAID_SLOT = /^(?:auto[\s_]*set[\s_]*raid[\s_]*slot)\s*:\s*(\d+)$/i;
+const RX_META_TARGET_RAID_QUEST_ID = /^(?:target[\s_]*raid[\s_]*quest(?:[\s_]*id)?)\s*:\s*(.+)$/i;
 
 // Control Flow Block Headers
 const RX_BLOCK_REPEAT = /^(?:repeat|loop)\s+(\d+)\s*\{/i;
@@ -110,6 +113,9 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
   let supporterPriority = ['Hades', 'Bahamut', 'Zeus', 'Lucifer'];
   let raidSlot: number | undefined;
   let raidSlots: number[] | undefined;
+  let autoSetRaid: boolean | undefined;
+  let autoSetRaidSlot: number | undefined;
+  let targetRaidQuestId: string | number | undefined;
   let speedProfile: 'stealth' | 'fast' | 'turbo' = 'fast';
   let defaultRuns = 100;
   const humanMotor = true;
@@ -230,6 +236,18 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
     }
     if ((m = RX_META_TARGET_SCORE.exec(line))) {
       targetScore = parseInt(m[1], 10);
+      continue;
+    }
+    if ((m = RX_META_AUTO_SET_RAID.exec(line))) {
+      autoSetRaid = m[1].toLowerCase() === 'true';
+      continue;
+    }
+    if ((m = RX_META_AUTO_SET_RAID_SLOT.exec(line))) {
+      autoSetRaidSlot = parseInt(m[1], 10);
+      continue;
+    }
+    if ((m = RX_META_TARGET_RAID_QUEST_ID.exec(line))) {
+      targetRaidQuestId = m[1].trim();
       continue;
     }
     if ((m = RX_META_ELIXIR.exec(line))) {
@@ -433,6 +451,9 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
     supporterPriority,
     raidSlot,
     raidSlots,
+    autoSetRaid,
+    autoSetRaidSlot,
+    targetRaidQuestId,
     speedProfile,
     defaultRuns,
     humanMotor,

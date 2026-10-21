@@ -5,6 +5,7 @@
   "mode": "assist",
   "targetEnemy": "Long Live the King",
   "raidSlot": 1,
+  "autoSetRaid": true,
   "supporterPriority": [
     "Hades"
   ],

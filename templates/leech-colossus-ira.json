@@ -5,7 +5,9 @@
   "element": "Water",
   "targetEnemy": "Colossus Ira",
   "raidSlot": 1,
-  "supporterPriority": ["Varuna"],
+  "supporterPriority": [
+    "Varuna"
+  ],
   "evaluatorStrategy": "leech",
   "maxHpPct": 20,
   "minHpPct": 1,
@@ -43,5 +45,6 @@
       "code": "confirm_result",
       "optional": true
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

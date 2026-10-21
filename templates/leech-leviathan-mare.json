@@ -5,7 +5,9 @@
   "element": "Earth",
   "targetEnemy": "Leviathan Mare",
   "raidSlot": 1,
-  "supporterPriority": ["Titan"],
+  "supporterPriority": [
+    "Titan"
+  ],
   "evaluatorStrategy": "leech",
   "maxHpPct": 40,
   "minHpPct": 1,
@@ -77,5 +79,6 @@
       "code": "confirm_result",
       "name": "Confirm Battle Result & Rerun"
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

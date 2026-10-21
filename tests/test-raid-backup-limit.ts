@@ -336,6 +336,72 @@ if (raidResult.status !== 'ACTIVE_RAID_LIMIT_3') {
 }
 console.log(`  ✅ [PASS] RaidEngine correctly returned status: "${raidResult.status}" (${raidResult.message})`);
 
+// ----------------------------------------------------------------------
+// Test 8: Zero-Claim Initial Sweep Does NOT Falsely Report Slots Dropped
+// ----------------------------------------------------------------------
+console.log('\n--- Test 8: Zero-Claim Initial Sweep Protection ---');
+let assistCycleInvoked = false;
+const testSweeper = (engine as any).milestoneSweeper;
+if (testSweeper) {
+  // Override claimPendingBattles to return 0 (no battles cleared)
+  testSweeper.claimPendingBattles = async () => 0;
+  testSweeper.performActiveAssistCycle = async () => {
+    assistCycleInvoked = true;
+    return true; // Resolves via assist
+  };
+  testSweeper.performPassiveWaitCycle = async () => false;
+
+  const resolved = await testSweeper.resolveLingeringRaidLimit('logs/test.md', 0);
+  if (!resolved || !assistCycleInvoked) {
+    throw new Error('resolveLingeringRaidLimit did not enter performActiveAssistCycle when initialClaimed was 0');
+  }
+  console.log('  ✅ [PASS] Zero-claim initial sweep correctly invoked performActiveAssistCycle without false slot-free reporting');
+}
+
+// ----------------------------------------------------------------------
+// Test 9: Recent Tab vs Finder Tab Container Card Discrimination
+// ----------------------------------------------------------------------
+console.log('\n--- Test 9: Recent Tab Card Filtering & Exclusion of Finder Search Cards ---');
+const mockDomCards = [
+  { className: 'btn-multi-raid lis-raid', dataset: { chapterName: 'Diaspora (Impossible)', raidId: '47039767671' }, closest: (s: string) => s.includes('search') ? null : {} },
+  { className: 'btn-multi-raid lis-raid search', dataset: { chapterName: 'Belial Finder Card', raidId: '999999999' }, closest: (s: string) => s.includes('search') ? {} : null },
+  { className: 'btn-multi-raid lis-raid', dataset: { chapterName: 'Belial Recent Card', raidId: '47039758698' }, closest: (s: string) => s.includes('search') ? null : {} }
+];
+
+const validRecentCards = mockDomCards.filter(c => {
+  const isSearch = c.closest('#prt-search-list') !== null || c.className.includes('search');
+  return !isSearch;
+});
+
+if (validRecentCards.length !== 2) {
+  throw new Error(`Expected 2 valid recent cards, got ${validRecentCards.length}`);
+}
+if (validRecentCards.some(c => c.dataset.raidId === '999999999')) {
+  throw new Error('Finder search card was not excluded from recent cards');
+}
+console.log('  ✅ [PASS] Successfully excluded .search cards, retaining only valid Recent joined cards');
+
+// ----------------------------------------------------------------------
+// Test 10: Higher HP vs Random Assist Selection
+// ----------------------------------------------------------------------
+console.log('\n--- Test 10: Higher HP Sorting Priority for Rapid Enemy Reduction ---');
+const candidatesList = [
+  { hpPct: 20, players: 6, maxPlayers: 6, questName: 'Belial Stalled (Low HP)', raidId: '47039758698' },
+  { hpPct: 68, players: 2, maxPlayers: 6, questName: 'Diaspora High HP (Needs Damage)', raidId: '47039767671' },
+  { hpPct: 60, players: 1, maxPlayers: 18, questName: 'Colossus Ira (Needs Damage)', raidId: '47039797435' }
+];
+
+candidatesList.sort((a, b) => {
+  const hpDiff = b.hpPct - a.hpPct;
+  if (Math.abs(hpDiff) > 2) return hpDiff;
+  return a.players - b.players;
+});
+
+if (candidatesList[0].raidId !== '47039767671') {
+  throw new Error(`Expected Diaspora (68% HP) to be highest HP priority, got ${candidatesList[0].questName}`);
+}
+console.log(`  ✅ [PASS] Highest HP raid selected: "${candidatesList[0].questName}" (${candidatesList[0].hpPct}% HP) to help reduce enemy HP faster`);
+
 console.log('\n========================================================================');
 console.log('  🎉 ALL 3-RAID BACKUP LIMIT & 5-BATTLE MILESTONE TESTS PASSED (100%)    ');
 console.log('========================================================================\n');

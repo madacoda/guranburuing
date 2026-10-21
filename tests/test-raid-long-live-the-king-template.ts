@@ -27,6 +27,10 @@ if (tmpl.raidSlot !== 1) {
   throw new Error(`Expected raidSlot to be 1 (Finder Tab 1), got: ${tmpl.raidSlot}`);
 }
 
+if (tmpl.autoSetRaid !== true) {
+  throw new Error(`Expected autoSetRaid to be true, got: ${tmpl.autoSetRaid}`);
+}
+
 if (tmpl.mode !== 'assist') {
   throw new Error(`Expected mode to be assist, got: ${tmpl.mode}`);
 }

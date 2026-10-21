@@ -5,7 +5,9 @@
   "element": "Light",
   "targetEnemy": "Celeste Ater",
   "raidSlot": 1,
-  "supporterPriority": ["Zeus"],
+  "supporterPriority": [
+    "Zeus"
+  ],
   "evaluatorStrategy": "leech",
   "maxHpPct": 20,
   "minHpPct": 1,
@@ -43,5 +45,6 @@
       "code": "confirm_result",
       "optional": true
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

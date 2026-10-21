@@ -72,5 +72,6 @@
     {
       "code": "confirm_result"
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

@@ -69,5 +69,6 @@
       "code": "confirm_result",
       "name": "Confirm Battle Result & Rerun"
     }
-  ]
+  ],
+  "autoSetRaid": true
 }

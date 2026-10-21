@@ -5,7 +5,9 @@
   "element": "Wind",
   "targetEnemy": "Yggdrasil Arbos",
   "raidSlot": 1,
-  "supporterPriority": ["Zephyrus"],
+  "supporterPriority": [
+    "Zephyrus"
+  ],
   "evaluatorStrategy": "leech",
   "maxHpPct": 20,
   "minHpPct": 1,
@@ -43,5 +45,6 @@
       "code": "confirm_result",
       "optional": true
     }
-  ]
+  ],
+  "autoSetRaid": true
 }
