@@ -64,7 +64,7 @@ const RX_ACT_LOG_HP_2 = /^enemy[\s_]*hp\b/i;
 const RX_ACT_EXIT_DEAD = /^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?dead\b/i;
 const RX_ACT_EXIT_HP = /^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?(?:enemy[\s_]*)?hp[\s_]*(\d+)\%?/i;
 const RX_ACT_ATTACK_UNTIL_HONOR = /^(?:check[\s_]*(?:the[\s_]*)?honor[\s_]*and[\s_]*)?(?:keep[\s_]*)?attack(?:ing)?[\s_]*until[\s_]*honor/i;
-const RX_ACT_SKILL_TARGET = /^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->)\s*(?:c|char|character)?\s*(\d)$/i;
+const RX_ACT_SKILL_TARGET = /^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->|target(?:ed\s+on)?|to)\s*(?:c|char|character)?\s*(\d)$/i;
 const RX_ACT_SKILL = /^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d)|(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)$/i;
 const RX_ACT_SUMMON = /^(?:summon|call)(?:[\s_]+(?:number|slot|no\.?|#))?[\s_]*#?([a-zA-Z0-9_\-]+)$/i;
 const RX_DIGITS_ONLY = /^\d+$/;
@@ -77,6 +77,7 @@ const RX_ACT_WAIT_RANDOM = /^(?:wait[\s_]*random(?:ize)?|delay[\s_]*random|rando
 const RX_ACT_WAIT_INTERACTABLE = /^(?:wait[\s_]+(?:for[\s_]+)?(?:loading|ready|screen|full[\s_]*load)|wait[\s_]+(?:a[\s_]+bit,?\s*)?(?:only[\s_]+a[\s_]+bit,?\s*)?(?:make[\s_]+sure[\s_]+(?:all\s+)?interactable)|make[\s_]+sure[\s_]+(?:all[\s_]+)?(?:interactable|loaded|full[\s_]*load))/i;
 const RX_ACT_WAIT_NETWORK = /wait[\s_]*network[\s_]+(.+)/i;
 const RX_ACT_WAIT_ELEMENT = /wait[\s_]*element[\s_]+(.+)/i;
+const RX_ACT_WAIT_WAVE = /^(?:wait_wave|wait_for_wave|wait[\s_]+wave)\s*(\d+)?/i;
 const RX_ACT_WAIT_MS = /(?:wait|sleep|delay)\s*(\d+)/i;
 const RX_ACT_SMART_FA = /^(?:smart_full_auto|fast_full_auto|smart_auto|fast_auto)/i;
 const RX_ACT_FULL_AUTO = /^full_auto\b/i;
@@ -87,6 +88,7 @@ const RX_ACT_NAVIGATE = /(?:navigate|goto)\s+(.+)/i;
 const RX_ACT_TOUCH_TAP = /(?:touch_tap|tap)\s+(\d+)\s+(\d+)/i;
 const RX_ACT_EVAL = /eval\s+(.+)/i;
 const RX_ACT_CLICK = /click\s+(.+)/i;
+const RX_ACT_BACK = /^(?:click[\s_]*)?(?:back[\s_]*button|back|browser_back|go_back)\b/i;
 
 const COMBAT_CODES = new Set(['skill', 'summon', 'quick_call', 'attack', 'smart_full_auto']);
 
@@ -851,6 +853,18 @@ export function parseSingleDslAction(
     };
   }
 
+  // 17b. Wait Wave / Wait for Wave
+  if ((m = RX_ACT_WAIT_WAVE.exec(line))) {
+    const waveNum = m[1] ? parseInt(m[1], 10) : 2;
+    return {
+      id: `step_${stepIndex}`,
+      name: `Wait for Wave ${waveNum} & Characters Load`,
+      code: 'wait_wave',
+      action: 'wait_wave',
+      wave: waveNum
+    };
+  }
+
   // 18. Auto / Smart Full Auto / Full Auto / Semi Auto
   if (RX_ACT_SMART_FA.test(line)) {
     return {
@@ -937,7 +951,17 @@ export function parseSingleDslAction(
     };
   }
 
-  // 23. Click Selector
+  // 23. Back Button / Browser Back
+  if (RX_ACT_BACK.test(line)) {
+    return {
+      id: `step_${stepIndex}`,
+      name: 'Click Back Button',
+      code: 'back',
+      action: 'back'
+    };
+  }
+
+  // 24. Click Selector
   if ((m = RX_ACT_CLICK.exec(line))) {
     return {
       id: `step_${stepIndex}`,

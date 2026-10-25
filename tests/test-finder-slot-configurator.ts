@@ -2,7 +2,9 @@
 import assert from 'assert';
 import {
   SEARCH_RAID_CATALOG,
-  resolveSearchRaid
+  resolveSearchRaid,
+  buildRaidCardFilterSpec,
+  matchesRaidCardFilter
 } from '../src/domain/assist/search-raid.catalog.js';
 import { WorkflowTemplateSchema } from '../src/templates/template-schema.js';
 import { parseShorthandDsl } from '../src/templates/dsl-compiler.js';
@@ -90,9 +92,14 @@ assert.strictEqual(notFound, null, 'Returns null for unknown raid queries');
 const stringQuery = resolveSearchRaid('belial');
 assert.strictEqual(stringQuery?.questId, '305281', 'Resolves plain string query "belial"');
 
-// 2i. Verify all 13 Tab 1 assist templates have autoSetRaid: true and resolve correctly
+// 2i. Verify all 19 Tab 1 assist templates have autoSetRaid: true and resolve correctly
 const tab1AssistTemplates = [
+  'farm-celeste-ater.json',
+  'farm-colossus-ira.json',
   'farm-leviathan-mare.json',
+  'farm-luminiera-credo.json',
+  'farm-tiamat-aura.json',
+  'farm-yggdrasil-arbos.json',
   'leech-celeste-ater.json',
   'leech-colossus-ira.json',
   'leech-leviathan-mare.json',
@@ -100,6 +107,7 @@ const tab1AssistTemplates = [
   'leech-tiamat-aura.json',
   'leech-yggdrasil-arbos.json',
   'raid-dark-rapture-hard.json',
+  'raid-empyreal-ascension.json',
   'raid-fediel.json',
   'raid-long-live-the-king.json',
   'raid-the-fallen-angel-of-cunning.json',
@@ -121,7 +129,7 @@ for (const tmplFile of tab1AssistTemplates) {
   assert(typeof resolved?.questId === 'string', `${tmplFile} must have a valid resolved questId`);
 }
 
-console.log('  ✅ [PASS] resolveSearchRaid verified: questId, name, targetEnemy, aliases, string queries, and all 13 Tab 1 templates.');
+console.log('  ✅ [PASS] resolveSearchRaid verified: questId, name, targetEnemy, aliases, string queries, and all 19 Tab 1 templates.');
 
 // ---------------------------------------------------------------------------
 // 3. Workflow Template Schema Validation with autoSetRaid
@@ -247,7 +255,128 @@ const mockPageMatch: any = {
   assert(isCached, 'Must succeed from cache');
   assert.strictEqual(evalCalls, evalCallsBefore, 'Zero DOM evaluations when hitting verification cache');
 
-  console.log('  ✅ [PASS] FinderSlotConfiguratorService fast-path pre-check and memory cache verified.');
+  console.log('  ✅ [PASS] FinderSlotConfiguratorService: Already target raid -> verified without changing.');
+
+  const createMockElement = () => ({
+    evaluate: async (fn: any) => {},
+    click: async () => {},
+    boundingBox: async () => ({ x: 10, y: 10, width: 20, height: 20 })
+  });
+
+  // Test Case B: Slot is null (unconfigured) -> Must change it
+  let openedModalForNull = false;
+  let clickedTargetQuestForNull = false;
+  let currentSlotRaid: string | null = null; // Currently null
+
+  const mockPageNull: any = {
+    evaluate: async (fn: any, ...args: any[]) => {
+      if (typeof fn === 'function') {
+        const fnStr = fn.toString();
+        if (fnStr.includes('window.location.hash')) return '#quest/assist';
+        if (fnStr.includes('classList.contains')) return true;
+        if (fnStr.includes('extractQuestId')) {
+          return currentSlotRaid;
+        }
+        if (fnStr.includes('btn-select-quest')) {
+          clickedTargetQuestForNull = true;
+          currentSlotRaid = args[0]; // Set to target quest ID
+          return true;
+        }
+        if (fnStr.includes('btn-usual-ok') || fnStr.includes('btn-search-stage') || fnStr.includes('btn-select-search-slot') || fnStr.includes('btn-search-switch')) {
+          return true;
+        }
+      }
+      return null;
+    },
+    waitForSelector: async (selector: string) => {
+      if (selector.includes('btn-search-setting')) {
+        openedModalForNull = true;
+      }
+      return createMockElement();
+    },
+    waitForFunction: async () => ({})
+  };
+
+  configurator.resetVerificationCache();
+  const nullConfigured = await configurator.ensureSlotConfigured(mockPageNull, {
+    slot: 1,
+    targetRaid: bubz!
+  });
+  assert(nullConfigured, 'Must succeed in configuring slot when initially null');
+  assert(openedModalForNull, 'Must open Set Filters modal when slot is null');
+  assert(clickedTargetQuestForNull, 'Must select target raid quest when slot is null');
+  assert.strictEqual(currentSlotRaid, '305181', 'Slot raid must be updated to target questId');
+  console.log('  ✅ [PASS] FinderSlotConfiguratorService: Slot is null -> changed to target raid.');
+
+  // Test Case C: Slot is NOT the target raid (mismatched) -> Must change it
+  let openedModalForMismatch = false;
+  let clickedTargetQuestForMismatch = false;
+  let mismatchedSlotRaid: string | null = '305631'; // Leviathan Mare, but target is Bubz (305181)
+
+  const mockPageMismatch: any = {
+    evaluate: async (fn: any, ...args: any[]) => {
+      if (typeof fn === 'function') {
+        const fnStr = fn.toString();
+        if (fnStr.includes('window.location.hash')) return '#quest/assist';
+        if (fnStr.includes('classList.contains')) return true;
+        if (fnStr.includes('extractQuestId')) {
+          return mismatchedSlotRaid;
+        }
+        if (fnStr.includes('btn-select-quest')) {
+          clickedTargetQuestForMismatch = true;
+          mismatchedSlotRaid = args[0]; // Set to target quest ID
+          return true;
+        }
+        if (fnStr.includes('btn-usual-ok') || fnStr.includes('btn-search-stage') || fnStr.includes('btn-select-search-slot') || fnStr.includes('btn-search-switch')) {
+          return true;
+        }
+      }
+      return null;
+    },
+    waitForSelector: async (selector: string) => {
+      if (selector.includes('btn-search-setting')) {
+        openedModalForMismatch = true;
+      }
+      return createMockElement();
+    },
+    waitForFunction: async () => ({})
+  };
+
+  configurator.resetVerificationCache();
+  const mismatchConfigured = await configurator.ensureSlotConfigured(mockPageMismatch, {
+    slot: 1,
+    targetRaid: bubz!
+  });
+  assert(mismatchConfigured, 'Must succeed in configuring slot when mismatched');
+  assert(openedModalForMismatch, 'Must open Set Filters modal when slot is mismatched');
+  assert(clickedTargetQuestForMismatch, 'Must select target raid quest when slot is mismatched');
+  assert.strictEqual(mismatchedSlotRaid, '305181', 'Slot raid must be reconfigured from 305631 to 305181');
+  console.log('  ✅ [PASS] FinderSlotConfiguratorService: Slot is not target raid -> changed to target raid.');
+
+
+  // ---------------------------------------------------------------------------
+  // 6. Universal Cross-Slot Contamination Filter Tests (buildRaidCardFilterSpec)
+  // ---------------------------------------------------------------------------
+  console.log('\n--- 6. Testing Universal Cross-Slot Contamination Filter ---');
+
+  const leviSpec = buildRaidCardFilterSpec('Leviathan Mare');
+  assert.strictEqual(leviSpec.targetQuestId, '305631', 'Leviathan Mare filterSpec must resolve questId 305631');
+  assert(matchesRaidCardFilter('Leviathan Mare Omega (Impossible)', 'https://game.granbluefantasy.jp/assets/305631.png', leviSpec), 'Must accept matching Leviathan Mare card');
+  assert(!matchesRaidCardFilter('The World (Impossible)', 'https://game.granbluefantasy.jp/assets/305571.png', leviSpec), 'Must reject stale The World card by questId & title');
+  assert(!matchesRaidCardFilter('Leviathan Malice (Impossible)', '', leviSpec), 'Must reject Leviathan Malice title when targeting Leviathan Mare');
+  assert(matchesRaidCardFilter('', '', leviSpec), 'Must accept minimal mock DOM card with empty title/img');
+
+  const pbhlSpec = buildRaidCardFilterSpec('pbhl');
+  assert.strictEqual(pbhlSpec.targetQuestId, '301061', 'PBHL filterSpec must resolve questId 301061');
+  assert(matchesRaidCardFilter('Wings of Terror (Impossible)', '', pbhlSpec), 'Must accept PBHL title');
+  assert(!matchesRaidCardFilter('Super Ultimate Bahamut', '', pbhlSpec), 'Must reject Super Ultimate Bahamut when targeting PBHL');
+  assert(!matchesRaidCardFilter('Omen of the Broken Skies', '', pbhlSpec), 'Must reject Akasha when targeting PBHL');
+
+  const faaHardSpec = buildRaidCardFilterSpec('Dark Rapture (Hard)');
+  assert(matchesRaidCardFilter('Dark Rapture (Hard)', '', faaHardSpec), 'Must accept Dark Rapture (Hard)');
+  assert(!matchesRaidCardFilter('Dark Rapture (Zero)', '', faaHardSpec), 'Must reject Dark Rapture (Zero) when targeting Hard');
+
+  console.log('  ✅ [PASS] Universal cross-slot contamination filter verified across all 49 catalog raids.');
 
   console.log('\n========================================================================');
   console.log('  🎉 ALL FINDER SLOT CONFIGURATOR TESTS PASSED WITH 100% SUCCESS        ');

@@ -290,26 +290,25 @@ async function main() {
   process.on('SIGINT', async () => {
     if (isStopping) {
       console.log('\n[WorkflowRunner] Force quitting immediately...');
+      await cdpManager.standby().catch(() => null);
       process.exit(0);
     }
     isStopping = true;
-    console.log('\n[WorkflowRunner] ⚠️ Ctrl+C detected. Finishing current run and saving stats...');
+    console.log('\n[WorkflowRunner] ⚠️ Ctrl+C detected. Stopping workflow and placing browser in standby...');
     engine.requestStop();
+    const forceTimer = setTimeout(async () => {
+      console.log('[WorkflowRunner] 💤 Closing GBF tab and entering browser standby mode (about:blank)...');
+      await cdpManager.standby().catch(() => null);
+      process.exit(0);
+    }, 2500);
+    if (typeof forceTimer.unref === 'function') forceTimer.unref();
   });
 
   try {
     await engine.runLoop({ runs: targetRuns });
   } finally {
-    try {
-      if (page && !page.isClosed()) {
-        const url = page.url();
-        if (!url.includes('#mypage') && !url.includes('#authentication')) {
-          console.log('[WorkflowRunner] 🏠 Returning browser safely to homescreen (#mypage)...');
-          await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-        }
-      }
-    } catch {}
-    await cdpManager.disconnect();
+    console.log('[WorkflowRunner] 💤 Closing GBF tab and entering browser standby mode (about:blank)...');
+    await cdpManager.standby().catch(() => null);
     process.exit(0);
   }
 }

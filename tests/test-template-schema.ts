@@ -25,11 +25,11 @@ const recognizedActionCodes = new Set([
   'skill', 'attack', 'summon', 'quick_call', 'reload', 'tap_ready',
   'smart_full_auto', 'repeat', 'confirm_result', 'wait', 'wait_network',
   'wait_element', 'wait_random', 'wait_turn', 'touch_tap', 'navigate',
-  'click', 'eval', 'guard', 'auto', 'target_enemy', 'heal', 'revive',
+  'click', 'back', 'eval', 'guard', 'auto', 'target_enemy', 'heal', 'revive',
   'backup_request', 'exit_if_score', 'skip_story_scene', 'pro_skip_favorites',
   'dismiss_popups', 'loop_while', 'loop_until', 'do_until_finish',
   'run_daily_target', 'select_supporter', 'condition', 'auto_fate_episode',
-  'log_enemy_hp', 'exit_if_dead', 'exit_if_hp'
+  'log_enemy_hp', 'exit_if_dead', 'exit_if_hp', 'wait_wave', 'wait_for_wave'
 ]);
 
 function verifyStepActions(steps: any[], fileName: string) {

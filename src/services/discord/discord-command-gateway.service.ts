@@ -549,7 +549,7 @@ export class DiscordCommandGatewayService {
         `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
         `• **Reason**: Stopped in the middle of execution via operator command (\`/gbf stop\`).`,
         `• **Duration**: \`${durStr}\``,
-        `• **Account State**: 🏠 Safe at homescreen (\`#mypage\`). Session preserved.`
+        `• **Account State**: 💤 Standby Mode (GBF tab closed, \`about:blank\` idle — 0% CPU). Session preserved.`
       );
     } else if (isCaptchaHalt) {
       lines.push(
@@ -589,7 +589,8 @@ export class DiscordCommandGatewayService {
         '🏁 **Automation Completed Successfully**',
         `• **Job**: \`${job.key}\` (PID \`${job.pid}\`)`,
         `• **Result**: ✅ Finished cleanly (Exit Code 0)`,
-        `• **Duration**: \`${durStr}\``
+        `• **Duration**: \`${durStr}\``,
+        `• **Account State**: 💤 Standby Mode (GBF tab closed, \`about:blank\` idle — 0% CPU).`
       );
     } else {
       lines.push(

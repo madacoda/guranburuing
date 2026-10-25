@@ -1,6 +1,7 @@
 // src/engines/event/event-story.service.ts
 import { logNormalDelay } from '../../human-motor.js';
 import { ActiveStoryCard, EventEngineHost, EventStoryProgress, EventStorySummary } from './event.types.js';
+import { StorySceneSkipService } from '../../services/navigation/story-scene-skip.service.js';
 
 export class EventStoryService {
   constructor(private readonly host: EventEngineHost) {}
@@ -265,90 +266,16 @@ export class EventStoryService {
   }
 
   /**
-   * Fast-skips story dialogue, scene cutscenes, dialogue selections, and confirms dialog skips.
+   * Fast-skips multi-part story dialogues, scene cutscenes, dialogue selections, and confirms dialog skips.
    */
-  public async skipStoryCutscene(timeoutMs = 20000): Promise<boolean> {
-    const tStart = Date.now();
-    let hasEnteredScene = this.host.page.url().includes('scene');
-
-    while (Date.now() - tStart < timeoutMs) {
-      if (this.host.isStopRequested) return false;
-      await this.host.sentinel.assertSafe();
-
-      const currentUrl = this.host.page.url();
-      if (currentUrl.includes('scene')) {
-        hasEnteredScene = true;
-      }
-
-      // If we previously entered the scene and now exited to result or event home, scene is concluded!
-      if (hasEnteredScene && (currentUrl.includes('result') || currentUrl.includes('#event/') || currentUrl.includes('#quest/supporter') || currentUrl.includes('#mypage'))) {
-        break;
-      }
-
-      const target = await this.host.page.evaluate(() => {
-        try {
-          // 1. Skip modal confirmation: ".btn-scene-skip", ".pop-synopsis .btn-scene-skip", ".pop-skip .btn-usual-ok"
-          const confirmSkip = document.querySelector(
-            '.pop-skip .btn-usual-ok, .pop-skip .btn-skip-confirm, .pop-synopsis .btn-scene-skip, .btn-scene-skip, .pop-usual .btn-scene-skip'
-          ) as HTMLElement;
-          if (confirmSkip && confirmSkip.offsetParent !== null) {
-            const r = confirmSkip.getBoundingClientRect();
-            return { action: 'confirmed_skip', x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          }
-
-          // 2. Story scene SKIP button
-          const skipBtn = document.querySelector(
-            '.btn-skip:not(.btn-scene-skip), .prt-scene-setting .btn-skip, [data-action="skip"]'
-          ) as HTMLElement;
-          if (skipBtn && skipBtn.offsetParent !== null) {
-            const r = skipBtn.getBoundingClientRect();
-            return { action: 'clicked_skip', x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          }
-
-          // 3. Story dialogue choice selection
-          const choiceBtn = document.querySelector(
-            '.prt-selection .btn-selection, .btn-selection, .prt-balloon .btn-usual-ok'
-          ) as HTMLElement;
-          if (choiceBtn && choiceBtn.offsetParent !== null) {
-            const r = choiceBtn.getBoundingClientRect();
-            return { action: 'selected_choice', x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          }
-
-          // 4. General OK / Proceed button
-          const usualOk = document.querySelector('.pop-usual .btn-usual-ok, .btn-usual-ok') as HTMLElement;
-          if (usualOk && usualOk.offsetParent !== null) {
-            const r = usualOk.getBoundingClientRect();
-            return { action: 'clicked_ok', x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          }
-
-          return null;
-        } catch {
-          return null;
-        }
-      }).catch(() => null);
-
-      if (target) {
-        await this.host.page.touchscreen.tap(target.x, target.y).catch(() => null);
-        if (target.action === 'confirmed_skip') {
-          console.log('[EventEngine] Confirmed cutscene skip dialog. Awaiting transition to result/event...');
-          await logNormalDelay(600, 0.2);
-          await this.waitForTransitionOutOfScene(15000);
-          break;
-        } else if (target.action === 'clicked_skip') {
-          await logNormalDelay(400, 0.15);
-        } else if (target.action === 'selected_choice') {
-          await logNormalDelay(300, 0.15);
-        } else {
-          await logNormalDelay(300, 0.15);
-        }
-      } else {
-        // Tap screen to display HUD if controls are hidden
-        await this.host.page.touchscreen.tap(240, 360).catch(() => null);
-        await new Promise(r => setTimeout(r, 400));
-      }
-    }
-
-    return true;
+  public async skipStoryCutscene(timeoutMs = 45000, maxScenes = 10): Promise<boolean> {
+    const skipService = new StorySceneSkipService(this.host.page, this.host.sentinel);
+    const outcome = await skipService.skipStoryScenes({
+      timeoutMs,
+      maxScenes,
+      autoSelectChoice: true
+    });
+    return outcome.success;
   }
 
   /**

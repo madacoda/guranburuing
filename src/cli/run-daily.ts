@@ -96,29 +96,13 @@ async function runDailyForAccount(account: AccountConfig, templateId: string, ru
     });
 
     process.removeListener('SIGINT', sigintHandler);
-    try {
-      if (activePage && !activePage.isClosed()) {
-        const url = activePage.url();
-        if (!url.includes('#mypage') && !url.includes('#authentication')) {
-          console.log('[DailyCLI] 🏠 Returning browser safely to homescreen (#mypage)...');
-          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-        }
-      }
-    } catch {}
-    await cdp.disconnect();
+    console.log('[DailyCLI] 💤 Closing GBF tab and entering browser standby mode (about:blank)...');
+    await cdp.standby().catch(() => null);
     return { account: account.name, success: true, summary };
 
   } catch (err: any) {
     console.error(`\n🚨 [DailyCLI] Execution Failed for [${account.name}]:`, err.message);
-    try {
-      if (activePage && !activePage.isClosed()) {
-        const url = activePage.url();
-        if (!url.includes('#mypage') && !url.includes('#authentication')) {
-          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-        }
-      }
-    } catch {}
-    await cdp.disconnect().catch(() => null);
+    await cdp.standby().catch(() => null);
     return { account: account.name, success: false, error: err.message };
   }
 }

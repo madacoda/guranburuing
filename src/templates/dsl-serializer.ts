@@ -49,6 +49,9 @@ function serializeStep(step: WorkflowStep, indent = ''): string {
       return `${indent}wait_network ${step.waitForNetwork || 'normal_attack_result.json'}`;
     case 'wait_element':
       return `${indent}wait_element ${step.target || '.btn-attack-start'}`;
+    case 'wait_wave':
+    case 'wait_for_wave':
+      return `${indent}wait_wave ${step.wave || step.waitForWave || 2}`;
     case 'wait':
       return `${indent}wait ${step.ms || 500}`;
     case 'touch_tap':
@@ -58,6 +61,8 @@ function serializeStep(step: WorkflowStep, indent = ''): string {
       return `${indent}navigate ${step.target || step.page || ''}`;
     case 'click':
       return `${indent}click ${step.target || ''}`;
+    case 'back':
+      return `${indent}click back button`;
     case 'eval':
       return `${indent}eval ${step.script || ''}`;
     case 'confirm_result':

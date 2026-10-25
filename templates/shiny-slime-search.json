@@ -1,0 +1,54 @@
+{
+  "name": "Shiny Slime Search! (Very Hard)",
+  "description": "Autonomous fast EXP/RP/Rupie farming on Shiny Slime Search (Very Hard, AP-30) in #quest/extra. Sequence: Quick Call (Wave 1) -> Click Back Button (cancel wave transition) -> Random Wait -> C4S3 (Threo Ground Zero Wave 2) -> Reload -> Rerun.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/400151/4",
+  "mode": "combat",
+  "isSolo": true,
+  "waves": 2,
+  "questId": "400151",
+  "supporterPriority": [
+    "Kaguya"
+  ],
+  "speedProfile": "turbo",
+  "defaultRuns": 100,
+  "autoElixir": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "steps": [
+    {
+      "code": "quick_call",
+      "name": "Quick Call (Clear Wave 1)",
+      "waitForNetwork": "summon_result.json",
+      "delayAfterMs": 400
+    },
+    {
+      "code": "back",
+      "name": "Click Back Button (Skip Wave 1 Transition)",
+      "delayAfterMs": 300
+    },
+    {
+      "code": "wait_wave",
+      "name": "Wait for Wave 2 & All Characters Full Load",
+      "wave": 2,
+      "timeoutMs": 10000
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 3 (Threo Ground Zero Wave 2)",
+      "character": 4,
+      "skill": 3,
+      "waitForWave": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json",
+      "delayAfterMs": 600
+    },
+    {
+      "code": "reload",
+      "name": "Instant Reload F5 (Skip Victory Fanfare)"
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Results & Settle Rewards"
+    }
+  ]
+}

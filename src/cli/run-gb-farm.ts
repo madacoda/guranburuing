@@ -89,7 +89,7 @@ try {
   console.log(`      - Log File:               logs/gb-go.md`);
   console.log('========================================================================\n');
 
-  await cdp.disconnect();
+  await cdp.standby();
   process.exit(0);
 } catch (error: any) {
   if (error.message?.includes('CAPTCHA')) {

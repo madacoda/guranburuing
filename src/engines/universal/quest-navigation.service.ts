@@ -5,11 +5,12 @@ import { MilestoneSweeperService } from './milestone-sweeper.service.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
 import { ScreenDiagnosticService } from './screen-diagnostic.service.js';
 import { humanizedClick, logNormalDelay } from '../../human-motor.js';
-import { RaidEvaluator, RaidCandidate, RaidEvaluationOptions, RaidEvaluatorStrategy } from '../raid-evaluator.js';
+import { RaidEvaluator, RaidVelocityTracker, RaidCandidate, RaidEvaluationOptions, RaidEvaluatorStrategy } from '../raid-evaluator.js';
 import { discordPresence } from '../../relay/discord-presence.js';
 
 import { FinderSlotConfiguratorService } from '../../services/navigation/finder-slot-configurator.service.js';
-import { resolveSearchRaid } from '../../domain/assist/search-raid.catalog.js';
+import { resolveSearchRaid, buildRaidCardFilterSpec } from '../../domain/assist/search-raid.catalog.js';
+import { RaidCardFilterSpec } from '../../domain/assist/search-raid.types.js';
 
 export interface QuestNavigationDependencies {
   milestoneSweeper: MilestoneSweeperService;
@@ -73,8 +74,18 @@ export class QuestNavigationService {
     }
 
     const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash) || initHash.includes('replicard/battle');
+    console.log(`[${this.ctx.accountId}] [Nav] initHash="${initHash}", isCombat=${isCombatHash}`);
 
     if (isCombatHash) {
+      await this.page.waitForFunction(() => {
+        const stage = (window as any).stage;
+        const hasStage = !!(stage && (stage.gGameStatus || stage.pJsnData || stage.gEnemyStatus));
+        const hasVisibleResult = Array.from(document.querySelectorAll('.pop-raid-result, .prt-result-head, .btn-result, .prt-command-end')).some(
+          el => (el as HTMLElement).offsetParent !== null && window.getComputedStyle(el).display !== 'none'
+        );
+        return hasStage || hasVisibleResult;
+      }, { timeout: 8000 }).catch(() => null);
+
       const battleEnded = await this.deps.combatResolution.isBattleEnded();
       if (battleEnded) {
         console.log(`[${this.ctx.accountId}] Concluded battle detected (${initHash}). Clearing dead combat state and navigating to quest start...`);
@@ -83,15 +94,45 @@ export class QuestNavigationService {
         await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
         await logNormalDelay(600, 0.15);
       } else {
-        const combatStatus = await this.page.evaluate(() => {
+        const readStatus = () => this.page.evaluate(() => {
           const stage = (window as any).stage;
           const gStatus = stage?.gGameStatus;
           const pJsn = stage?.pJsnData;
-          const turn = Number(pJsn?.turn || gStatus?.turn || 1);
-          const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
-          const isDead = boss?.hp !== undefined && Number(boss.hp) <= 0;
-          return { turn, isDead };
-        }).catch(() => ({ turn: 1, isDead: false }));
+          const turn = Number(pJsn?.turn || gStatus?.turn || 0);
+          const wave = Number(pJsn?.battle?.count || gStatus?.battle?.count || gStatus?.wave || 1);
+          const rawBosses = gStatus?.boss?.param || pJsn?.boss?.param || [];
+          const bosses = Array.isArray(rawBosses) ? rawBosses : Object.values(rawBosses);
+          const hasAliveBoss = bosses.some((b: any) => b && b.hp !== undefined && Number(b.hp) > 0);
+          const hasVisibleResult = Array.from(document.querySelectorAll('.pop-raid-result, .prt-result-head, .btn-result, .prt-command-end')).some(
+            el => (el as HTMLElement).offsetParent !== null && window.getComputedStyle(el).display !== 'none'
+          );
+          const isDead = (bosses.length > 0 && !hasAliveBoss) || !!(gStatus?.win || pJsn?.is_clear || hasVisibleResult);
+          return {
+            turn,
+            wave,
+            isDead,
+            hasAliveBoss,
+            bossCount: bosses.length,
+            debug: {
+              hasStage: !!stage,
+              hasGStatus: !!gStatus,
+              hasPJsn: !!pJsn,
+              rawBossesLen: Array.isArray(rawBosses) ? rawBosses.length : typeof rawBosses,
+              bossHps: bosses.map((b: any) => b?.hp)
+            }
+          };
+        }).catch((err: any) => {
+          console.error('[readStatus Error]:', err?.message || err);
+          return { turn: 0, wave: 1, isDead: false, hasAliveBoss: false, bossCount: 0, debug: err?.message };
+        });
+
+        let combatStatus = await readStatus();
+        if (combatStatus.bossCount === 0 && !combatStatus.isDead) {
+          await logNormalDelay(1200, 0.1);
+          combatStatus = await readStatus();
+        }
+
+        console.log(`[${this.ctx.accountId}] [Nav] combatStatus: turn=${combatStatus.turn}, wave=${combatStatus.wave}, isDead=${combatStatus.isDead}, hasAliveBoss=${combatStatus.hasAliveBoss}`, JSON.stringify((combatStatus as any).debug));
 
         if (combatStatus.isDead) {
           console.log(`[${this.ctx.accountId}] Enemy already defeated in battle (${initHash}). Concluding result...`);
@@ -99,8 +140,8 @@ export class QuestNavigationService {
           const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
           await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
           await logNormalDelay(600, 0.15);
-        } else if (isReplicard && combatStatus.turn === 1) {
-          console.log(`[${this.ctx.accountId}] [Replicard] Fresh active combat detected at Turn 1 (${initHash}). Starting combat pipeline directly...`);
+        } else if ((combatStatus.turn === 0 || combatStatus.turn === 1) && combatStatus.wave === 1 && combatStatus.hasAliveBoss) {
+          console.log(`[${this.ctx.accountId}] Fresh active combat detected at Turn ${combatStatus.turn} Wave 1 (${initHash}). Starting combat pipeline directly...`);
           return true;
         } else {
           console.log(`[${this.ctx.accountId}] Lingering in-progress battle detected (${initHash} | Turn ${combatStatus.turn}). Auto-finishing to clear state for fresh workflow runs...`);
@@ -119,14 +160,45 @@ export class QuestNavigationService {
     const targetHash = targetUrl.split('#')[1] || '';
     const currentUrl = this.page.url();
     if (!currentUrl.includes(targetHash)) {
-      await this.page.evaluate((hash: string) => {
-        if (window.location.hash === '#' + hash) {
-          window.location.reload();
-        } else {
-          window.location.hash = '#' + hash;
-        }
-      }, targetHash).catch(() => null);
+      await this.page.evaluate((url: string) => { window.location.href = url; }, targetUrl).catch(() => null);
+      await Promise.race([
+        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => null),
+        new Promise(r => setTimeout(r, 1500))
+      ]);
       await logNormalDelay(350, 0.1);
+    }
+
+    // Guard against desynchronized Backbone router state (e.g. hash updated to #quest/supporter/... but DOM stuck on event landing page)
+    if (!isReplicard && targetHash.includes('supporter')) {
+      const targetQuestId = this.ctx.template.questId || targetHash.match(/supporter\/(\d+)/)?.[1];
+      const viewStatus = await this.page.evaluate((qid?: string) => {
+        const hasSupporterCards = !!document.querySelector('.lis-supporter, .btn-supporter, .prt-supporter-attribute');
+        const hasDeckConfirmation = !!document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle');
+        const hasModal = !!document.querySelector('.popRestartQuest, .pop-usual, #pop.popup-view-root, .cnt-error');
+        const isEventHub = !!document.querySelector('.cnt-event, .prt-event-top, .btn-quest-fv, .btn-start-quest');
+
+        let clickedEventBtn = false;
+        if (isEventHub && qid) {
+          const btn = document.querySelector(`.btn-start-quest[data-quest-id="${qid}"], .btn-quest-fv[data-quest-id="${qid}"]`) as HTMLElement;
+          if (btn && btn.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(btn).trigger('tap');
+            btn.click();
+            clickedEventBtn = true;
+          }
+        }
+
+        return { hasSupporterCards, hasDeckConfirmation, hasModal, isEventHub, clickedEventBtn };
+      }, targetQuestId ? String(targetQuestId) : undefined).catch(() => ({ hasSupporterCards: false, hasDeckConfirmation: false, hasModal: false, isEventHub: false, clickedEventBtn: false }));
+
+      if (viewStatus.clickedEventBtn) {
+        await logNormalDelay(600, 0.15);
+      } else if (!viewStatus.hasSupporterCards && !viewStatus.hasDeckConfirmation && !viewStatus.hasModal && viewStatus.isEventHub) {
+        // We are on an event page without the supporter cards mounted: force a page reload to mount the supporter route
+        console.log(`[${this.ctx.accountId}] Event hub view detected while targeting supporter selection. Reloading to mount supporter cards...`);
+        await this.page.evaluate(() => window.location.reload()).catch(() => null);
+        await logNormalDelay(800, 0.15);
+      }
     }
 
     const start = Date.now();
@@ -170,8 +242,10 @@ export class QuestNavigationService {
           const gStatus = stage?.gGameStatus;
           const pJsn = stage?.pJsnData;
           const turn = Number(pJsn?.turn || gStatus?.turn || 1);
-          const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
-          const isDead = boss?.hp !== undefined && Number(boss.hp) <= 0;
+          const rawBosses = gStatus?.boss?.param || pJsn?.boss?.param || [];
+          const bosses = Array.isArray(rawBosses) ? rawBosses : Object.values(rawBosses);
+          const hasAliveBoss = bosses.some((b: any) => b && b.hp !== undefined && Number(b.hp) > 0);
+          const isDead = bosses.length > 0 && !hasAliveBoss;
           return { turn, isDead };
         }).catch(() => ({ turn: 1, isDead: false }));
 
@@ -181,8 +255,8 @@ export class QuestNavigationService {
           continue;
         }
 
-        if (isReplicard && combatStatus.turn === 1) {
-          console.log(`[${this.ctx.accountId}] [Resume] Resumed Replicard battle is at Turn 1. Starting combat pipeline directly.`);
+        if (combatStatus.turn === 0 || combatStatus.turn === 1) {
+          console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is at Turn ${combatStatus.turn}. Starting combat pipeline directly.`);
           return true;
         }
 
@@ -252,7 +326,7 @@ export class QuestNavigationService {
 
       // 1. Deck confirmation / Quest Start OK button (.btn-usual-ok.se-quest-start)
       const autoOk = await this.page.evaluate(() => {
-        const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
+        const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .pop-deck .btn-usual-ok, .prt-deck .btn-usual-ok') as HTMLElement;
         if (ok && ok.offsetParent !== null) {
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(ok).trigger('tap');
@@ -324,19 +398,14 @@ export class QuestNavigationService {
       }, this.ctx.template.supporterPriority || ['Hades', 'Bahamut', 'Zeus', 'Lucifer', 'Kaguya']).catch(() => false);
 
       if (cardClicked) {
-        await logNormalDelay(300, 0.1);
-        const okClicked = await this.page.evaluate(() => {
-          const ok = document.querySelector('.btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle, .btn-usual-ok') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(ok).trigger('tap');
-            ok.click();
-            return true;
-          }
-          return false;
-        }).catch(() => false);
+        // Wait up to 3500ms for deck confirmation modal (.pop-deck or .btn-usual-ok.se-quest-start) to appear
+        const okEl = await this.page.waitForSelector(
+          '.pop-deck .btn-usual-ok, .prt-deck .btn-usual-ok, .btn-usual-ok.se-quest-start, .se-quest-start, .btn-usual-ok.btn-settle',
+          { visible: true, timeout: 3500 }
+        ).catch(() => null);
 
-        if (okClicked) {
+        if (okEl) {
+          await humanizedClick(this.page, okEl);
           const mounted = await this.deps.combatResolution.waitForBattleToMount(12000);
           if (mounted) return true;
         }
@@ -401,19 +470,21 @@ export class QuestNavigationService {
       }
     }
 
+    // Resolve authoritative target raid definition once for slot configuration & universal cross-slot card verification
+    const targetRaid = resolveSearchRaid({
+      questId: this.ctx.template.targetRaidQuestId || this.ctx.template.questId,
+      targetEnemy: this.ctx.template.targetEnemy,
+      name: this.ctx.template.name,
+      description: this.ctx.template.description
+    });
+    const cardFilterSpec = buildRaidCardFilterSpec(targetRaid || this.ctx.template.name);
+
     // Auto-configure Finder slot (defaults to Slot 1 / tab 1) if autoSetRaid is enabled in workflow template
     // or if the workflow targets Finder Tab 1 (slot 1) and autoSetRaid is not explicitly disabled
     const isTab1Assist = (this.ctx.template.raidSlot === 1 || (!this.ctx.template.raidSlot && !this.ctx.template.raidSlots));
     const shouldAutoSet = this.ctx.template.autoSetRaid === true || (this.ctx.template.autoSetRaid !== false && isTab1Assist);
 
     if (shouldAutoSet) {
-      const targetRaid = resolveSearchRaid({
-        questId: this.ctx.template.targetRaidQuestId || this.ctx.template.questId,
-        targetEnemy: this.ctx.template.targetEnemy,
-        name: this.ctx.template.name,
-        description: this.ctx.template.description
-      });
-
       if (targetRaid) {
         const targetSlot = this.ctx.template.autoSetRaidSlot || this.ctx.template.raidSlot || 1;
         await this.finderSlotConfigurator.ensureSlotConfigured(this.page, {
@@ -455,60 +526,36 @@ export class QuestNavigationService {
       // Check full/ended raid popup
       await this.dismissFullOrEndedRaidPopup();
 
-      // 2. Scan cards in #prt-search-list
-      const rawCandidates: RaidCandidate[] = await this.page.evaluate((tmplName: string) => {
+      // 2. Scan cards in #prt-search-list using universal catalog-driven filterSpec
+      const rawCandidates: RaidCandidate[] = await this.page.evaluate((spec: RaidCardFilterSpec) => {
         const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search'));
-        const lowerTmpl = (tmplName || '').toLowerCase();
-        const isAkasha = lowerTmpl.includes('akasha');
-        const isPbhl = lowerTmpl.includes('pbhl') || lowerTmpl.includes('proto bahamut');
-        const isGo = lowerTmpl.includes('go') || lowerTmpl.includes('grand order');
-        const isFaa = lowerTmpl.includes('dark rapture') || lowerTmpl.includes('lucilius') || lowerTmpl.includes('faahl') || lowerTmpl.includes('faa-hl');
-        const isBelial = lowerTmpl.includes('belial') || lowerTmpl.includes('cunning') || lowerTmpl.includes('fallen angel');
-        const isBubz = lowerTmpl.includes('king') || lowerTmpl.includes('beelzebub') || lowerTmpl.includes('bubz') || lowerTmpl.includes('bubs') || lowerTmpl.includes('new king');
-        const isFediel = lowerTmpl.includes('fediel') || lowerTmpl.includes('フェディエル');
-        const isWilnas = lowerTmpl.includes('wilnas') || lowerTmpl.includes('ウィルナス');
 
         return cards.map((c, i) => {
           const el = c as HTMLElement;
           if (el.offsetParent === null) return null;
 
           const titleEl = el.querySelector('.prt-raid-name, .txt-raid-name, .name, [class*="raid-name"]') as HTMLElement;
-          const title = ((titleEl ? titleEl.innerText : el.innerText) || '').toLowerCase();
+          const title = ((titleEl ? titleEl.innerText : el.innerText) || '').toLowerCase().trim();
           const imgEl = el.querySelector('img') as HTMLImageElement;
-          const imgSrc = imgEl?.src || '';
+          const imgSrc = (imgEl?.src || '').trim();
 
-          // Validate target raid to prevent cross-slot contamination:
-          if (isAkasha) {
-            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('バハムート') || title.includes('peacemaker') || title.includes('グランデ') || imgSrc.includes('301061') || imgSrc.includes('305161')) {
+          // Universal cross-slot contamination verification across all raids in SEARCH_RAID_CATALOG
+          if (spec && (spec.targetQuestId || (spec.positiveTokens && spec.positiveTokens.length > 0))) {
+            if (spec.targetQuestId && imgSrc.includes(spec.targetQuestId)) {
+              // Exact questId match in thumbnail URL
+            } else if (imgSrc && spec.foreignQuestIds.some((fid: string) => imgSrc.includes(fid))) {
               return null;
-            }
-          } else if (isPbhl) {
-            if (title.includes('broken skies') || title.includes('akasha') || title.includes('アーカーシャ') || title.includes('peacemaker') || title.includes('グランデ') || imgSrc.includes('303251') || imgSrc.includes('305161')) {
-              return null;
-            }
-          } else if (isGo) {
-            if (title.includes('broken skies') || title.includes('akasha') || title.includes('wings of terror') || title.includes('bahamut') || imgSrc.includes('303251') || imgSrc.includes('301061')) {
-              return null;
-            }
-          } else if (isFaa) {
-            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('cunning') || title.includes('belial') || title.includes('king') || title.includes('beelzebub') || title.includes('fediel') || title.includes('wilnas') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('305381') || imgSrc.includes('305141') || imgSrc.includes('305241') || imgSrc.includes('305191')) {
-              return null;
-            }
-          } else if (isBelial) {
-            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('king') || title.includes('beelzebub') || title.includes('fediel') || title.includes('wilnas') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305141') || imgSrc.includes('305241') || imgSrc.includes('305191')) {
-              return null;
-            }
-          } else if (isBubz) {
-            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('cunning') || title.includes('belial') || title.includes('fediel') || title.includes('wilnas') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305381') || imgSrc.includes('305241') || imgSrc.includes('305191')) {
-              return null;
-            }
-          } else if (isFediel) {
-            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('cunning') || title.includes('belial') || title.includes('king') || title.includes('beelzebub') || title.includes('wilnas') || title.includes('wamdus') || title.includes('galleon') || title.includes('ewiyar') || title.includes('lu woh') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305381') || imgSrc.includes('305141') || imgSrc.includes('305191')) {
-              return null;
-            }
-          } else if (isWilnas) {
-            if (title.includes('wings of terror') || title.includes('proto bahamut') || title.includes('broken skies') || title.includes('akasha') || title.includes('peacemaker') || title.includes('the world') || title.includes('dark rapture') || title.includes('lucilius') || title.includes('cunning') || title.includes('belial') || title.includes('king') || title.includes('beelzebub') || title.includes('fediel') || title.includes('wamdus') || title.includes('galleon') || title.includes('ewiyar') || title.includes('lu woh') || imgSrc.includes('301061') || imgSrc.includes('303251') || imgSrc.includes('305161') || imgSrc.includes('303041') || imgSrc.includes('305381') || imgSrc.includes('305141') || imgSrc.includes('305241')) {
-              return null;
+            } else if (title) {
+              const matchedForeign = spec.foreignTokens.filter((ft: string) => title.includes(ft));
+              if (matchedForeign.length > 0) {
+                const maxForeignLen = Math.max(...matchedForeign.map((ft: string) => ft.length));
+                const hasMoreSpecificPositive = spec.positiveTokens.some(
+                  (pt: string) => title.includes(pt) && pt.length > maxForeignLen
+                );
+                if (!hasMoreSpecificPositive) {
+                  return null;
+                }
+              }
             }
           }
 
@@ -535,13 +582,16 @@ export class QuestNavigationService {
             y: rect.top + rect.height / 2
           };
         }).filter(Boolean) as any[];
-      }, this.ctx.template.name).catch(() => []);
+      }, cardFilterSpec).catch(() => []);
 
       // Prune dead raid IDs older than 2 minutes
       const now = Date.now();
       for (const [id, ts] of this.ctx.state.deadRaidIds.entries()) {
         if (now - ts > 120000) this.ctx.state.deadRaidIds.delete(id);
       }
+
+      // Enrich scanned candidates with real-time multi-scan velocity & stalled-room telemetry
+      const enrichedCandidates = RaidVelocityTracker.recordBatch(rawCandidates, now);
 
       const isOtk = this.ctx.template.evaluatorStrategy === 'otk_burst' || this.ctx.template.evaluatorStrategy === 'leech';
       const isFarm = this.ctx.template.evaluatorStrategy === 'farm';
@@ -564,7 +614,7 @@ export class QuestNavigationService {
         adaptive: enableAdaptive
       };
 
-      const selection = RaidEvaluator.selectBestCandidate(rawCandidates, evalOptions);
+      const selection = RaidEvaluator.selectBestCandidate(enrichedCandidates, evalOptions);
       const candidate = selection.best;
 
       if (candidate) {
@@ -577,7 +627,10 @@ export class QuestNavigationService {
         });
 
         const adaptiveTag = candidate.reason?.includes('Adaptively') ? ' [ADAPTIVE SELECTION]' : '';
-        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, Score: ${candidate.score} pt [Grade ${candidate.grade}], HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30})${adaptiveTag}. Joining...`);
+        const velocityTag = candidate.velocity && candidate.velocity.observations >= 2 && candidate.velocity.hpBurnPerSec > 0
+          ? `, Burn: ${candidate.velocity.hpBurnPerSec}%/s`
+          : '';
+        console.log(`[Workflow] Selected Slot ${currentSlot} raid (ID: ${candidate.raidId || 'pending'}, Score: ${candidate.score} pt [Grade ${candidate.grade}], HP: ${candidate.hpPct}%, Players: ${candidate.players}/${candidate.maxPlayers || 30}${velocityTag})${adaptiveTag}. Joining...`);
 
         const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search');
         const targetCard = cardElements[candidate.index];
@@ -599,7 +652,7 @@ export class QuestNavigationService {
           const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
           if (refreshBtn) {
             await humanizedClick(this.page, refreshBtn);
-            await logNormalDelay(800, 0.12);
+            await logNormalDelay(600, 0.12);
           }
           if (Date.now() - t0 < maxSearchMs) {
             continue;
@@ -648,14 +701,14 @@ export class QuestNavigationService {
           console.log(`[Workflow] Slot ${currentSlot}: ${rawCandidates.length} raid(s) scanned, none meet viability score (Top: ${top.score || 0} pt [Grade ${top.grade || 'F'}, HP ${top.hpPct}%, ${top.players}/${top.maxPlayers} players] - ${top.reason}). Skipping...`);
         }
 
-        // If all slots checked in this pass, click search refresh if available
+        // If all slots checked in this pass, click search refresh if available (aligned with GBF's 500ms refresh cooldown)
         if (slotCycleIndex % slotList.length === 0) {
           const refreshBtn = await this.page.$('.btn-search-refresh, .btn-post-key, .btn-refresh-list');
           if (refreshBtn) {
             await humanizedClick(this.page, refreshBtn);
-            await logNormalDelay(1000, 0.15);
+            await logNormalDelay(650, 0.12);
           } else {
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 650));
           }
         } else {
           await logNormalDelay(350, 0.1);

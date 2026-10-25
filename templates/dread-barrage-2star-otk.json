@@ -1,0 +1,23 @@
+{
+  "name": "Dread Barrage - 2-Star OTK (Lvl 75 Ferrum Agile)",
+  "description": "0-button Dread Barrage 2-Star (30 AP, 21.5M HP, 48 Tokens) speed-farm: Select Wind/Drop Summon -> OK -> Tap Ready (Quick Call) -> F5 -> Confirm",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980821/1",
+  "supporterPriority": ["Zephyrus", "Tiamat", "Kaguya", "Huanglong", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "turbo",
+  "steps": [
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

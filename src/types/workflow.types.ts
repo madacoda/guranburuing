@@ -20,12 +20,16 @@ export type WorkflowActionType =
   | 'wait_turn'
   | 'navigate'
   | 'click'
+  | 'back'
   | 'touch_tap'
   | 'wait'
   | 'wait_random'
   | 'wait_randomize'
   | 'wait_network'
   | 'wait_element'
+  | 'wait_wave'
+  | 'wait_for_wave'
+  | 'wait_full_load'
   | 'confirm_result'
   | 'eval'
   | 'loop_while'
@@ -88,6 +92,9 @@ export interface WorkflowStep {
   quickSummon?: boolean;    // For smart_full_auto: whether to cast quick summon on turn 1 (default: true)
   optional?: boolean;       // If true, step failure does not abort the run
   ensureCast?: boolean;     // If true, retries drawer opening and click verification to ensure skill was casted
+  waitForWave?: number;     // In multi-wave quests: wait until this wave (e.g. 2) is loaded and interactive before executing step
+  wave?: number;            // Alias for waitForWave
+  maxScenes?: number;       // For skip_story_scene: maximum consecutive cutscene parts to skip (default: 10)
   retries?: number;         // Step-level retries on failure (default: 1)
   label?: string;           // Step label for jump targets
   jumpTo?: string;          // Target label to jump to if condition is met
@@ -120,6 +127,7 @@ export interface WorkflowTemplate {
   defaultRuns?: number;
   speedProfile?: 'stealth' | 'fast' | 'turbo';
   targetScore?: number;     // Default score to exit raid (e.g. 1480000 for Blue Chest)
+  waves?: number;           // Total waves/battles in quest (e.g. 2 for Shiny Slime Search, 3 for Angel Halo)
   isSolo?: boolean;         // Mark quest as solo (Arcarum, Replicard, Fate Story). Automatically bypasses honorGuard and enables enemy HP tracking.
   honorGuard?: boolean;     // Enable/disable extra attack turns after combat pipeline if targetScore not reached (default: true)
   minBatchClaim?: number;   // Min raids before checking pending battles (default: 3)
@@ -154,12 +162,15 @@ export function isSoloWorkflowTemplate(tmpl?: WorkflowTemplate | null): boolean 
     qUrl.includes('replicard') ||
     qUrl.includes('arcarum') ||
     qUrl.includes('fate') ||
+    qUrl.includes('400151') ||
+    qUrl.includes('40015') ||
     mode === 'single' ||
     mode === 'solo' ||
     name.includes('arcarum') ||
     name.includes('replicard') ||
     name.includes('paragon') ||
     name.includes('fortress') ||
+    name.includes('slime') ||
     name.includes('fate')
   );
 }

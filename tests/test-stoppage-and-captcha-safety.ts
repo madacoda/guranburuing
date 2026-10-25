@@ -4,6 +4,7 @@ import { AlertRelay } from '../src/alert-relay.js';
 import { ProcessRunnerService } from '../src/services/discord/process-runner.service.js';
 import { DiscordCommandGatewayService } from '../src/services/discord/discord-command-gateway.service.js';
 import { discordDmRelay } from '../src/relay/discord-dm-relay.js';
+import { CdpConnectionManager } from '../src/cdp-connection.js';
 
 console.log('========================================================================');
 console.log('    Test: Mid-Execution Stoppage & Non-Logout CAPTCHA Timeout Safety    ');
@@ -145,6 +146,132 @@ try {
 
 } finally {
   discordDmRelay.sendMessage = originalSendMessage;
+}
+
+// 3. Test CDP Renderer Freeze Watchdog (Runtime.callFunctionOn timed out auto-recovery & forwarding)
+console.log('\n[Test 3] Testing CDP Renderer Freeze Watchdog & Timeout Cascade Prevention...');
+{
+  if (!CdpConnectionManager.isProtocolTimeoutError(new Error('Runtime.callFunctionOn timed out. Increase the protocolTimeout setting'))) {
+    throw new Error('Expected isProtocolTimeoutError to detect Runtime.callFunctionOn timed out.');
+  }
+  if (CdpConnectionManager.isProtocolTimeoutError(new Error('Execution context was destroyed'))) {
+    throw new Error('Expected isProtocolTimeoutError to return false for normal context destruction.');
+  }
+  console.log('  ✅ [PASS] CdpConnectionManager.isProtocolTimeoutError accurately classifies protocol timeouts.');
+
+  const cdp = new CdpConnectionManager();
+  let newPageEvaluateCalls = 0;
+
+  const recoveredPage = {
+    isClosed: () => false,
+    url: () => 'https://game.granbluefantasy.jp/#quest/assist',
+    evaluate: async () => {
+      newPageEvaluateCalls++;
+      return 'RECOVERED_OK';
+    }
+  } as any;
+
+  let stuckPageEvaluateCalls = 0;
+  const stuckPage = {
+    isClosed: () => false,
+    url: () => 'https://game.granbluefantasy.jp/#result_multi/empty/47051305342',
+    evaluate: async () => {
+      stuckPageEvaluateCalls++;
+      throw new Error("Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.");
+    }
+  } as any;
+
+  let recoveryTriggered = 0;
+  cdp.recoverFrozenRenderer = async () => {
+    recoveryTriggered++;
+    (cdp as any).gbfPage = recoveredPage;
+    cdp.installRendererFreezeWatchdog(recoveredPage, 9222);
+    return recoveredPage;
+  };
+
+  (cdp as any).gbfPage = stuckPage;
+  cdp.installRendererFreezeWatchdog(stuckPage, 9222);
+
+  // First call on stuckPage hits Runtime.callFunctionOn timed out -> triggers recoverFrozenRenderer -> retries on recoveredPage
+  const res1 = await stuckPage.evaluate(() => window.location.hash);
+  // Second call on old stuckPage reference (simulating in-flight handleConfirmResult loop) must forward directly to recoveredPage without hitting stuckPage!
+  const res2 = await stuckPage.evaluate(() => window.location.hash);
+
+  if (recoveryTriggered !== 1) {
+    throw new Error(`Expected recoverFrozenRenderer to be called once, got ${recoveryTriggered}`);
+  }
+  if (stuckPageEvaluateCalls !== 1) {
+    throw new Error(`Expected stuckPage original evaluate to only be called once before forwarding, got ${stuckPageEvaluateCalls}`);
+  }
+  if (res1 !== 'RECOVERED_OK' || res2 !== 'RECOVERED_OK' || newPageEvaluateCalls !== 2) {
+    throw new Error(`Expected both evaluate calls to resolve via recoveredPage (res1=${res1}, res2=${res2}, calls=${newPageEvaluateCalls})`);
+  }
+  console.log('  ✅ [PASS] Renderer freeze watchdog recovers on first timeout and forwards subsequent evaluate calls without hanging.');
+}
+
+// 4. Test Browser Standby Mode (closing GBF tabs into about:blank while preserving verification challenges)
+console.log('\n[Test 4] Testing Browser Standby Mode (putPortOnStandby & verification preservation)...');
+{
+  const originalFetch = globalThis.fetch;
+  const closedTargetIds: string[] = [];
+  let openedNewBlank = false;
+
+  try {
+    // Case A: Normal GBF tab open -> opens about:blank and closes GBF tab
+    globalThis.fetch = (async (input: any) => {
+      const url = String(input);
+      if (url.includes('/json/list')) {
+        return {
+          ok: true,
+          json: async () => [
+            { id: 'gbf-tab-1', type: 'page', url: 'https://game.granbluefantasy.jp/#mypage' }
+          ]
+        } as any;
+      }
+      if (url.includes('/json/new?about:blank')) {
+        openedNewBlank = true;
+        return { ok: true, json: async () => ({ id: 'blank-1', type: 'page', url: 'about:blank' }) } as any;
+      }
+      if (url.includes('/json/close/')) {
+        closedTargetIds.push(url.split('/json/close/')[1]);
+        return { ok: true } as any;
+      }
+      return { ok: false } as any;
+    }) as any;
+
+    const stoodBy = await CdpConnectionManager.putPortOnStandby(19222, true);
+    if (!stoodBy || !openedNewBlank || !closedTargetIds.includes('gbf-tab-1')) {
+      throw new Error(`Expected putPortOnStandby to open about:blank and close gbf-tab-1 (stoodBy=${stoodBy}, openedNewBlank=${openedNewBlank}, closed=${closedTargetIds.join(',')})`);
+    }
+    console.log('  ✅ [PASS] putPortOnStandby opens about:blank standby tab and closes active GBF renderer tab.');
+
+    // Case B: Active CAPTCHA verification tab -> preserves tab for operator
+    closedTargetIds.length = 0;
+    globalThis.fetch = (async (input: any) => {
+      const url = String(input);
+      if (url.includes('/json/list')) {
+        return {
+          ok: true,
+          json: async () => [
+            { id: 'gbf-captcha-tab', type: 'page', url: 'https://game.granbluefantasy.jp/#quest/verification' }
+          ]
+        } as any;
+      }
+      if (url.includes('/json/close/')) {
+        closedTargetIds.push(url.split('/json/close/')[1]);
+        return { ok: true } as any;
+      }
+      return { ok: true } as any;
+    }) as any;
+
+    const preserved = await CdpConnectionManager.putPortOnStandby(19222, true);
+    if (preserved !== false || closedTargetIds.length !== 0) {
+      throw new Error('Expected putPortOnStandby to preserve active verification tab without closing it.');
+    }
+    console.log('  ✅ [PASS] putPortOnStandby safely preserves active CAPTCHA verification tab.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 console.log('\n========================================================================');

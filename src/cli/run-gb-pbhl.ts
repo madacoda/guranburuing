@@ -71,7 +71,7 @@ try {
   console.log(`Drop Log Destination:     logs/gb-pbhl.md`);
   console.log('=====================================================\n');
 
-  await cdp.disconnect();
+  await cdp.standby();
   process.exit(0);
 } catch (error: any) {
   if (error.message?.includes('CAPTCHA')) {

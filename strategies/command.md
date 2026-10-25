@@ -22,6 +22,7 @@ Fast, categorized terminal reference for all operational commands, workflows, da
 - [13. Endgame 6-Man & Six Dragons Assist Raids](#13-endgame-6-man--six-dragons-assist-raids)
 - [14. Autonomous Finder Slot & Raid Auto-Setting (`autoSetRaid`)](#14-autonomous-finder-slot--raid-auto-setting-autosetraid)
 - [15. Guild Wars (Unite & Fight)](#15-guild-wars-unite--fight)
+- [15b. Dread Barrage (Valiant Battles)](#15b-dread-barrage-valiant-battles)
 - [16. Story, Scenario & Collaboration Events](#16-story-scenario--collaboration-events)
 - [17. Fate Episodes Auto-Farmer](#17-fate-episodes-auto-farmer)
 - [18. Rise of the Beasts (ROTB)](#18-rise-of-the-beasts-rotb)
@@ -291,12 +292,12 @@ Late-stage raid entry (HP $\le 20\%$, Players $\ge 3$), 1-turn burst, and immedi
 
 | Command | Windowed Variant | Boss | Team Element | Supporter Summon |
 | :--- | :--- | :--- | :---: | :---: |
-| `bun run leech:colossus` / `otkraid:colossus` | `bun run leech:colossus:windowed` / `otkraid:colossus:windowed` | Colossus Ira (Fire) | Water | Varuna |
-| `bun run leech:tiamat` / `otkraid:tiamat` | `bun run leech:tiamat:windowed` / `otkraid:tiamat:windowed` | Tiamat Aura (Wind) | Fire | Agni |
+| `bun run leech:colossus` / `farm:colossus` / `farm:ira` | `bun run leech:colossus:windowed` / `farm:colossus:windowed` | Colossus Ira (Fire) | Water | Varuna |
+| `bun run leech:tiamat` / `farm:tiamat` / `farm:aura` | `bun run leech:tiamat:windowed` / `farm:tiamat:windowed` | Tiamat Aura (Wind) | Fire | Agni |
 | `bun run leech:leviathan` / `farm:leviathan` / `farm:levi` | `bun run leech:leviathan:windowed` / `farm:leviathan:windowed` / `farm:levi:windowed` | Leviathan Mare (Water) | Earth | Titan |
-| `bun run leech:yggdrasil` | `bun run leech:yggdrasil:windowed` | Yggdrasil Arbos (Earth) | Wind | Zephyrus |
-| `bun run leech:luminiera` | `bun run leech:luminiera:windowed` | Luminiera Credo (Light) | Dark | Hades |
-| `bun run leech:celeste` | `bun run leech:celeste:windowed` | Celeste Ater (Dark) | Light | Zeus |
+| `bun run leech:yggdrasil` / `farm:yggdrasil` / `farm:arbos` / `farm:ygg` | `bun run leech:yggdrasil:windowed` / `farm:yggdrasil:windowed` | Yggdrasil Arbos (Earth) | Wind | Zephyrus |
+| `bun run leech:luminiera` / `farm:luminiera` / `farm:credo` / `farm:lumi` | `bun run leech:luminiera:windowed` / `farm:luminiera:windowed` | Luminiera Credo (Light) | Dark | Hades |
+| `bun run leech:celeste` / `farm:celeste` / `farm:ater` | `bun run leech:celeste:windowed` / `farm:celeste:windowed` | Celeste Ater (Dark) | Light | Zeus |
 | `bun run leech` / `otkraid` / `farm` | `bun run leech:windowed` / `otkraid:windowed` / `farm:windowed` | Dynamic Multi-Element | Dynamic | Multi-element concurrent evaluator loop |
 
 ---
@@ -317,6 +318,8 @@ Fast assist farming and leeching for foundational endgame 6-man and Six Dragons 
 | `bun run leech:fediel` | `bun run leech:fediel:windowed` | Fediel (Impossible) | Fediel | Fast leeching on low HP Fediel raids (`autoSetRaid: true`) |
 | `bun run wilnas` | `bun run wilnas:windowed` | Wilnas (Impossible) | Wilnas | Six Dragons fire uncap materials (`autoSetRaid: true`) |
 | `bun run leech:wilnas` | `bun run leech:wilnas:windowed` | Wilnas (Impossible) | Wilnas | Fast leeching on low HP Wilnas raids (`autoSetRaid: true`) |
+| `bun run lindwurm` / `empyreal-ascension` / `emperial-ascension` | `bun run lindwurm:windowed` / `empyreal-ascension:windowed` | Empyreal Ascension (HL) | Empyreal Ascension (Impossible) | 8-step burst (Bubz rotation), `autoSetRaid: true` enabled |
+| `bun run leech:lindwurm` / `leech:empyreal` | `bun run leech:lindwurm:windowed` | Empyreal Ascension (HL) | Empyreal Ascension (Impossible) | Fast leeching on dying Lindwurm raids (`autoSetRaid: true`) |
 
 ---
 
@@ -387,7 +390,20 @@ High-speed meat harvesting, NM95 burst sequences, multi-account swarm farming, a
 | `bun run gw-nm95:acc1` / `gw-nm95-light:acc1` | `[runs]` | NM95 Acc 1 | Runs NM95 explicitly on Account 1 |
 | `bun run gw-nm95:acc2` / `gw-nm95-light:acc2` | `[runs]` | NM95 Acc 2 | Runs NM95 explicitly on Account 2 |
 | `bun run gw-nm95-light:windowed` | `[runs]` | NM95 (Windowed) | NM95 burst in visible GUI window |
-| `bun run gacha:unf` | — | Token Drawbox | Bulk "Draw 1 Drawbox" clearer and auto-reset loop |
+---
+
+## 15b. Dread Barrage (Valiant Battles)
+
+Fast 1-turn OTK and Full Auto farming for Dread Barrage 1-Star through 5-Star encounters.
+
+| Command | Windowed Variant | Star / Boss | Description |
+| :--- | :--- | :---: | :--- |
+| `bun run db:3star` / `db3` / `db-3star` | `bun run db:3star:windowed` | 3★ (Lvl 90 Corpus Volans) | C4S1 $\rightarrow$ C4S3 on C1 $\rightarrow$ Quick Call $\rightarrow$ F5 $\rightarrow$ C2S1 $\rightarrow$ Attack $\rightarrow$ Rerun |
+| `bun run db:1star` / `db1` | `bun run db:1star:windowed` | 1★ (Lvl 60 Lacerta Currens) | 0-button Quick Call $\rightarrow$ F5 $\rightarrow$ Rerun (9M HP) |
+| `bun run db:2star` / `db2` | `bun run db:2star:windowed` | 2★ (Lvl 75 Ferrum Agile) | 0-button Quick Call $\rightarrow$ F5 $\rightarrow$ Rerun (21.5M HP) |
+| `bun run db:4star` / `db4` | `bun run db:4star:windowed` | 4★ (Lvl 95) | Smart Full Auto clear and rerun |
+| `bun run db:5star` / `db5` | `bun run db:5star:windowed` | 5★ (Lvl 100) | Smart Full Auto clear and rerun |
+| `bun run dread-barrage-3star-otk` | `bun run dread-barrage-3star-otk:windowed` | 3★ Full Template | Canonical workflow template invocation |
 
 ---
 
@@ -438,6 +454,16 @@ Four Beasts farming, Baihu Extreme loops, and Titan Agon uncap summon routines.
 | `bun run rotb:baihu` | Baihu (30 runs) | Farms Extreme Baihu solo battle (30 battles) |
 | `bun run rotb:earth` | 1 Cycle | Executes 9x Baihu $\rightarrow$ 1x Titan Agon |
 | `bun run rotb:earth:loop` | Continuous Loop | Infinite loop: 9x Baihu $\rightarrow$ 1x Titan repeatedly until stopped |
+
+---
+
+## 18b. Special & Extra Quests: Shiny Slime Search (Very Hard)
+
+High-speed automated EXP, RP, and Rupie farming on Shiny Slime Search Very Hard (AP-30) in `#quest/extra`. Fast 2-wave clearing rotation with back button animation skipping.
+
+| Command | Windowed Variant | Quest ID / Stage | Description |
+| :--- | :--- | :---: | :--- |
+| `bun run slime` / `shiny-slime` / `shiny-slime-search` | `bun run slime:windowed` / `shiny-slime:windowed` | `400151` (Very Hard) | 6-step fast blast: Quick Call (Wave 1) $\rightarrow$ Back Button $\rightarrow$ Random Wait $\rightarrow$ C3S3 (Wave 2 Plain DMG Nuke) $\rightarrow$ Reload $\rightarrow$ Rerun |
 
 ---
 
@@ -567,12 +593,17 @@ Every JSON template in `templates/` is auto-synced into `package.json` with both
 | | `gb-go` | `bun run gb-go` | `bun run gb-go:windowed` |
 | | `gb-farm` | `bun run gb-farm` | `bun run gb-farm:windowed` |
 | **Magna 3 (Omega Rebirth)** | `leech-colossus-ira` | `bun run leech-colossus-ira` | `bun run leech-colossus-ira:windowed` |
+| | `farm-colossus-ira` | `bun run farm-colossus-ira` | `bun run farm-colossus-ira:windowed` |
 | | `leech-tiamat-aura` | `bun run leech-tiamat-aura` | `bun run leech-tiamat-aura:windowed` |
+| | `farm-tiamat-aura` | `bun run farm-tiamat-aura` | `bun run farm-tiamat-aura:windowed` |
 | | `leech-leviathan-mare` | `bun run leech-leviathan-mare` | `bun run leech-leviathan-mare:windowed` |
 | | `farm-leviathan-mare` | `bun run farm-leviathan-mare` | `bun run farm-leviathan-mare:windowed` |
 | | `leech-yggdrasil-arbos` | `bun run leech-yggdrasil-arbos` | `bun run leech-yggdrasil-arbos:windowed` |
+| | `farm-yggdrasil-arbos` | `bun run farm-yggdrasil-arbos` | `bun run farm-yggdrasil-arbos:windowed` |
 | | `leech-luminiera-credo` | `bun run leech-luminiera-credo` | `bun run leech-luminiera-credo:windowed` |
+| | `farm-luminiera-credo` | `bun run farm-luminiera-credo` | `bun run farm-luminiera-credo:windowed` |
 | | `leech-celeste-ater` | `bun run leech-celeste-ater` | `bun run leech-celeste-ater:windowed` |
+| | `farm-celeste-ater` | `bun run farm-celeste-ater` | `bun run farm-celeste-ater:windowed` |
 | **Endgame & Dragons Raids** | `raid-long-live-the-king` | `bun run raid-long-live-the-king` | `bun run raid-long-live-the-king:windowed` |
 | | `raid-dark-rapture-hard` | `bun run raid-dark-rapture-hard` | `bun run raid-dark-rapture-hard:windowed` |
 | | `raid-the-fallen-angel-of-cunning` | `bun run raid-the-fallen-angel-of-cunning` | `bun run raid-the-fallen-angel-of-cunning:windowed` |

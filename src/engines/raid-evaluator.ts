@@ -18,7 +18,20 @@ export enum RaidDisqualificationReason {
   BURN_RATE_EXCESSIVE = 1 << 6,
   HP_PER_PLAYER_TOO_LOW = 1 << 7,
   SCORE_BELOW_MIN = 1 << 8,
-  FAILED_ASYNC_CONDITION = 1 << 9
+  FAILED_ASYNC_CONDITION = 1 << 9,
+  STALLED = 1 << 10
+}
+
+/**
+ * Real-time velocity and momentum metrics computed across consecutive Finder scans.
+ */
+export interface RaidVelocityMetrics {
+  observations: number;
+  elapsedSec: number;
+  hpBurnPerSec: number;           // Positive % HP lost per second
+  playerJoinRate: number;         // Players gained per second
+  estimatedTtdSec: number | null; // Estimated Time-to-Death in seconds (null if 0 burn)
+  isStalled: boolean;             // Flagged when seen across multiple scans with 0% HP change and low players
 }
 
 export interface RaidEvaluationResult {
@@ -32,6 +45,9 @@ export interface RaidEvaluationResult {
     sweetSpotBonus: number;
     burnPenalty: number;
     hpPerPlayer: number;
+    velocityBonus?: number;
+    estimatedTtdSec?: number | null;
+    isStalled?: boolean;
     flags?: number;
     flagsSummary?: string[];
   };
@@ -50,6 +66,7 @@ export interface RaidCandidate {
   viable?: boolean;
   reason?: string;
   evaluation?: RaidEvaluationResult;
+  velocity?: RaidVelocityMetrics;
 }
 
 export type AsyncRaidCondition = (candidate: RaidCandidate) => Promise<boolean> | boolean;
@@ -67,6 +84,8 @@ export interface RaidEvaluationOptions {
   asyncConditions?: AsyncRaidCondition[]; // Multiple async conditions evaluated in parallel
   asyncValidator?: AsyncRaidCondition;   // Single async predicate evaluated in parallel
   adaptive?: boolean;       // Enable adaptive fallback: if no candidate meets strict S/A thresholds, degrade to pick best most-joined active raid
+  velocity?: RaidVelocityMetrics; // Live velocity telemetry for candidate
+  trackVelocity?: boolean;  // Automatically look up / record velocity in RaidVelocityTracker
 }
 
 export interface ParallelEvaluationOptions {
@@ -123,6 +142,150 @@ export class RaidEvaluationCache {
   }
 }
 
+interface RaidVelocityEntry {
+  firstSeenAt: number;
+  lastSeenAt: number;
+  initialHpPct: number;
+  lastHpPct: number;
+  initialPlayers: number;
+  lastPlayers: number;
+  observations: number;
+}
+
+/**
+ * Real-Time Raid Velocity Tracker
+ *
+ * Tracks raid IDs across consecutive #quest/assist Finder scans to compute:
+ * - Boss HP burn rate (% HP lost per second)
+ * - Player join velocity (players gained per second)
+ * - Estimated Time-to-Death (TTD in seconds)
+ * - Stalled / Abandoned room detection (0% HP movement across multiple refreshes with <= 2 players)
+ */
+export class RaidVelocityTracker {
+  private static entries = new Map<string, RaidVelocityEntry>();
+  public static maxEntries = 500;
+  public static ttlMs = 180000; // 3 minutes
+
+  public static recordObservation(
+    raidId: string,
+    hpPct: number,
+    players: number,
+    now = Date.now()
+  ): RaidVelocityMetrics {
+    if (!raidId) {
+      return {
+        observations: 1,
+        elapsedSec: 0,
+        hpBurnPerSec: 0,
+        playerJoinRate: 0,
+        estimatedTtdSec: null,
+        isStalled: false
+      };
+    }
+
+    this.prune(now);
+
+    const existing = this.entries.get(raidId);
+    if (!existing) {
+      this.entries.set(raidId, {
+        firstSeenAt: now,
+        lastSeenAt: now,
+        initialHpPct: hpPct,
+        lastHpPct: hpPct,
+        initialPlayers: players,
+        lastPlayers: players,
+        observations: 1
+      });
+      return {
+        observations: 1,
+        elapsedSec: 0,
+        hpBurnPerSec: 0,
+        playerJoinRate: 0,
+        estimatedTtdSec: null,
+        isStalled: false
+      };
+    }
+
+    // Only increment observation count if at least 200ms elapsed or state changed
+    if (now - existing.lastSeenAt >= 200 || existing.lastHpPct !== hpPct || existing.lastPlayers !== players) {
+      existing.observations += 1;
+      existing.lastSeenAt = now;
+      existing.lastHpPct = hpPct;
+      existing.lastPlayers = players;
+    }
+
+    return this.computeMetrics(existing, now);
+  }
+
+  public static recordBatch(candidates: RaidCandidate[], now = Date.now()): RaidCandidate[] {
+    return candidates.map(c => {
+      if (!c.raidId) return c;
+      const velocity = this.recordObservation(c.raidId, c.hpPct, c.players, now);
+      return { ...c, velocity };
+    });
+  }
+
+  public static getMetrics(raidId: string, now = Date.now()): RaidVelocityMetrics | undefined {
+    const entry = this.entries.get(raidId);
+    if (!entry) return undefined;
+    if (now - entry.lastSeenAt > this.ttlMs) {
+      this.entries.delete(raidId);
+      return undefined;
+    }
+    return this.computeMetrics(entry, now);
+  }
+
+  private static computeMetrics(entry: RaidVelocityEntry, now: number): RaidVelocityMetrics {
+    const elapsedMs = Math.max(0, now - entry.firstSeenAt);
+    const elapsedSec = round2(elapsedMs / 1000);
+    const hpLost = Math.max(0, entry.initialHpPct - entry.lastHpPct);
+    const playerDelta = entry.lastPlayers - entry.initialPlayers;
+
+    const hpBurnPerSec = elapsedSec >= 0.4 ? round2(hpLost / elapsedSec) : 0;
+    const playerJoinRate = elapsedSec >= 0.4 ? round2(playerDelta / elapsedSec) : 0;
+    const estimatedTtdSec = hpBurnPerSec > 0.05 ? round1(entry.lastHpPct / hpBurnPerSec) : null;
+
+    // Stalled room heuristic: seen >= 2 times across >= 3.5s with 0% HP drop, <= 0 player growth, and <= 2 players
+    const isStalled =
+      entry.observations >= 2 &&
+      elapsedSec >= 3.5 &&
+      hpLost === 0 &&
+      playerDelta <= 0 &&
+      entry.lastPlayers <= 2;
+
+    return {
+      observations: entry.observations,
+      elapsedSec,
+      hpBurnPerSec,
+      playerJoinRate,
+      estimatedTtdSec,
+      isStalled
+    };
+  }
+
+  public static prune(now = Date.now()): void {
+    if (this.entries.size === 0) return;
+    for (const [id, entry] of this.entries.entries()) {
+      if (now - entry.lastSeenAt > this.ttlMs) {
+        this.entries.delete(id);
+      }
+    }
+    while (this.entries.size >= this.maxEntries) {
+      const oldestKey = this.entries.keys().next().value;
+      if (!oldestKey) break;
+      this.entries.delete(oldestKey);
+    }
+  }
+
+  public static clear(): void {
+    this.entries.clear();
+  }
+
+  public static size(): number {
+    return this.entries.size;
+  }
+}
+
 export class RaidEvaluator {
   public static readonly DEFAULT_MIN_SCORE = 40;
   public static readonly DEFAULT_MIN_HP = 25;
@@ -153,7 +316,10 @@ export class RaidEvaluator {
     maxPlayers: number,
     options: RaidEvaluationOptions
   ): string {
-    return `${raidId || 'noid'}:${hpPct}:${players}:${maxPlayers}:${options.strategy || 'honor'}:${options.minScore ?? 40}:${options.minHpPct ?? 0}:${options.maxHpPct ?? 0}:${options.minPlayers ?? 0}:${options.maxPlayers ?? 0}`;
+    const vKey = options.velocity
+      ? `${options.velocity.observations}:${options.velocity.hpBurnPerSec}:${options.velocity.isStalled ? 1 : 0}`
+      : 'nov';
+    return `${raidId || 'noid'}:${hpPct}:${players}:${maxPlayers}:${options.strategy || 'honor'}:${options.minScore ?? 40}:${options.minHpPct ?? 0}:${options.maxHpPct ?? 0}:${options.minPlayers ?? 0}:${options.maxPlayers ?? 0}:${vKey}`;
   }
 
   /**
@@ -307,6 +473,32 @@ export class RaidEvaluator {
       };
     }
 
+    // 4b. Live Velocity & TTD Check (when multi-scan velocity telemetry is available)
+    const velocity = options.velocity || (options.trackVelocity && raidId ? RaidVelocityTracker.getMetrics(raidId) : undefined);
+    if (velocity && velocity.observations >= 2) {
+      if (!hasCustomLowMinHp && velocity.estimatedTtdSec !== null && velocity.estimatedTtdSec < 8) {
+        flags |= RaidDisqualificationReason.BURN_RATE_EXCESSIVE;
+        flagSummaries.push('BURN_RATE_EXCESSIVE');
+        return {
+          score: 0,
+          grade: 'F',
+          viable: false,
+          reason: `Estimated TTD (${velocity.estimatedTtdSec}s) < 8s: boss will die before burst rotation completes`,
+          details: {
+            hpScore: 0,
+            playerScore: 0,
+            sweetSpotBonus: 0,
+            burnPenalty: 0,
+            hpPerPlayer,
+            estimatedTtdSec: velocity.estimatedTtdSec,
+            isStalled: velocity.isStalled,
+            flags,
+            flagsSummary: flagSummaries
+          }
+        };
+      }
+    }
+
     // 5. HP Quality Score (0 to 55 points)
     let hpScore = 0;
     if (hpPct >= 85) {
@@ -341,6 +533,9 @@ export class RaidEvaluator {
     let burnPenalty = 0;
     if (hpPerPlayer < 12) {
       burnPenalty = round1((12 - hpPerPlayer) * 1.5);
+    }
+    if (velocity && velocity.observations >= 2 && velocity.hpBurnPerSec > 4.0) {
+      burnPenalty = round1(burnPenalty + (velocity.hpBurnPerSec - 4.0) * 1.5);
     }
 
     // Calculate total score
@@ -378,6 +573,8 @@ export class RaidEvaluator {
         sweetSpotBonus,
         burnPenalty,
         hpPerPlayer,
+        estimatedTtdSec: velocity?.estimatedTtdSec ?? null,
+        isStalled: velocity?.isStalled ?? false,
         flags,
         flagsSummary: flagSummaries
       }
@@ -476,6 +673,31 @@ export class RaidEvaluator {
     const effectivePlayers = Math.max(players, 1);
     const hpPerPlayer = round2(hpPct / effectivePlayers);
 
+    // 5b. Live Velocity & Stalled Room Check
+    const velocity = options.velocity || (options.trackVelocity && raidId ? RaidVelocityTracker.getMetrics(raidId) : undefined);
+    if (velocity && velocity.isStalled) {
+      flags |= RaidDisqualificationReason.STALLED;
+      flagSummaries.push('STALLED');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `Raid is stalled (0% HP change over ${velocity.elapsedSec}s with ${players} players)`,
+        details: {
+          hpScore: 0,
+          playerScore: 0,
+          sweetSpotBonus: 0,
+          burnPenalty: 0,
+          hpPerPlayer,
+          velocityBonus: 0,
+          estimatedTtdSec: velocity.estimatedTtdSec,
+          isStalled: true,
+          flags,
+          flagsSummary: flagSummaries
+        }
+      };
+    }
+
     // 6. HP Quality Score (0 to 55 points)
     let hpScore = 0;
     if (hpPct <= maxHp) {
@@ -506,10 +728,20 @@ export class RaidEvaluator {
     else if (players === 3) playerScore = 26;
     else playerScore = 10;
 
-    // 8. Sweet Spot Synergy Bonus (+5 points)
+    // 8. Sweet Spot Synergy & Live Velocity Bonus (+5 base + up to +6 velocity momentum)
     let sweetSpotBonus = 0;
     if (hpPct <= maxHp && players >= minP) {
       sweetSpotBonus = 5;
+    }
+
+    let velocityBonus = 0;
+    if (velocity && velocity.observations >= 2) {
+      if (velocity.hpBurnPerSec >= 0.5 || velocity.playerJoinRate >= 0.2) {
+        velocityBonus = Math.min(6, Math.round(velocity.hpBurnPerSec * 1.5 + Math.max(0, velocity.playerJoinRate) * 3));
+      } else if (velocity.elapsedSec >= 3 && velocity.hpBurnPerSec === 0 && velocity.playerJoinRate <= 0 && players <= 4) {
+        velocityBonus = -10;
+      }
+      sweetSpotBonus += velocityBonus;
     }
 
     const rawScore = hpScore + playerScore + sweetSpotBonus;
@@ -553,6 +785,9 @@ export class RaidEvaluator {
         sweetSpotBonus,
         burnPenalty: 0,
         hpPerPlayer,
+        velocityBonus,
+        estimatedTtdSec: velocity?.estimatedTtdSec ?? null,
+        isStalled: velocity?.isStalled ?? false,
         flags,
         flagsSummary: flagSummaries
       }
@@ -651,6 +886,31 @@ export class RaidEvaluator {
     const effectivePlayers = Math.max(players, 1);
     const hpPerPlayer = round2(hpPct / effectivePlayers);
 
+    // 5b. Live Velocity & Stalled Room Check
+    const velocity = options.velocity || (options.trackVelocity && raidId ? RaidVelocityTracker.getMetrics(raidId) : undefined);
+    if (velocity && velocity.isStalled) {
+      flags |= RaidDisqualificationReason.STALLED;
+      flagSummaries.push('STALLED');
+      return {
+        score: 0,
+        grade: 'F',
+        viable: false,
+        reason: `Raid is stalled (0% HP change over ${velocity.elapsedSec}s with ${players} players)`,
+        details: {
+          hpScore: 0,
+          playerScore: 0,
+          sweetSpotBonus: 0,
+          burnPenalty: 0,
+          hpPerPlayer,
+          velocityBonus: 0,
+          estimatedTtdSec: velocity.estimatedTtdSec,
+          isStalled: true,
+          flags,
+          flagsSummary: flagSummaries
+        }
+      };
+    }
+
     // 6. Player Count Score (0 to 45 points) - Heavily favors "most joined raid"
     // More players = faster clear speed = faster turnaround and more reruns
     let playerScore = 0;
@@ -696,6 +956,16 @@ export class RaidEvaluator {
       sweetSpotBonus -= 10;
     }
 
+    let velocityBonus = 0;
+    if (velocity && velocity.observations >= 2) {
+      if (velocity.hpBurnPerSec >= 0.5 || velocity.playerJoinRate >= 0.2) {
+        velocityBonus = Math.min(6, Math.round(velocity.hpBurnPerSec * 1.5 + Math.max(0, velocity.playerJoinRate) * 3));
+      } else if (velocity.elapsedSec >= 3 && velocity.hpBurnPerSec === 0 && velocity.playerJoinRate <= 0 && players <= 4) {
+        velocityBonus = -10;
+      }
+      sweetSpotBonus += velocityBonus;
+    }
+
     const rawScore = hpScore + playerScore + sweetSpotBonus;
     const finalScore = Math.max(0, Math.min(100, Math.round(rawScore)));
 
@@ -729,6 +999,9 @@ export class RaidEvaluator {
         sweetSpotBonus,
         burnPenalty: sweetSpotBonus < 0 ? Math.abs(sweetSpotBonus) : 0,
         hpPerPlayer,
+        velocityBonus,
+        estimatedTtdSec: velocity?.estimatedTtdSec ?? null,
+        isStalled: velocity?.isStalled ?? false,
         flags,
         flagsSummary: flagSummaries
       }
@@ -775,11 +1048,12 @@ export class RaidEvaluator {
     const deadSet = this.normalizeDeadIds(options.deadRaidIds);
 
     const evaluated = candidates.map(c => {
+      const candidateOptions = c.velocity ? { ...options, velocity: c.velocity } : options;
       const evaluation = RaidEvaluator.evaluateCandidate(
         c.hpPct,
         c.players,
         c.maxPlayers,
-        options,
+        candidateOptions,
         c.raidId,
         deadSet
       );
@@ -864,11 +1138,12 @@ export class RaidEvaluator {
     ];
 
     const evaluateSingle = async (c: RaidCandidate): Promise<RaidCandidate> => {
+      const candidateOptions = c.velocity ? { ...options, velocity: c.velocity } : options;
       const evaluation = RaidEvaluator.evaluateCandidate(
         c.hpPct,
         c.players,
         c.maxPlayers,
-        options,
+        candidateOptions,
         c.raidId,
         deadSet
       );

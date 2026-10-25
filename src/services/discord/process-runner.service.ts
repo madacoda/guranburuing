@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { CdpConnectionManager } from '../../cdp-connection.js';
 
 export interface CommandPreset {
   key: string;
@@ -102,6 +103,36 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     defaultArgs: ['leviathan-mare'],
     description: 'Leviathan Mare Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
   },
+  'farm:celeste': {
+    key: 'farm:celeste',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['celeste-ater'],
+    description: 'Celeste Ater Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
+  'farm:colossus': {
+    key: 'farm:colossus',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['colossus-ira'],
+    description: 'Colossus Ira Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
+  'farm:tiamat': {
+    key: 'farm:tiamat',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['tiamat-aura'],
+    description: 'Tiamat Aura Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
+  'farm:yggdrasil': {
+    key: 'farm:yggdrasil',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['yggdrasil-arbos'],
+    description: 'Yggdrasil Arbos Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
+  'farm:luminiera': {
+    key: 'farm:luminiera',
+    script: 'src/cli/run-farm.ts',
+    defaultArgs: ['luminiera-credo'],
+    description: 'Luminiera Credo Adaptive Damage Farm (most joined raid, lowest HP, fast reruns)'
+  },
   'leech:leviathan': {
     key: 'leech:leviathan',
     script: 'src/cli/run-leech.ts',
@@ -144,6 +175,12 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     defaultArgs: ['bubz'],
     description: 'Long Live the King (Beelzebub) Fast Leech'
   },
+  'leech:lindwurm': {
+    key: 'leech:lindwurm',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['lindwurm'],
+    description: 'Empyreal Ascension (Lindwurm HL) Fast Leech'
+  },
   'leech:wilnas': {
     key: 'leech:wilnas',
     script: 'src/cli/run-leech.ts',
@@ -174,6 +211,18 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     defaultArgs: ['acc1', 'raid-long-live-the-king'],
     description: 'Long Live the King (Beelzebub) Workflow'
   },
+  'lindwurm': {
+    key: 'lindwurm',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-empyreal-ascension'],
+    description: 'Empyreal Ascension (Lindwurm HL) Workflow'
+  },
+  'empyreal': {
+    key: 'empyreal',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-empyreal-ascension'],
+    description: 'Empyreal Ascension (Lindwurm HL) Workflow'
+  },
   'wilnas': {
     key: 'wilnas',
     script: 'src/cli/run-workflow.ts',
@@ -185,6 +234,42 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     script: 'src/cli/run-workflow.ts',
     defaultArgs: ['acc1', 'raid-fediel'],
     description: 'Fediel Impossible Raid Workflow'
+  },
+  'db:3star': {
+    key: 'db:3star',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'dread-barrage-3star-otk'],
+    description: 'Dread Barrage 3-Star OTK (Lvl 90 Corpus Volans, 66M HP)'
+  },
+  'db3': {
+    key: 'db3',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'dread-barrage-3star-otk'],
+    description: 'Dread Barrage 3-Star OTK (Lvl 90 Corpus Volans, 66M HP)'
+  },
+  'db:1star': {
+    key: 'db:1star',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'dread-barrage-1star-otk'],
+    description: 'Dread Barrage 1-Star OTK (Lvl 60 Lacerta Currens, 9M HP)'
+  },
+  'db:2star': {
+    key: 'db:2star',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'dread-barrage-2star-otk'],
+    description: 'Dread Barrage 2-Star OTK (Lvl 75 Ferrum Agile, 21.5M HP)'
+  },
+  'db:4star': {
+    key: 'db:4star',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'dread-barrage-4star-fa'],
+    description: 'Dread Barrage 4-Star Full Auto (Lvl 95)'
+  },
+  'db:5star': {
+    key: 'db:5star',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'dread-barrage-5star-fa'],
+    description: 'Dread Barrage 5-Star Full Auto (Lvl 100)'
   },
   'workflow': {
     key: 'workflow',
@@ -207,6 +292,24 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     script: 'src/cli/run-fate.ts',
     defaultArgs: ['acc1', '10'],
     description: 'Autonomous Fate Episode Skip (10 episodes)'
+  },
+  'slime': {
+    key: 'slime',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'shiny-slime-search'],
+    description: 'Shiny Slime Search (Very Hard) Fast EXP/RP Farm'
+  },
+  'shiny-slime': {
+    key: 'shiny-slime',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'shiny-slime-search'],
+    description: 'Shiny Slime Search (Very Hard) Fast EXP/RP Farm'
+  },
+  'shiny-slime-search': {
+    key: 'shiny-slime-search',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'shiny-slime-search'],
+    description: 'Shiny Slime Search (Very Hard) Fast EXP/RP Farm'
   },
   'farm:human': {
     key: 'farm:human',
@@ -496,10 +599,15 @@ export class ProcessRunnerService {
         }
       }
 
+      // If this was a real OS child process, ensure the GBF browser tab is closed into 0%-CPU standby (about:blank)
+      if ((child as any).spawnfile) {
+        await CdpConnectionManager.putPortOnStandby().catch(() => false);
+      }
+
       this.activeJob = null;
       return {
         success: true,
-        message: `🛑 **Process Halted**: Job \`${key}\` (PID \`${pid}\`) has been successfully terminated.`
+        message: `🛑 **Process Halted**: Job \`${key}\` (PID \`${pid}\`) has been successfully terminated. Browser placed in standby mode (\`about:blank\`).`
       };
     } catch (err: any) {
       this.activeJob = null;

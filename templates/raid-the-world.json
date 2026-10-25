@@ -35,12 +35,6 @@
     {
       "code": "skill",
       "character": 3,
-      "skill": 1,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "code": "skill",
-      "character": 3,
       "skill": 2,
       "waitForNetwork": "ability_result.json"
     },

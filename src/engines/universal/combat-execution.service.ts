@@ -188,6 +188,9 @@ export class CombatExecutionService {
           await this.deps.combatResolution.waitForNetworkResponse(step.waitForNetwork, step.timeoutMs || 5000);
         }
         return true;
+      case 'wait_wave':
+      case 'wait_for_wave':
+        return await this.handleWaitWave(step);
       default: return true;
     }
   }
@@ -244,6 +247,133 @@ export class CombatExecutionService {
       if (this.ctx.state.currentTurn >= targetTurn) return true;
       await new Promise(r => setTimeout(r, 200));
     }
+    return false;
+  }
+
+  /**
+   * Waits for a specific wave (e.g. Wave 2) to mount, clears any TAP READY overlays,
+   * and verifies that all frontline characters are visible and fully loaded.
+   */
+  public async handleWaitWave(step: WorkflowStep): Promise<boolean> {
+    const targetWave = step.wave || step.waitForWave || (step.condition?.value ? Number(step.condition.value) : 2);
+    const timeoutMs = step.timeoutMs || 10000;
+    console.log(`[Combat] 🌊 Waiting for Wave ${targetWave} (screen ${targetWave}/${targetWave}) & all characters to full load...`);
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.ctx.state.stopRequested) return false;
+
+      // Check if battle concluded (e.g. boss defeated)
+      const isDefeated = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        return stage?.gGameStatus?.win || stage?.pJsnData?.is_clear || !!document.querySelector('.pop-raid-result, .prt-result-head');
+      }).catch(() => false);
+      if (isDefeated) return true;
+
+      // Dismiss any "TAP READY" or ready overlay
+      await this.page.evaluate(() => {
+        const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start, .btn-attack-ready, .prt-canvas-mask') as HTMLElement;
+        if (readyEl && readyEl.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) {
+            $(readyEl).trigger('touchstart');
+            $(readyEl).trigger('touchend');
+            $(readyEl).trigger('tap');
+            $(readyEl).trigger('click');
+          }
+          readyEl.click();
+        }
+      }).catch(() => null);
+
+      const waveState = await this.page.evaluate((tgt: number) => {
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        const pJsn = stage?.pJsnData;
+
+        // 1. Wave counter from game state
+        let currentWave = 1;
+        if (pJsn?.battle) {
+          if (typeof pJsn.battle === 'object') {
+            currentWave = Number(pJsn.battle.count ?? pJsn.battle.current ?? 1);
+          } else {
+            currentWave = Number(pJsn.battle);
+          }
+        } else if (gStatus?.battle) {
+          if (typeof gStatus.battle === 'object') {
+            currentWave = Number(gStatus.battle.count ?? gStatus.battle.current ?? 1);
+          } else {
+            currentWave = Number(gStatus.battle);
+          }
+        } else if (gStatus?.wave) {
+          currentWave = Number(gStatus.wave);
+        }
+
+        // 2. Wave counter from DOM
+        let domWave = 0;
+        const battleNumEl = document.querySelector('.prt-battle-num, .prt-turn-info .prt-battle-num');
+        if (battleNumEl) {
+          const m = (battleNumEl.textContent || '').match(/(\d+)\s*\/\s*(\d+)/);
+          if (m) domWave = parseInt(m[1], 10);
+        }
+
+        // 3. Screen text fallback for "2/2" or "2 / 2"
+        let screenWave = 0;
+        const bodyText = document.body ? (document.body.innerText || '') : '';
+        if (/(?:wave|battle)?\s*2\s*\/\s*2/i.test(bodyText)) {
+          screenWave = 2;
+        }
+
+        const effectiveWave = Math.max(currentWave, domWave, screenWave);
+
+        // Check frontline character button visibility (all 4 characters 0 to 3)
+        // Must select the character buttons (.lis-character0..3), NOT ability drawers (.prt-command-chara)
+        const charElements = [0, 1, 2, 3].map(idx => {
+          const el = document.querySelector(
+            `.lis-character${idx}.btn-command-character, ` +
+            `.lis-character${idx}, ` +
+            `[pos="${idx}"].btn-command-character`
+          ) as HTMLElement;
+          return !!(el && el.offsetParent !== null && !el.classList.contains('invisible'));
+        });
+        const allCharsVisible = charElements.filter(Boolean).length >= 4;
+
+        // Character 4 (Threo / Sarasa) specifically
+        const char4El = document.querySelector(
+          `.lis-character3.btn-command-character, ` +
+          `.lis-character3, ` +
+          `[pos="3"].btn-command-character`
+        ) as HTMLElement;
+        const char4Ready = !!(char4El && char4El.offsetParent !== null && !char4El.classList.contains('invisible'));
+
+        if (effectiveWave >= tgt && char4Ready && gStatus) {
+          gStatus.lock = false;
+          gStatus.btn_lock = false;
+          gStatus.animation = false;
+        }
+
+        const isLocked = gStatus ? (Boolean(gStatus.lock) || Boolean(gStatus.animation)) : false;
+        const hasAttackBtn = !!document.querySelector('.btn-attack-start.display-on, .btn-attack-start');
+
+        return {
+          currentWave: effectiveWave,
+          allCharsVisible,
+          char4Ready,
+          isLocked,
+          hasAttackBtn,
+          ready: effectiveWave >= tgt && (char4Ready || allCharsVisible)
+        };
+      }, targetWave).catch(() => ({ currentWave: 1, allCharsVisible: false, char4Ready: false, isLocked: true, hasAttackBtn: false, ready: false }));
+
+      if (waveState.ready) {
+        console.log(`[Combat] 🌊 Wave ${waveState.currentWave} active and character 4 / frontline fully loaded.`);
+        await new Promise(r => setTimeout(r, 200));
+        return true;
+      }
+
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    console.warn(`[Combat] ⚠️ Timed out waiting for Wave ${targetWave} after ${timeoutMs}ms.`);
     return false;
   }
 
@@ -330,6 +460,12 @@ export class CombatExecutionService {
       await this.deps.combatResolution.cancelFullAutoAndActionQueue();
     }
 
+    // 0. Wave gating: if step requires a specific wave, wait until that wave mounts
+    const targetWave = step.waitForWave ?? (step as any).wave;
+    if (targetWave && targetWave > 1) {
+      await this.deps.combatResolution.waitForWave(targetWave, isTurbo ? 6000 : 10000);
+    }
+
     // 1. Fast O(1) JavaScript game state inspection
     const jsSkillCheck = await this.page.evaluate((cNum: number, sNum: number) => {
       const stage = (window as any).stage;
@@ -363,23 +499,24 @@ export class CombatExecutionService {
     if (await this.deps.combatResolution.isBattleEnded()) return true;
 
     // 3. Ensure Character `char`'s ability drawer is open
-    let isDrawerOpen = await this.page.evaluate((targetIdx: number) => {
-      const stage = (window as any).stage;
-      const selectChara = stage?.gGameStatus?.select_character;
-      const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-      const hasBack = back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none';
-      if (hasBack && selectChara !== undefined && Number(selectChara) === targetIdx) {
+    let isDrawerOpen = await this.page.evaluate((cIdx: number, cNum: number, sNum: number) => {
+      const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
+      if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
         return true;
       }
-      const charPortrait = document.querySelector(`.prt-command-chara[pos="${targetIdx}"], .lis-character${targetIdx}`);
-      if (hasBack && charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active'))) {
+      const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+      const hasBack = back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none';
+      if (!hasBack) return false;
+
+      const charPortrait = document.querySelector(`.prt-command-chara[pos="${cIdx}"], .lis-character${cIdx}, .prt-command-chara.chara${cNum}`);
+      if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active'))) {
         return true;
       }
       return false;
-    }, charIdx).catch(() => false);
+    }, charIdx, char, skill).catch(() => false);
 
     if (!isDrawerOpen) {
-      const charSelector = `.prt-command-chara[pos="${charIdx}"] .btn-command-character, .lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, div[pos="${charIdx}"].btn-command-character, .btn-command-character[pos="${charIdx}"]`;
+      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, .prt-command-chara[pos="${charIdx}"] .btn-command-character, .prt-command-chara[pos="${charIdx}"], .prt-command-chara.chara${char} .btn-command-character, .prt-command-chara.chara${char}, [pos="${charIdx}"].btn-command-character, [pos="${charIdx}"]`;
       const maxOpenAttempts = step.ensureCast ? 5 : 3;
 
       for (let openAttempt = 1; openAttempt <= maxOpenAttempts; openAttempt++) {
@@ -402,17 +539,23 @@ export class CombatExecutionService {
           }).catch(() => null);
 
           // Wait for ability drawer to open specifically for character `char`
-          isDrawerOpen = await this.page.waitForFunction((c: number, s: number) => {
-            const stage = (window as any).stage;
-            const selectChara = stage?.gGameStatus?.select_character;
-            const cIdx = c - 1;
-            if (selectChara !== undefined && Number(selectChara) === cIdx) return true;
-            const specificBtn = document.querySelector(`.ability-character-num-${c}-${s}`);
-            if (specificBtn && (specificBtn as HTMLElement).offsetParent !== null) return true;
-            const charPortrait = document.querySelector(`.prt-command-chara[pos="${cIdx}"], .lis-character${cIdx}`);
-            if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active'))) return true;
+          isDrawerOpen = await this.page.waitForFunction((cIdx: number, cNum: number, sNum: number) => {
+            const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
+            if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
+              return true;
+            }
+            const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+            const hasBack = back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none';
+            if (hasBack) {
+              const charPortrait = document.querySelector(`.prt-command-chara[pos="${cIdx}"], .lis-character${cIdx}, .prt-command-chara.chara${cNum}`);
+              if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active'))) {
+                return true;
+              }
+              const anyCharSelected = document.querySelector('.prt-command-chara.selected, .lis-character.selected');
+              if (!anyCharSelected) return true;
+            }
             return false;
-          }, { timeout: isTurbo ? 1200 : 2500 }, char, skill).then(() => true).catch(() => false);
+          }, { timeout: isTurbo ? 1500 : 3000 }, charIdx, char, skill).then(() => true).catch(() => false);
 
           if (isDrawerOpen) break;
         }
@@ -431,12 +574,6 @@ export class CombatExecutionService {
     // 4. Evaluate skill availability (only if jsSkillCheck didn't already verify it is ready)
     if (jsSkillCheck.isReady !== true) {
       const domSkillCheck = await this.page.evaluate((cNum: number, sNum: number) => {
-        const stage = (window as any).stage;
-        const selectChara = stage?.gGameStatus?.select_character;
-        if (selectChara !== undefined && Number(selectChara) !== cNum - 1) {
-          return { found: false, ready: false, onCooldown: false };
-        }
-
         const slotIdx = sNum - 1;
         const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
         const listEl = document.querySelector(`.prt-ability-list .lis-ability[pos="${slotIdx}"], .prt-ability-list .lis-ability:nth-child(${sNum})`) as HTMLElement;
@@ -466,6 +603,9 @@ export class CombatExecutionService {
     const skillSelectors = [
       `.ability-character-num-${char}-${skill} .btn-ability-available`,
       `.ability-character-num-${char}-${skill}`,
+      `[data-ability-index="${skill}"] .btn-ability-available`,
+      `[data-ability-index="${skill}"]`,
+      `.prt-ability-list .lis-ability[data-ability-index="${skill}"]`,
       `.prt-ability-list .lis-ability[pos="${skill - 1}"] .btn-ability-available`,
       `.prt-ability-list .lis-ability:nth-child(${skill}) .btn-ability-available`,
       `.prt-ability-list .lis-ability[pos="${skill - 1}"] [ability-id]`,
@@ -475,7 +615,7 @@ export class CombatExecutionService {
     ];
 
     const targetNet = step.waitForNetwork || 'ability_result.json';
-    const maxCastTries = step.ensureCast ? 3 : 1;
+    const maxCastTries = step.ensureCast ? 3 : 2;
     let clicked = false;
 
     for (let tryNum = 1; tryNum <= maxCastTries; tryNum++) {
@@ -485,14 +625,23 @@ export class CombatExecutionService {
         clicked = await this.page.evaluate((s: string) => {
           const target = document.querySelector(s) as HTMLElement;
           if (!target || target.offsetParent === null) return false;
-          if (target.classList.contains('btn-ability-unavailable') || target.classList.contains('btn-ability-off')) return false;
-          const btn = ((target.classList.contains('btn-ability-available') ? target : target.querySelector('.btn-ability-available')) || target) as HTMLElement;
+          const container = (target.closest('.lis-ability') || target) as HTMLElement;
+          if (container.classList.contains('btn-ability-unavailable') || container.classList.contains('btn-ability-off') || container.classList.contains('empty')) return false;
+          const btn = ((container.classList.contains('btn-ability-available') ? container : container.querySelector('.btn-ability-available')) || container) as HTMLElement;
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) {
-            $(btn).trigger('tap');
-            $(btn).trigger('click');
+            $(container).trigger('tap');
+            $(container).trigger('click');
+            $(target).trigger('tap');
+            $(target).trigger('click');
+            if (btn !== container && btn !== target) {
+              $(btn).trigger('tap');
+              $(btn).trigger('click');
+            }
           }
+          target.click();
           btn.click();
+          container.click();
           return true;
         }, sel).catch(() => false);
 
@@ -511,41 +660,93 @@ export class CombatExecutionService {
       }
 
       if (clicked) {
-        console.log(`[Combat] ⚡ Cast Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''}${step.ensureCast ? ' (Verified)' : ''}`);
-        await netPromise;
-
-        // 6. Handle single-target character selection modal if present
-        await this.page.evaluate((targetIdx: number) => {
-          const pop = document.querySelector('.pop-usual, .prt-popup-body, .pop-target');
-          if (pop && (pop as HTMLElement).offsetParent !== null) {
-            const targetChar = pop.querySelector(`.lis-character${targetIdx}, .btn-command-character[pos="${targetIdx}"], .lis-character0, .btn-command-character`) as HTMLElement;
-            if (targetChar) {
-              const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(targetChar).trigger('tap');
-              targetChar.click();
-            }
-          }
-        }, (step.targetCharacter ? step.targetCharacter - 1 : 0)).catch(() => null);
-
-        // 7. Fast-tick animation and unlock UI
+        // Handle ability confirmation modal if Skill Check is enabled
         await this.page.evaluate(() => {
-          const cjs = (window as any).createjs;
-          if (cjs?.Tween?.tick) cjs.Tween.tick(2500, false);
-          const stage = (window as any).stage;
-          if (stage?.gGameStatus) {
-            stage.gGameStatus.lock = false;
-            stage.gGameStatus.btn_lock = false;
-            stage.gGameStatus.animation = false;
+          const ok = document.querySelector('.btn-usual-ok.btn-ability-use, .btn-usual-ok.se-ability-use, .pop-usual .btn-usual-ok') as HTMLElement;
+          if (ok && ok.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) {
+              $(ok).trigger('tap');
+              $(ok).trigger('click');
+            }
+            ok.click();
           }
         }).catch(() => null);
 
-        await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 250 : 1000);
-        await this.deps.combatResolution.getAndLogEnemyHp(`C${char}S${skill} Cast`);
-        return true;
+        // Wait for network response
+        const netSuccess = await netPromise;
+
+        // Verify if skill actually went on cooldown in client state
+        const recastCheck = await this.page.evaluate((cNum: number, sNum: number) => {
+          const stage = (window as any).stage;
+          const pJsn = stage?.pJsnData;
+          const abilityMap = pJsn?.ability || {};
+          const charPos = cNum - 1;
+          let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
+          if (!charObj) {
+            charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
+          }
+          if (charObj && charObj.list) {
+            const ab = charObj.list[String(sNum)];
+            const abilityData = Array.isArray(ab) ? ab[0] : ab;
+            if (abilityData) {
+              const recast = String(abilityData['ability-recast'] ?? '');
+              return recast !== '0' && recast !== '';
+            }
+          }
+          return false;
+        }, char, skill).catch(() => false);
+
+        const isCastConfirmed = step.ensureCast ? (netSuccess || recastCheck) : (netSuccess || recastCheck || clicked);
+        if (isCastConfirmed) {
+          console.log(`[Combat] ⚡ Cast Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''}${step.ensureCast ? ' (Verified)' : ''}`);
+
+          // 6. Handle single-target character selection modal if present
+          await this.page.evaluate((targetIdx: number) => {
+            const pop = document.querySelector('.pop-usual, .prt-popup-body, .pop-target');
+            if (pop && (pop as HTMLElement).offsetParent !== null) {
+              const targetChar = pop.querySelector(`.lis-character${targetIdx}, .btn-command-character[pos="${targetIdx}"], .lis-character0, .btn-command-character`) as HTMLElement;
+              if (targetChar) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(targetChar).trigger('tap');
+                targetChar.click();
+              }
+            }
+          }, (step.targetCharacter ? step.targetCharacter - 1 : 0)).catch(() => null);
+
+          // 7. Fast-tick animation and unlock UI
+          await this.page.evaluate(() => {
+            const cjs = (window as any).createjs;
+            if (cjs?.Tween?.tick) cjs.Tween.tick(2500, false);
+            const stage = (window as any).stage;
+            if (stage?.gGameStatus) {
+              stage.gGameStatus.lock = false;
+              stage.gGameStatus.btn_lock = false;
+              stage.gGameStatus.animation = false;
+            }
+          }).catch(() => null);
+
+          // Wait for ability settlement in client JS state
+          await this.page.waitForFunction(() => {
+            const stage = (window as any).stage;
+            const pJsn = stage?.pJsnData;
+            const gStatus = stage?.gGameStatus;
+            const isDefeated = gStatus?.win || pJsn?.is_clear || pJsn?.finish;
+            const firstBoss = pJsn?.boss?.param?.[0];
+            const bossDead = firstBoss && Number(firstBoss.hp) <= 0;
+            return isDefeated || bossDead;
+          }, { timeout: 1200 }).catch(() => null);
+
+          await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1000);
+          await this.deps.combatResolution.getAndLogEnemyHp(`C${char}S${skill} Cast`);
+          return true;
+        }
+
+        console.warn(`[Combat] Skill C${char}S${skill} cast attempt ${tryNum}/${maxCastTries} unacknowledged. Retrying...`);
+        isDrawerOpen = false;
       }
 
       if (tryNum < maxCastTries) {
-        console.log(`[Combat] Skill C${char}S${skill} cast attempt ${tryNum}/${maxCastTries} unconfirmed. Retrying...`);
         await new Promise(r => setTimeout(r, 200));
       }
     }
@@ -1644,6 +1845,25 @@ export class CombatExecutionService {
    */
   public async handleClick(step: WorkflowStep): Promise<boolean> {
     if (!step.target) return false;
+    if (step.target === 'back' || step.target === 'back button') {
+      const clickedDrawerBack = await this.page.evaluate(() => {
+        const drawerBack = document.querySelector('.btn-command-back.display-on') as HTMLElement;
+        if (drawerBack && drawerBack.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(drawerBack).trigger('tap');
+          drawerBack.click();
+          return true;
+        }
+        return false;
+      }).catch(() => false);
+
+      if (!clickedDrawerBack) {
+        await this.page.evaluate(() => {
+          window.history.back();
+        }).catch(() => null);
+      }
+      return true;
+    }
     const el = await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 3000 }).catch(() => null);
     if (el) {
       const clicked = await this.page.evaluate((sel: string) => {

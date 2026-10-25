@@ -4,6 +4,7 @@ import { SentinelWatchdog } from '../sentinel-watchdog.js';
 import { humanizedClick, logNormalDelay } from '../human-motor.js';
 import { SupporterSelectionService } from '../services/navigation/supporter-selection.service.js';
 import { RecoveryModalService } from '../services/navigation/recovery-modal.service.js';
+import { StorySceneSkipService } from '../services/navigation/story-scene-skip.service.js';
 
 export interface FateEpisodeInfo {
   questId: string;
@@ -32,6 +33,7 @@ export interface FateRunSummary {
 export class FateEngine {
   private supporterService: SupporterSelectionService;
   private recoveryService: RecoveryModalService;
+  private storySceneService: StorySceneSkipService;
   private stopRequested = false;
 
   constructor(
@@ -40,6 +42,14 @@ export class FateEngine {
   ) {
     this.supporterService = new SupporterSelectionService(page);
     this.recoveryService = new RecoveryModalService(page);
+    this.storySceneService = new StorySceneSkipService(page, sentinel);
+  }
+
+  public updatePage(page: Page): void {
+    this.page = page;
+    this.supporterService.updatePage(page);
+    this.recoveryService.updatePage(page);
+    this.storySceneService.updatePage(page);
   }
 
   public requestStop(): void {
@@ -761,126 +771,18 @@ export class FateEngine {
 
 
   /**
-   * Fast-skips a single story dialogue cutscene:
-   * - Allows CreateJS deferred queue settle to eliminate _clearNextDeferred TypeError
-   * - Safe try/catch event triggers
-   * - Selects dialogue choices if prompt stops cutscene
-   * - Awakens dormant canvas controls
-   * - Awaits redirect out of active scene
+   * Fast-skips story cutscenes (handles multi-part scenes and dialogue branches):
+   * Delegates to StorySceneSkipService for sub-second transition and robust multi-part handling.
    */
-  public async handleSceneCutsceneStep(timeoutMs = 12000): Promise<boolean> {
-    console.log('[FateEngine] 📖 Fast-skipping story cutscene...');
+  public async handleSceneCutsceneStep(timeoutMs = 45000, maxScenes = 10): Promise<boolean> {
+    console.log('[FateEngine] 📖 Fast-skipping story cutscene(s)...');
     try {
-      // Settle delay to allow CreateJS deferred queues in event-scene-view to initialize
-      await logNormalDelay(1000, 0.15);
-      const tStart = Date.now();
-
-      while (Date.now() - tStart < timeoutMs) {
-        if (this.stopRequested) return false;
-        await this.sentinel.assertSafe().catch(() => null);
-
-        // Check if page navigated away from cutscene
-        const currentUrl = this.page.url();
-        if (!currentUrl.includes('scene')) {
-          return true;
-        }
-
-        const action = await this.page.evaluate(() => {
-          try {
-            const $ = (window as any).$ || (window as any).Zepto;
-
-            // Shield against CreateJS / GBF internal deferred errors (_clearNextDeferred)
-            try {
-              if ((window as any).stage && !(window as any).stage._nextDeferred) {
-                (window as any).stage._nextDeferred = { reject: () => {}, resolve: () => {} };
-              }
-            } catch {}
-
-            // 1. Skip confirmation popup: .btn-scene-skip
-            const confirmSkip = document.querySelector(
-              '.pop-synopsis .btn-scene-skip, .btn-scene-skip, .pop-skip .btn-usual-ok, .pop-skip .btn-skip-confirm, .btn-skip-ok'
-            ) as HTMLElement;
-            if (confirmSkip && confirmSkip.offsetParent !== null && !confirmSkip.classList.contains('disable')) {
-              try {
-                if ($) $(confirmSkip).trigger('tap');
-                confirmSkip.click();
-                return 'confirmed_skip';
-              } catch {
-                return null;
-              }
-            }
-
-            // 2. Story scene SKIP button: .btn-skip
-            const skipBtn = document.querySelector(
-              '.btn-skip:not(.btn-scene-skip), .prt-scene-setting .btn-skip, [data-action="skip"]'
-            ) as HTMLElement;
-            if (skipBtn && skipBtn.offsetParent !== null) {
-              try {
-                if ($) $(skipBtn).trigger('tap');
-                skipBtn.click();
-                return 'clicked_skip';
-              } catch {
-                return null;
-              }
-            }
-
-            // 3. Dialogue choice selection inside story
-            const choice = document.querySelector(
-              '.prt-selection .btn-selection, .btn-selection, .btn-command, .prt-balloon .btn-usual-ok'
-            ) as HTMLElement;
-            if (choice && choice.offsetParent !== null) {
-              try {
-                if ($) $(choice).trigger('tap');
-                choice.click();
-                return 'selected_choice';
-              } catch {
-                return null;
-              }
-            }
-
-            // 4. Canvas ready / dormant controls
-            const canvas = document.querySelector('canvas#canvas, canvas#cjs-canvas, .prt-scene-comment, .cnt-quest-scene') as HTMLElement;
-            if (canvas && canvas.offsetParent !== null) {
-              return 'canvas_ready';
-            }
-
-            return null;
-          } catch {
-            return null;
-          }
-        }).catch(() => null);
-
-        if (action === 'confirmed_skip') {
-          console.log('[FateEngine] ⏩ Confirmed cutscene skip dialog. Awaiting transition...');
-          await logNormalDelay(600, 0.2);
-
-          // Await redirect out of scene
-          const tWait = Date.now();
-          while (Date.now() - tWait < 10000) {
-            const url = this.page.url();
-            if (url.includes('result') || url.includes('#quest/supporter') || url.includes('#raid') || url.includes('#quest/fate') || url.includes('#mypage')) {
-              return true;
-            }
-            await new Promise(r => setTimeout(r, 250));
-          }
-          return true;
-        } else if (action === 'clicked_skip') {
-          await logNormalDelay(400, 0.15);
-        } else if (action === 'selected_choice') {
-          console.log('[FateEngine] 💬 Selected story dialogue choice.');
-          await logNormalDelay(350, 0.15);
-        } else if (action === 'canvas_ready') {
-          // Only tap screen after 2.5s if skip controls haven't mounted
-          if (Date.now() - tStart > 2500) {
-            await this.page.touchscreen.tap(240, 360).catch(() => null);
-          }
-          await logNormalDelay(350, 0.2);
-        } else {
-          await new Promise(r => setTimeout(r, 250));
-        }
-      }
-
-      return true;
+      const outcome = await this.storySceneService.skipStoryScenes({
+        timeoutMs,
+        maxScenes,
+        autoSelectChoice: true
+      });
+      return outcome.success;
     } catch (err: any) {
       console.warn(`[FateEngine] Shielded error during cutscene skip: ${err?.message || err}`);
       return true;

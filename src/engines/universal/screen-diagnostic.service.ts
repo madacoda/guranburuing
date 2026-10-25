@@ -553,6 +553,14 @@ export class ScreenDiagnosticService {
             console.log('[Deep Analysis] Dismissed generic modal dialog.');
             await logNormalDelay(500, 0.1);
           }
+        } else if (analysis.condition === 'NONE') {
+          // If no modal or condition is found, the page/router view is likely desynchronized or wedged
+          console.log('[Deep Analysis] 🔄 No blocking modal found. Proactively reloading page to resync router state...');
+          await this.page.evaluate(() => { window.location.reload(); }).catch(() => null);
+          await logNormalDelay(1200, 0.15);
+          recovered = true;
+          reason = 'Reloaded page to clear desynchronized router/DOM view';
+          break;
         }
 
         // Capture emergency diagnostic screenshot

@@ -11,6 +11,7 @@ import { discordDmRelay } from '../relay/discord-dm-relay.js';
 import {
   setSpeedProfile,
   getSpeedProfile,
+  humanizedClick,
   logNormalDelay,
   interRunHumanDelay,
   SpeedProfile
@@ -453,6 +454,10 @@ export class UniversalWorkflowEngine {
           started = await this.questNavigation.selectSupporterAndStartQuest(autoReplenishAp, autoReplenishEp, activeLogPath, totalCompleted);
         } catch (startErr: any) {
           console.warn(`[Workflow] Error during quest navigation: ${startErr.message}`);
+          if (String(startErr?.message || '').includes('timed out') && typeof (this.page as any)?.__recycleTab === 'function') {
+            console.warn('[Workflow] ♻️ Protocol timeout during quest navigation. Recycling browser tab to clear wedged renderer...');
+            await (this.page as any).__recycleTab(this.template.questUrl).catch(() => null);
+          }
           started = false;
         }
       }
@@ -523,11 +528,17 @@ export class UniversalWorkflowEngine {
 
       // Phase 3: Result settlement & rewards processing (combat mode only)
       if (this.template.mode !== 'routine') {
-        const isAssist = this.template.questUrl?.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
-        if (!isAssist) {
-          await this.combatExecution.ensureBattleConcluded(10);
+        const hasConfirmResultStep = this.template.steps.some(s => (s.code || s.action) === 'confirm_result');
+        const isEnded = await this.combatResolution.isBattleEnded();
+        if (!isEnded) {
+          const isAssist = this.template.questUrl?.includes('assist') || (this.template.raidSlots && this.template.raidSlots.length > 0);
+          if (!isAssist) {
+            await this.combatExecution.ensureBattleConcluded(10);
+          }
         }
-        await this.combatResolution.handleConfirmResult();
+        if (!hasConfirmResultStep) {
+          await this.combatResolution.handleConfirmResult();
+        }
         await this.combatResolution.syncCurrentHonors();
         this.ctx.state.totalHonorsAccumulated += this.ctx.state.currentScore;
       }
@@ -598,6 +609,18 @@ export class UniversalWorkflowEngine {
       }
 
       console.log(`[Run ${runNumber}] Completed in ${(runDuration / 1000).toFixed(1)}s | Honors: ${this.ctx.state.currentScore.toLocaleString()} pt | Overall: ${totalCompleted}/${runs} runs`);
+
+      // Proactive Renderer Memory Hygiene: Recycle tab every 50 runs to flush V8 heap & SwiftShader WebGL buffers
+      if (
+        totalCompleted > 0 &&
+        totalCompleted % 50 === 0 &&
+        totalCompleted < runs &&
+        !this.ctx.state.stopRequested &&
+        typeof (this.page as any)?.__recycleTab === 'function'
+      ) {
+        console.log(`[Workflow] ♻️ Proactive memory hygiene at Run ${totalCompleted}: Recycling GBF tab to flush renderer heap...`);
+        await (this.page as any).__recycleTab(this.template.questUrl).catch(() => null);
+      }
 
       // Human motor inter-run randomize delay across all workflows
       const customInterRun = this.template.interRunDelayMs ?? this.template.delayBetweenRunsMs;
@@ -681,25 +704,35 @@ export class UniversalWorkflowEngine {
         continue;
       }
 
-      if (this.template.mode !== 'routine' && i > 0 && await this.combatResolution.isBattleEnded()) {
-        const stepAction = step.code || step.action;
-        const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
-        if (!isPostBattleCleanup) {
-          await this.combatResolution.syncCurrentHonors();
-          console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
-          return true;
+      const stepAction = step.code || step.action;
+      const prevStep = i > 0 ? this.template.steps[i - 1] : null;
+      const prevAction = prevStep ? (prevStep.code || prevStep.action) : null;
+      const isWait = stepAction === 'wait' || stepAction === 'wait_random' || stepAction === 'wait_randomize';
+      const isWaitWave = stepAction === 'wait_wave' || stepAction === 'wait_for_wave' || stepAction === 'wait_full_load';
+      const isBack = stepAction === 'back';
+      const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
+      const hasWaveGating = (step.waitForWave && step.waitForWave > 1) || ((step as any).wave && (step as any).wave > 1);
+
+      // Do NOT prematurely abort combat pipeline if:
+      // 1. Current step is a wait step (waiting for animation or stage transition)
+      // 2. Current step is 'back' or previous step was 'back' (client is actively transitioning stage 1 -> stage 2)
+      // 3. Current step explicitly targets a future wave (e.g. Wave 2)
+      const skipEarlyExitCheck = isWait || isWaitWave || isBack || (prevAction === 'back') || hasWaveGating;
+
+      if (this.template.mode !== 'routine' && i > 0 && !skipEarlyExitCheck) {
+        if (await this.combatResolution.isBattleEnded()) {
+          if (!isPostBattleCleanup) {
+            await this.combatResolution.syncCurrentHonors();
+            console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
+            return true;
+          }
         }
       }
 
-      if (this.isSoloQuest() && i > 0) {
-        const stepAction = step.code || step.action;
-        const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
-        if (!isPostBattleCleanup) {
-          const enemy = await this.combatResolution.getAndLogEnemyHp();
-          if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
-            console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
-            return true;
-          }
+      if (this.isSoloQuest() && i > 0 && !skipEarlyExitCheck) {
+        if (!isPostBattleCleanup && (await this.combatResolution.isBattleEnded())) {
+          console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
+          return true;
         }
       }
 
@@ -874,6 +907,50 @@ export class UniversalWorkflowEngine {
 
       case 'click':
         return await this.combatExecution.handleClick(step);
+
+      case 'wait_wave':
+      case 'wait_for_wave':
+        return await this.combatExecution.handleWaitWave(step);
+
+      case 'wait_full_load':
+        await this.combatResolution.ensureInitialCombatReady(step.timeoutMs || 8000);
+        return true;
+
+      case 'back':
+        {
+          console.log('[Combat] 🔙 Executing Back Button navigation...');
+          const clicked = await this.page.evaluate(() => {
+            const footerBack = document.querySelector('.btn-treasure-footer-back') as HTMLElement;
+            if (footerBack) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(footerBack).trigger('tap');
+              footerBack.click();
+              return 'footer_back (.btn-treasure-footer-back)';
+            }
+
+            const drawerBack = document.querySelector('.btn-command-back.display-on') as HTMLElement;
+            if (drawerBack && drawerBack.offsetParent !== null) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(drawerBack).trigger('tap');
+              drawerBack.click();
+              return 'drawer_back (.btn-command-back)';
+            }
+
+            const generalBack = document.querySelector('.btn-back, .prt-navigation .btn-back') as HTMLElement;
+            if (generalBack && generalBack.offsetParent !== null) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(generalBack).trigger('tap');
+              generalBack.click();
+              return 'general_back';
+            }
+
+            window.history.back();
+            return 'history_back';
+          }).catch(() => null);
+
+          console.log(`[Combat] 🔙 Back action executed via: ${clicked || 'history_back'}`);
+        }
+        return true;
 
       case 'log_enemy_hp':
         await this.combatResolution.getAndLogEnemyHp(step.name || 'Manual Log');

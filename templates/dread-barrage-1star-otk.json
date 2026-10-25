@@ -1,0 +1,23 @@
+{
+  "name": "Dread Barrage - 1-Star OTK (Lvl 60 Lacerta Currens)",
+  "description": "0-button Dread Barrage 1-Star (30 AP, 9M HP, 32 Tokens) farm: Select Wind/Drop Summon -> OK -> Tap Ready (Quick Call) -> F5 -> Confirm",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980811/1",
+  "supporterPriority": ["Zephyrus", "Tiamat", "Kaguya", "Huanglong", "Bahamut"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "turbo",
+  "steps": [
+    {
+      "code": "tap_ready",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "reload"
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}

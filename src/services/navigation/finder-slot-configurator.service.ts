@@ -6,19 +6,28 @@ import { FinderSlotConfigurationOptions } from '../../domain/assist/search-raid.
 /**
  * Service responsible for automatically inspecting and reconfiguring Raid Finder slots
  * on Granblue Fantasy Backup Requests (#quest/assist) via the Set Filters modal (.pop-search-setting).
+ *
+ * Implements strict 3-way verification:
+ * 1. Already the target raid -> DO NOT change it (0ms instant pass, no modal, activate slot).
+ * 2. Currently null (unset/empty) -> CHANGE IT (opens Set Filters modal and selects target raid).
+ * 3. Not the target raid (mismatched) -> CHANGE IT (opens Set Filters modal and reconfigures to target raid).
  */
 export class FinderSlotConfiguratorService {
   /**
    * Cache of verified configured slots per session to prevent redundant DOM checks.
-   * Key: `${slot}:${questId}`
+   * Maps slot number -> verified questId (e.g. 1 -> "305181").
    */
-  private verifiedSlots = new Set<string>();
+  private verifiedSlots = new Map<number, string>();
 
   /**
-   * Clears the cache of verified configured slots.
+   * Clears the cache of verified configured slots (or a specific slot).
    */
-  public resetVerificationCache(): void {
-    this.verifiedSlots.clear();
+  public resetVerificationCache(slot?: number): void {
+    if (slot !== undefined) {
+      this.verifiedSlots.delete(slot);
+    } else {
+      this.verifiedSlots.clear();
+    }
   }
 
   /**
@@ -28,11 +37,63 @@ export class FinderSlotConfiguratorService {
   public async getSlotConfiguredQuestId(page: Page, slot: number): Promise<string | null> {
     try {
       return await page.evaluate((targetSlot: number) => {
-        // Check display thumbnail in main screen
-        const displayImg = document.querySelector(`.prt-search-switch-display.slot${targetSlot} .img-quest, .slot${targetSlot} .img-quest`) as HTMLImageElement;
-        const src = displayImg?.src || '';
-        const match = src.match(/\/(\d+)\.png/);
-        return match ? match[1] : null;
+        const extractQuestId = (str: string | null | undefined): string | null => {
+          if (!str) return null;
+          // Matches /305181.png, _305181.png, quest_305181.png, thumb_305181.png, etc.
+          const m = str.match(/(?:quest_|_|\/)(\d{5,7})\.png/);
+          return m ? m[1] : null;
+        };
+
+        const selectors = [
+          `.prt-search-switch-display.slot${targetSlot} .img-quest`,
+          `.prt-search-switch-display.slot${targetSlot} img`,
+          `.prt-search-switch-display[data-slot="${targetSlot}"] img`,
+          `.prt-search-switch-display[data-slot="${targetSlot}"] .img-quest`,
+          `.slot${targetSlot} .img-quest`,
+          `.slot${targetSlot} img`,
+          `.btn-search-switch.slot${targetSlot} .img-quest`,
+          `.btn-search-switch.slot${targetSlot} img`,
+          `[data-slot="${targetSlot}"].btn-search-switch .img-quest`,
+          `[data-slot="${targetSlot}"].btn-search-switch img`,
+          `[data-slot="${targetSlot}"] .img-quest`,
+          `[data-slot="${targetSlot}"] img`,
+          `.prt-search-switch-display.slot${targetSlot}`,
+          `.slot${targetSlot}`,
+          `.btn-search-switch.slot${targetSlot}`,
+          `[data-slot="${targetSlot}"]`
+        ];
+
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (!el) continue;
+
+          // 1. Direct attribute / dataset
+          const attrQuestId = (el as HTMLElement).getAttribute('data-quest-id') || (el as HTMLElement).dataset?.questId;
+          if (attrQuestId && /^\d{5,7}$/.test(attrQuestId)) {
+            return attrQuestId;
+          }
+
+          // 2. If it's an <img> element or contains <img>
+          const imgEl = el.tagName === 'IMG' ? (el as HTMLImageElement) : el.querySelector('img');
+          if (imgEl && imgEl.src) {
+            const id = extractQuestId(imgEl.src);
+            if (id) return id;
+          }
+
+          // 3. Inline style background-image
+          const inlineBg = (el as HTMLElement).style?.backgroundImage;
+          const inlineId = extractQuestId(inlineBg);
+          if (inlineId) return inlineId;
+
+          // 4. Computed style background-image
+          try {
+            const compBg = window.getComputedStyle(el).backgroundImage;
+            const compId = extractQuestId(compBg);
+            if (compId && compId !== 'none') return compId;
+          } catch {}
+        }
+
+        return null;
       }, slot);
     } catch {
       return null;
@@ -41,9 +102,11 @@ export class FinderSlotConfiguratorService {
 
   /**
    * Ensures that the requested Finder slot is configured to the target raid.
-   * If already matching, completes instantly with 0 modal latency.
-   * If mismatched (e.g. currently Leviathan Mare 305631, but workflow needs Bubz 305181),
-   * opens the Set Filters modal, selects the slot, picks the target stage and raid, and applies.
+   *
+   * Logic:
+   * 1. If it's ALREADY the selected target raid -> DO NOT change it (0ms fast-path).
+   * 2. If it's NULL (unconfigured) -> CHANGE IT (opens Set Filters modal).
+   * 3. If it's NOT the target raid (mismatched) -> CHANGE IT (opens Set Filters modal).
    */
   public async ensureSlotConfigured(
     page: Page,
@@ -51,9 +114,9 @@ export class FinderSlotConfiguratorService {
   ): Promise<boolean> {
     const slot = options.slot || 1;
     const target = options.targetRaid;
-    const cacheKey = `${slot}:${target.questId}`;
 
-    if (!options.forceReconfigure && this.verifiedSlots.has(cacheKey)) {
+    // Cache hit: already verified for this slot in the current session
+    if (!options.forceReconfigure && this.verifiedSlots.get(slot) === target.questId) {
       return true;
     }
 
@@ -77,17 +140,34 @@ export class FinderSlotConfiguratorService {
       }
     }
 
-    // 3. Fast pre-check: inspect current slot thumbnail without opening modals
+    // Wait briefly for slot switches or search setting button to be rendered in the DOM
+    await page.waitForFunction((s: number) => {
+      const el = document.querySelector(`.btn-search-switch.slot${s}, [data-slot="${s}"], .prt-search-switch-display.slot${s}, .btn-search-setting`);
+      return !!el;
+    }, { timeout: 3500 }, slot).catch(() => null);
+
+    // 3. Inspect currently configured raid in the slot
     const currentQuestId = await this.getSlotConfiguredQuestId(page, slot);
+
+    // Case 1: ALREADY the target raid -> DO NOT CHANGE IT
     if (currentQuestId === target.questId && !options.forceReconfigure) {
-      console.log(`[FinderConfigurator] ✅ Finder Slot ${slot} is already set to target raid: ${target.name} (${target.questId}).`);
-      this.verifiedSlots.add(cacheKey);
+      console.log(`[FinderConfigurator] ✅ Finder Slot ${slot} is already set to target raid: ${target.name} (${target.questId}). No change needed.`);
+      this.verifiedSlots.set(slot, target.questId);
+      await this.activateSlot(page, slot);
       return true;
     }
 
-    console.log(
-      `[FinderConfigurator] 🔄 Slot ${slot} raid change needed: [${currentQuestId || 'Unset'}] -> [${target.name} (${target.questId})]. Opening Set Filters...`
-    );
+    // Case 2: NULL / Unset -> CHANGE IT
+    // Case 3: NOT the target raid (mismatched) -> CHANGE IT
+    if (!currentQuestId) {
+      console.log(
+        `[FinderConfigurator] 🔄 Slot ${slot} is unconfigured (null). Setting to target raid: [${target.name} (${target.questId})]. Opening Set Filters...`
+      );
+    } else {
+      console.log(
+        `[FinderConfigurator] 🔄 Slot ${slot} raid change needed: [${currentQuestId}] -> [${target.name} (${target.questId})]. Opening Set Filters...`
+      );
+    }
 
     // 4. Open Set Filters modal (.btn-search-setting)
     const settingBtn = await page.waitForSelector('.btn-search-setting', { visible: true, timeout: 5000 }).catch(() => null);
@@ -108,6 +188,28 @@ export class FinderSlotConfiguratorService {
     if (!settingModalReady) {
       console.warn('[FinderConfigurator] ⚠️ .pop-search-setting failed to display.');
       return false;
+    }
+
+    // Secondary check inside modal: if the slot button in the modal already shows the target raid, don't reselect
+    const modalSlotQuestId = await page.evaluate((s: number) => {
+      const slotBtn = document.querySelector(`.btn-select-search-slot[data-slot="${s}"]`) as HTMLElement;
+      if (!slotBtn) return null;
+      const img = slotBtn.querySelector('img') as HTMLImageElement;
+      if (img?.src) {
+        const m = img.src.match(/(?:quest_|_|\/)(\d{5,7})\.png/);
+        if (m) return m[1];
+      }
+      const attrId = slotBtn.getAttribute('data-quest-id') || slotBtn.dataset?.questId;
+      if (attrId && /^\d{5,7}$/.test(attrId)) return attrId;
+      return null;
+    }, slot).catch(() => null);
+
+    if (modalSlotQuestId === target.questId && !options.forceReconfigure) {
+      console.log(`[FinderConfigurator] ✅ Finder Slot ${slot} verified already set to ${target.name} (${target.questId}) inside filter modal. Keeping existing selection...`);
+      await this.dismissSettingModal(page);
+      this.verifiedSlots.set(slot, target.questId);
+      await this.activateSlot(page, slot);
+      return true;
     }
 
     // 5. Select target slot in modal (.btn-select-search-slot[data-slot="${slot}"])
@@ -236,26 +338,39 @@ export class FinderSlotConfiguratorService {
     await logNormalDelay(500, 0.15);
 
     // 12. Activate the slot button (.btn-search-switch.slot${slot})
+    await this.activateSlot(page, slot);
+    await logNormalDelay(300, 0.1);
+
+    // 13. Verify that the slot display now reflects the target raid (with brief retry polling)
+    let updatedQuestId: string | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      updatedQuestId = await this.getSlotConfiguredQuestId(page, slot);
+      if (updatedQuestId === target.questId) break;
+      await logNormalDelay(250, 0.1);
+    }
+
+    if (updatedQuestId === target.questId) {
+      console.log(`🎉 [FinderConfigurator] Successfully configured Finder Slot ${slot} to ${target.name} (${target.questId})!`);
+      this.verifiedSlots.set(slot, target.questId);
+      return true;
+    }
+
+    console.warn(`[FinderConfigurator] ⚠️ Verification after change returned ${updatedQuestId || 'null'} (expected ${target.questId}).`);
+    return false;
+  }
+
+  /**
+   * Activates the slot switch button on #quest/assist if not already active.
+   */
+  public async activateSlot(page: Page, slot: number): Promise<void> {
     await page.evaluate((s: number) => {
-      const slotBtn = document.querySelector(`.btn-search-switch.slot${s}`) as HTMLElement;
-      if (slotBtn) {
+      const slotBtn = document.querySelector(`.btn-search-switch.slot${s}, [data-slot="${s}"].btn-search-switch, .slot${s}`) as HTMLElement;
+      if (slotBtn && !slotBtn.classList.contains('active')) {
         const $ = (window as any).$ || (window as any).Zepto;
         if ($) $(slotBtn).trigger('tap');
         slotBtn.click();
       }
-    }, slot);
-    await logNormalDelay(300, 0.1);
-
-    // 13. Verify that the slot display now reflects the target raid
-    const updatedQuestId = await this.getSlotConfiguredQuestId(page, slot);
-    if (updatedQuestId === target.questId) {
-      console.log(`🎉 [FinderConfigurator] Successfully reconfigured Finder Slot ${slot} to ${target.name} (${target.questId})!`);
-      this.verifiedSlots.add(cacheKey);
-      return true;
-    }
-
-    console.warn(`[FinderConfigurator] ⚠️ Verification after change returned ${updatedQuestId} (expected ${target.questId}).`);
-    return false;
+    }, slot).catch(() => null);
   }
 
   private async dismissTargetQuestModal(page: Page): Promise<void> {
@@ -271,7 +386,7 @@ export class FinderSlotConfiguratorService {
 
   private async dismissSettingModal(page: Page): Promise<void> {
     await page.evaluate(() => {
-      const btn = document.querySelector('.pop-search-setting .btn-usual-close') as HTMLElement;
+      const btn = document.querySelector('.pop-search-setting .btn-usual-close, .pop-search-setting .btn-usual-cancel, .pop-search-setting .btn-close') as HTMLElement;
       if (btn) {
         const $ = (window as any).$ || (window as any).Zepto;
         if ($) $(btn).trigger('tap');
@@ -280,3 +395,4 @@ export class FinderSlotConfiguratorService {
     }).catch(() => null);
   }
 }
+

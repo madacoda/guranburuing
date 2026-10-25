@@ -45,6 +45,11 @@ export const ACTION_ALIASES: Record<string, WorkflowActionType> = {
   tap: 'touch_tap',
   eval: 'eval',
   click: 'click',
+  back: 'back',
+  back_button: 'back',
+  click_back: 'back',
+  browser_back: 'back',
+  go_back: 'back',
   wait_random: 'wait_random',
   wait_randomize: 'wait_random',
   delay_random: 'wait_random',
@@ -53,6 +58,12 @@ export const ACTION_ALIASES: Record<string, WorkflowActionType> = {
   random_wait: 'wait_random',
   wait_network: 'wait_network',
   wait_element: 'wait_element',
+  wait_wave: 'wait_wave',
+  wait_for_wave: 'wait_wave',
+  waitwave: 'wait_wave',
+  wait_full_load: 'wait_full_load',
+  wait_load: 'wait_full_load',
+  waitfullload: 'wait_full_load',
   wait: 'wait',
   delay: 'wait',
   sleep: 'wait',
@@ -60,12 +71,20 @@ export const ACTION_ALIASES: Record<string, WorkflowActionType> = {
   skip_story_scene: 'skip_story_scene',
   skip_story: 'skip_story_scene',
   skip_scene: 'skip_story_scene',
+  story_multi_skip: 'skip_story_scene',
+  multi_skip_scene: 'skip_story_scene',
+  skip_multi_scene: 'skip_story_scene',
+  multi_scene_skip: 'skip_story_scene',
+  skip_scenes: 'skip_story_scene',
+  story_skip: 'skip_story_scene',
   skip_fate: 'auto_fate_episode',
   fate_skip: 'auto_fate_episode',
   auto_fate_episode: 'auto_fate_episode',
   skip_fate_episode: 'auto_fate_episode',
   fate_episode: 'auto_fate_episode',
   auto_fate: 'auto_fate_episode',
+  fate_stories: 'auto_fate_episode',
+  skip_fate_story: 'auto_fate_episode',
   pro_skip_favorites: 'pro_skip_favorites',
   pro_skip: 'pro_skip_favorites',
   daily_favorites: 'pro_skip_favorites',
@@ -123,12 +142,16 @@ export const WorkflowActionTypeSchema = z.enum([
   'wait_turn',
   'navigate',
   'click',
+  'back',
   'touch_tap',
   'wait',
   'wait_random',
   'wait_randomize',
   'wait_network',
   'wait_element',
+  'wait_wave',
+  'wait_for_wave',
+  'wait_full_load',
   'confirm_result',
   'eval',
   'loop_while',
@@ -191,6 +214,8 @@ export const WorkflowStepCoreSchema = z.object({
   quickSummon: z.boolean().optional(),
   optional: z.boolean().optional(),
   ensureCast: z.boolean().optional(),
+  waitForWave: z.number().int().min(1).max(10).optional(),
+  wave: z.number().int().min(1).max(10).optional(),
   retries: z.number().int().min(0).max(5).optional(),
   label: z.string().optional(),
   jumpTo: z.string().optional()
@@ -340,6 +365,7 @@ export const WorkflowTemplateSchema = z.object({
   defaultRuns: z.number().min(1, 'defaultRuns must be at least 1').optional().default(100),
   speedProfile: z.enum(['stealth', 'fast', 'turbo']).optional().default('fast'),
   targetScore: z.number().positive().optional(),
+  waves: z.number().int().min(1).max(10).optional(),
   isSolo: z.boolean().optional(),
   minBatchClaim: z.number().int().min(1).max(5).optional().default(3),
   maxBatchClaim: z.number().int().min(1).max(5).optional().default(5),
@@ -384,9 +410,11 @@ export function validateWorkflowTemplate(raw: unknown): TemplateValidationResult
     }
 
     if (template.steps.length > 0 && template.mode !== 'routine') {
-      const hasAttack = template.steps.some(s => s.code === 'attack' || s.code === 'auto' || s.code === 'smart_full_auto' || s.code === 'tap_ready');
+      const hasAttack = template.steps.some(
+        s => s.code === 'attack' || s.code === 'auto' || s.code === 'smart_full_auto' || s.code === 'tap_ready' || s.code === 'quick_call' || s.code === 'skill'
+      );
       if (!hasAttack) {
-        warnings.push('Template contains no attack, auto, or tap_ready steps. Battles may not advance.');
+        warnings.push('Template contains no attack, auto, quick_call, skill, or tap_ready steps. Battles may not advance.');
       }
       const hasConfirm = template.steps.some(s => s.code === 'confirm_result');
       if (!hasConfirm) {

@@ -104,6 +104,7 @@ class MockFatePage {
               return {
                 offsetParent: {},
                 classList: { contains: () => false },
+                getBoundingClientRect: () => ({ x: 100, y: 100, width: 100, height: 40 }),
                 click: () => {
                   this.clickedSelectors.push('btn-scene-skip');
                   this.mockModals['btn-scene-skip'] = false;
@@ -116,6 +117,8 @@ class MockFatePage {
             if (this.mockModals['btn-skip']) {
               return {
                 offsetParent: {},
+                classList: { contains: () => false },
+                getBoundingClientRect: () => ({ x: 100, y: 100, width: 100, height: 40 }),
                 click: () => {
                   this.clickedSelectors.push('btn-skip');
                   this.mockModals['btn-scene-skip'] = true;
@@ -124,7 +127,7 @@ class MockFatePage {
             }
           }
           if (sel.includes('.prt-null-quest') || sel.includes('.prt-no-list')) {
-            return this.domCards.length === 0 ? { offsetParent: {} } : null;
+            return this.domCards.length === 0 ? { offsetParent: {}, getBoundingClientRect: () => ({ width: 100, height: 40 }) } : null;
           }
           return null;
         },
@@ -145,6 +148,10 @@ class MockFatePage {
     }
     return null;
   }
+
+  public touchscreen = {
+    tap: async (_x: number, _y: number) => {}
+  };
 
   public async setViewport() {}
   public on() {}

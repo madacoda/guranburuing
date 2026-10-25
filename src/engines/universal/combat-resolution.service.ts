@@ -136,8 +136,13 @@ export class CombatResolutionService {
         return true;
       }
 
-      return await this.page.evaluate(() => {
-        if (document.querySelector('.pop-raid-result')) {
+      const templateWaves = this.ctx.template?.waves;
+
+      return await this.page.evaluate((tmplWaves?: number) => {
+        const hasVisibleResult = Array.from(document.querySelectorAll('.pop-raid-result, .prt-result-head, .btn-result, .prt-command-end')).some(
+          el => (el as HTMLElement).offsetParent !== null && window.getComputedStyle(el).display !== 'none'
+        );
+        if (hasVisibleResult) {
           return true;
         }
 
@@ -145,17 +150,76 @@ export class CombatResolutionService {
         const gStatus = stage?.gGameStatus;
         const pJsn = stage?.pJsnData;
 
-        if (gStatus?.finish || gStatus?.win || gStatus?.lose || pJsn?.finish || pJsn?.is_clear) {
+        // 1. Explicit victory/defeat flags
+        if (gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish) {
           return true;
         }
 
-        const boss = gStatus?.boss?.param?.[0] || pJsn?.boss?.param?.[0];
-        if (boss?.hp !== undefined && Number(boss.hp) <= 0) {
+        // 2. Multi-wave awareness:
+        // In multi-wave quests (e.g. Slime Search: 2 battles, Angel Halo: 3 battles),
+        // battle 1 boss dying does NOT conclude the overall quest!
+        let currentWave = 1;
+        let totalWaves = tmplWaves ?? 1;
+
+        if (pJsn?.battle && typeof pJsn.battle === 'object') {
+          currentWave = Number(pJsn.battle.count ?? pJsn.battle.current ?? 1);
+          totalWaves = Number(pJsn.battle.total ?? pJsn.battle.total_battle ?? tmplWaves ?? 1);
+        } else if (gStatus?.battle && typeof gStatus.battle === 'object') {
+          currentWave = Number(gStatus.battle.count ?? gStatus.battle.current ?? 1);
+          totalWaves = Number(gStatus.battle.total ?? gStatus.battle.total_battle ?? tmplWaves ?? 1);
+        } else {
+          currentWave = Number(gStatus?.battle ?? pJsn?.battle ?? 1);
+          totalWaves = Number(
+            gStatus?.total_battle ?? 
+            gStatus?.battle_total ?? 
+            pJsn?.total_battle ?? 
+            pJsn?.battle_total ?? 
+            tmplWaves ??
+            1
+          );
+        }
+
+        if (isNaN(currentWave) || currentWave < 1) currentWave = 1;
+        if (isNaN(totalWaves) || totalWaves < 1) totalWaves = tmplWaves ?? 1;
+
+        let domWave = 0;
+        let domTotalWaves = 0;
+        const battleNumEl = document.querySelector('.prt-battle-num, .prt-turn-info .prt-battle-num');
+        if (battleNumEl) {
+          const m = (battleNumEl.textContent || '').match(/(\d+)\s*\/\s*(\d+)/);
+          if (m) {
+            domWave = parseInt(m[1], 10);
+            domTotalWaves = parseInt(m[2], 10);
+          }
+        }
+
+        const effectiveWave = Math.max(currentWave, domWave);
+        const effectiveTotalWaves = Math.max(totalWaves, domTotalWaves, tmplWaves ?? 1);
+
+        // Check if ANY boss is still alive across all active boss params
+        const rawBoss = gStatus?.boss?.param || pJsn?.boss?.param || stage?.gEnemyStatus;
+        const bosses = Array.isArray(rawBoss) ? rawBoss : (rawBoss?.param && Array.isArray(rawBoss.param) ? rawBoss.param : Object.values(rawBoss || {}));
+        const hasAliveBoss = bosses.some((b: any) => b && b.hp !== undefined && Number(b.hp) > 0);
+
+        // If at least one enemy on current wave is alive, battle is definitely NOT ended
+        if (hasAliveBoss) {
+          return false;
+        }
+
+        // If there are more waves remaining, the battle is definitely NOT ended!
+        if (effectiveTotalWaves > 1 && effectiveWave < effectiveTotalWaves) {
+          return false;
+        }
+
+        // 3. If all enemies on current wave are defeated AND we are on the final wave (or single-wave raid)
+        const firstBoss = bosses[0];
+        const bossHp = firstBoss?.hp !== undefined ? Number(firstBoss.hp) : null;
+        if (bossHp !== null && bossHp <= 0 && effectiveWave >= effectiveTotalWaves) {
           return true;
         }
 
         return false;
-      }).catch(() => false);
+      }, templateWaves).catch(() => false);
     } catch {
       return false;
     }
@@ -176,7 +240,7 @@ export class CombatResolutionService {
         const bosses = Array.isArray(rawBoss) ? rawBoss : (rawBoss?.param && Array.isArray(rawBoss.param) ? rawBoss.param : Object.values(rawBoss || {}));
 
         if (bosses.length > 0) {
-          const b = bosses[0];
+          const b = bosses.find((item: any) => item && item.hp !== undefined && Number(item.hp) > 0) || bosses[0];
           if (b) {
             const rawName = typeof b.name === 'object' && b.name ? (b.name.en || b.name.ja || '') : b.name;
             const name = String(rawName || b.monster || b.cjs || 'Enemy');
@@ -192,12 +256,14 @@ export class CombatResolutionService {
               hpPct = gaugePct;
             }
 
+            const allDefeated = bosses.every((item: any) => !item || item.hp === undefined || Number(item.hp) <= 0 || item.alive === 0);
+
             return {
               name,
               currentHp: !isNaN(curHp) ? Math.max(curHp, 0) : 0,
               maxHp: !isNaN(maxHp) ? maxHp : 0,
               hpPct,
-              isDefeated: curHp <= 0 || hpPct <= 0 || b.alive === 0
+              isDefeated: allDefeated || hpPct <= 0 || b.alive === 0
             };
           }
         }
@@ -250,9 +316,10 @@ export class CombatResolutionService {
     if (!isCombatHash) return;
 
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    const effectiveTimeout = isTurbo ? Math.min(timeoutMs, 2500) : timeoutMs;
-    const pollInterval = isTurbo ? (config.isProduction ? 40 : 25) : 100;
+    const effectiveTimeout = isTurbo ? Math.min(timeoutMs, 6000) : timeoutMs;
+    const pollInterval = isTurbo ? (config.isProduction ? 35 : 20) : 100;
     const isManual = this.isManualWorkflow();
+    const isSolo = this.isSoloQuest();
     const start = Date.now();
 
     while (Date.now() - start < effectiveTimeout) {
@@ -263,7 +330,7 @@ export class CombatResolutionService {
         await this.cancelFullAutoAndActionQueue();
       }
 
-      const isReady = await this.page.evaluate((manual: boolean, targetFps: number) => {
+      const isReady = await this.page.evaluate((manual: boolean, solo: boolean, targetFps: number) => {
         const cjs = (window as any).createjs;
         if (cjs?.Ticker) {
           cjs.Ticker.framerate = targetFps;
@@ -279,7 +346,7 @@ export class CombatResolutionService {
             autoBtn.click();
           }
         } else {
-          const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
+          const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start');
           if (readyEl && (readyEl as HTMLElement).offsetParent !== null) {
             const $ = (window as any).$ || (window as any).Zepto;
             if ($) $(readyEl).trigger('tap');
@@ -287,33 +354,43 @@ export class CombatResolutionService {
           }
         }
 
-        const atkBtn = document.querySelector('.btn-attack-start') as HTMLElement;
-        if (atkBtn && atkBtn.offsetWidth > 0 && window.getComputedStyle(atkBtn).display !== 'none') {
-          const isOff = atkBtn.classList.contains('display-off') || atkBtn.classList.contains('lock');
-          const isOn = atkBtn.classList.contains('display-on');
-          if (isOn || !isOff) return true;
-        }
-
-        const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (backBtn && backBtn.offsetWidth > 0 && window.getComputedStyle(backBtn).display !== 'none') {
-          return true;
-        }
-
-        const qsBtn = document.querySelector('.btn-quick-summon.qs-ready') as HTMLElement;
-        if (qsBtn && qsBtn.offsetWidth > 0) return true;
-
         const stage = (window as any).stage;
+        const pJsn = stage?.pJsnData;
         const gStatus = stage?.gGameStatus;
-        if (gStatus && !gStatus.lock && !gStatus.btn_lock && !gStatus.attacking) {
-          const char0 = document.querySelector('.lis-character0.btn-command-character, .lis-character0') as HTMLElement;
-          if (char0 && char0.offsetWidth > 0) {
-            const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
-            const hasReady = readyEl && (readyEl as HTMLElement).offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none';
-            if (!hasReady) return true;
-          }
+
+        // 1. Verify stage data has populated real boss information
+        const firstBoss = pJsn?.boss?.param?.[0];
+        const bossName = firstBoss?.monster || firstBoss?.name || '';
+        const hasRealBoss = bossName.length > 0 && bossName !== 'Enemy';
+        const hasPlayerParam = Array.isArray(pJsn?.player?.param) && pJsn.player.param.length > 0;
+
+        if (solo) {
+          if (!hasRealBoss && !hasPlayerParam) return false;
+        } else {
+          if (!firstBoss && !hasPlayerParam) return false;
         }
-        return false;
-      }, isManual, config.TICKER_FPS).catch(() => false);
+
+        // 2. Ready overlay must be dismissed
+        const activeReady = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start') as HTMLElement;
+        if (activeReady && activeReady.offsetParent !== null && window.getComputedStyle(activeReady).display !== 'none') {
+          return false;
+        }
+
+        // 3. Frontline character portraits mounted in DOM
+        const char0 = document.querySelector('.lis-character0.btn-command-character, .lis-character0, [pos="0"].btn-command-character') as HTMLElement;
+        const hasChar0 = !!(char0 && char0.offsetParent !== null);
+
+        // 4. Combat buttons readiness
+        const atkBtn = document.querySelector('.btn-attack-start') as HTMLElement;
+        const hasAtk = atkBtn && atkBtn.offsetWidth > 0 && (atkBtn.classList.contains('display-on') || !atkBtn.classList.contains('display-off'));
+
+        const qsBtn = document.querySelector('.btn-quick-summon, .btn-quick-call') as HTMLElement;
+        const hasQs = qsBtn && qsBtn.offsetWidth > 0;
+
+        const isLocked = gStatus ? (Boolean(gStatus.lock) || Boolean(gStatus.btn_lock) || Boolean(gStatus.attacking)) : false;
+
+        return (hasAtk || hasQs) && hasChar0 && !isLocked;
+      }, isManual, isSolo, config.TICKER_FPS).catch(() => false);
 
       if (isReady) {
         if (!isTurbo) {
@@ -384,6 +461,78 @@ export class CombatResolutionService {
     return false;
   }
 
+  /**
+   * Waits until the battle advances to the specified wave (e.g. Wave 2 in multi-stage battles)
+   * and ensures the combat HUD/stage are ready for input.
+   */
+  public async waitForWave(targetWave: number, timeoutMs = 8000): Promise<boolean> {
+    const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
+    const pollInterval = isTurbo ? 40 : 100;
+    const start = Date.now();
+
+    while (Date.now() - start < timeoutMs) {
+      if (this.ctx.state.stopRequested) return false;
+      const isDefeated = await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        return stage?.gGameStatus?.win || stage?.pJsnData?.is_clear || !!document.querySelector('.pop-raid-result, .prt-result-head');
+      }).catch(() => false);
+      if (isDefeated) return true;
+
+      const waveState = await this.page.evaluate((tgt: number) => {
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        const pJsn = stage?.pJsnData;
+
+        let currentWave = 1;
+        if (pJsn?.battle) {
+          if (typeof pJsn.battle === 'object') {
+            currentWave = Number(pJsn.battle.count ?? pJsn.battle.current ?? 1);
+          } else {
+            currentWave = Number(pJsn.battle);
+          }
+        } else if (gStatus?.battle) {
+          if (typeof gStatus.battle === 'object') {
+            currentWave = Number(gStatus.battle.count ?? gStatus.battle.current ?? 1);
+          } else {
+            currentWave = Number(gStatus.battle);
+          }
+        } else if (gStatus?.wave) {
+          currentWave = Number(gStatus.wave);
+        }
+        if (isNaN(currentWave) || currentWave < 1) currentWave = 1;
+
+        let domWave = 0;
+        const battleNumEl = document.querySelector('.prt-battle-num, .prt-turn-info .prt-battle-num');
+        if (battleNumEl) {
+          const m = (battleNumEl.textContent || '').match(/(\d+)\s*\/\s*(\d+)/);
+          if (m) domWave = parseInt(m[1], 10);
+        }
+
+        const effectiveWave = Math.max(currentWave, domWave);
+        const isLocked = gStatus ? (Boolean(gStatus.lock) || Boolean(gStatus.animation)) : false;
+        
+        const char0 = document.querySelector('.lis-character0.btn-command-character, .lis-character0, [pos="0"].btn-command-character') as HTMLElement;
+        const char3 = document.querySelector('.lis-character3.btn-command-character, .lis-character3, [pos="3"].btn-command-character') as HTMLElement;
+        const hasCharPortraits = !!((char0 && char0.offsetParent !== null) || (char3 && char3.offsetParent !== null) || document.querySelector('.btn-attack-start'));
+
+        return {
+          currentWave: effectiveWave,
+          ready: effectiveWave >= tgt && !isLocked && hasCharPortraits
+        };
+      }, targetWave).catch(() => ({ currentWave: 1, ready: false }));
+
+      if (waveState.ready) {
+        console.log(`[Combat] 🌊 Wave ${waveState.currentWave}/${targetWave} active and ready for input.`);
+        return true;
+      }
+
+      await new Promise(r => setTimeout(r, pollInterval));
+    }
+
+    console.warn(`[Combat] ⚠️ Timed out waiting for Wave ${targetWave} after ${timeoutMs}ms.`);
+    return false;
+  }
+
   public async waitForBattleToMount(timeoutMs = 15000): Promise<boolean> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -394,10 +543,11 @@ export class CombatResolutionService {
           const hash = window.location.hash;
           const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash) || hash.includes('replicard/battle');
           const isResult = hash.includes('result');
-          const hasRaidCanvas = !!document.querySelector('#canvas, .cnt-raid, .prt-command');
-          const hasAtkBtn = !!document.querySelector('.btn-attack-start');
+          const stage = (window as any).stage;
+          const hasStage = !!(stage && (stage.gGameStatus || stage.pJsnData || stage.gEnemyStatus));
+          const hasAtkBtn = !!document.querySelector('.btn-attack-start.display-on, .btn-attack-start');
 
-          if (isCombat && (hasRaidCanvas || hasAtkBtn)) return 'MOUNTED';
+          if (isCombat && (hasStage || hasAtkBtn)) return 'MOUNTED';
           if (isResult) return 'MOUNTED';
 
           const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
@@ -659,6 +809,18 @@ export class CombatResolutionService {
 
     const initialHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
     const isLingerCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initialHash) || initialHash.includes('replicard/battle');
+    if (this.isSoloQuest() && isLingerCombat) {
+      // Allow victory status to mount if page just reloaded
+      await this.page.waitForFunction(() => {
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        const pJsn = stage?.pJsnData;
+        const isEnded = gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish || !!document.querySelector('.pop-raid-result, .prt-result-head');
+        const hasRealBoss = pJsn?.boss?.param && pJsn.boss.param.length > 0;
+        return isEnded || hasRealBoss;
+      }, { timeout: 1500 }).catch(() => null);
+    }
+
     if (this.isSoloQuest() && isLingerCombat && !(await this.isBattleEnded())) {
       const enemy = await this.getAndLogEnemyHp('Pre-Result Verification');
       if (enemy && !enemy.isDefeated && enemy.currentHp > 0) {
@@ -926,6 +1088,19 @@ export class CombatResolutionService {
         const hash = await this.page.evaluate(() => window.location.hash).catch(() => '');
         const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash);
         if (!isCombat) break;
+
+        const isFreshTurn1 = await this.page.evaluate(() => {
+          const stage = (window as any).stage;
+          if (!stage || (!stage.gGameStatus && !stage.pJsnData)) return false;
+          const turn = Number(stage?.pJsnData?.turn || stage?.gGameStatus?.turn || 0);
+          const wave = Number(stage?.pJsnData?.battle?.count || stage?.gGameStatus?.battle?.count || stage?.gGameStatus?.wave || 1);
+          return (turn === 0 || turn === 1) && wave === 1;
+        }).catch(() => false);
+
+        if (isFreshTurn1) {
+          console.log(`[Workflow] Active combat at Turn 1 detected (${hash}). Preserving for workflow pipeline execution.`);
+          return;
+        }
 
         const isAssistRaid = this.ctx.template.questUrl.includes('assist') || (this.ctx.template.raidSlots && this.ctx.template.raidSlots.length > 0);
         if (isAssistRaid) {

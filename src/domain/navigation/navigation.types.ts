@@ -74,4 +74,38 @@ export interface ISupporterSelectionService {
   selectSupporter(options?: SupporterSelectionOptions): Promise<SupporterSelectionOutcome>;
 }
 
+export type StorySceneTerminalDestination =
+  | 'combat'
+  | 'result'
+  | 'fate_list'
+  | 'event_home'
+  | 'mypage'
+  | 'timeout'
+  | 'stopped';
+
+export interface StorySceneSkipOptions {
+  timeoutMs?: number;
+  maxScenes?: number;
+  autoSelectChoice?: boolean;
+  targetUrlAfterScene?: string;
+  onSceneSkipped?: (sceneIndex: number, transitionTo?: string) => void;
+}
+
+export interface StorySceneSkipOutcome {
+  readonly success: boolean;
+  readonly scenesSkipped: number;
+  readonly choicesSelected: number;
+  readonly terminalDestination: StorySceneTerminalDestination;
+  readonly durationMs: number;
+  readonly message?: string;
+}
+
+/**
+ * Abstraction for multi-part story cutscene skipping and dialogue choice resolution.
+ */
+export interface IStorySceneSkipService {
+  updatePage(page: Page): void;
+  skipStoryScenes(options?: StorySceneSkipOptions): Promise<StorySceneSkipOutcome>;
+}
+
 

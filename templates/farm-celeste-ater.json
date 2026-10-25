@@ -1,0 +1,75 @@
+{
+  "name": "Farm Raid - Celeste Ater (Adaptive Damage Farm)",
+  "description": "High-efficiency adaptive raid farmer for Celeste Ater: Finder Tab 1, Zeus/Lucifer supporter, C1S1 -> C1S3 -> C1S4 -> C3S2 -> C3S1 -> Attack -> Rerun.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "mode": "assist",
+  "targetEnemy": "Celeste Ater",
+  "element": "Light",
+  "raidSlot": 1,
+  "supporterPriority": [
+    "Zeus",
+    "Lucifer",
+    "Kaguya"
+  ],
+  "evaluatorStrategy": "farm",
+  "minHpPct": 1,
+  "maxHpPct": 95,
+  "minPlayers": 2,
+  "maxPlayers": 29,
+  "minRaidScore": 20,
+  "adaptive": true,
+  "minBatchClaim": 3,
+  "maxBatchClaim": 5,
+  "speedProfile": "fast",
+  "defaultRuns": 500,
+  "autoBerry": true,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "steps": [
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 1",
+      "character": 1,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 3",
+      "character": 1,
+      "skill": 3,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 4",
+      "character": 1,
+      "skill": 4,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 2",
+      "character": 3,
+      "skill": 2,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 1",
+      "character": 3,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Execute Attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Rerun"
+    }
+  ],
+  "autoSetRaid": true
+}

@@ -60,6 +60,7 @@ npm run acc1 <template-name> [runs] [--windowed]
 | `bun run gb-go` | Grand Order HL | Slot 2 assist search, 1.50M pt threshold |
 | `bun run gb-farm` | Multi-Raid Rotator | Auto-rotates PBHL -> Akasha -> GO HL |
 | `bun run acc1 gb-pbhl-fast` | PBHL 0-Button | Fast 0-button burst setup |
+| `bun run lindwurm` / `empyreal-ascension` | Empyreal Ascension (Lindwurm HL) | Slot 1 assist search, Bubz 8-step burst rotation |
 
 ---
 
@@ -76,8 +77,24 @@ Designed for fast participation/leech drops rather than honor thresholds across 
 | `bun run leech:yggdrasil` | Yggdrasil Arbos (Earth) | Assist Slot 1 (`#quest/assist`), **Zephyrus** support, `HP <= 20%` & `players >= 3` |
 | `bun run leech:luminiera` | Luminiera Credo (Light) | Assist Slot 1 (`#quest/assist`), **Hades** support, `HP <= 20%` & `players >= 3` |
 | `bun run leech:celeste` | Celeste Ater (Dark) | Assist Slot 1 (`#quest/assist`), **Zeus** support, `HP <= 20%` & `players >= 3` |
+| `bun run leech:lindwurm` | Empyreal Ascension (HL) | Assist Slot 1 (`#quest/assist`), **Hades/Bahamut** support, `HP <= 60%` & `players >= 2` |
 | `bun run leech:colossus:windowed` | Colossus Ira | Runs Colossus Ira burst in visible GUI browser window |
 | `bun run leech acc2 leech-leviathan-mare 50` | Leviathan Mare | Runs 50 leech cycles on `acc2` |
+
+### 5.1 Adaptive Damage Farm Automation (`farm`)
+
+High-efficiency damage farm across all 6 Magna 3 (Omega Rebirth) elements. Uses broad HP range (`HP 1% - 95%`), filters for most-joined raids (`players >= 2`), prioritizes lowest HP among swarmed rooms for fastest clear turnaround, injects full damage with Quick Summon and skills, and employs adaptive candidate degradation (`adaptive: true`) for zero idle standby.
+
+| Command | Raid | Slot / Supporter / Strategy |
+| :--- | :--- | :--- |
+| `bun run farm` / `farm:leviathan` / `farm:levi` | Leviathan Mare (Water) | Assist Slot 1 (`#quest/assist`), **Titan** support, `HP 1%-95%` & `players >= 2`, adaptive farm |
+| `bun run farm:celeste` / `farm:ater` | Celeste Ater (Dark) | Assist Slot 1 (`#quest/assist`), **Zeus** support, `HP 1%-95%` & `players >= 2`, adaptive farm |
+| `bun run farm:colossus` / `farm:ira` | Colossus Ira (Fire) | Assist Slot 1 (`#quest/assist`), **Varuna** support, `HP 1%-95%` & `players >= 2`, adaptive farm |
+| `bun run farm:tiamat` / `farm:aura` | Tiamat Aura (Wind) | Assist Slot 1 (`#quest/assist`), **Agni** support, `HP 1%-95%` & `players >= 2`, adaptive farm |
+| `bun run farm:yggdrasil` / `farm:arbos` / `farm:ygg` | Yggdrasil Arbos (Earth) | Assist Slot 1 (`#quest/assist`), **Zephyrus** support, `HP 1%-95%` & `players >= 2`, adaptive farm |
+| `bun run farm:luminiera` / `farm:credo` / `farm:lumi` | Luminiera Credo (Light) | Assist Slot 1 (`#quest/assist`), **Hades** support, `HP 1%-95%` & `players >= 2`, adaptive farm |
+| `bun run farm:celeste:windowed` | Celeste Ater | Runs Celeste Ater farm in visible GUI browser window |
+| `bun run farm acc2 farm-celeste-ater 50` | Celeste Ater | Runs 50 farm cycles on `acc2` |
 
 ---
 
@@ -93,6 +110,7 @@ Designed for fast participation/leech drops rather than honor thresholds across 
 | `bun run rotb` | RotB | Rise of the Beasts raid rotator |
 | `bun run rotb:baihu` | RotB Baihu | Runs Baihu battles continuously |
 | `bun run rotb:earth:loop` | RotB Extreme | Infinite Earth Extreme raid loop |
+| `bun run slime` / `shiny-slime` | Extra Quests | Shiny Slime Search Very Hard (AP-30) fast 2-wave clearing loop |
 
 ---
 

@@ -1,5 +1,5 @@
 // tests/test-raid-evaluator-score.ts
-import { RaidEvaluator } from '../src/engines/raid-evaluator.js';
+import { RaidEvaluator, RaidVelocityTracker, RaidDisqualificationReason } from '../src/engines/raid-evaluator.js';
 
 console.log('========================================================================');
 console.log('            Raid Evaluator & Score System Unit Test Suite               ');
@@ -143,6 +143,45 @@ if (!leechCustomWide.viable || leechCustomWide.score <= 0) {
   throw new Error('Expected Leech HP 50% to be viable within customized [10%, 80%] range');
 }
 console.log('  ✅ [PASS] Leech strategy strictly honors custom minHpPct and maxHpPct boundaries with smooth scoring');
+
+// Test 9: Real-Time Raid Velocity Tracker (Stalled Room & TTD Burn-Rate Intelligence)
+console.log('\n--- 9. Testing RaidVelocityTracker (Stalled Room & Live TTD Intelligence) ---');
+RaidVelocityTracker.clear();
+const tBase = 1700000000000;
+
+// 9a. Stalled Room Detection: Seen twice over 5s with 0% HP change and 1 player
+RaidVelocityTracker.recordObservation('raid_stalled_1', 18, 3, tBase);
+// Wait: stalled room requires <= 2 players, so let's test a 2-player farm raid at 85% HP that doesn't move for 5s
+RaidVelocityTracker.recordObservation('raid_stalled_farm', 85, 2, tBase);
+const stalledMetrics = RaidVelocityTracker.recordObservation('raid_stalled_farm', 85, 2, tBase + 5000);
+if (!stalledMetrics.isStalled) {
+  throw new Error('Expected raid with 0% HP change over 5s and 2 players to be flagged as isStalled');
+}
+const stalledEval = RaidEvaluator.evaluateCandidate(85, 2, 30, { strategy: 'farm', velocity: stalledMetrics }, 'raid_stalled_farm');
+if (stalledEval.viable || !(stalledEval.details.flags! & RaidDisqualificationReason.STALLED)) {
+  throw new Error(`Expected stalled farm raid to be disqualified with STALLED flag, got viable=${stalledEval.viable}`);
+}
+console.log(`  Stalled Raid (0% burn over ${stalledMetrics.elapsedSec}s, 2/30 players) -> Disqualified: "${stalledEval.reason}"`);
+
+// 9b. Excessive Burn Rate / Short TTD (< 8s) in Honor Racing Mode
+RaidVelocityTracker.recordObservation('raid_melting_fast', 75, 4, tBase);
+const meltingMetrics = RaidVelocityTracker.recordObservation('raid_melting_fast', 35, 6, tBase + 2000); // 20%/s burn -> TTD = 1.75s
+const meltingEval = RaidEvaluator.evaluateCandidate(35, 6, 30, { strategy: 'honor', velocity: meltingMetrics }, 'raid_melting_fast');
+if (meltingEval.viable || !(meltingEval.details.flags! & RaidDisqualificationReason.BURN_RATE_EXCESSIVE)) {
+  throw new Error(`Expected honor raid with TTD ${meltingMetrics.estimatedTtdSec}s (< 8s) to be disqualified`);
+}
+console.log(`  Excessive Burn Honor Raid (Burn: ${meltingMetrics.hpBurnPerSec}%/s, TTD: ${meltingMetrics.estimatedTtdSec}s) -> Disqualified: "${meltingEval.reason}"`);
+
+// 9c. Active Momentum Bonus in Farm/Leech Mode
+RaidVelocityTracker.recordObservation('raid_active_melt', 60, 6, tBase);
+const activeMetrics = RaidVelocityTracker.recordObservation('raid_active_melt', 45, 9, tBase + 3000); // 5%/s burn, +1p/s
+const staticEval = RaidEvaluator.evaluateCandidate(45, 9, 30, { strategy: 'farm' }, 'raid_static');
+const velocityEval = RaidEvaluator.evaluateCandidate(45, 9, 30, { strategy: 'farm', velocity: activeMetrics }, 'raid_active_melt');
+if (velocityEval.score <= staticEval.score) {
+  throw new Error(`Expected active momentum raid (${velocityEval.score}) to outscore static raid (${staticEval.score})`);
+}
+console.log(`  Active Momentum Farm Raid (Burn: ${activeMetrics.hpBurnPerSec}%/s, +${activeMetrics.playerJoinRate}p/s) -> Score boosted from ${staticEval.score} to ${velocityEval.score} pt`);
+console.log('  ✅ [PASS] RaidVelocityTracker accurately detects stalled rooms, lethal short TTDs, and active momentum');
 
 console.log('\n========================================================================');
 console.log('      🎉 ALL RAID EVALUATOR SCORE TESTS PASSED (100%)                   ');

@@ -53,6 +53,9 @@ export function resolveFarmTemplateName(input: string): string {
   if (clean === 'bubz' || clean === 'bubz-hl' || clean === 'bubs' || clean === 'beelzebub' || clean === 'long-live-the-king') {
     return 'raid-long-live-the-king';
   }
+  if (clean === 'lindwurm' || clean === 'lindwurm-hl' || clean === 'empyreal-ascension' || clean === 'empyreal' || clean === 'emperial-ascension' || clean === 'emperial') {
+    return 'raid-empyreal-ascension';
+  }
 
   // Fallback to direct name or farm prefix
   if (input.startsWith('farm-') || input.startsWith('raid-') || input.startsWith('leech-')) return input;
@@ -158,26 +161,25 @@ async function main() {
   process.on('SIGINT', async () => {
     if (isStopping) {
       console.log('\n[Farm] Force quitting immediately...');
+      await cdpManager.standby().catch(() => null);
       process.exit(0);
     }
     isStopping = true;
-    console.log('\n[Farm] ⚠️ Ctrl+C detected. Finishing current run and saving stats...');
+    console.log('\n[Farm] ⚠️ Ctrl+C detected. Stopping workflow and placing browser in standby...');
     engine.requestStop();
+    const forceTimer = setTimeout(async () => {
+      console.log('[Farm] 💤 Closing GBF tab and entering browser standby mode (about:blank)...');
+      await cdpManager.standby().catch(() => null);
+      process.exit(0);
+    }, 2500);
+    if (typeof forceTimer.unref === 'function') forceTimer.unref();
   });
 
   try {
     await engine.runLoop({ runs: targetRuns });
   } finally {
-    try {
-      if (page && !page.isClosed()) {
-        const url = page.url();
-        if (!url.includes('#mypage') && !url.includes('#authentication')) {
-          console.log('[Farm] 🏠 Returning browser safely to homescreen (#mypage)...');
-          await page.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-        }
-      }
-    } catch {}
-    await cdpManager.disconnect();
+    console.log('[Farm] 💤 Closing GBF tab and entering browser standby mode (about:blank)...');
+    await cdpManager.standby().catch(() => null);
   }
 }
 

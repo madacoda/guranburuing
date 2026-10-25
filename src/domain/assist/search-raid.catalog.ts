@@ -1,5 +1,5 @@
 // src/domain/assist/search-raid.catalog.ts
-import { SearchRaidDefinition, SearchRaidQuery } from './search-raid.types.js';
+import { SearchRaidDefinition, SearchRaidQuery, RaidCardFilterSpec } from './search-raid.types.js';
 
 /**
  * Authoritative Catalog of searchable raids in Granblue Fantasy Backup Requests (#quest/assist).
@@ -144,7 +144,7 @@ export const SEARCH_RAID_CATALOG: readonly SearchRaidDefinition[] = Object.freez
     name: 'Wings of Terror (Impossible)',
     aliases: [
       'wings of terror (impossible)', 'wings of terror', 'proto bahamut', 'proto bahamut hl',
-      'pbhl', 'つよバハ', 'プロトバハムートhl'
+      'pbhl', 'つよバハ', 'プロトバハムートhl', 'プロトバハムート'
     ],
     bossName: 'Proto Bahamut',
     category: 'hl_gold_bar'
@@ -167,7 +167,7 @@ export const SEARCH_RAID_CATALOG: readonly SearchRaidDefinition[] = Object.freez
     name: "The Peacemaker's Wings (Impossible)",
     aliases: [
       "the peacemaker's wings (impossible)", "the peacemaker's wings", 'peacemaker',
-      'grand order', 'grand order hl', 'gohl', 'グランデhl', 'ジ・オーダー・グランデ'
+      'grand order', 'grand order hl', 'gohl', 'グランデhl', 'ジ・オーダー・グランデ', 'グランデ'
     ],
     bossName: 'Grand Order',
     category: 'hl_gold_bar'
@@ -330,8 +330,225 @@ export const SEARCH_RAID_CATALOG: readonly SearchRaidDefinition[] = Object.freez
     aliases: ['dark rapture (zero)', 'dark rapture zero', 'faazero', 'faa-zero', 'ルシゼロ'],
     bossName: 'Lucilius (Zero)',
     category: 'apex'
+  },
+
+  // ---------------------------------------------------------------------------
+  // Regalia / Magna 2 (Impossible): Stage 12021
+  // ---------------------------------------------------------------------------
+  {
+    questId: '303151',
+    stageId: '12021',
+    stageType: '2',
+    name: 'Shiva (Impossible)',
+    aliases: ['shiva (impossible)', 'shiva hl', 'シヴァhl', 'シヴァ (hl)'],
+    bossName: 'Shiva',
+    category: 'regalia_m2'
+  },
+  {
+    questId: '303161',
+    stageId: '12021',
+    stageType: '2',
+    name: 'Europa (Impossible)',
+    aliases: ['europa (impossible)', 'europa hl', 'エウロペhl', 'エウロペ (hl)'],
+    bossName: 'Europa',
+    category: 'regalia_m2'
+  },
+  {
+    questId: '303171',
+    stageId: '12021',
+    stageType: '2',
+    name: 'Godsworn Alexiel (Impossible)',
+    aliases: ['godsworn alexiel (impossible)', 'alexiel (impossible)', 'alexiel hl', 'ブローディアhl'],
+    bossName: 'Godsworn Alexiel',
+    category: 'regalia_m2'
+  },
+  {
+    questId: '303181',
+    stageId: '12021',
+    stageType: '2',
+    name: 'Grimnir (Impossible)',
+    aliases: ['grimnir (impossible)', 'grimnir hl', 'グリームニルhl'],
+    bossName: 'Grimnir',
+    category: 'regalia_m2'
+  },
+  {
+    questId: '303191',
+    stageId: '12021',
+    stageType: '2',
+    name: 'Metatron (Impossible)',
+    aliases: ['metatron (impossible)', 'metatron hl', 'メタトロンhl'],
+    bossName: 'Metatron',
+    category: 'regalia_m2'
+  },
+  {
+    questId: '303201',
+    stageId: '12021',
+    stageType: '2',
+    name: 'Avatar (Impossible)',
+    aliases: ['avatar (impossible)', 'avatar hl', 'アバターhl'],
+    bossName: 'Avatar',
+    category: 'regalia_m2'
+  },
+
+  // ---------------------------------------------------------------------------
+  // Ennead Series: Stage 12022
+  // ---------------------------------------------------------------------------
+  {
+    questId: '305301',
+    stageId: '12022',
+    stageType: '2',
+    name: 'Atum (Impossible)',
+    aliases: ['atum (impossible)', 'atum hl', 'アトゥムhl'],
+    bossName: 'Atum',
+    category: 'ennead'
+  },
+  {
+    questId: '305291',
+    stageId: '12022',
+    stageType: '2',
+    name: 'Tefnut (Impossible)',
+    aliases: ['tefnut (impossible)', 'tefnut hl', 'テフヌトhl'],
+    bossName: 'Tefnut',
+    category: 'ennead'
+  },
+  {
+    questId: '305341',
+    stageId: '12022',
+    stageType: '2',
+    name: 'Bennu (Impossible)',
+    aliases: ['bennu (impossible)', 'bennu hl', 'ベンヌhl'],
+    bossName: 'Bennu',
+    category: 'ennead'
+  },
+  {
+    questId: '305351',
+    stageId: '12022',
+    stageType: '2',
+    name: 'Ra (Impossible)',
+    aliases: ['ra (impossible)', 'ra hl', 'ラーhl'],
+    bossName: 'Ra',
+    category: 'ennead'
+  },
+  {
+    questId: '305331',
+    stageId: '12022',
+    stageType: '2',
+    name: 'Horus (Impossible)',
+    aliases: ['horus (impossible)', 'horus hl', 'ホルスhl'],
+    bossName: 'Horus',
+    category: 'ennead'
+  },
+  {
+    questId: '305321',
+    stageId: '12022',
+    stageType: '2',
+    name: 'Osiris (Impossible)',
+    aliases: ['osiris (impossible)', 'osiris hl', 'オシリスhl'],
+    bossName: 'Osiris',
+    category: 'ennead'
+  },
+
+  // ---------------------------------------------------------------------------
+  // Malice & Menace Series: Stage 12031
+  // ---------------------------------------------------------------------------
+  {
+    questId: '303241',
+    stageId: '12031',
+    stageType: '2',
+    name: 'Tiamat Malice (Impossible)',
+    aliases: ['tiamat malice (impossible)', 'tiamat malice', 'ティアマト・マリス'],
+    bossName: 'Tiamat Malice',
+    category: 'malice_menace'
+  },
+  {
+    questId: '305141',
+    stageId: '12031',
+    stageType: '2',
+    name: 'Leviathan Malice (Impossible)',
+    aliases: ['leviathan malice (impossible)', 'leviathan malice', 'リヴァイアサン・マリス'],
+    bossName: 'Leviathan Malice',
+    category: 'malice_menace'
+  },
+  {
+    questId: '305171',
+    stageId: '12031',
+    stageType: '2',
+    name: 'Phronesis (Impossible)',
+    aliases: ['phronesis (impossible)', 'phronesis', 'フロネシス', 'フロネシスhl'],
+    bossName: 'Phronesis',
+    category: 'malice_menace'
+  },
+  {
+    questId: '305251',
+    stageId: '12031',
+    stageType: '2',
+    name: 'Luminiera Malice (Impossible)',
+    aliases: ['luminiera malice (impossible)', 'luminiera malice', 'シュヴァリエ・マリス'],
+    bossName: 'Luminiera Malice',
+    category: 'malice_menace'
+  },
+  {
+    questId: '305271',
+    stageId: '12031',
+    stageType: '2',
+    name: 'Anima-Animus Core (Impossible)',
+    aliases: ['anima-animus core (impossible)', 'anima-animus core', 'anima animus', 'アニマ・アニムス・コア'],
+    bossName: 'Anima-Animus Core',
+    category: 'malice_menace'
+  },
+  {
+    questId: '305371',
+    stageId: '12031',
+    stageType: '2',
+    name: 'Legion Void (Impossible)',
+    aliases: ['legion void (impossible)', 'legion void', 'レギオン・ヴォイド'],
+    bossName: 'Legion Void',
+    category: 'malice_menace'
+  },
+
+  // ---------------------------------------------------------------------------
+  // Primarchs & Huanglong / Qilin / Ultimate Bahamut HL: Stage 12041 & 12061
+  // ---------------------------------------------------------------------------
+  {
+    questId: '303131',
+    stageId: '12041',
+    stageType: '2',
+    name: 'The Four Primarchs (Impossible)',
+    aliases: ['the four primarchs (impossible)', 'the four primarchs', 'four primarchs', '四大天司hl'],
+    bossName: 'The Four Primarchs',
+    category: 'primarch_and_qilin'
+  },
+  {
+    questId: '303061',
+    stageId: '12041',
+    stageType: '2',
+    name: 'Huanglong & Qilin (Impossible)',
+    aliases: ['huanglong & qilin (impossible)', 'huanglong & qilin', 'huanglong and qilin', '黄龍・黒麒麟hl'],
+    bossName: 'Huanglong & Qilin',
+    category: 'primarch_and_qilin'
+  },
+  {
+    questId: '303051',
+    stageId: '12061',
+    stageType: '2',
+    name: 'Ultimate Bahamut (Impossible)',
+    aliases: ['ultimate bahamut (impossible)', 'ultimate bahamut hl', 'ubhl', 'アルバハhl', 'アルティメットバハムートhl'],
+    bossName: 'Ultimate Bahamut',
+    category: 'hl_gold_bar'
   }
 ]);
+
+function matchesTermToken(term: string, token: string): boolean {
+  const lowerToken = token.toLowerCase();
+  if (!lowerToken) return false;
+  if (term === lowerToken) return true;
+  // For short pure-ASCII tokens (<= 4 chars), enforce word boundary to prevent substring false positives
+  if (/^[a-z0-9-]+$/i.test(lowerToken) && lowerToken.length <= 4) {
+    const escaped = lowerToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(term);
+  }
+  return term.includes(lowerToken);
+}
 
 /**
  * Resolves a search raid definition from query strings (questId, targetEnemy, template name, etc.) or a plain string.
@@ -370,6 +587,7 @@ export function resolveSearchRaid(query: string | SearchRaidQuery): SearchRaidDe
   for (const term of searchTerms) {
     for (const raid of SEARCH_RAID_CATALOG) {
       if (raid.name.toLowerCase() === term) return raid;
+      if (raid.bossName && raid.bossName.toLowerCase() === term) return raid;
       if (raid.aliases.some(a => a.toLowerCase() === term)) return raid;
     }
   }
@@ -377,10 +595,120 @@ export function resolveSearchRaid(query: string | SearchRaidQuery): SearchRaidDe
   // 4. Substring / Token match
   for (const term of searchTerms) {
     for (const raid of SEARCH_RAID_CATALOG) {
-      if (term.includes(raid.name.toLowerCase())) return raid;
-      if (raid.aliases.some(a => term.includes(a.toLowerCase()))) return raid;
+      if (matchesTermToken(term, raid.name)) return raid;
+      if (raid.aliases.some(a => matchesTermToken(term, a))) return raid;
     }
   }
 
   return null;
+}
+
+/**
+ * Builds a serializable RaidCardFilterSpec for verifying DOM cards in #prt-search-list
+ * against the target raid and rejecting cross-slot contamination from any other raid in the catalog.
+ */
+export function buildRaidCardFilterSpec(
+  queryOrRaid?: SearchRaidDefinition | SearchRaidQuery | string | null
+): RaidCardFilterSpec {
+  const targetRaid: SearchRaidDefinition | null =
+    !queryOrRaid
+      ? null
+      : typeof queryOrRaid === 'object' && 'stageId' in queryOrRaid && 'aliases' in queryOrRaid
+        ? (queryOrRaid as SearchRaidDefinition)
+        : resolveSearchRaid(queryOrRaid as SearchRaidQuery | string);
+
+  if (!targetRaid) {
+    return {
+      positiveTokens: [],
+      foreignQuestIds: [],
+      foreignTokens: []
+    };
+  }
+
+  const positiveSet = new Set<string>();
+  positiveSet.add(targetRaid.name.toLowerCase());
+  if (targetRaid.bossName) positiveSet.add(targetRaid.bossName.toLowerCase());
+  for (const alias of targetRaid.aliases) {
+    if (alias.trim().length >= 3) {
+      positiveSet.add(alias.toLowerCase());
+    }
+  }
+  const positiveTokens = Array.from(positiveSet);
+
+  const foreignQuestIdSet = new Set<string>();
+  const foreignTokenSet = new Set<string>();
+
+  for (const other of SEARCH_RAID_CATALOG) {
+    if (other.questId === targetRaid.questId) continue;
+    foreignQuestIdSet.add(other.questId);
+
+    const candidateForeignStrings = [
+      other.name.toLowerCase(),
+      other.bossName?.toLowerCase(),
+      ...other.aliases.map(a => a.toLowerCase())
+    ].filter((s): s is string => !!s && s.length >= 3);
+
+    for (const token of candidateForeignStrings) {
+      // Do not add a foreign token if it is a substring of the target raid's own canonical name or bossName
+      const isSubstringOfTarget =
+        targetRaid.name.toLowerCase().includes(token) ||
+        (targetRaid.bossName ? targetRaid.bossName.toLowerCase().includes(token) : false);
+      if (!isSubstringOfTarget && !positiveSet.has(token)) {
+        foreignTokenSet.add(token);
+      }
+    }
+  }
+
+  return {
+    targetQuestId: targetRaid.questId,
+    targetName: targetRaid.name,
+    positiveTokens,
+    foreignQuestIds: Array.from(foreignQuestIdSet),
+    foreignTokens: Array.from(foreignTokenSet)
+  };
+}
+
+/**
+ * Pure helper (also usable inside page.evaluate or unit tests) that verifies whether
+ * a scanned raid card's title and thumbnail image match the target RaidCardFilterSpec.
+ */
+export function matchesRaidCardFilter(
+  cardTitle: string,
+  cardImgSrc: string,
+  spec: RaidCardFilterSpec
+): boolean {
+  if (!spec || (!spec.targetQuestId && spec.positiveTokens.length === 0)) {
+    return true;
+  }
+
+  const imgSrc = (cardImgSrc || '').trim();
+  const title = (cardTitle || '').toLowerCase().trim();
+
+  // 1. Exact Quest ID match in thumbnail image URL
+  if (spec.targetQuestId && imgSrc.includes(spec.targetQuestId)) {
+    return true;
+  }
+
+  // 2. Foreign Quest ID in thumbnail image URL -> immediate cross-slot rejection
+  if (imgSrc && spec.foreignQuestIds.some(fid => imgSrc.includes(fid))) {
+    return false;
+  }
+
+  // 3. Title inspection
+  if (title) {
+    // Check if any foreign token appears in the card title
+    const matchedForeignTokens = spec.foreignTokens.filter(ft => title.includes(ft));
+    if (matchedForeignTokens.length > 0) {
+      // Only allow if a positive token is present that is longer/more specific than every matched foreign token
+      const maxForeignLen = Math.max(...matchedForeignTokens.map(ft => ft.length));
+      const hasMoreSpecificPositive = spec.positiveTokens.some(
+        pt => title.includes(pt) && pt.length > maxForeignLen
+      );
+      if (!hasMoreSpecificPositive) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

@@ -127,29 +127,13 @@ async function runDailyHostForAccount(account: AccountConfig, options: DailyHost
     const summary = await engine.runDailyHost(options);
 
     process.removeListener('SIGINT', sigintHandler);
-    try {
-      if (activePage && !activePage.isClosed()) {
-        const url = activePage.url();
-        if (!url.includes('#mypage') && !url.includes('#authentication')) {
-          console.log('[DailyHostCLI] 🏠 Returning browser safely to homescreen (#mypage)...');
-          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-        }
-      }
-    } catch {}
-    await cdp.disconnect();
+    console.log('[DailyHostCLI] 💤 Closing GBF tab and entering browser standby mode (about:blank)...');
+    await cdp.standby().catch(() => null);
     return { account: account.name, success: true, summary };
 
   } catch (error: any) {
     console.error(`\n[DailyHostCLI] ❌ Fatal error on account [${account.name}]:`, error.message);
-    try {
-      if (activePage && !activePage.isClosed()) {
-        const url = activePage.url();
-        if (!url.includes('#mypage') && !url.includes('#authentication')) {
-          await activePage.goto('https://game.granbluefantasy.jp/#mypage', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null);
-        }
-      }
-    } catch {}
-    try { await cdp.disconnect(); } catch {}
+    try { await cdp.standby(); } catch {}
     return { account: account.name, success: false, error: error.message };
   }
 }

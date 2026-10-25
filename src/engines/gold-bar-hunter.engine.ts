@@ -15,6 +15,9 @@ import { IGoldBarHunterEngine } from '../domain/gold-bar/gold-bar.interfaces.js'
 import { RecoveryModalService } from '../services/navigation/recovery-modal.service.js';
 import { PendingBattleService } from '../services/navigation/pending-battle.service.js';
 import { SupporterSelectionService } from '../services/navigation/supporter-selection.service.js';
+import { RaidEvaluator, RaidVelocityTracker } from './raid-evaluator.js';
+import { buildRaidCardFilterSpec } from '../domain/assist/search-raid.catalog.js';
+import { RaidCardFilterSpec } from '../domain/assist/search-raid.types.js';
 
 /**
  * Unified Gold Bar Hunting Engine (SRP, OCP, DIP).
@@ -40,6 +43,7 @@ export class GoldBarHunterEngine implements IGoldBarHunterEngine {
   protected recoveryService: RecoveryModalService;
   protected pendingService: PendingBattleService;
   protected supporterService: SupporterSelectionService;
+  protected deadRaidIds = new Map<string, number>();
 
   constructor(
     protected page: Page,
@@ -278,7 +282,8 @@ export class GoldBarHunterEngine implements IGoldBarHunterEngine {
   }
 
   /**
-   * Scans the assigned Finder slot once without waiting.
+   * Scans the assigned Finder slot once without waiting, ranking candidates via RaidEvaluator
+   * and RaidVelocityTracker to select the highest-scoring sweet-spot room.
    */
   public async scanSlotForCandidate(): Promise<RaidCandidate | null> {
     const currentHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
@@ -311,30 +316,98 @@ export class GoldBarHunterEngine implements IGoldBarHunterEngine {
     }, slotClass).catch(() => null);
     await logNormalDelay(600, 0.15);
 
+    // Build universal cross-slot filter spec for this Gold Bar raid
+    const filterSpec = buildRaidCardFilterSpec({
+      questId: this.raidDef.questId,
+      name: this.raidDef.name
+    });
+
     // Scan cards
-    const candidates = await this.page.evaluate(() => {
+    const candidates = await this.page.evaluate((spec: RaidCardFilterSpec) => {
       const cards = Array.from(document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, .btn-multi-raid.lis-raid.search'));
       return cards.map((card, index) => {
-        const gaugeInner = card.querySelector('.prt-raid-gauge-inner') as HTMLElement;
+        const el = card as HTMLElement;
+        const isVisible = el.offsetParent !== null;
+        if (!isVisible) return null;
+
+        const titleEl = el.querySelector('.prt-raid-name, .txt-raid-name, .name, [class*="raid-name"]') as HTMLElement;
+        const title = ((titleEl ? titleEl.innerText : '') || '').toLowerCase().trim();
+        const imgEl = el.querySelector('img') as HTMLImageElement;
+        const imgSrc = (imgEl?.src || '').trim();
+
+        if (spec && (spec.targetQuestId || (spec.positiveTokens && spec.positiveTokens.length > 0))) {
+          if (spec.targetQuestId && imgSrc.includes(spec.targetQuestId)) {
+            // Exact questId match
+          } else if (imgSrc && spec.foreignQuestIds.some((fid: string) => imgSrc.includes(fid))) {
+            return null;
+          } else if (title) {
+            const matchedForeign = spec.foreignTokens.filter((ft: string) => title.includes(ft));
+            if (matchedForeign.length > 0) {
+              const maxForeignLen = Math.max(...matchedForeign.map((ft: string) => ft.length));
+              const hasMoreSpecificPositive = spec.positiveTokens.some(
+                (pt: string) => title.includes(pt) && pt.length > maxForeignLen
+              );
+              if (!hasMoreSpecificPositive) return null;
+            }
+          }
+        }
+
+        const gaugeInner = el.querySelector('.prt-raid-gauge-inner') as HTMLElement;
         const hpPct = parseFloat(gaugeInner?.style?.width || '0%') || 0;
-        const playerText = (card.querySelector('.prt-flees-in') as HTMLElement)?.innerText || '';
+        const playerText = (el.querySelector('.prt-flees-in') as HTMLElement)?.innerText || '';
         const match = playerText.match(/(\d+)\s*\/\s*(\d+)/);
         const players = match ? parseInt(match[1], 10) : 99;
-        const raidId = (card as HTMLElement).dataset.raidId || '';
-        return { index, raidId, hpPct, players, isVisible: (card as HTMLElement).offsetParent !== null };
-      });
-    }).catch(() => []);
+        const maxPlayers = match ? parseInt(match[2], 10) : 18;
+        const raidId = el.dataset?.raidId || el.getAttribute('data-raid-id') || '';
+        return { index, raidId, hpPct, players, maxPlayers, isVisible };
+      }).filter(Boolean) as any[];
+    }, filterSpec).catch(() => []);
 
-    const eligible = candidates.filter(c => c.isVisible && c.raidId);
-    // Priority 1: sweet spot
-    const p1 = eligible.find(c => c.hpPct > this.raidDef.sweetSpotMinHp && c.players <= this.raidDef.sweetSpotMaxPlayers);
-    if (p1) return { raidId: p1.raidId, hpPct: p1.hpPct, players: p1.players };
+    const now = Date.now();
+    for (const [id, ts] of this.deadRaidIds.entries()) {
+      if (now - ts > 120000) this.deadRaidIds.delete(id);
+    }
 
-    // Priority 2: backup sweet spot
-    const p2 = eligible.find(c => c.hpPct >= this.raidDef.sweetSpotBackupMinHp && c.players <= this.raidDef.sweetSpotBackupMaxPlayers);
-    if (p2) return { raidId: p2.raidId, hpPct: p2.hpPct, players: p2.players };
+    const eligible = RaidVelocityTracker.recordBatch(
+      candidates.filter(c => c && c.isVisible && c.raidId && !this.deadRaidIds.has(c.raidId)),
+      now
+    );
+    if (eligible.length === 0) return null;
 
-    return null;
+    // Priority 1: Primary sweet spot (ranked by RaidEvaluator score instead of DOM order)
+    const p1Pool = eligible.filter(c => c.hpPct > this.raidDef.sweetSpotMinHp && c.players <= this.raidDef.sweetSpotMaxPlayers);
+    let selected = RaidEvaluator.selectBestCandidate(p1Pool, {
+      strategy: 'honor',
+      minHpPct: this.raidDef.sweetSpotMinHp,
+      maxPlayers: this.raidDef.sweetSpotMaxPlayers,
+      minScore: 0,
+      deadRaidIds: this.deadRaidIds
+    }).best;
+
+    // Priority 2: Backup sweet spot (ranked by RaidEvaluator score)
+    if (!selected) {
+      const p2Pool = eligible.filter(c => c.hpPct >= this.raidDef.sweetSpotBackupMinHp && c.players <= this.raidDef.sweetSpotBackupMaxPlayers);
+      selected = RaidEvaluator.selectBestCandidate(p2Pool, {
+        strategy: 'honor',
+        minHpPct: this.raidDef.sweetSpotBackupMinHp,
+        maxPlayers: this.raidDef.sweetSpotBackupMaxPlayers,
+        minScore: 0,
+        deadRaidIds: this.deadRaidIds
+      }).best;
+    }
+
+    if (!selected) return null;
+
+    // Click the selected card if page.$$ is available
+    if (typeof this.page.$$ === 'function') {
+      const cardElements = await this.page.$$('#prt-search-list .btn-multi-raid.lis-raid.search, .btn-multi-raid.lis-raid.search').catch(() => []);
+      const targetCard = cardElements[selected.index];
+      if (targetCard) {
+        await humanizedClick(this.page, targetCard).catch(() => null);
+      }
+    }
+
+    return { raidId: selected.raidId, hpPct: selected.hpPct, players: selected.players };
   }
 
   /**

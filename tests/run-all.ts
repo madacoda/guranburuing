@@ -191,6 +191,11 @@ const TEST_SUITES: TestSuite[] = [
     description: 'Verify fate episode template schema, card filtering, quest skip uncheck, caution modal, cutscene skip, and routine loop integration'
   },
   {
+    name: 'Multi-Part Story Scene Skip Engine Tests',
+    file: 'tests/test-story-scene-multiskip.ts',
+    description: 'Verify multi-scene cutscene sequence progression, branching dialogue choices, spoiler warning dismissal, and conflict auto-fix'
+  },
+  {
     name: 'Production vs Local Environment & Performance Architecture Tests',
     file: 'tests/test-production-environment.ts',
     description: 'Verify APP_ENV detection, SwiftShader 30fps cap, V8 1024MB heap, 512MB disk cache, 360x720 viewport, and audio auto-mute'
@@ -269,6 +274,21 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Standardized Gold Bar Rotations & 1.5M Honor Verification Tests',
     file: 'tests/test-gold-bar-standardized-rotations.ts',
     description: 'Verify gb-akasha, gb-pbhl, and gb-go step uniformity, 1.5M min honor threshold, and DSL round-trip fidelity'
+  },
+  {
+    name: 'Mid-Execution Stoppage, Renderer Freeze Watchdog & Standby Mode Tests',
+    file: 'tests/test-stoppage-and-captcha-safety.ts',
+    description: 'Verify CDP renderer freeze watchdog, timeout cascade prevention, about:blank standby mode, and CAPTCHA non-logout safety'
+  },
+  {
+    name: 'Magna 3 (Omega Rebirth) All-Element Farm Templates & Strategy Tests',
+    file: 'tests/test-magna3-farm-templates.ts',
+    description: 'Verify all 6 Magna 3 farm templates, schema validation, adaptive damage strategy, shorthand mapping, and Finder Slot 1 catalog integration'
+  },
+  {
+    name: 'Shiny Slime Search (Very Hard) Workflow & Back Button Tests',
+    file: 'tests/test-shiny-slime-search.ts',
+    description: 'Verify shiny-slime-search template, quest 400151, back button action, shorthand DSL compiler, and alias resolution'
   }
 ];
 

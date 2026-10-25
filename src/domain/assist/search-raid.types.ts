@@ -31,3 +31,15 @@ export interface SearchRaidQuery {
   name?: string;
   description?: string;
 }
+
+/**
+ * Serializable specification for positive & negative raid card verification
+ * inside #prt-search-list to prevent cross-slot contamination across all GBF raids.
+ */
+export interface RaidCardFilterSpec {
+  targetQuestId?: string;
+  targetName?: string;
+  positiveTokens: string[];
+  foreignQuestIds: string[];
+  foreignTokens: string[];
+}

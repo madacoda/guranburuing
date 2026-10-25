@@ -1,0 +1,22 @@
+{
+  "name": "Dread Barrage - 5-Star Smart Full Auto (Lvl 150 Arx Movens)",
+  "description": "Dread Barrage 5-Star (50 AP, 288.75M HP, 41,000 Honors, 163 Tokens) Smart Full Auto with 350ms reload skip",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980851/1",
+  "supporterPriority": ["Zephyrus", "Tiamat", "Bahamut", "Lucifer"],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "code": "smart_full_auto",
+      "delayAfterMs": 350,
+      "tacticalSkillsMode": "smart",
+      "quickSummon": true
+    },
+    {
+      "code": "confirm_result"
+    }
+  ]
+}
