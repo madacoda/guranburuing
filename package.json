@@ -583,7 +583,16 @@
     "db4": "bun src/cli/run-workflow.ts dread-barrage-4star-fa",
     "db:5star": "bun src/cli/run-workflow.ts dread-barrage-5star-fa",
     "db:5star:windowed": "bun src/cli/run-workflow.ts dread-barrage-5star-fa --windowed",
-    "gb-farm": "bun src/cli/run-workflow.ts gb-farm"
+    "gb-farm": "bun src/cli/run-workflow.ts gb-farm",
+    "siete:check": "bun src/cli/run-siete-check.ts",
+    "siete:check:offline": "bun src/cli/run-siete-check.ts --offline",
+    "siete:check:json": "bun src/cli/run-siete-check.ts --offline --json",
+    "siete": "bun src/cli/run-workflow.ts acc1 raid-seofon",
+    "siete:windowed": "bun src/cli/run-workflow.ts acc1 raid-seofon --windowed",
+    "seofon": "bun src/cli/run-workflow.ts acc1 raid-seofon",
+    "seofon:windowed": "bun src/cli/run-workflow.ts acc1 raid-seofon --windowed",
+    "raid-seofon": "bun src/cli/run-workflow.ts raid-seofon",
+    "raid-seofon:windowed": "bun src/cli/run-workflow.ts raid-seofon --windowed"
   },
   "dependencies": {
     "puppeteer-core": "^23.3.0",

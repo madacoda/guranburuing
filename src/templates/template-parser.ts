@@ -169,6 +169,16 @@ const CANONICAL_ALIASES: Readonly<Record<string, string>> = {
   'farm:credo': 'farm-luminiera-credo',
   'raid-luminiera-credo': 'farm-luminiera-credo',
   'raid-luminiera': 'farm-luminiera-credo',
+  'siete': 'raid-seofon',
+  'seofon': 'raid-seofon',
+  'siete-hl': 'raid-seofon',
+  'seofon-hl': 'raid-seofon',
+  'raid-siete': 'raid-seofon',
+  'raid-seofon': 'raid-seofon',
+  'siete-4m': 'raid-seofon',
+  'seofon-4m': 'raid-seofon',
+  'farm-siete': 'raid-seofon',
+  'farm-seofon': 'raid-seofon',
 };
 
 const RX_TEMPLATE_EXT = /\.(json|txt|dsl|yaml|yml)$/i;

@@ -1,0 +1,1598 @@
+{
+  "$schema": "../schemas/siete-party-comp.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-26T12:00:00.000Z",
+  "description": "Authoritative Seofon (Impossible) / Siete HL 4,000,000 Honors (400M Damage) party compositions, character/weapon/summon registries, substitute chains, and readiness verification rules.",
+  "raidSpecification": {
+    "raidId": "siete",
+    "revansCatalogId": "revans_seofon",
+    "name": "Seofon (Impossible)",
+    "japaneseName": "シエテHL (天星剣王)",
+    "stageId": "12072",
+    "questId": "305411",
+    "legacyQuestId": "305401",
+    "element": "wind",
+    "advantageousElement": "fire",
+    "battleSystem": "V2",
+    "maxPlayers": 6,
+    "bossHp": 2500000000,
+    "baseDefense": 20,
+    "blueChestTargetHonors": 4000000,
+    "equivalentTotalDamage": 400000000,
+    "honorPerDamageRatio": 0.01,
+    "universalOmenCancelDamage": 77777777,
+    "entryMechanics": {
+      "nonFireAllyPenalty": "Instantly deals 999,999 plain damage to all non-Fire allies upon battle entry or frontline appearance, bypassing Guts and Unchallenged.",
+      "nonFirePlainDamage": 999999,
+      "summonCooldownResetTurns": 99,
+      "summonLockNotes": "Upon entering battle, all equipped and supporter summons have their cooldowns set to 99 turns (or locked). Passive Main/Supporter Auras and Sub-Auras remain 100% active, making passive cap-up and stat summons mandatory.",
+      "fatedChainBossMechanic": "Seofon possesses an enemy Fated Chain (FC) bar that fills whenever he executes a special attack or crosses HP thresholds (80%, 60%, 40%, 20%). At 100% FC, he unleashes Infinito Creare."
+    },
+    "coreOmens": [
+      {
+        "name": "Emblema",
+        "japaneseName": "エンブレマ",
+        "trigger": "Turn 1 / Periodic Normal & Overdrive Omen",
+        "cancelCondition": "Deal 77,777,777 damage in a single turn",
+        "requiredDamage": 77777777,
+        "requiresFatalChain": false,
+        "failurePenalty": "Prepares Cien Mil Espadas on the following turn and increases enemy FC bar.",
+        "counterStrategy": "Unleash Percival (Grand) Sk3 (Schlacht) Tri-Strike burst, Wilnas double Sk2 nuke, or a 5-6 Charge Attack Kengo chain to exceed 77.7M turn damage."
+      },
+      {
+        "name": "Cien Mil Espadas",
+        "japaneseName": "シエン・ミル・エスパーダ",
+        "trigger": "Next turn after uncanceled Emblema or 80%/60%/40% HP thresholds",
+        "cancelCondition": "Execute Fatal Chain (FC) or deal 77,777,777 damage",
+        "requiredDamage": 77777777,
+        "requiresFatalChain": true,
+        "failurePenalty": "Deals heavy multi-hit Wind damage, grants Seofon 2-turn Invincibility (Damage Immunity), and inflicts Slashed/Skill Delay.",
+        "counterStrategy": "Cancel with Fatal Chain (Kengo setups) or guard through while Satyr Innocent Heart auto-heals and auto-dispels."
+      },
+      {
+        "name": "Infinito Creare",
+        "japaneseName": "インフィニート・クレアーレ",
+        "trigger": "Enemy Fated Chain Gauge reaches 100%",
+        "cancelCondition": "Deal 77,777,777 damage in a single turn",
+        "requiredDamage": 77777777,
+        "requiresFatalChain": false,
+        "failurePenalty": "Deals 45,000+ raidwide Wind damage, extends player summon cooldowns, and grants Seofon Miriade di Illusioni.",
+        "counterStrategy": "Push 77.7M burst turn to cancel, or use Paladin/Satyr/Athena damage cuts and Guard."
+      },
+      {
+        "name": "Cinco Mil Espadas",
+        "japaneseName": "シンコ・ミル・エスパーダ",
+        "trigger": "Below 50% HP Special Trigger",
+        "cancelCondition": "Deal 77,777,777 damage in a single turn",
+        "requiredDamage": 77777777,
+        "requiresFatalChain": false,
+        "failurePenalty": "Inflicts heavy Wind damage, dispels all party buffs, and applies Doom/Skill Seal.",
+        "counterStrategy": "Cancel via 77.7M turn damage or maintain Satyr/Michael/Lucifer Lv250 Dispel Cancel and Veil."
+      },
+      {
+        "name": "Cuatro Mil Espadas / Siete Espadas (10% Trigger)",
+        "japaneseName": "クアトロ・ミル・エスパーダ / シエテ・エスパーダ",
+        "trigger": "10% HP Threshold",
+        "cancelCondition": "Deal 77,777,777 damage or Fatal Chain (Uncancelable plain wipe variant at 10%)",
+        "requiredDamage": 77777777,
+        "requiresFatalChain": true,
+        "failurePenalty": "Deals 99,999 plain damage to all allies (party wipe).",
+        "counterStrategy": "For 4M Blue Chest racing, reach 4,000,000 honors before 10% HP. For Host/Solo clear, survive with Paladin Sacred Protection, Yamato Seawall, Fenie Phoenix revive, or Anderson/Ragazzo Substitute."
+      }
+    ]
+  },
+  "readinessThresholds": {
+    "grades": {
+      "SSS": 92,
+      "SS": 85,
+      "S": 75,
+      "A": 65,
+      "B": 50,
+      "C": 35
+    },
+    "weights": {
+      "characters": 45,
+      "weapons": 35,
+      "summons": 10,
+      "mcClass": 10
+    },
+    "hardGates": [
+      {
+        "gateId": "gate_100_percent_fire_allies",
+        "name": "100% Fire Element Roster & Party Enforcement",
+        "severity": "CRITICAL_BLOCKER",
+        "description": "Seofon immediately deals 999,999 plain damage to any non-Fire character upon battle entry. All frontline and backline characters must be Fire element."
+      },
+      {
+        "gateId": "gate_turn1_summon_lock_compliance",
+        "name": "Turn-1 99-Turn Summon Cooldown Lock Compliance",
+        "severity": "WARNING",
+        "description": "Seofon locks all active summon calls to 99 turns on entry. Grids and rotations must rely on passive Main/Supporter Auras (Agni, Colossus Ira, Lucifer, Beelzebub Trance) and passive Sub-Auras (Michael, The Sun, Belial, Wilnas)."
+      },
+      {
+        "gateId": "gate_minimum_hp_threshold",
+        "name": "Survivable HP & Defense Threshold",
+        "severity": "WARNING",
+        "description": "Party HP must be at least 45,000 for 2-3T Burst setups and at least 65,000 for Full Auto / Kengo / Host setups to withstand Seofon's multi-hit Wind normal attacks."
+      },
+      {
+        "gateId": "gate_77m_omen_and_4m_honors_pace",
+        "name": "77,777,777 Omen Cancel & 4,000,000 Honors Pacing Check",
+        "severity": "CRITICAL_BLOCKER",
+        "description": "Party composition and weapon grid must either exceed 77,777,777 peak turn damage to cancel Emblema or sustain >= 400,000,000 total damage (4,000,000 honors) within 2 to 6 turns."
+      }
+    ]
+  },
+  "characterRegistry": [
+    {
+      "id": "char_fire_percival_grand",
+      "npcId": "3040419000",
+      "name": "Percival (Grand)",
+      "japaneseName": "パーシヴァル (リミテッド)",
+      "aliases": ["percival", "grand percival", "g.percy", "percy", "lord of flames percival"],
+      "element": "fire",
+      "series": "Grand",
+      "role": "Burst_OTK",
+      "priorityTier": "SS_Core",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 48000000,
+      "estimatedPeakBurstDamage": 95000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["tri_strike", "fire_amplification", "singed_stack", "auto_nuke_end_of_turn", "dispel_cancel"],
+      "keySkillsForSiete": [
+        "Sk3 (Schlacht): Grants all Fire allies 1-turn Tri-Strike (attack 3 times without advancing turn), 30% Fire Echo, and 20% Fire Amplification (requires Singed Lv7+).",
+        "Sk1 (X-Seele): Inflicts Singed stacks and auto-activates at end of turn when foe uses special attack.",
+        "Sk2 (Regieren): 5-hit Fire nuke + Dispel + unchallenged."
+      ],
+      "sieteSynergyNotes": "Single most impactful character for Siete 4M Honors burst. His Sk3 (Schlacht) allows the entire Fire frontline to attack 3 times in a single turn, effortlessly clearing the 77,777,777 Emblema omen and generating ~1.5M-2.2M honors in 1 turn alone.",
+      "substitutes": [
+        { "characterId": "char_fire_alanaan_flb", "compatibilityPercent": 82, "tradeoffNotes": "Provides Turn 1-3 guaranteed TA, Echoes, and Crit field, though lacks 1-turn Tri-Strike." },
+        { "characterId": "char_fire_wilnas_grand", "compatibilityPercent": 80, "tradeoffNotes": "Massive individual Ougi + double Sk2 nuke output (~35M/turn), but does not grant teamwide Tri-Strike." },
+        { "characterId": "char_fire_yuel_grand", "compatibilityPercent": 75, "tradeoffNotes": "Strong multiattack, Foxflame support, and double strike/echo utility." }
+      ]
+    },
+    {
+      "id": "char_fire_zeta_grand",
+      "npcId": "3040499000",
+      "name": "Zeta (Grand)",
+      "japaneseName": "ゼタ (リミテッド)",
+      "aliases": ["zeta", "grand zeta", "g.zeta", "crimson vow zeta", "scarlet vow zeta"],
+      "element": "fire",
+      "series": "Grand",
+      "role": "Burst_OTK",
+      "priorityTier": "SS_Core",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 44000000,
+      "estimatedPeakBurstDamage": 82000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["guaranteed_ta", "assassin_turn", "triple_skill_cast", "normal_amplification", "dispel"],
+      "keySkillsForSiete": [
+        "Sk1 (Rhongomyniad): Grants 1-turn Salted Wound (Assassin) and 100% TA.",
+        "Sk2 (Infinite Wonders) & Sk3 (Scarlet Vow): Multi-hit Fire skill nukes and dispels that can be cast multiple times.",
+        "Passive (Crimson Spear): Unconditional Guaranteed Triple Attack (no charge attack) with 25% Normal Attack Amplification."
+      ],
+      "sieteSynergyNotes": "Pairs with Percival (Grand) and Manadiver/Sumaibito for the fastest 2-turn 4M Honors setup in the game. Because she never Charge Attacks on normal turns, she eliminates Ougi lockout while dealing 40M-80M+ per turn.",
+      "substitutes": [
+        { "characterId": "char_fire_wilnas_grand", "compatibilityPercent": 88, "tradeoffNotes": "Slightly slower animation lockout due to Ougi, but matches or exceeds raw per-turn damage in Full Auto." },
+        { "characterId": "char_fire_ragazzo", "compatibilityPercent": 80, "tradeoffNotes": "Extreme skill nuke spammer in early turns and can sacrifice to bring in Alanaan FLB or Fraux FLB." },
+        { "characterId": "char_fire_yuel_grand", "compatibilityPercent": 78, "tradeoffNotes": "High multi-hit normal attack + echo synergy." }
+      ]
+    },
+    {
+      "id": "char_fire_wilnas_grand",
+      "npcId": "3040379000",
+      "name": "Wilnas (Grand)",
+      "japaneseName": "ウィルナス (リミテッド)",
+      "aliases": ["wilnas", "grand wilnas", "g.wilnas", "six dragon wilnas"],
+      "element": "fire",
+      "series": "Grand",
+      "role": "Burst_OTK",
+      "priorityTier": "SS_Core",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 42000000,
+      "estimatedPeakBurstDamage": 68000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["unconditional_massive_atk", "post_ougi_double_nuke", "debuff_immunity", "singed_stack", "dispel"],
+      "keySkillsForSiete": [
+        "Ougi (Magma Chamber): Deals massive 6.6M-8.5M CA damage and makes next Sk2 activate twice.",
+        "Sk2 (Hadron Buster): Massive Fire nuke + Dispel + Singed stack; auto-triggered or double-cast after Ougi for 16M+ skill damage.",
+        "Passive (Flame Dragon's Majesty): Immune to all debuffs, +100% ATK, +100% DEF, +50% Damage Cap, and amplifies Fire allies' damage."
+      ],
+      "sieteSynergyNotes": "Cornerstone of both 3-4 Turn Full Auto Blue Chest and Kengo Ougi setups. His complete debuff immunity ignores Seofon's Slashed/Doom/Skill Seal debuffs, while his Ougi + double Sk2 combo deals 30M-45M+ damage per turn by himself.",
+      "substitutes": [
+        { "characterId": "char_fire_zeta_grand", "compatibilityPercent": 90, "tradeoffNotes": "Superior for manual/0-lockout normal attack burst; slightly less tanky in long Full Auto." },
+        { "characterId": "char_fire_anderson", "compatibilityPercent": 78, "tradeoffNotes": "Strong tank + counter-nuke omen solver for Full Auto." },
+        { "characterId": "char_fire_noa_holiday", "compatibilityPercent": 80, "tradeoffNotes": "Strong Ougi battery and defensive utility for Kengo/FA." }
+      ]
+    },
+    {
+      "id": "char_fire_michael",
+      "npcId": "3040434000",
+      "name": "Michael (Grand)",
+      "japaneseName": "ミカエル (リミテッド)",
+      "aliases": ["michael", "grand michael", "g.michael", "archangel michael"],
+      "element": "fire",
+      "series": "Grand",
+      "role": "Support_Buffer",
+      "priorityTier": "SS_Core",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 26000000,
+      "estimatedPeakBurstDamage": 42000000,
+      "subSlotDamageCapBonusPercent": 20,
+      "tacticalTags": ["sub_ally_20_cap_up", "weapon_skill_boost_10", "dispel", "delay", "cooldown_cut", "veil"],
+      "keySkillsForSiete": [
+        "Passive 1 (Archangel's Blessing - Sub-Ally or Frontline): +20% Fire Damage Cap and +10% boost to Fire weapon skills (Normal/Omega/EX).",
+        "Sk1 (Sacred Wing): Grants targeted Fire ally +50% Charge Bar, 1-turn Skill Cooldown Cut, Veil, and Dispel Cancel.",
+        "Sk3 (Flaming Sword): Deals 1.5M plain damage, dispels 2 buffs, delays, and inflicts 25% Fire DEF Down."
+      ],
+      "sieteSynergyNotes": "Mandatory in 100% of Fire Siete teams (either in Sub-Ally Slot 1 for unconditional +20% Damage Cap & +10% Weapon Skill boost, or on the Frontline for Kengo/Full Auto Veil + Dispel Cancel + CD cut).",
+      "substitutes": [
+        { "characterId": "char_fire_silva_yukata", "compatibilityPercent": 75, "tradeoffNotes": "Provides backline supplemental Ougi nuke or frontline Double Ougi buff, but cannot replace Michael's passive +20% Cap." },
+        { "characterId": "char_fire_fraux_flb", "compatibilityPercent": 72, "tradeoffNotes": "Provides debuff extension and healing utility." }
+      ]
+    },
+    {
+      "id": "char_fire_satyr",
+      "npcId": "3040363000",
+      "name": "Satyr (Fire)",
+      "japaneseName": "サテュロス (火)",
+      "aliases": ["satyr", "fire satyr", "satyr fire"],
+      "element": "fire",
+      "series": "Standard SSR",
+      "role": "Full_Auto_Sustain",
+      "priorityTier": "SS_Core",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 22000000,
+      "estimatedPeakBurstDamage": 34000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["auto_heal_on_special", "auto_cleanse_on_special", "auto_dispel_2", "charge_bar_battery", "permanent_atk_def_buff", "hostility_tank"],
+      "keySkillsForSiete": [
+        "Sk1 (Advent Twinkle): Grants all Fire allies permanent unremovable +30% ATK, +50% DEF, +50% CA DMG, +20% CA Cap, and 15% DMG reduction.",
+        "Sk2 (Innocent Heart): Heals all allies (up to 3,000 HP), cleanses 1 debuff, and grants +15% charge bar; auto-casts when Seofon uses a special attack.",
+        "Sk3 (Performance Mode): Multi-hit Fire nuke + 2-buff Dispel + 25% ATK/DEF Down."
+      ],
+      "sieteSynergyNotes": "Undisputed MVP for Siete Kengo Ougi Loop, Full Auto Sustain, and Host/Solo clears. Every time Seofon triggers Emblema, Cien Mil Espadas, or Infinito Creare, Satyr automatically heals the party, cleanses debuffs, and fuels continuous Ougi chains.",
+      "substitutes": [
+        { "characterId": "char_fire_fenie_grand", "compatibilityPercent": 88, "tradeoffNotes": "Offers Phoenix auto-revive, massive healing, and debuff immunity." },
+        { "characterId": "char_fire_fraux_flb", "compatibilityPercent": 82, "tradeoffNotes": "Strong double-cast heal + cleanse + dispel in Full Auto." },
+        { "characterId": "char_fire_athena", "compatibilityPercent": 75, "tradeoffNotes": "Provides Wind switch, 40% Wind Cut, and auto-nuke counter." }
+      ]
+    },
+    {
+      "id": "char_fire_alanaan_flb",
+      "npcId": "3040161000",
+      "name": "Alanaan (FLB)",
+      "japaneseName": "アラナン (最終上限解放)",
+      "aliases": ["alanaan", "alanaan flb", "evoker alanaan", "the sun alanaan"],
+      "element": "fire",
+      "series": "Evoker",
+      "role": "Burst_OTK",
+      "priorityTier": "SS_Core",
+      "minLevelRequired": 100,
+      "requiresFlb": true,
+      "requiresFourthSkill": true,
+      "estimatedTurnDamageContribution": 40000000,
+      "estimatedPeakBurstDamage": 78000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["sunlight_field", "guaranteed_ta_party", "50_percent_echo", "100_crit_buff", "flb_turn1_field"],
+      "keySkillsForSiete": [
+        "Sk1 (Renunciation - FLB): Deploys Renunciation field (+30% Unique ATK, +25% DEF Down) and activates Sk2 effects without consuming charge bar at Lv100.",
+        "Sk2 (Blazing Sun): Grants all Fire allies 100% TA and 50% Fire Bonus Damage (Echo) for 4 turns.",
+        "Sk4 (Solar Blessing - 4th Skill): Grants massive Critical Hit Rate, Keen (50,000 supplemental), and Fire Amplification."
+      ],
+      "sieteSynergyNotes": "At Lv100 FLB with his 4th Skill unlocked, Alanaan removes the old 100% charge bar drain requirement and turns any Manadiver/Berserker + Percival/Zeta frontline into a 2-turn 4M Honors juggernaut.",
+      "substitutes": [
+        { "characterId": "char_fire_wilnas_grand", "compatibilityPercent": 86, "tradeoffNotes": "Zero setup required; higher personal Ougi/skill damage on Full Auto." },
+        { "characterId": "char_fire_yuel_grand", "compatibilityPercent": 78, "tradeoffNotes": "Good accessible multiattack and echo buffer if Alanaan is not yet FLB Lv100." }
+      ]
+    },
+    {
+      "id": "char_fire_fraux_flb",
+      "npcId": "3040160000",
+      "name": "Fraux (FLB)",
+      "japaneseName": "フラウ (最終上限解放)",
+      "aliases": ["fraux", "fraux flb", "evoker fraux", "the devil fraux"],
+      "element": "fire",
+      "series": "Evoker",
+      "role": "Full_Auto_Sustain",
+      "priorityTier": "S_HighPriority",
+      "minLevelRequired": 100,
+      "requiresFlb": true,
+      "requiresFourthSkill": true,
+      "estimatedTurnDamageContribution": 30000000,
+      "estimatedPeakBurstDamage": 50000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["double_heal_cleanse", "double_nuke_dispel", "debuff_extension", "undying_domain"],
+      "keySkillsForSiete": [
+        "Sk1 (Red Sphere) & Sk2 (Nightmare): Double-cast heavy Fire nukes with Dispel and local debuff extension.",
+        "Sk3 (Indomitable): Heals all allies up to 8,000 HP (double-cast) and cleanses 2 debuffs.",
+        "Sk4 (Crimson Devil): Grants permanent double skill activation and end-of-turn auto-nuke."
+      ],
+      "sieteSynergyNotes": "Exceptional Full Auto anchor for 4-5 turn Blue Chest and full solo runs. Her double-cast 8,000 HP heal + 2-debuff cleanse + 2-buff dispel completely neutralizes Seofon's mid-phase pressure.",
+      "substitutes": [
+        { "characterId": "char_fire_satyr", "compatibilityPercent": 90, "tradeoffNotes": "Satyr triggers reactively on enemy special attacks without needing Evoker uncap materials." },
+        { "characterId": "char_fire_fenie_grand", "compatibilityPercent": 88, "tradeoffNotes": "Grand Fenie provides similar top-tier sustain + auto-revive." }
+      ]
+    },
+    {
+      "id": "char_fire_silva_yukata",
+      "npcId": "3040395000",
+      "name": "Silva (Yukata)",
+      "japaneseName": "シルヴァ (浴衣)",
+      "aliases": ["silva", "yukata silva", "y.silva", "summer silva"],
+      "element": "fire",
+      "series": "Yukata",
+      "role": "Support_Buffer",
+      "priorityTier": "S_HighPriority",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 32000000,
+      "estimatedPeakBurstDamage": 52000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["targeted_double_ougi", "5_chain_end_of_turn_nuke", "backline_chain_burst_nuke", "accuracy_down"],
+      "keySkillsForSiete": [
+        "Sk1 (Shimmering Shell): Grants targeted Fire ally (usually Kengo MC or Wilnas) 5-turn CA Reactivation (Double Ougi), +50% CA DMG, and +30% CA Cap.",
+        "Passive 1 (Five-Star Shot): Deals 6-hit Fire skill damage and inflicts Accuracy Down at end of turn whenever allies perform 5 or more Charge Attacks.",
+        "Passive 2 (Backline Support): Deals extra Fire nuke at end of turn whenever a 4+ Chain Burst occurs."
+      ],
+      "sieteSynergyNotes": "Core engine of the Fire Kengo Ougi Loop for Siete. By granting Double Ougi to a second ally alongside Kengo MC, the party easily fires 5-6 Charge Attacks every turn, triggering her end-of-turn nuke, charging Fatal Chain every 2 turns, and breaking 77,777,777 damage.",
+      "substitutes": [
+        { "characterId": "char_fire_noa_holiday", "compatibilityPercent": 85, "tradeoffNotes": "Holiday Noa provides partywide charge bar + CA specs + unchallenged." },
+        { "characterId": "char_fire_mirin_yukata", "compatibilityPercent": 80, "tradeoffNotes": "Yukata Mirin provides 200% charge bar double Ougi andveil/heal." }
+      ]
+    },
+    {
+      "id": "char_fire_fenie_grand",
+      "npcId": "3040515000",
+      "name": "Fenie (Grand)",
+      "japaneseName": "フェニー (リミテッド)",
+      "aliases": ["fenie", "grand fenie", "g.fenie"],
+      "element": "fire",
+      "series": "Grand",
+      "role": "Full_Auto_Sustain",
+      "priorityTier": "S_HighPriority",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 35000000,
+      "estimatedPeakBurstDamage": 58000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["phoenix_auto_revive", "substitute_all_sacrifice", "post_revive_triple_strike", "full_heal_cleanse"],
+      "keySkillsForSiete": [
+        "Sk1 (Wings of Rebirth): Substitute-All; upon being knocked out, automatically revives with Phoenix blessing, unlocking triple-attack/multi-nuke mode.",
+        "Sk2 & Sk3: Massive party heal, debuff cleanse, and multi-hit skill damage."
+      ],
+      "sieteSynergyNotes": "Can tank lethal triggers (including Cien Mil Espadas or 10% Cuatro Mil Espadas) via Substitute-All, auto-revive via Phoenix passive, and then unleash massive multi-hit skill/normal damage every turn.",
+      "substitutes": [
+        { "characterId": "char_fire_satyr", "compatibilityPercent": 90, "tradeoffNotes": "Consistent reactive healing and dispel on every special attack." },
+        { "characterId": "char_fire_anderson", "compatibilityPercent": 80, "tradeoffNotes": "300% DEF + Substitute-All tanking." }
+      ]
+    },
+    {
+      "id": "char_fire_ragazzo",
+      "npcId": "3040472000",
+      "name": "Ragazzo",
+      "japaneseName": "ラガッツォ",
+      "aliases": ["ragazzo", "fire ragazzo"],
+      "element": "fire",
+      "series": "Standard SSR",
+      "role": "Burst_OTK",
+      "priorityTier": "S_HighPriority",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 36000000,
+      "estimatedPeakBurstDamage": 64000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["0_cooldown_nuke_spam", "tactical_self_sacrifice", "evoker_enabler", "guaranteed_ta"],
+      "keySkillsForSiete": [
+        "Sk1 & Sk2: Repeated multi-hit Fire nukes that consume HP to deal 30M+ skill damage in 1-2 turns.",
+        "Passive (Bloody Crimson): Automatically sacrifices himself after his stack threshold to bring a backline Evoker (Alanaan FLB or Fraux FLB) to the frontline with Upright upright buff active."
+      ],
+      "sieteSynergyNotes": "Dual-purpose unit in Siete: either unloads massive Turn 1-2 skill damage before dying cleanly on Turn 2/3 to bring out Alanaan FLB/Fraux FLB with full Evoker switch-in passives, or acts as a budget burst attacker.",
+      "substitutes": [
+        { "characterId": "char_fire_zeta_grand", "compatibilityPercent": 92, "tradeoffNotes": "Higher sustained burst without self-KO." },
+        { "characterId": "char_fire_yuel_grand", "compatibilityPercent": 80, "tradeoffNotes": "Stays on frontline with consistent TA and echoes." }
+      ]
+    },
+    {
+      "id": "char_fire_yuel_grand",
+      "npcId": "3040014000",
+      "name": "Yuel (Fire)",
+      "japaneseName": "ユエル (火)",
+      "aliases": ["yuel", "fire yuel", "grand yuel"],
+      "element": "fire",
+      "series": "Standard SSR",
+      "role": "Burst_OTK",
+      "priorityTier": "S_HighPriority",
+      "minLevelRequired": 100,
+      "requiresFlb": true,
+      "requiresFourthSkill": true,
+      "estimatedTurnDamageContribution": 33000000,
+      "estimatedPeakBurstDamage": 56000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["foxflame", "fire_echo_party", "fire_atk_up", "heal_cleanse"],
+      "keySkillsForSiete": [
+        "Sk1 & Sk2: Multi-hit Fire damage, DATA up, and teamwide Fire Bonus Damage (Echo) + Fire ATK Up.",
+        "Sk3: Party heal + debuff clear."
+      ],
+      "sieteSynergyNotes": "Excellent accessible frontline attacker/buffer when paired with Percival (Grand). Her teamwide Echoes and Fire ATK Up multiply Percival's Tri-Strike turn to easily clear 77,777,777 damage.",
+      "substitutes": [
+        { "characterId": "char_fire_zeta_grand", "compatibilityPercent": 95, "tradeoffNotes": "Grand Zeta deals higher individual damage." },
+        { "characterId": "char_fire_alanaan_flb", "compatibilityPercent": 90, "tradeoffNotes": "Alanaan FLB provides stronger teamwide Echo + TA." }
+      ]
+    },
+    {
+      "id": "char_fire_anderson",
+      "npcId": "3040399000",
+      "name": "Anderson",
+      "japaneseName": "アンダーソン",
+      "aliases": ["anderson", "father anderson"],
+      "element": "fire",
+      "series": "Standard SSR",
+      "role": "High_Difficulty_Omen_Solver",
+      "priorityTier": "A_ViableSubstitute",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 29000000,
+      "estimatedPeakBurstDamage": 48000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["def_300_percent", "substitute_all", "counter_nuke", "delay"],
+      "keySkillsForSiete": [
+        "Sk1 & Sk2: Multi-hit skill nukes with Delay and self-heal.",
+        "Sk3: Substitute-All with 300% DEF Up and Unchallenged."
+      ],
+      "sieteSynergyNotes": "Great non-limited frontline bruiser for Full Auto and Host setups; absorbs Seofon's multi-hit normal attacks and Cien Mil Espadas while retaliating with heavy skill counters.",
+      "substitutes": [
+        { "characterId": "char_fire_wilnas_grand", "compatibilityPercent": 92, "tradeoffNotes": "Wilnas offers higher raw burst damage." },
+        { "characterId": "char_fire_athena", "compatibilityPercent": 80, "tradeoffNotes": "Athena provides teamwide Wind cut and auto-nukes." }
+      ]
+    },
+    {
+      "id": "char_fire_noa_holiday",
+      "npcId": "3040495000",
+      "name": "Noa (Holiday)",
+      "japaneseName": "ノア (クリスマス)",
+      "aliases": ["noa", "holiday noa", "christmas noa", "c.noa", "h.noa"],
+      "element": "fire",
+      "series": "Holiday",
+      "role": "High_Difficulty_Omen_Solver",
+      "priorityTier": "S_HighPriority",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 30000000,
+      "estimatedPeakBurstDamage": 46000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["charge_bar_gain_up", "ca_supplemental", "unchallenged_party", "dispel_cancel"],
+      "keySkillsForSiete": [
+        "Sk1: Inflicts DEF Down and Dispel.",
+        "Sk2: Grants party Unchallenged (1 time) and Dispel Cancel.",
+        "Sk3: Boosts party Charge Bar Gain and CA Specs."
+      ],
+      "sieteSynergyNotes": "Top-tier partner for Fire Kengo Ougi loops alongside Satyr and Wilnas/Silva. His partywide Unchallenged + Dispel Cancel can completely negate Cinco Mil Espadas or 10% triggers.",
+      "substitutes": [
+        { "characterId": "char_fire_silva_yukata", "compatibilityPercent": 88, "tradeoffNotes": "Yukata Silva provides higher offensive CA frequency." },
+        { "characterId": "char_fire_michael", "compatibilityPercent": 85, "tradeoffNotes": "Michael provides Veil + Dispel Cancel + +20% Cap." }
+      ]
+    },
+    {
+      "id": "char_fire_medusa_holiday",
+      "npcId": "3040249000",
+      "name": "Medusa (Holiday / Valentine / Fire)",
+      "japaneseName": "メドゥーサ (火)",
+      "aliases": ["medusa", "fire medusa", "valentine medusa", "holiday medusa"],
+      "element": "fire",
+      "series": "Seasonal/Standard",
+      "role": "High_Difficulty_Omen_Solver",
+      "priorityTier": "A_ViableSubstitute",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 28000000,
+      "estimatedPeakBurstDamage": 45000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["auto_skill_nuke", "delay", "dispel", "primal_pals_synergy"],
+      "keySkillsForSiete": [
+        "Auto-casts multi-hit Fire skill nukes when enemy uses special attacks or when Primal Pals allies are present."
+      ],
+      "sieteSynergyNotes": "Strong Full Auto partner with Satyr (Primal Pals synergy), providing continuous reactive multi-hit skill damage.",
+      "substitutes": [
+        { "characterId": "char_fire_nemone_holiday", "compatibilityPercent": 85, "tradeoffNotes": "Holiday Nemone provides end-of-turn buffs and auto-nukes." },
+        { "characterId": "char_fire_athena", "compatibilityPercent": 82, "tradeoffNotes": "Athena also shares Primal Pals synergy with Satyr." }
+      ]
+    },
+    {
+      "id": "char_fire_nemone_holiday",
+      "npcId": "3040304000",
+      "name": "Nemone (Holiday)",
+      "japaneseName": "ネモネ (クリスマス)",
+      "aliases": ["nemone", "holiday nemone", "christmas nemone", "c.nemone", "h.nemone"],
+      "element": "fire",
+      "series": "Holiday",
+      "role": "Full_Auto_Sustain",
+      "priorityTier": "A_ViableSubstitute",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 27000000,
+      "estimatedPeakBurstDamage": 42000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["end_of_turn_nuke", "party_buff_ramp", "mirror_image", "heal"],
+      "keySkillsForSiete": [
+        "Passively casts multi-hit Fire nuke and buffs party ATK/DEF/DATA/Healing at end of every turn."
+      ],
+      "sieteSynergyNotes": "Zero-click Full Auto workhorse that steadily deals 8M-12M extra skill damage at the end of every turn while buffering the team.",
+      "substitutes": [
+        { "characterId": "char_fire_fraux_flb", "compatibilityPercent": 88, "tradeoffNotes": "Fraux FLB provides stronger targeted healing and dispels." },
+        { "characterId": "char_fire_athena", "compatibilityPercent": 80, "tradeoffNotes": "Accessible non-limited sustain alternative." }
+      ]
+    },
+    {
+      "id": "char_fire_athena",
+      "npcId": "3040198000",
+      "name": "Athena",
+      "japaneseName": "アテナ",
+      "aliases": ["athena", "fire athena"],
+      "element": "fire",
+      "series": "Standard SSR",
+      "role": "Full_Auto_Sustain",
+      "priorityTier": "B_BudgetFallback",
+      "minLevelRequired": 100,
+      "requiresFlb": true,
+      "requiresFourthSkill": true,
+      "estimatedTurnDamageContribution": 23000000,
+      "estimatedPeakBurstDamage": 36000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["wind_switch", "40_wind_cut", "auto_nuke_on_targeted", "delay", "veil_on_ougi"],
+      "keySkillsForSiete": [
+        "Sk1 (Aegis): 40% Wind DMG Cut + Wind Switch.",
+        "Sk2 (Tetradrachm): 10-hit Fire nuke + Fire DEF Down; auto-triggers when targeted.",
+        "Ougi: Grants party Veil and Fire ATK Up at Lv100."
+      ],
+      "sieteSynergyNotes": "Best F2P/Classic suptix defensive frontline option when paired with Satyr for Full Auto or Kengo setups.",
+      "substitutes": [
+        { "characterId": "char_fire_satyr", "compatibilityPercent": 95, "tradeoffNotes": "Satyr provides superior healing and dispel frequency." }
+      ]
+    },
+    {
+      "id": "char_fire_mirin_yukata",
+      "npcId": "3040415000",
+      "name": "Mirin (Yukata)",
+      "japaneseName": "ミリン (浴衣)",
+      "aliases": ["mirin", "yukata mirin", "y.mirin", "fire mirin"],
+      "element": "fire",
+      "series": "Yukata",
+      "role": "High_Difficulty_Omen_Solver",
+      "priorityTier": "A_ViableSubstitute",
+      "minLevelRequired": 80,
+      "requiresFlb": false,
+      "requiresFourthSkill": false,
+      "estimatedTurnDamageContribution": 27000000,
+      "estimatedPeakBurstDamage": 43000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["200_charge_bar", "double_ougi", "party_heal_veil"],
+      "keySkillsForSiete": [
+        "200% Charge Bar cap allowing Double Charge Attacks in Kengo setups; provides party heal and Veil."
+      ],
+      "sieteSynergyNotes": "Strong substitute for Yukata Silva or Holiday Noa in Fire Kengo Ougi loops to reach 5-6 Charge Attacks per turn.",
+      "substitutes": [
+        { "characterId": "char_fire_silva_yukata", "compatibilityPercent": 90, "tradeoffNotes": "Yukata Silva adds end-of-turn 5-CA nuke." }
+      ]
+    },
+    {
+      "id": "char_fire_esser_transcendence",
+      "npcId": "3040039000",
+      "name": "Tien / Esser (Transcendence 130-150)",
+      "japaneseName": "エッセル (超越)",
+      "aliases": ["tien", "esser", "transcendence tien", "esser 150", "tien 150"],
+      "element": "fire",
+      "series": "Eternal",
+      "role": "Burst_OTK",
+      "priorityTier": "A_ViableSubstitute",
+      "minLevelRequired": 130,
+      "requiresFlb": true,
+      "requiresFourthSkill": true,
+      "estimatedTurnDamageContribution": 34000000,
+      "estimatedPeakBurstDamage": 62000000,
+      "subSlotDamageCapBonusPercent": 0,
+      "tacticalTags": ["10_hit_nuke", "guaranteed_ta", "assassin_break", "bounty_drop_rate"],
+      "keySkillsForSiete": [
+        "Sk2 (Last Order) & Sk3 (Stardust): 10-hit Fire nuke + Guaranteed TA + 30% Fire Echo."
+      ],
+      "sieteSynergyNotes": "Strong F2P Eternal burst option at Transcendence Lv130-150 if missing Grand Zeta or Grand Wilnas.",
+      "substitutes": [
+        { "characterId": "char_fire_zeta_grand", "compatibilityPercent": 95, "tradeoffNotes": "Grand Zeta requires zero Eternal transcendence materials." }
+      ]
+    }
+  ],
+  "weaponRegistry": [
+    {
+      "id": "wpn_fire_lord_of_flames",
+      "weaponId": "1040023700",
+      "name": "Lord of Flames",
+      "japaneseName": "ロード・オブ・フレイム",
+      "aliases": ["lord of flames", "percy sword", "percival sword", "lof"],
+      "weaponType": "Sabre",
+      "series": "Grand",
+      "category": "Primal_Grand",
+      "damageCapPercent": 7,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 15,
+      "atkMultiplierEstimate": 1.4,
+      "resonatorRequirementCount": 4,
+      "sieteNotes": "Resonator (Crimson Vow): When 4 or more weapons of the same type are equipped in the grid, grants +40% EX ATK, +25% DEF, and +7% Special Damage Cap per copy (up to +20% Cap). Works in both Agni and Magna grids!",
+      "substitutes": [
+        { "weaponId": "wpn_fire_extinction_blade", "compatibilityPercent": 85, "notes": "Attack Awakening Extinction Blade provides +15% Normal ATK and +5% Cap without 4-of-a-kind restriction." },
+        { "weaponId": "wpn_fire_ira_volcanic_blade", "compatibilityPercent": 80, "notes": "Core Magna 3 Exalted Sword." }
+      ]
+    },
+    {
+      "id": "wpn_fire_crimson_scale",
+      "weaponId": "1040315600",
+      "name": "Crimson Scale",
+      "japaneseName": "クリムゾン・スケール",
+      "aliases": ["crimson scale", "michael axe", "pns fire", "fire pns"],
+      "weaponType": "Axe",
+      "series": "Grand",
+      "category": "Primal_Grand",
+      "damageCapPercent": 7,
+      "supplementalDamageFlat": 50000,
+      "hpBonusPercent": 0,
+      "atkMultiplierEstimate": 1.3,
+      "sieteNotes": "Pact of the Archangel: Unconditionally grants +50,000 Supplemental Damage (up to 100,000 with 2 copies) and +7% Damage Cap per copy in both Primal and Magna grids. Huge multiplier for multi-hit characters like Zeta, Percival, and Manadiver.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_extinction_blade", "compatibilityPercent": 82, "notes": "Special Awakening Extinction Blade grants CA/Skill supplemental and cap." },
+        { "weaponId": "wpn_fire_sol_shreck", "compatibilityPercent": 75, "notes": "Astral Axe provides EX ATK and Auto Cap." }
+      ]
+    },
+    {
+      "id": "wpn_fire_overrider",
+      "weaponId": "1040218400",
+      "name": "Overrider",
+      "japaneseName": "オーバーライダー",
+      "aliases": ["overrider", "zeta spear", "grand zeta spear"],
+      "weaponType": "Spear",
+      "series": "Grand",
+      "category": "Primal_Grand",
+      "damageCapPercent": 10,
+      "supplementalDamageFlat": 30000,
+      "hpBonusPercent": 15,
+      "atkMultiplierEstimate": 1.35,
+      "sieteNotes": "Primal Glory + Normal Attack Cap + Supplemental damage. Exceptional mainhand for Manadiver/Spartan or grid slot in Agni burst grids.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_luin", "compatibilityPercent": 85, "notes": "Luin provides mainhand Echo and ignition." },
+        { "weaponId": "wpn_fire_lord_of_flames", "compatibilityPercent": 88, "notes": "Lord of Flames covers cap and EX ATK." }
+      ]
+    },
+    {
+      "id": "wpn_fire_ira_volcanic_blade",
+      "weaponId": "1040026500",
+      "name": "Ira Volcanic Blade",
+      "japaneseName": "コロッサス・アイラ・ブレード (マグナ3剣)",
+      "aliases": ["ira volcanic blade", "colossus ira sword", "colossus m3 sword", "m3 fire sword", "exalted fire sword"],
+      "weaponType": "Sabre",
+      "series": "Magna 3",
+      "category": "Magna_M3",
+      "recommendedAwakening": "Attack",
+      "damageCapPercent": 3,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 15,
+      "atkMultiplierEstimate": 1.28,
+      "sieteNotes": "Backbone of Magna 3 Fire grids. 3 copies with Colossus Ira Lv250 provide 100% Critical Hit Rate, massive Exalted Omega ATK, and Sword count for Lord of Flames Resonator.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_ancient_ecke_sachs", "compatibilityPercent": 72, "notes": "M2 Ancient Ecke Sachs provides Omega Crit + Enmity as a mid-game fallback." },
+        { "weaponId": "wpn_fire_nilakantha", "compatibilityPercent": 75, "notes": "Nilakantha provides Omega Stamina + HP." }
+      ]
+    },
+    {
+      "id": "wpn_fire_extinction_blade",
+      "weaponId": "1040024100",
+      "name": "Extinction Blade",
+      "japaneseName": "滅尽剣",
+      "aliases": ["extinction blade", "mugen sword", "revans fire sword"],
+      "weaponType": "Sabre",
+      "series": "Mugen Revans",
+      "category": "Revans",
+      "recommendedAwakening": "Attack or Special (Defense for Host)",
+      "damageCapPercent": 5,
+      "supplementalDamageFlat": 20000,
+      "hpBonusPercent": 20,
+      "atkMultiplierEstimate": 1.32,
+      "sieteNotes": "Farmed from Mugen (Impossible). Attack Awakening Lv20 gives +3,500 Raw ATK, +15% Normal ATK, and +5% DMG Cap; Special Awakening Lv20 gives +10% Special Cap and +30% CA DMG; Defense Awakening gives +40% DEF and +15% HP.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_ira_volcanic_blade", "compatibilityPercent": 82, "notes": "M3 Exalted Sword." },
+        { "weaponId": "wpn_fire_nilakantha", "compatibilityPercent": 74, "notes": "Shiva M2 Staff for HP and Stamina." }
+      ]
+    },
+    {
+      "id": "wpn_fire_scythe_of_repentance",
+      "weaponId": "1040311000",
+      "name": "Scythe of Repentance",
+      "japaneseName": "絶対否定の鎌 / 永遠拒絶の鎌 (終末の神器)",
+      "aliases": ["scythe of repentance", "fire dark opus", "dark opus fire", "opus axe", "fire opus"],
+      "weaponType": "Axe",
+      "series": "Dark Opus",
+      "category": "Dark_Opus",
+      "recommendedPendulumKeys": ["Skill Cap / Auto Cap / CA Cap", "Extremity / Stamina / Falsehood"],
+      "damageCapPercent": 15,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 30,
+      "atkMultiplierEstimate": 1.5,
+      "sieteNotes": "Mandatory in 100% of grids. At ULB Lv200+ / Transcendence Lv230-250, provides massive ATK/HP, +10-50% Cap (Key 2), and Extremity/Stamina/Falsehood (Key 3).",
+      "substitutes": []
+    },
+    {
+      "id": "wpn_fire_ultima_sword",
+      "weaponId": "1040013000",
+      "name": "Ultima Sword / Axe / Spear (Lv 200)",
+      "japaneseName": "オメガウェポン (5凸 Lv200)",
+      "aliases": ["ultima sword", "ultima axe", "ultima spear", "ultima staff", "ultima katana", "ultima weapon", "omega weapon"],
+      "weaponType": "Sabre",
+      "series": "Ultima",
+      "category": "Ultima",
+      "recommendedPendulumKeys": ["Auto Cap / Skill Cap / CA Cap", "Tria (Seraphic +25% Amp)"],
+      "damageCapPercent": 10,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 15,
+      "atkMultiplierEstimate": 1.25,
+      "sieteNotes": "Lv200 Ultima with Gauph Key Tria provides +25% Seraphic Amplification against Wind (replacing Sword of Michael) plus +10% Normal Cap or +50% Skill Cap.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_sword_of_michael", "compatibilityPercent": 80, "notes": "Sword of Michael provides +23% Seraphic Amp if Ultima Lv200 Tria Key is not yet unlocked." }
+      ]
+    },
+    {
+      "id": "wpn_fire_unsigned_kaneshige",
+      "weaponId": "1040911100",
+      "name": "Unsigned Kaneshige (Fire)",
+      "japaneseName": "無銘金重 (火)",
+      "aliases": ["unsigned kaneshige", "kaneshige", "fire kaneshige"],
+      "weaponType": "Katana",
+      "series": "Class Champion",
+      "category": "Class_Champion",
+      "damageCapPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "atkMultiplierEstimate": 1.15,
+      "sieteNotes": "Mandatory Mainhand for the Fire Kengo Ougi Loop archetype. Grants +50% Charge Bar Gain to all allies on MC Ougi, enabling 5-6 Charge Attacks every single turn.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_extinction_blade", "compatibilityPercent": 70, "notes": "Can mainhand in non-Kengo setups, but Kengo requires Kaneshige for infinite loop." }
+      ]
+    },
+    {
+      "id": "wpn_fire_luin",
+      "weaponId": "1040216500",
+      "name": "Luin",
+      "japaneseName": "ルーン",
+      "aliases": ["luin", "fire luin"],
+      "weaponType": "Spear",
+      "series": "Grand",
+      "category": "Primal_Grand",
+      "damageCapPercent": 5,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 10,
+      "atkMultiplierEstimate": 1.18,
+      "sieteNotes": "Strong Spear/Staff mainhand option granting teamwide Echoes and charge bar manipulation.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_overrider", "compatibilityPercent": 95, "notes": "Overrider is strictly stronger in Primal grids." },
+        { "weaponId": "wpn_fire_scythe_of_repentance", "compatibilityPercent": 90, "notes": "Dark Opus mainhand." }
+      ]
+    },
+    {
+      "id": "wpn_fire_heat_of_the_sun",
+      "weaponId": "1040418200",
+      "name": "Heat of The Sun",
+      "japaneseName": "ヒート・オブ・ザ・サン",
+      "aliases": ["heat of the sun", "sun staff", "alanaan staff", "nwq fire staff"],
+      "weaponType": "Staff",
+      "series": "New World Foundation",
+      "category": "New_World_Foundation",
+      "damageCapPercent": 7,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 10,
+      "atkMultiplierEstimate": 1.22,
+      "sieteNotes": "Provides EX ATK, Fire Damage Cap, and auto-nuke / damage amplification when mainhanded by Manadiver or Monk.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_sol_shreck", "compatibilityPercent": 85, "notes": "Sol Shreck Astral Axe." }
+      ]
+    },
+    {
+      "id": "wpn_fire_sol_shreck",
+      "weaponId": "1040312500",
+      "name": "Sol Shreck",
+      "japaneseName": "ソル・レムナント (アストラル斧)",
+      "aliases": ["sol shreck", "sol remnant", "fire astral", "astral axe"],
+      "weaponType": "Axe",
+      "series": "Astral",
+      "category": "Astral",
+      "damageCapPercent": 10,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "atkMultiplierEstimate": 1.25,
+      "sieteNotes": "ULB Lv200 provides +37% EX ATK and +10% Normal Attack Damage Cap (or +20% when mainhanded by Berserker/Viking).",
+      "substitutes": [
+        { "weaponId": "wpn_fire_lord_of_flames", "compatibilityPercent": 95, "notes": "Lord of Flames provides +40% EX ATK and +7% All Cap." }
+      ]
+    },
+    {
+      "id": "wpn_fire_nilakantha",
+      "weaponId": "1040310500",
+      "name": "Nilakantha",
+      "japaneseName": "ニーラカンタ (シヴァ杖)",
+      "aliases": ["nilakantha", "shiva staff", "m2 fire staff"],
+      "weaponType": "Staff",
+      "series": "Shiva Omega II",
+      "category": "Magna_M2",
+      "damageCapPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 18,
+      "atkMultiplierEstimate": 1.18,
+      "sieteNotes": "Provides Omega Stamina + Omega Majesty (ATK & HP). Great HP stabilizer in Magna grids to pass the 65,000 HP survival gate.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_ira_volcanic_blade", "compatibilityPercent": 92, "notes": "M3 Sword." }
+      ]
+    },
+    {
+      "id": "wpn_fire_ancient_ecke_sachs",
+      "weaponId": "1040007300",
+      "name": "Ancient Ecke Sachs",
+      "japaneseName": "オールド・エッケザックス",
+      "aliases": ["ancient ecke sachs", "aes", "old ecke sachs"],
+      "weaponType": "Sabre",
+      "series": "Old Primarch",
+      "category": "Magna_M2",
+      "damageCapPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "atkMultiplierEstimate": 1.15,
+      "sieteNotes": "Budget F2P Sword providing Omega Crit + Enmity + Sabre count for Lord of Flames if Ira Volcanic Blades are not yet farmed.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_ira_volcanic_blade", "compatibilityPercent": 100, "notes": "Direct upgrade in Magna 3." }
+      ]
+    },
+    {
+      "id": "wpn_fire_al_abad",
+      "weaponId": "1040420000",
+      "name": "Al-Abad",
+      "japaneseName": "アル・アバド (アトゥム杖)",
+      "aliases": ["al-abad", "al abad", "atum staff"],
+      "weaponType": "Staff",
+      "series": "Ennead",
+      "category": "Ennead",
+      "recommendedAwakening": "Attack or Special",
+      "damageCapPercent": 5,
+      "supplementalDamageFlat": 400000,
+      "hpBonusPercent": 10,
+      "atkMultiplierEstimate": 1.2,
+      "sieteNotes": "Grants up to +400,000 Charge Attack Supplemental Damage. Excellent F2P slot in Fire Kengo Ougi grids before Extinction Blades are finished.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_extinction_blade", "compatibilityPercent": 95, "notes": "Special Awakening Extinction Blade." }
+      ]
+    },
+    {
+      "id": "wpn_fire_sword_of_michael",
+      "weaponId": "1040011800",
+      "name": "Sword of Michael",
+      "japaneseName": "ミカエル・ソード (天司武器)",
+      "aliases": ["sword of michael", "michael sword", "fire seraphic", "seraphic sword"],
+      "weaponType": "Sabre",
+      "series": "Seraphic",
+      "category": "Seraphic",
+      "damageCapPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 15,
+      "atkMultiplierEstimate": 1.23,
+      "sieteNotes": "Provides +23% Seraphic Damage Amplification against Wind foes and counts as a Sabre for Resonator skills if Ultima Lv200 Tria Key is not slotted.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_ultima_sword", "compatibilityPercent": 100, "notes": "Ultima Lv200 with Tria Key provides +25% Seraphic Amp." }
+      ]
+    },
+    {
+      "id": "wpn_fire_flames_of_the_phoenix",
+      "weaponId": "1040422900",
+      "name": "Torch of Eternal Flames (Fenie Staff)",
+      "japaneseName": "不死鳥の灯火 (フェニー杖)",
+      "aliases": ["torch of eternal flames", "fenie staff", "grand fenie staff", "flames of the phoenix"],
+      "weaponType": "Staff",
+      "series": "Grand",
+      "category": "Primal_Grand",
+      "damageCapPercent": 10,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 25,
+      "atkMultiplierEstimate": 1.32,
+      "sieteNotes": "Top-tier Manadiver/Monk/Iatromantis mainhand and Agni sustain weapon providing massive HP, Skill Cap, and end-of-turn auto-heal/nuke.",
+      "substitutes": [
+        { "weaponId": "wpn_fire_heat_of_the_sun", "compatibilityPercent": 82, "notes": "Heat of The Sun Staff." }
+      ]
+    }
+  ],
+  "summonRegistry": [
+    {
+      "id": "sum_fire_agni",
+      "summonId": "2040094000",
+      "name": "Agni (Lv 200-250)",
+      "japaneseName": "アグニス (超越 Lv250)",
+      "aliases": ["agni", "primal agni", "agni 250"],
+      "slotRole": "Main_Or_Support",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 35,
+      "auraMultiplierEstimate": 1.7,
+      "sieteNotes": "Boosts Primal Fire weapon skills by 150%-170% passively. Works 100% through Seofon's Turn-1 99-turn summon cooldown lock."
+    },
+    {
+      "id": "sum_fire_colossus_ira",
+      "summonId": "2040034000",
+      "name": "Colossus Ira Omega (Lv 200-250)",
+      "japaneseName": "コロッサス・マグナ (超越 Lv250)",
+      "aliases": ["colossus", "colossus omega", "colossus ira", "colossus 250", "magna fire summon"],
+      "slotRole": "Main_Or_Support",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 30,
+      "auraMultiplierEstimate": 1.65,
+      "sieteNotes": "Boosts Omega Fire weapon skills by 140%-170% passively. Works 100% through Seofon's Turn-1 99-turn summon cooldown lock."
+    },
+    {
+      "id": "sum_providence_lucifer_250",
+      "summonId": "2040185000",
+      "name": "Lucifer (Transcendence Lv 250)",
+      "japaneseName": "ルシフェル (超越 Lv250)",
+      "aliases": ["lucifer", "lucifer 250", "luci 250", "transcendence lucifer"],
+      "slotRole": "Main_Or_Support",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 50,
+      "auraMultiplierEstimate": 1.5,
+      "sieteNotes": "Passive Main/Support Aura grants +150% Fire Elemental ATK, +50% Max HP, and automatically cleanses 1 debuff + grants Wings of Pure White when Seofon uses a special attack—even while its active call is locked!"
+    },
+    {
+      "id": "sum_providence_beelzebub",
+      "summonId": "2040408000",
+      "name": "Beelzebub",
+      "japaneseName": "ベルゼバブ",
+      "aliases": ["beelzebub", "bubz", "bubs"],
+      "slotRole": "Hybrid_Main_Or_Sub",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 20,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "auraMultiplierEstimate": 1.5,
+      "sieteNotes": "CRITICAL SIETE NOTE: Seofon locks Beelzebub's active Call to 99 turns on Turn 1! However, if equipped as Main Summon, Beelzebub's passive Main Aura still starts MC at Trance Lv3 (+50% Unique ATK, 100% TA, +20% Damage Cap)."
+    },
+    {
+      "id": "sum_archangel_michael",
+      "summonId": "2040310000",
+      "name": "Michael (Archangel Summon)",
+      "japaneseName": "ミカエル (天司石)",
+      "aliases": ["michael summon", "archangel michael summon", "primarch michael"],
+      "slotRole": "Sub_Aura_Core",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 15,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "auraMultiplierEstimate": 1.15,
+      "sieteNotes": "Passive Sub-Aura grants +10% to +15% Fire Damage Cap unconditionally. Unaffected by Seofon's summon cooldown lock."
+    },
+    {
+      "id": "sum_arcarum_the_sun",
+      "summonId": "2040236000",
+      "name": "The Sun (ULB Lv 200)",
+      "japaneseName": "ザ・サン (5凸)",
+      "aliases": ["the sun", "sun", "arcarum sun"],
+      "slotRole": "Sub_Aura_Core",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 10,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "auraMultiplierEstimate": 1.1,
+      "sieteNotes": "Mandatory Sub-Aura granting +10% Seraphic Damage Amplification against Wind foes. Note: Its Turn-1 Double Strike active call is blocked by Seofon's 99T entry lock, so Double/Tri-Strike must come from Percival Sk3 instead."
+    },
+    {
+      "id": "sum_providence_belial",
+      "summonId": "2040378000",
+      "name": "Belial",
+      "japaneseName": "ベリアル",
+      "aliases": ["belial", "belial summon"],
+      "slotRole": "Sub_Aura_Core",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 30000,
+      "hpBonusPercent": -10,
+      "auraMultiplierEstimate": 1.12,
+      "sieteNotes": "Passive Sub-Aura adds +30,000 Supplemental Damage to every single damage instance. Multiplies massively with Percival Tri-Strike, Zeta echoes, and Manadiver multi-hits."
+    },
+    {
+      "id": "sum_six_dragon_wilnas",
+      "summonId": "2040398000",
+      "name": "Wilnas (Six Dragons Summon)",
+      "japaneseName": "ウィルナス (六竜石)",
+      "aliases": ["wilnas summon", "six dragon wilnas summon"],
+      "slotRole": "Sub_Aura_Core",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 15,
+      "auraMultiplierEstimate": 1.1,
+      "sieteNotes": "Passive Sub-Aura boosts Agni/Optimus Fire weapon skills by +20% to +40%. Essential in Primal Agni grids."
+    },
+    {
+      "id": "sum_arcarum_the_devil",
+      "summonId": "2040241000",
+      "name": "The Devil (ULB Lv 200)",
+      "japaneseName": "ザ・デビル (5凸)",
+      "aliases": ["the devil", "devil", "arcarum devil"],
+      "slotRole": "Sub_Aura_Core",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 0,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 30,
+      "auraMultiplierEstimate": 1.0,
+      "sieteNotes": "Passive Sub-Aura grants +30% Max HP to all Fire allies. Crucial for meeting the 65,000+ HP survival threshold in Full Auto and Host setups."
+    },
+    {
+      "id": "sum_providence_triple_zero",
+      "summonId": "2040425000",
+      "name": "Triple Zero (000)",
+      "japaneseName": "トリプルゼロ",
+      "aliases": ["triple zero", "000", "faa0 summon"],
+      "slotRole": "Sub_Aura_Core",
+      "worksUnderTurn1SummonLock": true,
+      "damageCapBonusPercent": 5,
+      "seraphicAmpPercent": 0,
+      "supplementalDamageFlat": 0,
+      "hpBonusPercent": 0,
+      "auraMultiplierEstimate": 1.08,
+      "sieteNotes": "Passive Sub-Aura grants +10% Perpetuity ATK and +5% Damage Cap to all allies even while its active call is locked on entry."
+    }
+  ],
+  "partyArchetypes": [
+    {
+      "archetypeId": "siete_fire_manadiver_burst_2t",
+      "name": "Fire Manadiver / Percival 2-3 Turn Blue Chest Burst",
+      "playstyle": "Manual_Burst_2T_3T",
+      "supportedGridTypes": ["Primal_Agni", "Magna_M3"],
+      "targetHonors": 4000000,
+      "targetTotalDamage": 400000000,
+      "estimatedTurnsTo4M": "2 to 3 Turns (25-40s)",
+      "estimatedTurn1To3Damage": 430000000,
+      "clears77M7Omen": true,
+      "minRecommendedHp": 45000,
+      "mcRequirement": {
+        "primaryClass": "Manadiver",
+        "alternativeClasses": ["Sumaibito", "Berserker", "Relic Buster"],
+        "recommendedSkills": ["Wild Magica", "Secret Triad", "Overtrance"],
+        "classEquipmentOrMino": "Ouroboros Mino or Leviathan Mino"
+      },
+      "frontlineSlots": [
+        {
+          "slotNumber": 1,
+          "slotRole": "Tri-Strike Burst Engine",
+          "primaryCharacterId": "char_fire_percival_grand",
+          "substituteCharacterIds": ["char_fire_wilnas_grand"],
+          "mandatory": true,
+          "slotNotes": "Percival Sk3 (Schlacht) provides the 1-turn Tri-Strike + Echo + Amplification needed to deal 160M-220M damage in a single burst turn."
+        },
+        {
+          "slotNumber": 2,
+          "slotRole": "Zero-Lockout Assassin & Skill Attacker",
+          "primaryCharacterId": "char_fire_zeta_grand",
+          "substituteCharacterIds": ["char_fire_wilnas_grand", "char_fire_ragazzo", "char_fire_esser_transcendence"],
+          "mandatory": false,
+          "slotNotes": "Grand Zeta deals 80M+ across 2 turns with 0 Ougi lockout and cancels 77.7M Emblema effortlessly."
+        },
+        {
+          "slotNumber": 3,
+          "slotRole": "Party Echo / Field Buffer or Secondary Nuker",
+          "primaryCharacterId": "char_fire_alanaan_flb",
+          "substituteCharacterIds": ["char_fire_wilnas_grand", "char_fire_yuel_grand", "char_fire_ragazzo"],
+          "mandatory": false,
+          "slotNotes": "Alanaan FLB (Lv100) grants 4-turn 100% TA, +50% Echo, Keen, and Renunciation field on Turn 1 without draining charge bar."
+        }
+      ],
+      "backlineSlots": [
+        {
+          "slotNumber": 4,
+          "slotRole": "Passive +20% Damage Cap & +10% Weapon Skill Sub-Ally",
+          "primaryCharacterId": "char_fire_michael",
+          "substituteCharacterIds": ["char_fire_silva_yukata"],
+          "slotNotes": "Unconditional +20% Fire Damage Cap and +10% Weapon Skill boost from backline."
+        },
+        {
+          "slotNumber": 5,
+          "slotRole": "Evoker / Emergency Anchor",
+          "primaryCharacterId": "char_fire_fraux_flb",
+          "substituteCharacterIds": ["char_fire_satyr", "char_fire_silva_yukata"],
+          "slotNotes": "Stabilizes run if a frontline unit falls on Turn 3."
+        }
+      ],
+      "weaponRequirements": {
+        "mainhandOptions": ["wpn_fire_overrider", "wpn_fire_flames_of_the_phoenix", "wpn_fire_heat_of_the_sun", "wpn_fire_luin", "wpn_fire_scythe_of_repentance"],
+        "coreGridSlots": [
+          {
+            "roleLabel": "Resonator Cap & EX Boost (2-3x)",
+            "primaryWeaponId": "wpn_fire_lord_of_flames",
+            "recommendedCopies": 2,
+            "substituteWeaponIds": ["wpn_fire_extinction_blade", "wpn_fire_sol_shreck"]
+          },
+          {
+            "roleLabel": "Pact 50k-100k Supplemental & Cap (2x)",
+            "primaryWeaponId": "wpn_fire_crimson_scale",
+            "recommendedCopies": 2,
+            "substituteWeaponIds": ["wpn_fire_extinction_blade", "wpn_fire_ira_volcanic_blade"]
+          },
+          {
+            "roleLabel": "Base Grid Core (Overrider / M3 Ira Volcanic Blade)",
+            "primaryWeaponId": "wpn_fire_ira_volcanic_blade",
+            "recommendedCopies": 3,
+            "substituteWeaponIds": ["wpn_fire_overrider", "wpn_fire_extinction_blade", "wpn_fire_ancient_ecke_sachs"],
+            "requiredAwakening": "Attack"
+          },
+          {
+            "roleLabel": "Dark Opus Anchor (Lv 220-250)",
+            "primaryWeaponId": "wpn_fire_scythe_of_repentance",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": [],
+            "requiredKey": "Auto/Skill Cap + Extremity/Falsehood"
+          },
+          {
+            "roleLabel": "Ultima Seraphic & Cap Anchor (Lv 200)",
+            "primaryWeaponId": "wpn_fire_ultima_sword",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": ["wpn_fire_sword_of_michael"],
+            "requiredKey": "Auto/Skill Cap + Tria Seraphic"
+          }
+        ]
+      },
+      "summonRequirements": {
+        "mainSummonOptions": ["sum_fire_agni", "sum_fire_colossus_ira", "sum_providence_beelzebub"],
+        "supporterSummonOptions": ["sum_fire_agni", "sum_fire_colossus_ira"],
+        "requiredSubAuraSummonIds": ["sum_archangel_michael", "sum_arcarum_the_sun", "sum_providence_belial", "sum_arcarum_the_devil"]
+      },
+      "turnRotation": [
+        "Turn 1: Reload entry animation -> Alanaan Sk1/Sk2/Sk4 -> Zeta Sk2/Sk3 -> Percival Sk1/Sk2 -> MC Wild Magica/Secret Triad -> Attack (Cancels 77,777,777 Emblema, ~160M DMG / ~1.6M Honors).",
+        "Turn 2: Zeta Sk1 (Assassin) -> Percival Sk3 (Schlacht Tri-Strike) -> Attack & Reload (~220M DMG / ~3.8M Cumulative Honors).",
+        "Turn 3: Cast remaining nukes -> Attack & Reload -> Reach 4,000,000+ Honors (~410M+ Total Damage) -> Exit / Next Raid."
+      ],
+      "strategySummary": "Fastest 4M Honors Blue Chest snipe setup for Seofon (Impossible). Bypasses Seofon's Turn-1 summon cooldown lock by relying on passive Agni/Colossus auras, Alanaan FLB field + 50% Echo, Grand Zeta Assassin, and Grand Percival Sk3 Tri-Strike."
+    },
+    {
+      "archetypeId": "siete_fire_berserker_fa_burst_4t",
+      "name": "Fire Berserker / Viking 3-5 Turn Full Auto Blue Chest",
+      "playstyle": "Full_Auto_Burst_4T",
+      "supportedGridTypes": ["Magna_M3", "Primal_Agni"],
+      "targetHonors": 4000000,
+      "targetTotalDamage": 400000000,
+      "estimatedTurnsTo4M": "3 to 5 Turns (40-65s)",
+      "estimatedTurn1To3Damage": 340000000,
+      "clears77M7Omen": true,
+      "minRecommendedHp": 58000,
+      "mcRequirement": {
+        "primaryClass": "Berserker",
+        "alternativeClasses": ["Viking", "Manadiver", "Sumaibito"],
+        "recommendedSkills": ["Beast Fang", "Ulfhedinn", "Rampage"]
+      },
+      "frontlineSlots": [
+        {
+          "slotNumber": 1,
+          "slotRole": "Full Auto Tri-Strike & Singed Nuker",
+          "primaryCharacterId": "char_fire_percival_grand",
+          "substituteCharacterIds": ["char_fire_yuel_grand", "char_fire_anderson"],
+          "mandatory": true,
+          "slotNotes": "Casts Sk1 -> Sk2 -> Sk3 automatically on Full Auto once Singed reaches Lv7 (or Turn 1 with Wilnas/MC)."
+        },
+        {
+          "slotNumber": 2,
+          "slotRole": "Debuff-Immune Heavy Ougi & Double-Nuke Bruiser",
+          "primaryCharacterId": "char_fire_wilnas_grand",
+          "substituteCharacterIds": ["char_fire_zeta_grand", "char_fire_anderson", "char_fire_fenie_grand"],
+          "mandatory": false,
+          "slotNotes": "Wilnas shrugs off all Seofon debuffs, deals 35M-45M per turn on Full Auto, and stacks Singed rapidly."
+        },
+        {
+          "slotNumber": 3,
+          "slotRole": "Multi-Hit Skill Nuker / Dispel / Sustain Support",
+          "primaryCharacterId": "char_fire_zeta_grand",
+          "substituteCharacterIds": ["char_fire_michael", "char_fire_satyr", "char_fire_fenie_grand", "char_fire_nemone_holiday"],
+          "mandatory": false,
+          "slotNotes": "Grand Zeta or Grand Michael/Satyr rounds out the frontline to guarantee 90M-120M average damage per turn."
+        }
+      ],
+      "backlineSlots": [
+        {
+          "slotNumber": 4,
+          "slotRole": "Passive +20% Cap Sub-Ally",
+          "primaryCharacterId": "char_fire_michael",
+          "substituteCharacterIds": ["char_fire_silva_yukata"],
+          "slotNotes": "Provides +20% Fire Damage Cap & +10% Weapon Skill boost."
+        },
+        {
+          "slotNumber": 5,
+          "slotRole": "Backline Evoker / Sustain Anchor",
+          "primaryCharacterId": "char_fire_fraux_flb",
+          "substituteCharacterIds": ["char_fire_satyr", "char_fire_alanaan_flb"],
+          "slotNotes": "Steps in if battle extends past Turn 5."
+        }
+      ],
+      "weaponRequirements": {
+        "mainhandOptions": ["wpn_fire_scythe_of_repentance", "wpn_fire_crimson_scale", "wpn_fire_sol_shreck", "wpn_fire_lord_of_flames"],
+        "coreGridSlots": [
+          {
+            "roleLabel": "Magna 3 Exalted Swords / Crit Core (3x)",
+            "primaryWeaponId": "wpn_fire_ira_volcanic_blade",
+            "recommendedCopies": 3,
+            "substituteWeaponIds": ["wpn_fire_lord_of_flames", "wpn_fire_ancient_ecke_sachs"],
+            "requiredAwakening": "Attack"
+          },
+          {
+            "roleLabel": "Revans Attack/Defense Swords (2x)",
+            "primaryWeaponId": "wpn_fire_extinction_blade",
+            "recommendedCopies": 2,
+            "substituteWeaponIds": ["wpn_fire_nilakantha", "wpn_fire_crimson_scale"],
+            "requiredAwakening": "Attack"
+          },
+          {
+            "roleLabel": "Pact Supplemental / Cap Axes (1-2x)",
+            "primaryWeaponId": "wpn_fire_crimson_scale",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": ["wpn_fire_sol_shreck", "wpn_fire_heat_of_the_sun"]
+          },
+          {
+            "roleLabel": "Dark Opus Anchor",
+            "primaryWeaponId": "wpn_fire_scythe_of_repentance",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": [],
+            "requiredKey": "Skill/Auto Cap + Stamina/Extremity"
+          },
+          {
+            "roleLabel": "Ultima Seraphic Anchor",
+            "primaryWeaponId": "wpn_fire_ultima_sword",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": ["wpn_fire_sword_of_michael"],
+            "requiredKey": "Auto/Skill Cap + Tria Seraphic"
+          }
+        ]
+      },
+      "summonRequirements": {
+        "mainSummonOptions": ["sum_fire_colossus_ira", "sum_fire_agni"],
+        "supporterSummonOptions": ["sum_fire_colossus_ira", "sum_fire_agni", "sum_providence_lucifer_250"],
+        "requiredSubAuraSummonIds": ["sum_archangel_michael", "sum_arcarum_the_sun", "sum_providence_belial", "sum_arcarum_the_devil"]
+      },
+      "turnRotation": [
+        "Turn 1: Enable Full Auto (or reload entry -> click Beast Fang + Ulfhedinn -> enable Full Auto) -> Attack & Reload.",
+        "Turns 2-4: Full Auto casts Wilnas Ougi + double Sk2, Percival Sk3 Tri-Strike, and Zeta multi-nukes, cancelling 77.7M Emblema triggers automatically.",
+        "Turn 4-5: Crosses 4,000,000 Honors (~400M Damage) -> Confirm Result / Next Raid."
+      ],
+      "strategySummary": "Hands-free 3-5 Turn Full Auto setup ideal for continuous multi-battle farming. Combines Berserker's Turn-1 200% bar double-Ougi with Grand Wilnas and Grand Percival to obliterate 77.7M omens on Full Auto."
+    },
+    {
+      "archetypeId": "siete_fire_kengo_ougi_loop",
+      "name": "Fire Kengo Infinite Ougi & Fatal Chain Loop (4-6 Turns to 4M + Carry)",
+      "playstyle": "Full_Auto_Ougi_Loop",
+      "supportedGridTypes": ["Magna_M3", "Primal_Agni", "Magna_M2_Budget"],
+      "targetHonors": 4000000,
+      "targetTotalDamage": 400000000,
+      "estimatedTurnsTo4M": "4 to 6 Turns (55-85s)",
+      "estimatedTurn1To3Damage": 270000000,
+      "clears77M7Omen": true,
+      "minRecommendedHp": 65000,
+      "mcRequirement": {
+        "primaryClass": "Kengo",
+        "alternativeClasses": ["Rising Force", "Yamato"],
+        "recommendedSkills": ["No More Doubt", "Rending Flash", "Breathe Deep"],
+        "classEquipmentOrMino": "Unsigned Kaneshige (Fire Devilry)"
+      },
+      "frontlineSlots": [
+        {
+          "slotNumber": 1,
+          "slotRole": "Reactive Auto-Heal, Auto-Cleanse & Charge Bar Battery",
+          "primaryCharacterId": "char_fire_satyr",
+          "substituteCharacterIds": ["char_fire_fenie_grand", "char_fire_noa_holiday"],
+          "mandatory": true,
+          "slotNotes": "Satyr Innocent Heart auto-heals, auto-cleanses, and dispels 2 buffs every time Seofon uses a special attack, while Sk2 supplies +15-30% charge bar."
+        },
+        {
+          "slotNumber": 2,
+          "slotRole": "Double Ougi Enabler & 5-Chain End-of-Turn Nuker",
+          "primaryCharacterId": "char_fire_silva_yukata",
+          "substituteCharacterIds": ["char_fire_noa_holiday", "char_fire_mirin_yukata", "char_fire_percival_grand"],
+          "mandatory": false,
+          "slotNotes": "Yukata Silva Sk1 grants Double Ougi to Wilnas/MC, guaranteeing 5-6 Charge Attacks every turn to fill Fatal Chain every 2 turns."
+        },
+        {
+          "slotNumber": 3,
+          "slotRole": "Massive Ougi + Post-Ougi Double Skill Nuker",
+          "primaryCharacterId": "char_fire_wilnas_grand",
+          "substituteCharacterIds": ["char_fire_michael", "char_fire_percival_grand", "char_fire_athena"],
+          "mandatory": false,
+          "slotNotes": "With Yukata Silva's Double Ougi buff or Kengo battery, Wilnas fires 8M+ Ougis followed by double 8M+ Hadron Buster nukes every turn."
+        }
+      ],
+      "backlineSlots": [
+        {
+          "slotNumber": 4,
+          "slotRole": "Passive +20% Cap Sub-Ally",
+          "primaryCharacterId": "char_fire_michael",
+          "substituteCharacterIds": ["char_fire_fraux_flb"],
+          "slotNotes": "Boosts Ougi and Post-Ougi skill damage caps by +20% from the backline."
+        },
+        {
+          "slotNumber": 5,
+          "slotRole": "Evoker Sustain Backup",
+          "primaryCharacterId": "char_fire_fraux_flb",
+          "substituteCharacterIds": ["char_fire_alanaan_flb"],
+          "slotNotes": "Backup healer if battle goes to 0% HP."
+        }
+      ],
+      "weaponRequirements": {
+        "mainhandOptions": ["wpn_fire_unsigned_kaneshige"],
+        "coreGridSlots": [
+          {
+            "roleLabel": "Revans Special Awakening Swords (2-3x)",
+            "primaryWeaponId": "wpn_fire_extinction_blade",
+            "recommendedCopies": 3,
+            "substituteWeaponIds": ["wpn_fire_al_abad", "wpn_fire_nilakantha"],
+            "requiredAwakening": "Special"
+          },
+          {
+            "roleLabel": "Magna 3 Exalted Swords / Base ATK (2-3x)",
+            "primaryWeaponId": "wpn_fire_ira_volcanic_blade",
+            "recommendedCopies": 2,
+            "substituteWeaponIds": ["wpn_fire_lord_of_flames", "wpn_fire_nilakantha"]
+          },
+          {
+            "roleLabel": "Dark Opus Ougi Cap Anchor",
+            "primaryWeaponId": "wpn_fire_scythe_of_repentance",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": [],
+            "requiredKey": "Beta (CA Cap) + Stamina/Extremity"
+          },
+          {
+            "roleLabel": "Ultima Seraphic & CA Cap Anchor",
+            "primaryWeaponId": "wpn_fire_ultima_sword",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": ["wpn_fire_sword_of_michael"],
+            "requiredKey": "CA/Skill Cap + Tria Seraphic"
+          }
+        ]
+      },
+      "summonRequirements": {
+        "mainSummonOptions": ["sum_fire_colossus_ira", "sum_fire_agni"],
+        "supporterSummonOptions": ["sum_providence_lucifer_250", "sum_fire_colossus_ira", "sum_fire_agni"],
+        "requiredSubAuraSummonIds": ["sum_archangel_michael", "sum_arcarum_the_sun", "sum_arcarum_the_devil", "sum_providence_belial"]
+      },
+      "turnRotation": [
+        "Turn 1: Satyr Sk1/Sk2 -> Silva Sk1 (target Wilnas) -> Kengo No More Doubt + Rending Flash -> Attack (5-6 Charge Attacks + Wilnas double Sk2 + Silva 5-chain nuke = ~82M DMG, cancels Emblema).",
+        "Turn 2-5: Continuous 5-6 Charge Attack loop on Full Auto; Fatal Chain fills every 2 turns to cancel Cien Mil Espadas.",
+        "Turn 5: Reaches 4,000,000+ Honors with 100% HP across all allies; can either reload-snipe or stay to solo/finish the raid."
+      ],
+      "strategySummary": "The gold-standard safe 4M Honors & Raid Carry composition.Unsigned Kaneshige + Satyr + Yukata Silva + Wilnas fires 5-6 Charge Attacks + multiple post-Ougi nukes every turn, effortlessly exceeding 77,777,777 damage while generating Fatal Chains every 2 turns."
+    },
+    {
+      "archetypeId": "siete_fire_monk_lumberjack_fa_sustain",
+      "name": "Fire Monk / Lumberjack / Iatromantis Full Auto Skill & Sustain",
+      "playstyle": "Full_Auto_Sustain",
+      "supportedGridTypes": ["Magna_M3", "Magna_M2_Budget", "Primal_Agni"],
+      "targetHonors": 4000000,
+      "targetTotalDamage": 400000000,
+      "estimatedTurnsTo4M": "5 to 7 Turns (70-100s)",
+      "estimatedTurn1To3Damage": 240000000,
+      "clears77M7Omen": true,
+      "minRecommendedHp": 68000,
+      "mcRequirement": {
+        "primaryClass": "Monk",
+        "alternativeClasses": ["Lumberjack", "Iatromantis", "Manadiver"],
+        "recommendedSkills": ["True Strike", "Miserable Mist", "Dispel"],
+        "classEquipmentOrMino": "True Purity Sunstaff / Torch of Eternal Flames / Heat of The Sun"
+      },
+      "frontlineSlots": [
+        {
+          "slotNumber": 1,
+          "slotRole": "Primary Reactive Healer & Dispel Anchor",
+          "primaryCharacterId": "char_fire_satyr",
+          "substituteCharacterIds": ["char_fire_fenie_grand", "char_fire_athena"],
+          "mandatory": true,
+          "slotNotes": "Keeps party healthy and debuff-free on 100% Full Auto."
+        },
+        {
+          "slotNumber": 2,
+          "slotRole": "Primary Skill/Burst Damage Dealer",
+          "primaryCharacterId": "char_fire_percival_grand",
+          "substituteCharacterIds": ["char_fire_wilnas_grand", "char_fire_anderson", "char_fire_nemone_holiday"],
+          "mandatory": false,
+          "slotNotes": "Provides burst spikes to cross 77.7M triggers."
+        },
+        {
+          "slotNumber": 3,
+          "slotRole": "Double-Cast Healer / Skill Nuker",
+          "primaryCharacterId": "char_fire_fraux_flb",
+          "substituteCharacterIds": ["char_fire_michael", "char_fire_medusa_holiday", "char_fire_nemone_holiday", "char_fire_athena"],
+          "mandatory": false,
+          "slotNotes": "Fraux FLB or Holiday Nemone/Medusa provides end-of-turn skill damage and sustain."
+        }
+      ],
+      "backlineSlots": [
+        {
+          "slotNumber": 4,
+          "slotRole": "Passive +20% Cap Sub-Ally",
+          "primaryCharacterId": "char_fire_michael",
+          "substituteCharacterIds": ["char_fire_silva_yukata"],
+          "slotNotes": "Boosts all skill and normal damage caps by +20%."
+        },
+        {
+          "slotNumber": 5,
+          "slotRole": "Backup Burst / Evoker",
+          "primaryCharacterId": "char_fire_alanaan_flb",
+          "substituteCharacterIds": ["char_fire_athena"],
+          "slotNotes": "Backup anchor."
+        }
+      ],
+      "weaponRequirements": {
+        "mainhandOptions": ["wpn_fire_flames_of_the_phoenix", "wpn_fire_heat_of_the_sun", "wpn_fire_nilakantha"],
+        "coreGridSlots": [
+          {
+            "roleLabel": "Magna 3 Exalted Swords (3x)",
+            "primaryWeaponId": "wpn_fire_ira_volcanic_blade",
+            "recommendedCopies": 3,
+            "substituteWeaponIds": ["wpn_fire_nilakantha", "wpn_fire_ancient_ecke_sachs"]
+          },
+          {
+            "roleLabel": "Skill Supplemental & Cap Axes (1-2x)",
+            "primaryWeaponId": "wpn_fire_crimson_scale",
+            "recommendedCopies": 2,
+            "substituteWeaponIds": ["wpn_fire_extinction_blade", "wpn_fire_sol_shreck"]
+          },
+          {
+            "roleLabel": "Dark Opus Skill Cap Anchor",
+            "primaryWeaponId": "wpn_fire_scythe_of_repentance",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": [],
+            "requiredKey": "Gamma (Skill Cap) + Stamina"
+          },
+          {
+            "roleLabel": "Ultima Seraphic Anchor",
+            "primaryWeaponId": "wpn_fire_ultima_sword",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": ["wpn_fire_sword_of_michael"]
+          }
+        ]
+      },
+      "summonRequirements": {
+        "mainSummonOptions": ["sum_fire_colossus_ira", "sum_fire_agni"],
+        "supporterSummonOptions": ["sum_providence_lucifer_250", "sum_fire_colossus_ira"],
+        "requiredSubAuraSummonIds": ["sum_archangel_michael", "sum_arcarum_the_sun", "sum_arcarum_the_devil", "sum_providence_belial"]
+      },
+      "turnRotation": [
+        "Turn 1: Enable Full Auto immediately upon entering battle.",
+        "Turns 1-6: Monk/Lumberjack end-of-turn auto-nukes combine with Satyr, Percival/Wilnas, and Fraux/Nemone to steadily accumulate 700k-900k honors per turn while tanking all triggers.",
+        "Turn 6: Reaches 4,000,000+ Honors safely with zero manual intervention."
+      ],
+      "strategySummary": "Accessible, ultra-safe 100% Full Auto setup for players transitioning from M2/early M3 or running hands-free background farming."
+    },
+    {
+      "archetypeId": "siete_fire_paladin_yamato_host_solver",
+      "name": "Fire Paladin / Yamato Daily Host & 10% Execute Solver",
+      "playstyle": "Host_And_10Pct_Execute",
+      "supportedGridTypes": ["Magna_M3", "Primal_Agni"],
+      "targetHonors": 4000000,
+      "targetTotalDamage": 400000000,
+      "estimatedTurnsTo4M": "5 to 8 Turns (Host Full Clear)",
+      "estimatedTurn1To3Damage": 250000000,
+      "clears77M7Omen": true,
+      "minRecommendedHp": 75000,
+      "mcRequirement": {
+        "primaryClass": "Paladin",
+        "alternativeClasses": ["Yamato", "Shieldsworn"],
+        "recommendedSkills": ["Noblesse Oblige", "Sacred Protection", "Elemental Phalanx"],
+        "classEquipmentOrMino": "Sacred Shield / Malice Shield"
+      },
+      "frontlineSlots": [
+        {
+          "slotNumber": 1,
+          "slotRole": "Auto-Heal, Cleanse & Dispel Core",
+          "primaryCharacterId": "char_fire_satyr",
+          "substituteCharacterIds": ["char_fire_fraux_flb"],
+          "mandatory": true,
+          "slotNotes": "Handles continuous healing and debuff cleansing throughout 100%-0% HP."
+        },
+        {
+          "slotNumber": 2,
+          "slotRole": "10% Plain Wipe Tank / Auto-Revive Anchor",
+          "primaryCharacterId": "char_fire_fenie_grand",
+          "substituteCharacterIds": ["char_fire_anderson", "char_fire_noa_holiday", "char_fire_percival_grand"],
+          "mandatory": false,
+          "slotNotes": "Grand Fenie or Anderson/Noa absorbs or survives the 10% Cuatro Mil Espadas 99,999 plain damage trigger."
+        },
+        {
+          "slotNumber": 3,
+          "slotRole": "77.7M Omen Canceler & Burst Anchor",
+          "primaryCharacterId": "char_fire_percival_grand",
+          "substituteCharacterIds": ["char_fire_wilnas_grand", "char_fire_michael"],
+          "mandatory": false,
+          "slotNotes": "Provides the burst damage needed to cancel Infinito Creare and Cinco Mil Espadas."
+        }
+      ],
+      "backlineSlots": [
+        {
+          "slotNumber": 4,
+          "slotRole": "Passive +20% Cap Sub-Ally",
+          "primaryCharacterId": "char_fire_michael",
+          "substituteCharacterIds": ["char_fire_silva_yukata"],
+          "slotNotes": "Passive +20% Damage Cap."
+        },
+        {
+          "slotNumber": 5,
+          "slotRole": "Post-10% Cleanup Attacker",
+          "primaryCharacterId": "char_fire_wilnas_grand",
+          "substituteCharacterIds": ["char_fire_fraux_flb", "char_fire_zeta_grand"],
+          "slotNotes": "Enters after 10% trigger to finish the final 250M HP."
+        }
+      ],
+      "weaponRequirements": {
+        "mainhandOptions": ["wpn_fire_extinction_blade", "wpn_fire_lord_of_flames", "wpn_fire_ira_volcanic_blade"],
+        "coreGridSlots": [
+          {
+            "roleLabel": "Revans Defense Awakening Swords (2-3x)",
+            "primaryWeaponId": "wpn_fire_extinction_blade",
+            "recommendedCopies": 3,
+            "substituteWeaponIds": ["wpn_fire_nilakantha"],
+            "requiredAwakening": "Defense"
+          },
+          {
+            "roleLabel": "Magna 3 Exalted Swords (3x)",
+            "primaryWeaponId": "wpn_fire_ira_volcanic_blade",
+            "recommendedCopies": 3,
+            "substituteWeaponIds": ["wpn_fire_lord_of_flames"]
+          },
+          {
+            "roleLabel": "Dark Opus Stamina Anchor",
+            "primaryWeaponId": "wpn_fire_scythe_of_repentance",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": []
+          },
+          {
+            "roleLabel": "Ultima Seraphic Anchor",
+            "primaryWeaponId": "wpn_fire_ultima_sword",
+            "recommendedCopies": 1,
+            "substituteWeaponIds": ["wpn_fire_sword_of_michael"]
+          }
+        ]
+      },
+      "summonRequirements": {
+        "mainSummonOptions": ["sum_fire_colossus_ira", "sum_fire_agni"],
+        "supporterSummonOptions": ["sum_providence_lucifer_250"],
+        "requiredSubAuraSummonIds": ["sum_archangel_michael", "sum_arcarum_the_sun", "sum_arcarum_the_devil", "sum_six_dragon_wilnas"]
+      },
+      "turnRotation": [
+        "Phase 1 (100%-50%): Host raid -> Secure 4,000,000 Honors safely using Satyr sustain and Percival/Wilnas omen cancels -> Open Backup Request.",
+        "Phase 2 (50%-10%): Use Paladin Sacred Protection / Elemental Phalanx or Satyr dispels to navigate Cinco Mil Espadas.",
+        "Phase 3 (10%-0%): Tank 10% Cuatro Mil Espadas via Fenie Sk1 Substitute-All (Phoenix auto-revive), Anderson Sk3, or Yamato Seawall -> Execute final 10% HP."
+      ],
+      "strategySummary": "Designed for daily hosts and full 100%-0% raid carries. Combines Defense-awakened Extinction Blades (75,000+ HP) with Paladin/Yamato mitigation and Fenie/Anderson 10% wipe protection."
+    }
+  ]
+}

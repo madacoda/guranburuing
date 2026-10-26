@@ -1,0 +1,220 @@
+{
+  "$schema": "../schemas/siete-roster.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-10-26T12:00:00.000Z",
+  "description": "Reference player Fire roster, weapon grid, and summon configuration for Siete (Seofon Impossible) 4,000,000 Honors readiness evaluation.",
+  "accountId": "acc1",
+  "source": "roster_config",
+  "activeMcClass": "Manadiver",
+  "mcClassesUnlocked": ["Manadiver", "Berserker", "Kengo", "Paladin", "Monk", "Viking", "Yamato"],
+  "activeMcSkills": ["Wild Magica", "Secret Triad", "Overtrance"],
+  "estimatedPartyHp": 68500,
+  "characters": [
+    {
+      "id": "char_fire_percival_grand",
+      "npcId": "3040419000",
+      "name": "Percival (Grand)",
+      "element": "fire",
+      "level": 80,
+      "uncapStars": 4,
+      "ringed": true,
+      "awakeningType": "Attack",
+      "slotPosition": "frontline_1"
+    },
+    {
+      "id": "char_fire_zeta_grand",
+      "npcId": "3040499000",
+      "name": "Zeta (Grand)",
+      "element": "fire",
+      "level": 80,
+      "uncapStars": 4,
+      "ringed": true,
+      "awakeningType": "Attack",
+      "slotPosition": "frontline_2"
+    },
+    {
+      "id": "char_fire_wilnas_grand",
+      "npcId": "3040379000",
+      "name": "Wilnas (Grand)",
+      "element": "fire",
+      "level": 80,
+      "uncapStars": 4,
+      "ringed": true,
+      "awakeningType": "Attack",
+      "slotPosition": "frontline_3"
+    },
+    {
+      "id": "char_fire_michael",
+      "npcId": "3040434000",
+      "name": "Michael (Grand)",
+      "element": "fire",
+      "level": 80,
+      "uncapStars": 4,
+      "slotPosition": "backline_1"
+    },
+    {
+      "id": "char_fire_satyr",
+      "npcId": "3040363000",
+      "name": "Satyr (Fire)",
+      "element": "fire",
+      "level": 80,
+      "uncapStars": 4,
+      "awakeningType": "Defense",
+      "slotPosition": "backline_2"
+    },
+    {
+      "id": "char_fire_alanaan_flb",
+      "npcId": "3040161000",
+      "name": "Alanaan (FLB)",
+      "element": "fire",
+      "level": 100,
+      "uncapStars": 5,
+      "hasFourthSkill": true,
+      "slotPosition": "inventory"
+    },
+    {
+      "id": "char_fire_silva_yukata",
+      "npcId": "3040395000",
+      "name": "Silva (Yukata)",
+      "element": "fire",
+      "level": 80,
+      "uncapStars": 4,
+      "slotPosition": "inventory"
+    },
+    {
+      "id": "char_fire_fraux_flb",
+      "npcId": "3040160000",
+      "name": "Fraux (FLB)",
+      "element": "fire",
+      "level": 100,
+      "uncapStars": 5,
+      "hasFourthSkill": true,
+      "slotPosition": "inventory"
+    }
+  ],
+  "weapons": [
+    {
+      "id": "wpn_fire_overrider",
+      "weaponId": "1040218400",
+      "name": "Overrider",
+      "copies": 1,
+      "level": 150,
+      "uncapStars": 4,
+      "awakeningType": "Attack",
+      "awakeningLevel": 4,
+      "isMainhand": true
+    },
+    {
+      "id": "wpn_fire_lord_of_flames",
+      "weaponId": "1040023700",
+      "name": "Lord of Flames",
+      "copies": 2,
+      "level": 150,
+      "uncapStars": 4
+    },
+    {
+      "id": "wpn_fire_crimson_scale",
+      "weaponId": "1040315600",
+      "name": "Crimson Scale",
+      "copies": 2,
+      "level": 150,
+      "uncapStars": 4
+    },
+    {
+      "id": "wpn_fire_ira_volcanic_blade",
+      "weaponId": "1040026500",
+      "name": "Ira Volcanic Blade",
+      "copies": 3,
+      "level": 150,
+      "uncapStars": 4,
+      "awakeningType": "Attack",
+      "awakeningLevel": 15
+    },
+    {
+      "id": "wpn_fire_extinction_blade",
+      "weaponId": "1040024100",
+      "name": "Extinction Blade",
+      "copies": 2,
+      "level": 200,
+      "uncapStars": 5,
+      "awakeningType": "Attack",
+      "awakeningLevel": 20
+    },
+    {
+      "id": "wpn_fire_scythe_of_repentance",
+      "weaponId": "1040311000",
+      "name": "Scythe of Repentance",
+      "copies": 1,
+      "level": 250,
+      "uncapStars": 5,
+      "pendulumKeys": ["Auto Cap", "Extremity"]
+    },
+    {
+      "id": "wpn_fire_ultima_sword",
+      "weaponId": "1040013000",
+      "name": "Ultima Sword",
+      "copies": 1,
+      "level": 200,
+      "uncapStars": 5,
+      "pendulumKeys": ["Skill Cap", "Tria (Seraphic +25% Amp)"]
+    },
+    {
+      "id": "wpn_fire_unsigned_kaneshige",
+      "weaponId": "1040911100",
+      "name": "Unsigned Kaneshige (Fire)",
+      "copies": 1,
+      "level": 200,
+      "uncapStars": 5
+    }
+  ],
+  "summons": [
+    {
+      "id": "sum_fire_colossus_ira",
+      "summonId": "2040034000",
+      "name": "Colossus Ira Omega (Lv 250)",
+      "level": 250,
+      "uncapStars": 5,
+      "slotRole": "main"
+    },
+    {
+      "id": "sum_fire_agni",
+      "summonId": "2040094000",
+      "name": "Agni (Lv 250)",
+      "level": 250,
+      "uncapStars": 5,
+      "slotRole": "supporter"
+    },
+    {
+      "id": "sum_archangel_michael",
+      "summonId": "2040310000",
+      "name": "Michael (Archangel Summon)",
+      "level": 150,
+      "uncapStars": 4,
+      "slotRole": "sub_aura"
+    },
+    {
+      "id": "sum_arcarum_the_sun",
+      "summonId": "2040236000",
+      "name": "The Sun (ULB Lv 200)",
+      "level": 200,
+      "uncapStars": 5,
+      "slotRole": "sub_aura"
+    },
+    {
+      "id": "sum_providence_belial",
+      "summonId": "2040378000",
+      "name": "Belial",
+      "level": 150,
+      "uncapStars": 4,
+      "slotRole": "sub_aura"
+    },
+    {
+      "id": "sum_arcarum_the_devil",
+      "summonId": "2040241000",
+      "name": "The Devil (ULB Lv 200)",
+      "level": 200,
+      "uncapStars": 5,
+      "slotRole": "sub"
+    }
+  ]
+}

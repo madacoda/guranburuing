@@ -86,7 +86,11 @@ async function run() {
     'combat/character-tiering.catalog.json',
     'combat/summon-hierarchies.catalog.json',
     'raids/revans-and-apex-walkthroughs.catalog.json',
-    'events/unf-guild-wars.catalog.json'
+    'events/unf-guild-wars.catalog.json',
+    'schemas/siete-party-comp.schema.json',
+    'schemas/siete-roster.schema.json',
+    'combat/siete-party-compositions.catalog.json',
+    'combat/siete-roster.example.json'
   ];
 
   for (const relPath of expectedFiles) {
@@ -587,6 +591,27 @@ async function run() {
 
   const meatOpts = catalog.getGuildWarsMeatOptimizations();
   assert(meatOpts.some(m => m.archetype === '0B0C_Normal_Attack_Burst'), 'Contains 0B0C normal attack meat optimization');
+
+  // 12.6 Seofon (Impossible) / Siete HL 4M Honors & Readiness KMS (Vol. 22)
+  const sieteSpec = catalog.getSieteRaidSpecification();
+  assert(!!sieteSpec, 'Resolves Siete Raid Specification');
+  assert(sieteSpec?.blueChestTargetHonors === 4000000, 'Siete Blue Chest target honors is 4,000,000');
+  assert(sieteSpec?.equivalentTotalDamage === 400000000, 'Siete equivalent total damage is 400,000,000');
+  assert(sieteSpec?.universalOmenCancelDamage === 77777777, 'Siete Emblema omen cancel damage is 77,777,777');
+  assert(sieteSpec?.entryMechanics.summonCooldownResetTurns === 99, 'Siete entry summon cooldown lock is 99 turns');
+
+  const sieteChars = catalog.getAllSieteCharacters();
+  assert(sieteChars.length >= 15, `Loaded Siete Fire character registry (count: ${sieteChars.length})`);
+  assert(catalog.getSieteCharacter('g.percy')?.id === 'char_fire_percival_grand', 'Resolves Grand Percival via alias g.percy');
+  assert(catalog.getSieteCharacter('3040499000')?.id === 'char_fire_zeta_grand', 'Resolves Grand Zeta via npcId 3040499000');
+
+  const sieteWeapons = catalog.getAllSieteWeapons();
+  assert(sieteWeapons.length >= 15, `Loaded Siete Fire weapon registry (count: ${sieteWeapons.length})`);
+  assert(catalog.getSieteWeapon('percy sword')?.id === 'wpn_fire_lord_of_flames', 'Resolves Lord of Flames via alias percy sword');
+  assert(catalog.getSieteWeapon('fire pns')?.id === 'wpn_fire_crimson_scale', 'Resolves Crimson Scale via alias fire pns');
+
+  const sieteArchetypes = catalog.getAllSietePartyArchetypes();
+  assert(sieteArchetypes.length === 5, `Loaded all 5 Siete 4M Honors party archetypes (count: ${sieteArchetypes.length})`);
 
   console.log('\n🎉 ALL DATA ARCHITECTURE ASSERTIONS PASSED (100% GOLD INDUSTRY STANDARD)');
 }

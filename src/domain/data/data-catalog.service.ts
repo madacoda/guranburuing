@@ -52,7 +52,13 @@ import {
   RevansApexRaidDefinition,
   GuildWarsStageDefinition,
   GuildWarsMeatOptimizationDefinition,
-  GuildWarsNightmareStrategyDefinition
+  GuildWarsNightmareStrategyDefinition,
+  SieteRaidSpecification,
+  SieteReadinessThresholds,
+  SieteCharacterRegistryItem,
+  SieteWeaponRegistryItem,
+  SieteSummonRegistryItem,
+  SietePartyArchetypeDefinition
 } from './data-catalog.types.js';
 
 /**
@@ -142,6 +148,18 @@ export class DataCatalogService {
   private guildWarsStagesById = new Map<string, GuildWarsStageDefinition>();
   private guildWarsMeat: GuildWarsMeatOptimizationDefinition[] = [];
   private guildWarsNightmares: GuildWarsNightmareStrategyDefinition[] = [];
+
+  // KMS Extensions: Seofon (Impossible) / Siete HL 4M Honors & Readiness (Vol. 22)
+  private sieteRaidSpec: SieteRaidSpecification | null = null;
+  private sieteReadinessThresholds: SieteReadinessThresholds | null = null;
+  private sieteCharactersList: SieteCharacterRegistryItem[] = [];
+  private sieteCharactersByLookupKey = new Map<string, SieteCharacterRegistryItem>();
+  private sieteWeaponsList: SieteWeaponRegistryItem[] = [];
+  private sieteWeaponsByLookupKey = new Map<string, SieteWeaponRegistryItem>();
+  private sieteSummonsList: SieteSummonRegistryItem[] = [];
+  private sieteSummonsByLookupKey = new Map<string, SieteSummonRegistryItem>();
+  private sietePartyArchetypesList: SietePartyArchetypeDefinition[] = [];
+  private sietePartyArchetypesById = new Map<string, SietePartyArchetypeDefinition>();
 
   private rawSelectors: Record<string, any> = {};
 
@@ -500,6 +518,52 @@ export class DataCatalogService {
         this.guildWarsNightmares = data.nightmareStrategies || [];
       }
 
+      // 27. Load Seofon (Impossible) / Siete HL 4M Honors Party Compositions Catalog (Vol. 22)
+      const sietePath = path.join(this.dataBasePath, 'combat', 'siete-party-compositions.catalog.json');
+      if (fs.existsSync(sietePath)) {
+        const data = JSON.parse(fs.readFileSync(sietePath, 'utf-8'));
+        this.sieteRaidSpec = data.raidSpecification || null;
+        this.sieteReadinessThresholds = data.readinessThresholds || null;
+
+        this.sieteCharactersList = data.characterRegistry || [];
+        for (const char of this.sieteCharactersList) {
+          this.sieteCharactersByLookupKey.set(char.id.toLowerCase(), char);
+          if (char.npcId) this.sieteCharactersByLookupKey.set(char.npcId.toLowerCase(), char);
+          this.sieteCharactersByLookupKey.set(char.name.toLowerCase(), char);
+          if (char.japaneseName) this.sieteCharactersByLookupKey.set(char.japaneseName.toLowerCase(), char);
+          for (const alias of char.aliases || []) {
+            this.sieteCharactersByLookupKey.set(alias.toLowerCase(), char);
+          }
+        }
+
+        this.sieteWeaponsList = data.weaponRegistry || [];
+        for (const wpn of this.sieteWeaponsList) {
+          this.sieteWeaponsByLookupKey.set(wpn.id.toLowerCase(), wpn);
+          if (wpn.weaponId) this.sieteWeaponsByLookupKey.set(wpn.weaponId.toLowerCase(), wpn);
+          this.sieteWeaponsByLookupKey.set(wpn.name.toLowerCase(), wpn);
+          if (wpn.japaneseName) this.sieteWeaponsByLookupKey.set(wpn.japaneseName.toLowerCase(), wpn);
+          for (const alias of wpn.aliases || []) {
+            this.sieteWeaponsByLookupKey.set(alias.toLowerCase(), wpn);
+          }
+        }
+
+        this.sieteSummonsList = data.summonRegistry || [];
+        for (const sum of this.sieteSummonsList) {
+          this.sieteSummonsByLookupKey.set(sum.id.toLowerCase(), sum);
+          if (sum.summonId) this.sieteSummonsByLookupKey.set(sum.summonId.toLowerCase(), sum);
+          this.sieteSummonsByLookupKey.set(sum.name.toLowerCase(), sum);
+          if (sum.japaneseName) this.sieteSummonsByLookupKey.set(sum.japaneseName.toLowerCase(), sum);
+          for (const alias of sum.aliases || []) {
+            this.sieteSummonsByLookupKey.set(alias.toLowerCase(), sum);
+          }
+        }
+
+        this.sietePartyArchetypesList = data.partyArchetypes || [];
+        for (const arch of this.sietePartyArchetypesList) {
+          this.sietePartyArchetypesById.set(arch.archetypeId.toLowerCase(), arch);
+        }
+      }
+
       this.initialized = true;
     } catch (err: any) {
       console.warn('[DataCatalogService] Warning: Failed to load some catalogs:', err.message);
@@ -849,6 +913,50 @@ export class DataCatalogService {
 
   public getGuildWarsNightmareStrategies(): GuildWarsNightmareStrategyDefinition[] {
     return this.guildWarsNightmares;
+  }
+
+  // KMS Queries: Seofon (Impossible) / Siete HL 4M Honors & Readiness (Vol. 22)
+  public getSieteRaidSpecification(): SieteRaidSpecification | null {
+    return this.sieteRaidSpec;
+  }
+
+  public getSieteReadinessThresholds(): SieteReadinessThresholds | null {
+    return this.sieteReadinessThresholds;
+  }
+
+  public getSieteCharacter(idOrAlias: string): SieteCharacterRegistryItem | undefined {
+    const key = idOrAlias.trim().toLowerCase();
+    return this.sieteCharactersByLookupKey.get(key);
+  }
+
+  public getAllSieteCharacters(): SieteCharacterRegistryItem[] {
+    return [...this.sieteCharactersList];
+  }
+
+  public getSieteWeapon(idOrAlias: string): SieteWeaponRegistryItem | undefined {
+    const key = idOrAlias.trim().toLowerCase();
+    return this.sieteWeaponsByLookupKey.get(key);
+  }
+
+  public getAllSieteWeapons(): SieteWeaponRegistryItem[] {
+    return [...this.sieteWeaponsList];
+  }
+
+  public getSieteSummon(idOrAlias: string): SieteSummonRegistryItem | undefined {
+    const key = idOrAlias.trim().toLowerCase();
+    return this.sieteSummonsByLookupKey.get(key);
+  }
+
+  public getAllSieteSummons(): SieteSummonRegistryItem[] {
+    return [...this.sieteSummonsList];
+  }
+
+  public getSietePartyArchetype(archetypeId: string): SietePartyArchetypeDefinition | undefined {
+    return this.sietePartyArchetypesById.get(archetypeId.trim().toLowerCase());
+  }
+
+  public getAllSietePartyArchetypes(): SietePartyArchetypeDefinition[] {
+    return [...this.sietePartyArchetypesList];
   }
 }
 

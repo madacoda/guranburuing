@@ -22,13 +22,15 @@
           ],
           "keyAbilities": "Skill 3 (Schlacht) grants all Fire allies 1-turn Tri-Strike and massive ATK/Echo buffs; Sk2 provides 5-hit nuke with Dispel and Debuff.",
           "bestContent": [
-            "Guild Wars NM95/150",
+            "Seofon Revans",
+            "Guild Wars NM95/150/200",
             "Tiamat Aura Omega",
             "PBHL Burst",
             "Grimnir HL"
           ],
           "substitutes": [
             "Zeta (Grand)",
+            "Wilnas (Grand)",
             "Anderson"
           ]
         },
@@ -76,29 +78,143 @@
           ],
           "substitutes": [
             "Athena",
-            "Sylph"
+            "Fraux (FLB)"
           ]
         },
         {
           "id": "char_fire_zeta_grand",
           "name": "Zeta (Grand)",
           "role": "Burst_OTK",
-          "priorityTier": "S_HighPriority",
+          "priorityTier": "SS_Core",
           "tacticalTags": [
             "assassin",
+            "triple_strike",
             "multi_hit_nuke",
             "guaranteed_ta",
             "supplemental"
           ],
-          "keyAbilities": "Casts endless multi-hit skill nukes with Crimson Spear; sharp boost to ATK on target with Arvess Fermare; excels in 1-turn burst setups.",
+          "keyAbilities": "Casts endless multi-hit skill nukes with Crimson Spear; Sk1 grants Triple Strike and Assassin; passive boosts normal attack damage and supplemental damage.",
           "bestContent": [
+            "Seofon Revans",
             "GW EX+ 0-Button",
-            "NM95 Burst",
+            "NM95/150/200 Burst",
             "Grimnir Burst"
           ],
           "substitutes": [
-            "Wilnas",
-            "Yuisis"
+            "Wilnas (Grand)",
+            "Yuel (Fire)"
+          ]
+        },
+        {
+          "id": "char_fire_wilnas_grand",
+          "name": "Wilnas (Grand)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "massive_ougi_damage",
+            "double_ougi",
+            "auto_nuke_on_normal",
+            "dispel",
+            "debuff_immunity"
+          ],
+          "keyAbilities": "Deals 15M+ per Charge Attack with Double Ougi and 6M+ Flame Claw auto-nukes after normal attacks; effortlessly clears Seofon 77,777,777 damage omens.",
+          "bestContent": [
+            "Seofon Revans",
+            "Tiamat Aura Omega",
+            "Guild Wars NM150/200"
+          ],
+          "substitutes": [
+            "Zeta (Grand)",
+            "Silva (Yukata)"
+          ]
+        },
+        {
+          "id": "char_fire_alanaan_flb",
+          "name": "Alanaan (FLB)",
+          "role": "Burst_OTK",
+          "priorityTier": "SS_Core",
+          "tacticalTags": [
+            "renatian_creed_field",
+            "guaranteed_crit",
+            "50_percent_echo",
+            "damage_cap_up",
+            "turn1_burst_without_summon"
+          ],
+          "keyAbilities": "Uncapped 4th skill deploys Renatian Creed field on Turn 1 without sacrificing charge bar, granting teamwide 100% Crit, 50% Bonus Fire Damage, and 25% Damage Cap Up even under Seofon's 99-turn summon lock.",
+          "bestContent": [
+            "Seofon Revans",
+            "PBHL Fire Burst",
+            "Guild Wars NM95/150/200"
+          ],
+          "substitutes": [
+            "Michael",
+            "Yuel (Fire)"
+          ]
+        },
+        {
+          "id": "char_fire_silva_yukata",
+          "name": "Silva (Yukata)",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "ougi_spec_buffer",
+            "end_of_turn_nuke",
+            "fatal_chain_accelerator",
+            "debuff_inaccuracy"
+          ],
+          "keyAbilities": "Grants targeted Fire ally massive CA Damage/Cap Up and fires a multi-hit skill nuke at end of turn whenever allies perform 4+ Charge Attacks, accelerating Seofon 77.77M omen cancels.",
+          "bestContent": [
+            "Seofon Revans",
+            "Kengo Ougi Loop",
+            "High Difficulty V2"
+          ],
+          "substitutes": [
+            "Mirin (Yukata)",
+            "Noa (Holiday)"
+          ]
+        },
+        {
+          "id": "char_fire_fraux_flb",
+          "name": "Fraux (FLB)",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "double_cast_heal_nuke",
+            "double_dispel",
+            "cleanse",
+            "debuff_extension"
+          ],
+          "keyAbilities": "When switched in via Ragazzo self-sacrifice, double-casts multi-hit Fire nukes that heal, cleanse 2 debuffs, and dispel 2 buffs every cycle.",
+          "bestContent": [
+            "Seofon Revans",
+            "Guild Wars NM200/250",
+            "Dark Rapture Zero"
+          ],
+          "substitutes": [
+            "Satyr",
+            "Fenie (Grand)"
+          ]
+        },
+        {
+          "id": "char_fire_fenie_grand",
+          "name": "Fenie (Grand)",
+          "role": "Full_Auto_Sustain",
+          "priorityTier": "S_HighPriority",
+          "tacticalTags": [
+            "auto_revive",
+            "undying",
+            "multi_hit_skill_spam",
+            "full_heal"
+          ],
+          "keyAbilities": "Provides automatic revival, Undying, and full HP restoration after reviving while unleashing massive multi-hit skill damage.",
+          "bestContent": [
+            "Seofon Revans",
+            "Dark Rapture Zero",
+            "Guild Wars NM200/250"
+          ],
+          "substitutes": [
+            "Fraux (FLB)",
+            "Satyr"
           ]
         },
         {

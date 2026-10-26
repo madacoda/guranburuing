@@ -1,0 +1,426 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/siete-party-comp.schema.json",
+  "title": "GBFSeofonRevans4MHonorsPartyAndReadinessSchema",
+  "description": "Authoritative schema for Seofon (Impossible) / Siete HL 4,000,000 Honors (400M Damage) party compositions, character/weapon/summon requirements, substitute chains, and readiness evaluation rules.",
+  "type": "object",
+  "required": [
+    "version",
+    "generatedAt",
+    "description",
+    "raidSpecification",
+    "readinessThresholds",
+    "characterRegistry",
+    "weaponRegistry",
+    "summonRegistry",
+    "partyArchetypes"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "raidSpecification": {
+      "type": "object",
+      "required": [
+        "raidId",
+        "revansCatalogId",
+        "name",
+        "japaneseName",
+        "stageId",
+        "questId",
+        "legacyQuestId",
+        "element",
+        "advantageousElement",
+        "battleSystem",
+        "maxPlayers",
+        "bossHp",
+        "baseDefense",
+        "blueChestTargetHonors",
+        "equivalentTotalDamage",
+        "universalOmenCancelDamage",
+        "entryMechanics",
+        "coreOmens"
+      ],
+      "properties": {
+        "raidId": { "type": "string" },
+        "revansCatalogId": { "type": "string" },
+        "name": { "type": "string" },
+        "japaneseName": { "type": "string" },
+        "stageId": { "type": "string" },
+        "questId": { "type": "string" },
+        "legacyQuestId": { "type": "string" },
+        "element": { "type": "string" },
+        "advantageousElement": { "type": "string" },
+        "battleSystem": { "type": "string", "enum": ["V2"] },
+        "maxPlayers": { "type": "number" },
+        "bossHp": { "type": "number" },
+        "baseDefense": { "type": "number" },
+        "blueChestTargetHonors": { "type": "number" },
+        "equivalentTotalDamage": { "type": "number" },
+        "honorPerDamageRatio": { "type": "number" },
+        "universalOmenCancelDamage": { "type": "number" },
+        "entryMechanics": {
+          "type": "object",
+          "required": [
+            "nonFireAllyPenalty",
+            "summonCooldownResetTurns",
+            "fatedChainBossMechanic"
+          ],
+          "properties": {
+            "nonFireAllyPenalty": { "type": "string" },
+            "nonFirePlainDamage": { "type": "number" },
+            "summonCooldownResetTurns": { "type": "number" },
+            "summonLockNotes": { "type": "string" },
+            "fatedChainBossMechanic": { "type": "string" }
+          }
+        },
+        "coreOmens": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "trigger", "cancelCondition", "requiredDamage", "failurePenalty", "counterStrategy"],
+            "properties": {
+              "name": { "type": "string" },
+              "japaneseName": { "type": "string" },
+              "trigger": { "type": "string" },
+              "cancelCondition": { "type": "string" },
+              "requiredDamage": { "type": "number" },
+              "requiresFatalChain": { "type": "boolean" },
+              "failurePenalty": { "type": "string" },
+              "counterStrategy": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "readinessThresholds": {
+      "type": "object",
+      "required": ["grades", "weights", "hardGates"],
+      "properties": {
+        "grades": {
+          "type": "object",
+          "required": ["SSS", "SS", "S", "A", "B", "C"],
+          "properties": {
+            "SSS": { "type": "number" },
+            "SS": { "type": "number" },
+            "S": { "type": "number" },
+            "A": { "type": "number" },
+            "B": { "type": "number" },
+            "C": { "type": "number" }
+          }
+        },
+        "weights": {
+          "type": "object",
+          "required": ["characters", "weapons", "summons", "mcClass"],
+          "properties": {
+            "characters": { "type": "number" },
+            "weapons": { "type": "number" },
+            "summons": { "type": "number" },
+            "mcClass": { "type": "number" }
+          }
+        },
+        "hardGates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["gateId", "name", "severity", "description"],
+            "properties": {
+              "gateId": { "type": "string" },
+              "name": { "type": "string" },
+              "severity": { "type": "string", "enum": ["CRITICAL_BLOCKER", "WARNING"] },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "characterRegistry": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "npcId",
+          "name",
+          "japaneseName",
+          "aliases",
+          "element",
+          "series",
+          "role",
+          "priorityTier",
+          "minLevelRequired",
+          "requiresFlb",
+          "requiresFourthSkill",
+          "estimatedTurnDamageContribution",
+          "tacticalTags",
+          "sieteSynergyNotes",
+          "substitutes"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "npcId": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "element": { "type": "string", "enum": ["fire"] },
+          "series": { "type": "string" },
+          "role": {
+            "type": "string",
+            "enum": [
+              "Burst_OTK",
+              "Full_Auto_Sustain",
+              "High_Difficulty_Omen_Solver",
+              "Support_Buffer",
+              "Sub_Slot_Specialist"
+            ]
+          },
+          "priorityTier": {
+            "type": "string",
+            "enum": ["SS_Core", "S_HighPriority", "A_ViableSubstitute", "B_BudgetFallback"]
+          },
+          "minLevelRequired": { "type": "number" },
+          "requiresFlb": { "type": "boolean" },
+          "requiresFourthSkill": { "type": "boolean" },
+          "estimatedTurnDamageContribution": { "type": "number" },
+          "estimatedPeakBurstDamage": { "type": "number" },
+          "subSlotDamageCapBonusPercent": { "type": "number" },
+          "tacticalTags": { "type": "array", "items": { "type": "string" } },
+          "keySkillsForSiete": { "type": "array", "items": { "type": "string" } },
+          "sieteSynergyNotes": { "type": "string" },
+          "substitutes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["characterId", "compatibilityPercent", "tradeoffNotes"],
+              "properties": {
+                "characterId": { "type": "string" },
+                "compatibilityPercent": { "type": "number" },
+                "tradeoffNotes": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "weaponRegistry": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "weaponId",
+          "name",
+          "japaneseName",
+          "aliases",
+          "weaponType",
+          "series",
+          "category",
+          "damageCapPercent",
+          "supplementalDamageFlat",
+          "hpBonusPercent",
+          "sieteNotes",
+          "substitutes"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "weaponId": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "weaponType": { "type": "string" },
+          "series": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Primal_Grand",
+              "Magna_M3",
+              "Revans",
+              "Dark_Opus",
+              "Ultima",
+              "Class_Champion",
+              "New_World_Foundation",
+              "Astral",
+              "Magna_M2",
+              "Ennead",
+              "Seraphic"
+            ]
+          },
+          "recommendedAwakening": { "type": "string" },
+          "recommendedPendulumKeys": { "type": "array", "items": { "type": "string" } },
+          "resonatorRequirementCount": { "type": "number" },
+          "damageCapPercent": { "type": "number" },
+          "supplementalDamageFlat": { "type": "number" },
+          "hpBonusPercent": { "type": "number" },
+          "atkMultiplierEstimate": { "type": "number" },
+          "sieteNotes": { "type": "string" },
+          "substitutes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["weaponId", "compatibilityPercent", "notes"],
+              "properties": {
+                "weaponId": { "type": "string" },
+                "compatibilityPercent": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summonRegistry": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "summonId",
+          "name",
+          "japaneseName",
+          "aliases",
+          "slotRole",
+          "worksUnderTurn1SummonLock",
+          "damageCapBonusPercent",
+          "seraphicAmpPercent",
+          "supplementalDamageFlat",
+          "hpBonusPercent",
+          "sieteNotes"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "summonId": { "type": "string" },
+          "name": { "type": "string" },
+          "japaneseName": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "slotRole": { "type": "string", "enum": ["Main_Or_Support", "Sub_Aura_Core", "Hybrid_Main_Or_Sub"] },
+          "worksUnderTurn1SummonLock": { "type": "boolean" },
+          "damageCapBonusPercent": { "type": "number" },
+          "seraphicAmpPercent": { "type": "number" },
+          "supplementalDamageFlat": { "type": "number" },
+          "hpBonusPercent": { "type": "number" },
+          "auraMultiplierEstimate": { "type": "number" },
+          "sieteNotes": { "type": "string" }
+        }
+      }
+    },
+    "partyArchetypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "archetypeId",
+          "name",
+          "playstyle",
+          "supportedGridTypes",
+          "targetHonors",
+          "targetTotalDamage",
+          "estimatedTurnsTo4M",
+          "estimatedTurn1To3Damage",
+          "clears77M7Omen",
+          "minRecommendedHp",
+          "mcRequirement",
+          "frontlineSlots",
+          "backlineSlots",
+          "weaponRequirements",
+          "summonRequirements",
+          "turnRotation",
+          "strategySummary"
+        ],
+        "properties": {
+          "archetypeId": { "type": "string" },
+          "name": { "type": "string" },
+          "playstyle": {
+            "type": "string",
+            "enum": [
+              "Manual_Burst_2T_3T",
+              "Full_Auto_Burst_4T",
+              "Full_Auto_Ougi_Loop",
+              "Full_Auto_Sustain",
+              "Host_And_10Pct_Execute"
+            ]
+          },
+          "supportedGridTypes": { "type": "array", "items": { "type": "string" } },
+          "targetHonors": { "type": "number" },
+          "targetTotalDamage": { "type": "number" },
+          "estimatedTurnsTo4M": { "type": "string" },
+          "estimatedTurn1To3Damage": { "type": "number" },
+          "clears77M7Omen": { "type": "boolean" },
+          "minRecommendedHp": { "type": "number" },
+          "mcRequirement": {
+            "type": "object",
+            "required": ["primaryClass", "alternativeClasses", "recommendedSkills"],
+            "properties": {
+              "primaryClass": { "type": "string" },
+              "alternativeClasses": { "type": "array", "items": { "type": "string" } },
+              "recommendedSkills": { "type": "array", "items": { "type": "string" } },
+              "classEquipmentOrMino": { "type": "string" }
+            }
+          },
+          "frontlineSlots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["slotNumber", "slotRole", "primaryCharacterId", "substituteCharacterIds", "mandatory"],
+              "properties": {
+                "slotNumber": { "type": "number" },
+                "slotRole": { "type": "string" },
+                "primaryCharacterId": { "type": "string" },
+                "substituteCharacterIds": { "type": "array", "items": { "type": "string" } },
+                "mandatory": { "type": "boolean" },
+                "slotNotes": { "type": "string" }
+              }
+            }
+          },
+          "backlineSlots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["slotNumber", "slotRole", "primaryCharacterId", "substituteCharacterIds"],
+              "properties": {
+                "slotNumber": { "type": "number" },
+                "slotRole": { "type": "string" },
+                "primaryCharacterId": { "type": "string" },
+                "substituteCharacterIds": { "type": "array", "items": { "type": "string" } },
+                "slotNotes": { "type": "string" }
+              }
+            }
+          },
+          "weaponRequirements": {
+            "type": "object",
+            "required": ["mainhandOptions", "coreGridSlots"],
+            "properties": {
+              "mainhandOptions": { "type": "array", "items": { "type": "string" } },
+              "coreGridSlots": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["roleLabel", "primaryWeaponId", "recommendedCopies", "substituteWeaponIds"],
+                  "properties": {
+                    "roleLabel": { "type": "string" },
+                    "primaryWeaponId": { "type": "string" },
+                    "recommendedCopies": { "type": "number" },
+                    "substituteWeaponIds": { "type": "array", "items": { "type": "string" } },
+                    "requiredAwakening": { "type": "string" },
+                    "requiredKey": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "summonRequirements": {
+            "type": "object",
+            "required": ["mainSummonOptions", "supporterSummonOptions", "requiredSubAuraSummonIds"],
+            "properties": {
+              "mainSummonOptions": { "type": "array", "items": { "type": "string" } },
+              "supporterSummonOptions": { "type": "array", "items": { "type": "string" } },
+              "requiredSubAuraSummonIds": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "turnRotation": { "type": "array", "items": { "type": "string" } },
+          "strategySummary": { "type": "string" }
+        }
+      }
+    }
+  }
+}

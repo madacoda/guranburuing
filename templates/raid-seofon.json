@@ -1,0 +1,181 @@
+{
+  "name": "Raid - Seofon (Impossible) 4M Honors",
+  "description": "Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer: Finder Tab 1 (Quest ID 305411), Fire Agni/Colossus supporter, respects Turn-1 99-turn summon lock (no Turn-1 quick_call), executes Turn 1-3 Percival Sk3 Tri-Strike + Zeta/Wilnas/Alanaan burst rotation to cancel 77,777,777 Emblema and hit 4,000,000 honors.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "mode": "assist",
+  "targetEnemy": "Seofon",
+  "targetRaidQuestId": "305411",
+  "element": "Fire",
+  "raidSlot": 1,
+  "targetScore": 4000000,
+  "supporterPriority": [
+    "Agni",
+    "Colossus",
+    "Lucifer",
+    "Beelzebub"
+  ],
+  "evaluatorStrategy": "farm",
+  "minHpPct": 35,
+  "maxHpPct": 100,
+  "minPlayers": 1,
+  "maxPlayers": 5,
+  "minRaidScore": 25,
+  "adaptive": true,
+  "minBatchClaim": 2,
+  "maxBatchClaim": 4,
+  "speedProfile": "fast",
+  "defaultRuns": 200,
+  "autoBerry": true,
+  "autoElixir": false,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoSetRaid": true,
+  "steps": [
+    {
+      "code": "wait_element",
+      "name": "Make sure combat full load & interactable",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Cancel Entry Summon-Lock Animation)"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1 (Alanaan Field / Wilnas / Michael)",
+      "character": 4,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 2 (Party Echo / Nuke)",
+      "character": 4,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 4 (Alanaan FLB Renunciation)",
+      "character": 4,
+      "skill": 4,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 2 (Zeta / Wilnas Nuke)",
+      "character": 3,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 3 (Zeta Scarlet Vow)",
+      "character": 3,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1 (Percival X-Seele Singed)",
+      "character": 2,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 2 (Percival Regieren)",
+      "character": 2,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 2 (MC Wild Magica / Beast Fang)",
+      "character": 1,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 3 (MC Secret Triad / Ulfhedinn)",
+      "character": 1,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Execute Turn 1 Attack (Cancels 77,777,777 Emblema)",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Turn 1 Animation Cancel)"
+    },
+    {
+      "code": "wait_element",
+      "name": "Wait for Turn 2 Combat Ready",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 1 (Zeta Assassin / Wilnas Buff)",
+      "character": 3,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 3 (Percival Schlacht Tri-Strike Burst)",
+      "character": 2,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Execute Turn 2 Tri-Strike Burst (~220M Damage)",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Turn 2 Animation Cancel)"
+    },
+    {
+      "code": "exit_if_score",
+      "name": "Exit Early if 4,000,000 Honors Reached",
+      "targetScore": 4000000
+    },
+    {
+      "code": "wait_element",
+      "name": "Wait for Turn 3 Finisher Ready",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "attack",
+      "name": "Execute Turn 3 Finisher Attack to Lock 4M Honors",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Turn 3 Animation Cancel)"
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Rerun"
+    }
+  ]
+}

@@ -44,7 +44,9 @@
       "characterTiering": "data/schemas/character-tiering.schema.json",
       "summonHierarchies": "data/schemas/summon-hierarchies.schema.json",
       "revansAndApex": "data/schemas/revans-and-apex.schema.json",
-      "unfGuildWars": "data/schemas/unf-guild-wars.schema.json"
+      "unfGuildWars": "data/schemas/unf-guild-wars.schema.json",
+      "sietePartyComp": "data/schemas/siete-party-comp.schema.json",
+      "sieteRoster": "data/schemas/siete-roster.schema.json"
     },
     "modules": {
       "raids": {
@@ -84,7 +86,8 @@
         "tacticalPriority": "data/combat/tactical-action-priority.json",
         "weaponGrids": "data/combat/weapon-grids.catalog.json",
         "characterTiering": "data/combat/character-tiering.catalog.json",
-        "summonHierarchies": "data/combat/summon-hierarchies.catalog.json"
+        "summonHierarchies": "data/combat/summon-hierarchies.catalog.json",
+        "sietePartyCompositions": "data/combat/siete-party-compositions.catalog.json"
       },
       "elements": {
         "catalog": "data/elements/elements.catalog.json",

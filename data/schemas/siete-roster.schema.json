@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/siete-roster.schema.json",
+  "title": "GBFPlayerSieteRosterConfigSchema",
+  "description": "Schema for player-owned Fire characters, weapons, summons, and MC classes used for Siete (Seofon Impossible) 4M Honors readiness auto-checking.",
+  "type": "object",
+  "required": ["version", "generatedAt", "description", "characters", "weapons", "summons"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "accountId": { "type": "string" },
+    "source": { "type": "string", "enum": ["cdp_live", "cached_snapshot", "roster_config"] },
+    "activeMcClass": { "type": "string" },
+    "mcClassesUnlocked": { "type": "array", "items": { "type": "string" } },
+    "activeMcSkills": { "type": "array", "items": { "type": "string" } },
+    "estimatedPartyHp": { "type": "number" },
+    "characters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "id": { "type": "string" },
+          "npcId": { "type": "string" },
+          "name": { "type": "string" },
+          "element": { "type": "string" },
+          "level": { "type": "number" },
+          "uncapStars": { "type": "number" },
+          "hasFourthSkill": { "type": "boolean" },
+          "ringed": { "type": "boolean" },
+          "awakeningType": { "type": "string" },
+          "slotPosition": { "type": "string", "enum": ["frontline_1", "frontline_2", "frontline_3", "backline_1", "backline_2", "inventory"] }
+        }
+      }
+    },
+    "weapons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "id": { "type": "string" },
+          "weaponId": { "type": "string" },
+          "name": { "type": "string" },
+          "copies": { "type": "number" },
+          "level": { "type": "number" },
+          "uncapStars": { "type": "number" },
+          "awakeningType": { "type": "string" },
+          "awakeningLevel": { "type": "number" },
+          "pendulumKeys": { "type": "array", "items": { "type": "string" } },
+          "isMainhand": { "type": "boolean" }
+        }
+      }
+    },
+    "summons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "id": { "type": "string" },
+          "summonId": { "type": "string" },
+          "name": { "type": "string" },
+          "level": { "type": "number" },
+          "uncapStars": { "type": "number" },
+          "slotRole": { "type": "string", "enum": ["main", "supporter", "sub", "sub_aura", "inventory"] }
+        }
+      }
+    }
+  }
+}

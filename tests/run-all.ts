@@ -289,6 +289,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Shiny Slime Search (Very Hard) Workflow & Back Button Tests',
     file: 'tests/test-shiny-slime-search.ts',
     description: 'Verify shiny-slime-search template, quest 400151, back button action, shorthand DSL compiler, and alias resolution'
+  },
+  {
+    name: 'Seofon (Impossible) / Siete HL 4M Honors & Readiness Auto-Checker Tests',
+    file: 'tests/test-siete-4m-readiness.ts',
+    description: 'Verify Siete 4M Honors party catalog, schema validation, 77.77M Emblema math, hard gates, substitute chains, and CLI/template integration'
   }
 ];
 

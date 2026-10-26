@@ -181,51 +181,100 @@
           "element": "Wind",
           "battleSystem": "V2",
           "maxPlayers": 6,
-          "totalHp": "2,000,000,000",
-          "mechanicsSummary": "Inflicts Spirit Sword stacks with every uncanceled trigger. At 5 stacks, boss gains permanent elemental cut and multi-nukes the party. Demands continuous 40M damage or 6-charge-attack cancels.",
+          "totalHp": "2,500,000,000",
+          "mechanicsSummary": "Blue Chest guaranteed at 4,000,000 Honors (~400,000,000 damage). Entry trigger deals 999,999 plain damage to non-Fire allies and locks all summon cooldowns to 99 turns. Almost all cancelable omens (Emblema, Cien Mil Espadas, Infinito Creare, Cinco Mil Espadas) require 77,777,777 single-turn damage (or Fatal Chain for Cien Mil Espadas). Uncanceled triggers grant Espada (Spirit Sword) stacks.",
           "hpPhases": [
             {
-              "phaseName": "Sword Mastery (100%-75%)",
-              "hpRange": "100%-75%",
+              "phaseName": "Phase 1: Opening Sword Stance (100%-50%)",
+              "hpRange": "100%-50%",
               "omensAndTriggers": [
                 {
-                  "triggerType": "Turn_Trigger",
-                  "name": "Infinite Creacion (Every 3 Turns)",
-                  "cancelCondition": "Deal 40,000,000 damage or 6 Charge Attacks",
-                  "penaltyIfUncanceled": "Gains 1 Spirit Sword stack; deals 40,000 teamwide damage",
-                  "mitigationNotes": "Must cancel or guard all 4 frontline units."
+                  "triggerType": "Charge_Diamond",
+                  "name": "Emblema (Charge Diamond Max)",
+                  "cancelCondition": "Deal 77,777,777 damage in a single turn",
+                  "penaltyIfUncanceled": "Massive Wind multi-hit damage, gains 1 Espada stack, and fills enemy FC gauge",
+                  "mitigationNotes": "Burst 77.77M damage with Percival Sk3, Alanaan Sk4, or 5-6 chain Ougi turn, or Guard all."
+                },
+                {
+                  "triggerType": "Special",
+                  "name": "Cien Mil Espadas (Enemy FC Gauge 100%)",
+                  "cancelCondition": "Activate Fatal Chain (FC) or deal 77,777,777 damage",
+                  "penaltyIfUncanceled": "Heavy AoE Wind damage, Burn (2000/turn), Skill Seal, and 1 Espada stack",
+                  "mitigationNotes": "Hold player Fatal Chain for instant 1-button cancel or burst 77,777,777 damage."
+                },
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Infinito Creare (80% & 50% HP)",
+                  "cancelCondition": "Deal 77,777,777 damage in a single turn",
+                  "penaltyIfUncanceled": "Summons 7 Sword Emblems, strips buffs, and deals heavy teamwide Wind damage",
+                  "mitigationNotes": "Save Percival (Grand) Sk3 or full Kengo/Wilnas Ougi chain when pushing 80% and 50%."
                 }
               ]
             },
             {
-              "phaseName": "Grand Strike (10%-0%)",
+              "phaseName": "Phase 2: Seven-Star Overdrive (50%-10%)",
+              "hpRange": "50%-10%",
+              "omensAndTriggers": [
+                {
+                  "triggerType": "Charge_Diamond",
+                  "name": "Cinco Mil Espadas (Charge Diamond Max)",
+                  "cancelCondition": "Deal 77,777,777 damage in a single turn",
+                  "penaltyIfUncanceled": "Massive multi-hit Wind damage, ATK Down, Charge Bar -100%, and 1 Espada stack",
+                  "mitigationNotes": "Cancel with 77.77M turn damage or guard + Satyr auto-cleanse."
+                },
+                {
+                  "triggerType": "HP_Trigger",
+                  "name": "Infinito Creare (20% HP)",
+                  "cancelCondition": "Deal 77,777,777 damage in a single turn",
+                  "penaltyIfUncanceled": "Summons 7 Sword Emblems and inflicts lethal multi-slash Wind damage",
+                  "mitigationNotes": "Use Wilnas double Ougi + Silva (Yukata) or Percival Sk3 to clear."
+                }
+              ]
+            },
+            {
+              "phaseName": "Phase 3: Grand Strike Execution (10%-0%)",
               "hpRange": "10%-0%",
               "omensAndTriggers": [
                 {
                   "triggerType": "HP_Trigger",
-                  "name": "Cuatro Mil Espadas (10%)",
-                  "cancelCondition": "Deal 77 hits or 77,777,777 damage",
-                  "penaltyIfUncanceled": "99,999 plain damage to all allies",
-                  "mitigationNotes": "Use Triple Zero Phase 2 or full burst chain."
+                  "name": "Cuatro Mil Espadas / Siete Espadas (10%)",
+                  "cancelCondition": "Uncancelable Red Omen (or 77 hits / 77,777,777 damage variant)",
+                  "penaltyIfUncanceled": "Deals 77,777 fixed Wind damage to all allies",
+                  "mitigationNotes": "Use Paladin Sk1 (100% Wind Cut / 10k Cap Shield), Fenie (Grand) Undying/Revive, or burst from 11% to 0%."
                 }
               ]
             }
           ],
           "recommendedClasses": [
+            "Manadiver",
             "Berserker",
             "Kengo",
+            "Monk",
             "Paladin"
           ],
           "teamTemplates": [
             {
-              "templateName": "Fire Kengo Infinite Sustain",
-              "mcClass": "Kengo",
+              "templateName": "Fire Manadiver / Berserker 2-4T 4M Honors Burst",
+              "mcClass": "Manadiver / Berserker",
               "keyCharacters": [
-                "Satyr",
-                "Silva (Yukata)",
+                "Percival (Grand)",
+                "Zeta (Grand)",
+                "Wilnas (Grand)",
+                "Alanaan (FLB)",
                 "Michael"
               ],
-              "strategySummary": "Satyr auto-cleanse and auto-heal counteracts Seofon's chip damage while Kengo Ougi chains satisfy CA cancel thresholds."
+              "strategySummary": "Deals 130M-240M per turn to cancel 77,777,777 Emblema/Infinito Creare omens and reach 4,000,000 Honors (400M damage) in 2-4 turns despite the 99-turn summon lock."
+            },
+            {
+              "templateName": "Fire Kengo Infinite Ougi & Fatal Chain Loop",
+              "mcClass": "Kengo",
+              "keyCharacters": [
+                "Wilnas (Grand)",
+                "Silva (Yukata)",
+                "Satyr",
+                "Michael"
+              ],
+              "strategySummary": "Chains 5-7 Ougis per turn to charge Fatal Chain every 2 turns for Cien Mil Espadas while Satyr auto-heals and cleanses all chip damage."
             }
           ]
         },

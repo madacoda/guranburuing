@@ -878,6 +878,212 @@ export interface GuildWarsNightmareStrategyDefinition {
   notes?: string;
 }
 
+// ============================================================================
+// SEOFON (IMPOSSIBLE) / SIETE HL 4M HONORS & READINESS KMS (Volume 22)
+// ============================================================================
+
+export interface SieteCoreOmenDefinition {
+  name: string;
+  japaneseName: string;
+  trigger: string;
+  cancelCondition: string;
+  requiredDamage: number;
+  requiresFatalChain: boolean;
+  failurePenalty: string;
+  counterStrategy: string;
+}
+
+export interface SieteRaidSpecification {
+  raidId: string;
+  revansCatalogId: string;
+  name: string;
+  japaneseName: string;
+  stageId: string;
+  questId: string;
+  legacyQuestId: string;
+  element: string;
+  advantageousElement: string;
+  battleSystem: 'V2';
+  maxPlayers: number;
+  bossHp: number;
+  baseDefense: number;
+  blueChestTargetHonors: number;
+  equivalentTotalDamage: number;
+  honorPerDamageRatio: number;
+  universalOmenCancelDamage: number;
+  entryMechanics: {
+    nonFireAllyPenalty: string;
+    nonFirePlainDamage: number;
+    summonCooldownResetTurns: number;
+    summonLockNotes: string;
+    fatedChainBossMechanic: string;
+  };
+  coreOmens: SieteCoreOmenDefinition[];
+}
+
+export interface SieteHardGateDefinition {
+  gateId: string;
+  name: string;
+  severity: 'CRITICAL_BLOCKER' | 'WARNING';
+  description: string;
+}
+
+export interface SieteReadinessThresholds {
+  grades: {
+    SSS: number;
+    SS: number;
+    S: number;
+    A: number;
+    B: number;
+    C: number;
+  };
+  weights: {
+    characters: number;
+    weapons: number;
+    summons: number;
+    mcClass: number;
+  };
+  hardGates: SieteHardGateDefinition[];
+}
+
+export interface SieteCharacterSubstituteRef {
+  characterId: string;
+  compatibilityPercent: number;
+  tradeoffNotes: string;
+}
+
+export interface SieteCharacterRegistryItem {
+  id: string;
+  npcId: string;
+  name: string;
+  japaneseName: string;
+  aliases: string[];
+  element: 'fire';
+  series: string;
+  role: 'Burst_OTK' | 'Full_Auto_Sustain' | 'High_Difficulty_Omen_Solver' | 'Support_Buffer' | 'Evoker_Backline';
+  priorityTier: 'SS_Core' | 'S_HighPriority' | 'A_ViableSubstitute' | 'B_BudgetFallback';
+  minLevelRequired: number;
+  requiresFlb: boolean;
+  requiresFourthSkill: boolean;
+  estimatedTurnDamageContribution: number;
+  estimatedPeakBurstDamage: number;
+  subSlotDamageCapBonusPercent?: number;
+  tacticalTags: string[];
+  keySkillsForSiete: string[];
+  sieteSynergyNotes: string;
+  substitutes: SieteCharacterSubstituteRef[];
+}
+
+export interface SieteWeaponSubstituteRef {
+  weaponId: string;
+  compatibilityPercent: number;
+  notes: string;
+}
+
+export interface SieteWeaponRegistryItem {
+  id: string;
+  weaponId: string;
+  name: string;
+  japaneseName: string;
+  aliases: string[];
+  weaponType: 'Sabre' | 'Dagger' | 'Spear' | 'Axe' | 'Staff' | 'Gun' | 'Melee' | 'Bow' | 'Harp' | 'Katana';
+  series: string;
+  category:
+    | 'Primal_Grand'
+    | 'Magna_M3'
+    | 'Magna_M2'
+    | 'Revans'
+    | 'Dark_Opus'
+    | 'Ultima'
+    | 'Astral'
+    | 'Seraphic'
+    | 'New_World_Foundation'
+    | 'Class_Champion'
+    | 'Ennead'
+    | 'Celestial';
+  recommendedAwakening?: string;
+  recommendedPendulumKeys?: string[];
+  damageCapPercent: number;
+  supplementalDamageFlat: number;
+  hpBonusPercent: number;
+  atkMultiplierEstimate: number;
+  resonatorRequirementCount?: number;
+  sieteNotes: string;
+  substitutes: SieteWeaponSubstituteRef[];
+}
+
+export interface SieteSummonRegistryItem {
+  id: string;
+  summonId: string;
+  name: string;
+  japaneseName: string;
+  aliases: string[];
+  slotRole: 'Main_Or_Support' | 'Sub_Aura_Core' | 'Hybrid_Main_Or_Sub';
+  worksUnderTurn1SummonLock: boolean;
+  damageCapBonusPercent: number;
+  seraphicAmpPercent: number;
+  supplementalDamageFlat: number;
+  hpBonusPercent: number;
+  auraMultiplierEstimate: number;
+  sieteNotes: string;
+}
+
+export interface SieteArchetypePartySlot {
+  slotNumber: number;
+  slotRole: string;
+  primaryCharacterId: string;
+  substituteCharacterIds: string[];
+  mandatory?: boolean;
+  slotNotes: string;
+}
+
+export interface SieteArchetypeGridSlot {
+  roleLabel: string;
+  primaryWeaponId: string;
+  recommendedCopies: number;
+  substituteWeaponIds: string[];
+  requiredAwakening?: string;
+  requiredKey?: string;
+}
+
+export interface SietePartyArchetypeDefinition {
+  archetypeId: string;
+  name: string;
+  playstyle:
+    | 'Manual_Burst_2T_3T'
+    | 'Full_Auto_Burst_4T'
+    | 'Full_Auto_Ougi_Loop'
+    | 'Full_Auto_Sustain_MidRange'
+    | 'Host_And_Solo_Omen_Solver';
+  supportedGridTypes: Array<'Primal_Agni' | 'Magna_M3' | 'Magna_M2_Budget'>;
+  targetHonors: number;
+  targetTotalDamage: number;
+  estimatedTurnsTo4M: string;
+  estimatedTurn1To3Damage: number;
+  clears77M7Omen: boolean;
+  minRecommendedHp: number;
+  mcRequirement: {
+    primaryClass: string;
+    alternativeClasses: string[];
+    recommendedSkills: string[];
+    classEquipmentOrMino?: string;
+  };
+  frontlineSlots: SieteArchetypePartySlot[];
+  backlineSlots: SieteArchetypePartySlot[];
+  weaponRequirements: {
+    mainhandOptions: string[];
+    coreGridSlots: SieteArchetypeGridSlot[];
+  };
+  summonRequirements: {
+    mainSummonOptions: string[];
+    supporterSummonOptions: string[];
+    requiredSubAuraSummonIds: string[];
+  };
+  turnRotation: string[];
+  strategySummary: string;
+}
+
+
 
 
 
