@@ -3,6 +3,7 @@ import {
   WorkflowTemplate,
   WorkflowStep
 } from '../types/workflow.types.js';
+import { rustBridge } from '../core/rust-bridge.js';
 
 // Pre-compiled module-level regular expressions for zero-allocation single-pass DSL parsing
 const RX_QUOTE_TRIM = /^["'`]+|["'`]+$/g;
@@ -492,6 +493,238 @@ export function parseSingleDslAction(
   hasPriorCombatActions?: () => boolean
 ): WorkflowStep | null {
   const line = rawLine.replace(RX_QUOTE_TRIM, '').trim();
+
+  // Zero-regex single-pass Rust byte scanner fast path for common combat opcodes
+  const fastToken = rustBridge.parseDslLineFast(line);
+  if (fastToken !== null) {
+    if (fastToken.opcode === 0) {
+      return null;
+    }
+    if (fastToken.opcode === 1) {
+      const charNum = fastToken.arg1;
+      const skillNum = fastToken.arg2;
+      const hasEnsure = fastToken.arg3 === 1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Character ${charNum} Skill ${skillNum}${hasEnsure ? ' (Ensured)' : ''}`,
+        code: 'skill',
+        action: 'skill',
+        character: charNum,
+        skill: skillNum,
+        waitForNetwork: 'ability_result.json',
+        ...(hasEnsure ? { ensureCast: true } : {})
+      };
+    }
+    if (fastToken.opcode === 2) {
+      const charNum = fastToken.arg1;
+      const skillNum = fastToken.arg2;
+      const targetChar = fastToken.arg3;
+      const hasEnsure = fastToken.arg4 === 1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsure ? ' (Ensured)' : ''}`,
+        code: 'skill',
+        action: 'skill',
+        character: charNum,
+        skill: skillNum,
+        targetCharacter: targetChar,
+        waitForNetwork: 'ability_result.json',
+        ...(hasEnsure ? { ensureCast: true } : {})
+      };
+    }
+    if (fastToken.opcode === 3) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Execute Normal Attack',
+        code: 'attack',
+        action: 'attack',
+        waitForNetwork: 'normal_attack_result.json'
+      };
+    }
+    if (fastToken.opcode === 4) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Execute Quick Call',
+        code: 'quick_call',
+        action: 'quick_call',
+        waitForNetwork: 'summon_result.json'
+      };
+    }
+    if (fastToken.opcode === 5) {
+      const slot = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Invoke Summon Slot ${slot}`,
+        code: 'summon',
+        action: 'summon',
+        slot,
+        waitForNetwork: 'summon_result.json'
+      };
+    }
+    if (fastToken.opcode === 7) {
+      const ms = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Wait ${ms}ms`,
+        code: 'wait',
+        action: 'wait',
+        ms,
+        delayAfterMs: ms
+      };
+    }
+    if (fastToken.opcode === 8) {
+      const turn = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Wait until Turn ${turn}`,
+        code: 'wait_turn',
+        action: 'wait_turn',
+        condition: { type: 'turn_at_least', value: turn }
+      };
+    }
+    if (fastToken.opcode === 9) {
+      const waveNum = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Wait for Wave ${waveNum} & Characters Load`,
+        code: 'wait_wave',
+        action: 'wait_wave',
+        wave: waveNum
+      };
+    }
+    if (fastToken.opcode === 10) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Wait for Combat Loading & Buttons Interactable',
+        code: 'wait_element',
+        action: 'wait_element',
+        target: '.btn-attack-start'
+      };
+    }
+    if (fastToken.opcode === 11) {
+      const minMs = fastToken.arg1;
+      const maxMs = fastToken.arg2;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Random Delay (${minMs}ms - ${maxMs}ms)`,
+        code: 'wait_random',
+        action: 'wait_random',
+        minMs,
+        maxMs
+      };
+    }
+    if (fastToken.opcode === 12) {
+      if (fastToken.arg1 === 3) {
+        return {
+          id: `step_${stepIndex}`,
+          name: 'Smart Full Auto Execution',
+          code: 'smart_full_auto',
+          action: 'smart_full_auto'
+        };
+      }
+      if (fastToken.arg1 === 1) {
+        return {
+          id: `step_${stepIndex}`,
+          name: 'Toggle Full Auto Mode',
+          code: 'auto',
+          action: 'auto',
+          mode: 'full'
+        };
+      }
+      if (fastToken.arg1 === 2) {
+        return {
+          id: `step_${stepIndex}`,
+          name: 'Toggle Semi Auto Mode',
+          code: 'auto',
+          action: 'auto',
+          mode: 'semi'
+        };
+      }
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Toggle Auto Mode',
+        code: 'auto',
+        action: 'auto',
+        mode: 'full'
+      };
+    }
+    if (fastToken.opcode === 13) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Request Multi-Raid Backup',
+        code: 'backup_request',
+        action: 'backup_request'
+      };
+    }
+    if (fastToken.opcode === 14) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Click Back Button',
+        code: 'back',
+        action: 'back'
+      };
+    }
+    if (fastToken.opcode === 15) {
+      const enemyIdx = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Select Enemy ${enemyIdx}`,
+        code: 'target_enemy',
+        action: 'target_enemy',
+        enemyIndex: enemyIdx
+      };
+    }
+    if (fastToken.opcode === 16) {
+      const pType = fastToken.arg1 === 1 ? 'green' : fastToken.arg1 === 2 ? 'blue' : 'elixir';
+      return {
+        id: `step_${stepIndex}`,
+        name: `Use ${pType.toUpperCase()} Potion`,
+        code: 'heal',
+        action: 'heal',
+        potionType: pType
+      };
+    }
+    if (fastToken.opcode === 17) {
+      const tgt =
+        fastToken.arg1 === 5
+          ? 'all'
+          : fastToken.arg1 === 6
+            ? 'on'
+            : fastToken.arg1 === 0
+              ? 'off'
+              : String(fastToken.arg1);
+      return {
+        id: `step_${stepIndex}`,
+        name: `Guard (${tgt})`,
+        code: 'guard',
+        action: 'guard',
+        target: tgt
+      };
+    }
+    if (fastToken.opcode === 18) {
+      const score = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Exit if Honors >= ${score.toLocaleString()}`,
+        code: 'exit_if_score',
+        action: 'exit_if_score',
+        targetScore: score
+      };
+    }
+    if (fastToken.opcode === 19) {
+      const x = fastToken.arg1;
+      const y = fastToken.arg2;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Touch Tap (${x}, ${y})`,
+        code: 'touch_tap',
+        action: 'touch_tap',
+        x,
+        y
+      };
+    }
+  }
+
   let m: RegExpExecArray | null;
 
   // Auto Fate Episode Routine

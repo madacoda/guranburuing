@@ -199,7 +199,7 @@ export const DREAD_BARRAGE_SELECTORS = {
   GACHA_RESET_BTN: '.prt-event-reset .btn-reset',
   GACHA_RESET_CONFIRM_OK: '.pop-reset-confirm .btn-usual-ok',
   GACHA_RESET_DONE_OK: '.pop-reset .btn-usual-ok',
-  GACHA_TOKEN_COUNT: '.txt-possessed-point, .prt-token-point .txt-point, #now-point'
+  GACHA_TOKEN_COUNT: '.txt-current-point, .txt-medal-possessed, .txt-possessed-point, .prt-token-point .txt-point, #now-point'
 } as const;
 
 /**

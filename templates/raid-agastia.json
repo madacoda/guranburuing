@@ -1,0 +1,295 @@
+{
+  "name": "Raid - Agastia (Impossible) 4M Honors",
+  "description": "Agastia (Impossible) / Agastia HL 4,000,000 Honors Blue Chest farmer: Finder Assist (Quest ID 305431, Stage 12072), Light Zeus/Lucifer supporter, EX A Light Party 1 (Deck 191) Kengo Ougi Loop with Kengo (Unsigned Kaneshige) + Yuni + Cagliostro (Grand) + Sahar / Lucio (Grand 5★ Lv100) + Vajra (Light Sub 1) + Mahira (Holiday Sub 2) to sustain multi-turn Ougi burst and secure 4M Blue Chest.",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
+  "mode": "assist",
+  "targetEnemy": "Agastia",
+  "targetRaidQuestId": "305431",
+  "element": "Light",
+  "raidSlot": 1,
+  "targetScore": 4000000,
+  "supporterPriority": [
+    "Zeus",
+    "Lucifer",
+    "Luminiera",
+    "Grand Order"
+  ],
+  "evaluatorStrategy": "farm",
+  "minHpPct": 65,
+  "maxHpPct": 100,
+  "minPlayers": 1,
+  "maxPlayers": 5,
+  "minRaidScore": 20,
+  "adaptive": true,
+  "minBatchClaim": 2,
+  "maxBatchClaim": 4,
+  "speedProfile": "fast",
+  "defaultRuns": 200,
+  "autoBerry": true,
+  "autoElixir": false,
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoSetRaid": true,
+  "steps": [
+    {
+      "code": "wait_element",
+      "name": "Wait for Combat Screen Ready",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Cancel Entry Animation)"
+    },
+    {
+      "code": "wait_element",
+      "name": "Wait for Turn 1 Combat Ready",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "heal",
+      "name": "Use Blue Potion on Turn 1 to Heal Agastia Beam Entry Damage Before Strong Armed",
+      "potionType": "blue",
+      "optional": true
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 1 (Cagliostro Ars Gloria + - +50% Charge Bar Gain & C.A. Specs)",
+      "character": 3,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 3 (Cagliostro Pinnacle of Geometry - Cantrip Can't Act & Dispel)",
+      "character": 3,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 2 (MC Pandemonium - +50% Charge Bar Gain & Guaranteed TA)",
+      "character": 1,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 3 (MC Miserable Mist - 25% ATK/DEF Down)",
+      "character": 1,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 2 Skill 1 (Yuni Revitalise - +23% Boosted Party Charge Bar, Heal & Wish)",
+      "character": 2,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 1 (MC One with the Blade + - Boosted Charge Bar to 200%)",
+      "character": 1,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1 (Sahar / Lucio Walls of Babylon ++ - 2,000 Shield, Strength & Revitalize)",
+      "character": 4,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 2 (Sahar / Lucio Out of the Ashes ++ - 8-Hit Light Nuke)",
+      "character": 4,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 3 (Sahar / Lucio Awakenings - Guaranteed TA & 90% Light Echo)",
+      "character": 4,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "summon",
+      "name": "Summon Slot 6 (Supporter Zeus / Lucifer - 3,000 Shield / Heal & Light Nuke)",
+      "slot": 6,
+      "optional": true,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "code": "attack",
+      "name": "Execute Turn 1 200% MC Double Ougi 5-Chain Burst",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Turn 1 Animation Cancel)"
+    },
+    {
+      "code": "exit_if_score",
+      "name": "Exit Early if 4,000,000 Honors Reached",
+      "targetScore": 4000000
+    },
+    {
+      "code": "repeat",
+      "name": "Kengo Ougi Loop Until 4,000,000 Honors (Turns 2-20)",
+      "repeatCount": 19,
+      "subSteps": [
+        {
+          "code": "wait_element",
+          "name": "Wait for Next Turn Combat Ready",
+          "target": ".btn-attack-start",
+          "timeoutMs": 8000
+        },
+        {
+          "code": "heal",
+          "name": "Use Blue Potion if Party Damaged & Not Zombified",
+          "potionType": "blue",
+          "optional": true
+        },
+        {
+          "code": "skill",
+          "name": "Character 3 Skill 1 (Cagliostro Ars Gloria + / Slot 3 S1)",
+          "character": 3,
+          "skill": 1,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 3 Skill 2 (Cagliostro Endymion + / Slot 3 S2)",
+          "character": 3,
+          "skill": 2,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 1 Skill 2 (MC Pandemonium / Slot 1 S2)",
+          "character": 1,
+          "skill": 2,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 1 Skill 3 (MC Miserable Mist / Slot 1 S3)",
+          "character": 1,
+          "skill": 3,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 2 Skill 1 (Yuni Revitalise / Slot 2 S1)",
+          "character": 2,
+          "skill": 1,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 2 Skill 2 (Yuni Logos / Slot 2 S2)",
+          "character": 2,
+          "skill": 2,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 1 Skill 1 (MC One with the Blade + / Slot 1 S1)",
+          "character": 1,
+          "skill": 1,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 4 Skill 1 (Sahar / Lucio Walls of Babylon ++ / Slot 4 S1)",
+          "character": 4,
+          "skill": 1,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 4 Skill 2 (Sahar / Lucio Out of the Ashes ++ / Slot 4 S2)",
+          "character": 4,
+          "skill": 2,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "skill",
+          "name": "Character 4 Skill 3 (Sahar / Lucio Awakenings / Slot 4 S3)",
+          "character": 4,
+          "skill": 3,
+          "optional": true,
+          "waitForNetwork": "ability_result.json"
+        },
+        {
+          "code": "summon",
+          "name": "Summon Slot 2 (Lucifer 5★ Lv200 - 3,000 HP Heal & +30% ATK)",
+          "slot": 2,
+          "optional": true,
+          "waitForNetwork": "summon_result.json"
+        },
+        {
+          "code": "summon",
+          "name": "Summon Slot 1 (Main Zeus 6★ Lv210 - 3,000 HP Shield & Light Nuke)",
+          "slot": 1,
+          "optional": true,
+          "waitForNetwork": "summon_result.json"
+        },
+        {
+          "code": "summon",
+          "name": "Summon Slot 5 (The Star 5★ Lv200 - Divinity +30% Unique ATK & Multiattack)",
+          "slot": 5,
+          "optional": true,
+          "waitForNetwork": "summon_result.json"
+        },
+        {
+          "code": "summon",
+          "name": "Summon Slot 3 (Metatron 4★ Lv150 - Dispel & Light Buffs)",
+          "slot": 3,
+          "optional": true,
+          "waitForNetwork": "summon_result.json"
+        },
+        {
+          "code": "attack",
+          "name": "Execute Kengo Ougi Loop Attack",
+          "waitForNetwork": "normal_attack_result.json"
+        },
+        {
+          "code": "reload",
+          "name": "Reload F5 (Post-Turn Animation Cancel)"
+        },
+        {
+          "code": "exit_if_score",
+          "name": "Exit Early if 4,000,000 Honors Reached",
+          "targetScore": 4000000
+        }
+      ]
+    },
+    {
+      "code": "confirm_result",
+      "name": "Confirm Battle Result & Rerun"
+    }
+  ]
+}

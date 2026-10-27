@@ -160,13 +160,14 @@ export class ScreenDiagnosticService {
         };
       }
 
-      // Priority 4: 5-Pending Battles Limit
+      // Priority 4: 5-Pending Battles Limit (Strict check against genuinely active popup)
       if (
-        lower.includes('pending') ||
-        lower.includes('unclaimed') ||
-        rawText.includes('未確認') ||
-        lower.includes('five or more') ||
-        rawText.includes('5件')
+        screenInfo.hasPopup &&
+        (lower.includes('pending') ||
+          lower.includes('unclaimed') ||
+          rawText.includes('未確認') ||
+          lower.includes('five or more') ||
+          rawText.includes('5件'))
       ) {
         return {
           condition: 'PENDING_BATTLES_LIMIT',

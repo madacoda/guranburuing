@@ -471,6 +471,20 @@ export class CdpConnectionManager {
           deviceScaleFactor: 1
         }).catch(() => null);
       }
+
+      // 3. Headless / Production CDP Audio Stream Diet:
+      // Blocks non-essential WebAudio stream downloads (.mp3/.ogg/.wav/.m4a) at the network layer
+      // so Chromium never allocates audio decode buffers, while keeping all images/CAPTCHAs intact.
+      if ((config.HEADLESS || config.isProduction) && typeof (page as any).createCDPSession === 'function') {
+        const client = await page.createCDPSession().catch(() => null);
+        if (client) {
+          await client.send('Network.enable').catch(() => null);
+          await client.send('Network.setBlockedURLs', {
+            urls: ['*.mp3', '*.ogg', '*.wav', '*.m4a', '*/assets/sound/*']
+          }).catch(() => null);
+          await client.detach().catch(() => null);
+        }
+      }
     } catch (e: any) {
       console.warn('[CDP] Environment optimization notice:', e.message);
     }

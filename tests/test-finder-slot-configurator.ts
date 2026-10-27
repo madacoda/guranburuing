@@ -110,6 +110,8 @@ const tab1AssistTemplates = [
   'raid-empyreal-ascension.json',
   'raid-fediel.json',
   'raid-long-live-the-king.json',
+  'raid-seofon.json',
+  'raid-agastia.json',
   'raid-the-fallen-angel-of-cunning.json',
   'raid-the-world.json',
   'raid-wilnas.json'
@@ -375,6 +377,11 @@ const mockPageMatch: any = {
   const faaHardSpec = buildRaidCardFilterSpec('Dark Rapture (Hard)');
   assert(matchesRaidCardFilter('Dark Rapture (Hard)', '', faaHardSpec), 'Must accept Dark Rapture (Hard)');
   assert(!matchesRaidCardFilter('Dark Rapture (Zero)', '', faaHardSpec), 'Must reject Dark Rapture (Zero) when targeting Hard');
+
+  const agastiaSpec = buildRaidCardFilterSpec('Agastia');
+  assert.strictEqual(agastiaSpec.targetQuestId, '305431', 'Agastia filterSpec must resolve questId 305431');
+  assert(matchesRaidCardFilter('Agastia (Impossible)', 'https://game.granbluefantasy.jp/assets/305431.png', agastiaSpec), 'Must accept matching Agastia (305431) card');
+  assert(!matchesRaidCardFilter('Seofon (Impossible)', 'https://game.granbluefantasy.jp/assets/305411.png', agastiaSpec), 'Must reject Seofon (305411) card when targeting Agastia');
 
   console.log('  ✅ [PASS] Universal cross-slot contamination filter verified across all 49 catalog raids.');
 

@@ -454,3 +454,26 @@ The hygiene script (`scripts/verify-hygiene.ts`) automatically audits all tracke
 - Private cryptographic keys (`.pem`, `.key`)
 - `.gitignore` rule completeness
 
+---
+
+## 9. Emergency Scheduler Kill & Dual-Node Audit Protocol (Mandatory Rules)
+
+Whenever the user requests to **"stop the scheduler"**, **"stop background jobs"**, **"check prod"**, or reports unexpected account activity (e.g. *"my acc is opening raids by itself"*):
+
+### 1. Dual-Node Inspection is Strictly Mandatory:
+This codebase operates in a dual-node topology (Local Windows Development Machine + Remote Linux VPS running PM2):
+- **NEVER** assume the system is stopped based solely on local Windows process checks.
+- **ALWAYS** check the remote VPS state (`pm2 status`, `pm2 logs`) via SSH using `VPS_IP` from `.env`.
+- To completely stop all schedulers and background tasks:
+  1. **Local**: Ensure no background `bun` runners or CLI tasks are active.
+  2. **VPS**: Execute `pm2 stop gbf-controller && pm2 save` to halt the Discord Gateway & `DailyResetScheduler` daemon and prevent automatic reboot revival.
+
+### 2. Unconditional Ground-Truth User Reporting:
+If the user reports that their account is performing an action (e.g. hosting Galleon, farming PBHL, spending tokens/AP):
+- **Believe the user unconditionally**. It is never a hallucination or glitch.
+- Use critical thinking to trace all possible triggers: check live game state via CDP (`init_list`, `hold_raid`), check local processes, and check remote VPS PM2 processes immediately.
+
+### 3. Transparent Command Announcements:
+- **ALWAYS announce any command before executing it**. Clearly inform the operator of what command is being executed, on which machine (local vs VPS), and why.
+
+

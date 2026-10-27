@@ -18,6 +18,9 @@ export interface CommandGatewayOptions {
 export class DiscordCommandGatewayService {
   private isRunning = false;
   private ws: WebSocket | null = null;
+  private isGatewayHealthy = false;
+  private lastGatewayEventAt = 0;
+  private lastFallbackPollAt = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private dmChannelId: string | null = null;
@@ -120,11 +123,13 @@ export class DiscordCommandGatewayService {
       };
 
       this.ws.onerror = (err) => {
+        this.isGatewayHealthy = false;
         console.warn(`[CommandGateway] Gateway WebSocket error:`, err);
       };
 
       this.ws.onclose = (event) => {
         console.log(`[CommandGateway] 🔌 Gateway closed (code ${event.code}). Cleaning up...`);
+        this.isGatewayHealthy = false;
         this.clearHeartbeat();
         if (this.isRunning) {
           // Reconnect with exponential backoff
@@ -169,15 +174,28 @@ export class DiscordCommandGatewayService {
 
     // Opcode 11: Heartbeat ACK
     if (op === 11) {
-      // Heartbeat acknowledged
+      this.isGatewayHealthy = true;
+      this.lastGatewayEventAt = Date.now();
+    }
+
+    // Event: READY / RESUMED -> Gateway session active, run a single catch-up poll
+    if (op === 0 && (t === 'READY' || t === 'RESUMED')) {
+      this.isGatewayHealthy = true;
+      this.lastGatewayEventAt = Date.now();
+      await this.pollDmMessagesOnce();
     }
 
     // Event: MESSAGE_CREATE
     if (op === 0 && t === 'MESSAGE_CREATE') {
+      this.isGatewayHealthy = true;
+      this.lastGatewayEventAt = Date.now();
       const msg = d;
-      // Gateway trigger: fetch latest message via REST to get full content and execute
       if (msg.channel_id === this.dmChannelId && msg.author?.id === config.DISCORD_USER_ID) {
-        await this.processMessageById(msg.id);
+        if (typeof msg.content === 'string' && msg.content.length > 0) {
+          await this.handleOperatorMessage(msg as DiscordMessageResponse);
+        } else {
+          await this.processMessageById(msg.id);
+        }
       }
     }
   }
@@ -202,34 +220,57 @@ export class DiscordCommandGatewayService {
   }
 
   /**
-   * Resilient REST Polling Loop for the operator's DM channel.
+   * Executes a single REST DM history check.
+   */
+  private async pollDmMessagesOnce(): Promise<void> {
+    if (!this.isRunning || !this.dmChannelId) return;
+    try {
+      this.lastFallbackPollAt = Date.now();
+      const url = `${this.baseUrl}/channels/${this.dmChannelId}/messages?limit=5`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bot ${config.DISCORD_BOT_TOKEN}` }
+      });
+
+      if (!res.ok) return;
+
+      const messages = (await res.json()) as DiscordMessageResponse[];
+      if (!Array.isArray(messages)) return;
+
+      // Process oldest to newest
+      const validMessages = messages
+        .filter(m => m.author.id === config.DISCORD_USER_ID && !m.author.bot && !this.processedMessageIds.has(m.id))
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+      for (const msg of validMessages) {
+        await this.handleOperatorMessage(msg);
+      }
+    } catch {
+      // Silently continue on transient network hiccups
+    }
+  }
+
+  /**
+   * Gateway-Aware Adaptive REST Polling Loop for the operator's DM channel.
+   * Suppresses redundant 2.5s HTTP requests while the Gateway WebSocket is healthy (saving ~34,560 HTTPS calls/day),
+   * and automatically activates 2.5s fast-polling if the Gateway WebSocket disconnects or stalls.
    */
   private startRestPolling(intervalMs: number): void {
     this.pollTimer = setInterval(async () => {
       if (!this.isRunning || !this.dmChannelId) return;
 
-      try {
-        const url = `${this.baseUrl}/channels/${this.dmChannelId}/messages?limit=5`;
-        const res = await fetch(url, {
-          headers: { Authorization: `Bot ${config.DISCORD_BOT_TOKEN}` }
-        });
+      const now = Date.now();
+      const wsHealthy =
+        this.isGatewayHealthy &&
+        this.ws !== null &&
+        this.ws.readyState === WebSocket.OPEN &&
+        now - this.lastGatewayEventAt < 90_000;
 
-        if (!res.ok) return;
-
-        const messages = (await res.json()) as DiscordMessageResponse[];
-        if (!Array.isArray(messages)) return;
-
-        // Process oldest to newest
-        const validMessages = messages
-          .filter(m => m.author.id === config.DISCORD_USER_ID && !m.author.bot && !this.processedMessageIds.has(m.id))
-          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-        for (const msg of validMessages) {
-          await this.handleOperatorMessage(msg);
-        }
-      } catch (err: any) {
-        // Silently continue polling on transient network hiccups
+      // When Gateway WebSocket is healthy, only perform a low-frequency 60s safety reconciliation check
+      if (wsHealthy && now - this.lastFallbackPollAt < 60_000) {
+        return;
       }
+
+      await this.pollDmMessagesOnce();
     }, intervalMs);
   }
 

@@ -1,4 +1,5 @@
 // src/engines/raid-evaluator.ts
+import { rustBridge } from '../core/rust-bridge.js';
 
 export type RaidGrade = 'S+' | 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
 export type RaidEvaluatorStrategy = 'honor' | 'otk_burst' | 'leech' | 'farm';
@@ -183,6 +184,11 @@ export class RaidVelocityTracker {
       };
     }
 
+    const nativeVelocity = rustBridge.recordRaidVelocity(raidId, hpPct, players, now, this.ttlMs);
+    if (nativeVelocity !== null && this.maxEntries === 500) {
+      return nativeVelocity;
+    }
+
     this.prune(now);
 
     const existing = this.entries.get(raidId);
@@ -226,6 +232,10 @@ export class RaidVelocityTracker {
   }
 
   public static getMetrics(raidId: string, now = Date.now()): RaidVelocityMetrics | undefined {
+    const nativeMetrics = rustBridge.getRaidVelocity(raidId, now, this.ttlMs);
+    if (nativeMetrics !== null && this.maxEntries === 500) {
+      return nativeMetrics;
+    }
     const entry = this.entries.get(raidId);
     if (!entry) return undefined;
     if (now - entry.lastSeenAt > this.ttlMs) {
@@ -278,10 +288,15 @@ export class RaidVelocityTracker {
   }
 
   public static clear(): void {
+    rustBridge.clearRaidVelocity();
     this.entries.clear();
   }
 
   public static size(): number {
+    const nativeSize = rustBridge.getRaidVelocitySize();
+    if (nativeSize !== null && this.maxEntries === 500 && this.entries.size === 0) {
+      return nativeSize;
+    }
     return this.entries.size;
   }
 }

@@ -140,10 +140,12 @@ export class FinderSlotConfiguratorService {
       }
     }
 
-    // Wait briefly for slot switches or search setting button to be rendered in the DOM
+    // Wait briefly for slot switches and slot display thumbnails to be rendered in the DOM
     await page.waitForFunction((s: number) => {
-      const el = document.querySelector(`.btn-search-switch.slot${s}, [data-slot="${s}"], .prt-search-switch-display.slot${s}, .btn-search-setting`);
-      return !!el;
+      const ajaxIdle = (window as any).$ ? (window as any).$.active === 0 : true;
+      const displayEl = document.querySelector(`.prt-search-switch-display.slot${s} .img-quest, .prt-search-switch-display.slot${s}`);
+      const el = document.querySelector(`.btn-search-switch.slot${s}, [data-slot="${s}"], .btn-search-setting`);
+      return ajaxIdle && !!(displayEl || el);
     }, { timeout: 3500 }, slot).catch(() => null);
 
     // 3. Inspect currently configured raid in the slot
@@ -210,6 +212,36 @@ export class FinderSlotConfiguratorService {
       this.verifiedSlots.set(slot, target.questId);
       await this.activateSlot(page, slot);
       return true;
+    }
+
+    // 4.5. If the target raid is ALREADY assigned to another filter slot (e.g. Slot 2),
+    // GBF disables selecting it for our target slot (.selected-other / "In Use: Filter X").
+    // Release any conflicting other slot via .btn-release[data-slot] first!
+    const releasedOtherSlots = await page.evaluate((targetSlot: number, qId: string) => {
+      const slotBtns = Array.from(document.querySelectorAll('.pop-search-setting .btn-select-search-slot')) as HTMLElement[];
+      const released: string[] = [];
+      for (const btn of slotBtns) {
+        const s = btn.getAttribute('data-slot') || btn.dataset?.slot;
+        if (!s || Number(s) === targetSlot) continue;
+        const img = btn.querySelector('img') as HTMLImageElement;
+        const src = img?.src || '';
+        const attrId = btn.getAttribute('data-quest-id') || btn.dataset?.questId || '';
+        if (src.includes(`/${qId}.png`) || src.includes(`_${qId}.png`) || attrId === qId) {
+          const relBtn = document.querySelector(`.pop-search-setting .btn-release[data-slot="${s}"]`) as HTMLElement;
+          if (relBtn) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(relBtn).trigger('tap');
+            relBtn.click();
+            released.push(s);
+          }
+        }
+      }
+      return released;
+    }, slot, target.questId).catch(() => [] as string[]);
+
+    if (Array.isArray(releasedOtherSlots) && releasedOtherSlots.length > 0) {
+      console.log(`[FinderConfigurator] 🔓 Released ${target.name} (${target.questId}) from conflicting Filter Slot(s) [${releasedOtherSlots.join(', ')}] so Slot ${slot} can claim it.`);
+      await logNormalDelay(450, 0.1);
     }
 
     // 5. Select target slot in modal (.btn-select-search-slot[data-slot="${slot}"])
@@ -279,7 +311,7 @@ export class FinderSlotConfiguratorService {
 
     // 9. Select target raid within .pop-search-target-quest
     console.log(`[FinderConfigurator] Selecting raid: ${target.name} (${target.questId})...`);
-    const questClicked = await page.evaluate((qId: string, qName: string) => {
+    let questClickState = await page.evaluate((qId: string, qName: string) => {
       const quests = Array.from(document.querySelectorAll('.pop-search-target-quest .btn-select-quest')) as HTMLElement[];
       const match = quests.find(q => {
         const img = q.querySelector('img') as HTMLImageElement;
@@ -290,14 +322,86 @@ export class FinderSlotConfiguratorService {
         return src.includes(`/${qId}.png`) || name.includes(qName.toLowerCase()) || qName.toLowerCase().includes(name);
       });
 
-      if (match) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(match).trigger('tap');
-        match.click();
-        return true;
+      if (!match) return { found: false, selectedOtherSlot: null as string | null };
+
+      if (match.className && match.className.includes('selected-other')) {
+        const otherTxt = match.querySelector('.txt-selected-other')?.textContent || '';
+        const m = otherTxt.match(/(\d+)/);
+        return { found: true, alreadyActive: false, selectedOtherSlot: m ? m[1] : 'other' };
       }
-      return false;
+
+      if (match.className && match.className.split(/\s+/).includes('active')) {
+        return { found: true, alreadyActive: true, selectedOtherSlot: null as string | null };
+      }
+
+      const $ = (window as any).$ || (window as any).Zepto;
+      if ($) $(match).trigger('tap');
+      match.click();
+      return { found: true, alreadyActive: false, selectedOtherSlot: null as string | null };
     }, target.questId, target.name);
+
+    // Fallback: if quest was still marked .selected-other ("In Use: Filter X"), close target quest modal,
+    // release the conflicting slot in .pop-search-setting, re-select our slot, and re-open the stage!
+    if (questClickState && typeof questClickState === 'object' && questClickState.selectedOtherSlot) {
+      const conflictSlot = questClickState.selectedOtherSlot;
+      console.log(`[FinderConfigurator] 🔓 Raid is marked 'In Use: Filter ${conflictSlot}'. Releasing Filter ${conflictSlot} and retrying...`);
+      await this.dismissTargetQuestModal(page);
+      await logNormalDelay(450, 0.1);
+
+      await page.evaluate((cSlot: string, targetSlot: number) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        const relBtn = document.querySelector(`.pop-search-setting .btn-release[data-slot="${cSlot}"]`) as HTMLElement;
+        if (relBtn) {
+          if ($) $(relBtn).trigger('tap');
+          relBtn.click();
+        }
+        const slotBtn = document.querySelector(`.pop-search-setting .btn-select-search-slot[data-slot="${targetSlot}"]`) as HTMLElement;
+        if (slotBtn) {
+          if ($) $(slotBtn).trigger('tap');
+          slotBtn.click();
+        }
+      }, conflictSlot, slot).catch(() => null);
+      await logNormalDelay(450, 0.1);
+
+      await page.evaluate((sid: string) => {
+        const stageBtn = document.querySelector(`.btn-search-stage[data-stage-id="${sid}"]`) as HTMLElement;
+        if (stageBtn) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(stageBtn).trigger('tap');
+          stageBtn.click();
+        }
+      }, target.stageId).catch(() => null);
+
+      await page.waitForFunction(() => {
+        const pop = document.querySelector('.pop-search-target-quest');
+        return pop && (pop as HTMLElement).offsetParent !== null;
+      }, { timeout: 6000 }).catch(() => null);
+      await logNormalDelay(400, 0.1);
+
+      questClickState = await page.evaluate((qId: string, qName: string) => {
+        const quests = Array.from(document.querySelectorAll('.pop-search-target-quest .btn-select-quest')) as HTMLElement[];
+        const match = quests.find(q => {
+          const img = q.querySelector('img') as HTMLImageElement;
+          const nameEl = q.querySelector('.txt-quest-name') as HTMLElement;
+          const src = img?.src || '';
+          const name = (nameEl?.textContent || q.textContent || '').trim().toLowerCase();
+          return src.includes(`/${qId}.png`) || name.includes(qName.toLowerCase()) || qName.toLowerCase().includes(name);
+        });
+        if (match) {
+          if (match.className && match.className.split(/\s+/).includes('active')) {
+            return { found: true, alreadyActive: true, selectedOtherSlot: null };
+          }
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(match).trigger('tap');
+          match.click();
+          return { found: true, alreadyActive: false, selectedOtherSlot: null };
+        }
+        return { found: false, alreadyActive: false, selectedOtherSlot: null };
+      }, target.questId, target.name);
+    }
+
+    const questClicked = typeof questClickState === 'boolean' ? questClickState : Boolean(questClickState?.found && !questClickState?.selectedOtherSlot);
+    const wasAlreadyActiveInPopup = typeof questClickState === 'object' && Boolean(questClickState?.alreadyActive);
 
     if (!questClicked) {
       console.warn(`[FinderConfigurator] ⚠️ Target raid [${target.name} (${target.questId})] not found in quest list.`);
@@ -307,23 +411,27 @@ export class FinderSlotConfiguratorService {
     }
     await logNormalDelay(400, 0.1);
 
-    // 10. Click OK in .pop-search-target-quest
-    const okClicked = await page.evaluate(() => {
-      const okBtn = document.querySelector('.pop-search-target-quest .btn-usual-ok') as HTMLElement;
-      if (okBtn && okBtn.offsetParent !== null && !okBtn.classList.contains('hide')) {
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(okBtn).trigger('tap');
-        okBtn.click();
-        return true;
-      }
-      return false;
-    });
-
-    if (!okClicked) {
-      console.warn('[FinderConfigurator] ⚠️ Could not confirm raid selection (OK button not clickable).');
+    // 10. Click OK in .pop-search-target-quest (or close if already active in slot)
+    if (wasAlreadyActiveInPopup) {
       await this.dismissTargetQuestModal(page);
-      await this.dismissSettingModal(page);
-      return false;
+    } else {
+      const okClicked = await page.evaluate(() => {
+        const okBtn = document.querySelector('.pop-search-target-quest .btn-usual-ok') as HTMLElement;
+        if (okBtn && okBtn.offsetParent !== null && !okBtn.classList.contains('hide')) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(okBtn).trigger('tap');
+          okBtn.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!okClicked) {
+        console.warn('[FinderConfigurator] ⚠️ Could not confirm raid selection (OK button not clickable).');
+        await this.dismissTargetQuestModal(page);
+        await this.dismissSettingModal(page);
+        return false;
+      }
     }
 
     // Wait for target quest popup to close

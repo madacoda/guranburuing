@@ -1071,7 +1071,7 @@ export class DreadBarrageEngine {
         };
       }
 
-      // If on gacha_result or gacha_action, return or click draw again
+      // If on gacha_result, gacha_action, or gacha_lineup, return to #event/teamforce/gacha
       const stepOutcome = await this.page.evaluate((sels) => {
         const $ = (window as any).$ || (window as any).Zepto;
         const tap = (el: HTMLElement | null) => {
@@ -1087,16 +1087,44 @@ export class DreadBarrageEngine {
         const tokens = tokenText && /^\d+$/.test(tokenText) ? parseInt(tokenText, 10) : null;
 
         // 1. Confirm reset modal if open
-        const resetConfirmOk = document.querySelector(sels.GACHA_RESET_CONFIRM_OK) as HTMLElement | null;
+        const resetConfirmOk = document.querySelector(
+          `${sels.GACHA_RESET_CONFIRM_OK}, .pop-reset-confirm .btn-usual-ok, .pop-reset .btn-usual-ok`
+        ) as HTMLElement | null;
         if (tap(resetConfirmOk)) return { action: 'RESET_CONFIRMED', tokens };
 
-        const resetDoneOk = document.querySelector(sels.GACHA_RESET_DONE_OK) as HTMLElement | null;
+        const resetDoneOk = document.querySelector(
+          `${sels.GACHA_RESET_DONE_OK}, .pop-reset .btn-usual-ok, .pop-usual-ok`
+        ) as HTMLElement | null;
         if (tap(resetDoneOk)) return { action: 'RESET_DONE', tokens };
 
-        const genericPopupOk = document.querySelector('.pop-usual .btn-usual-ok') as HTMLElement | null;
+        const genericPopupOk = document.querySelector(
+          '.pop-usual:not(.pop-error) .btn-usual-ok, .pop-draw-result .btn-usual-ok'
+        ) as HTMLElement | null;
         if (tap(genericPopupOk)) return { action: 'POPUP_OK', tokens };
 
-        // 2. Priority: Bulk Box Play -> Use All -> Bulk Play -> Single Play
+        // 2. If on gacha_lineup or result screen, click Token Draw button or navigate
+        if (
+          window.location.hash.includes('gacha_lineup') ||
+          window.location.hash.includes('gacha_result') ||
+          window.location.hash.includes('gacha_action')
+        ) {
+          const toGachaBtn = document.querySelector(
+            '.btn-event-gacha, .btn-link-gacha, a[href*="teamforce/gacha"]'
+          ) as HTMLElement | null;
+          if (tap(toGachaBtn)) return { action: 'RETURN_TO_GACHA', tokens };
+          window.location.hash = '#event/teamforce/gacha';
+          return { action: 'RETURN_TO_GACHA', tokens };
+        }
+
+        // 3. Reset box if available (target item drawn or box emptied)
+        const resetBtn = document.querySelector(
+          `${sels.GACHA_RESET_BTN}, .btn-reset:not(.disable), .btn-box-reset:not(.disable)`
+        ) as HTMLElement | null;
+        if (resetBtn && !resetBtn.classList.contains('disable') && resetBtn.offsetParent !== null) {
+          if (tap(resetBtn)) return { action: 'RESET_INITIATED', tokens };
+        }
+
+        // 4. Priority: Bulk Box Play -> Use All -> Bulk Play -> Single Play
         const bulkBoxBtn = document.querySelector(sels.GACHA_BULK_BOX_BTN) as HTMLElement | null;
         if (tap(bulkBoxBtn)) return { action: 'BULK_BOX_DRAW', tokens };
 
@@ -1109,15 +1137,8 @@ export class DreadBarrageEngine {
         const playBtn = document.querySelector(sels.GACHA_PLAY_BTN) as HTMLElement | null;
         if (tap(playBtn)) return { action: 'SINGLE_DRAW', tokens };
 
-        // 3. Reset box if draw buttons are disabled and reset is available
-        const resetBtn = document.querySelector(sels.GACHA_RESET_BTN) as HTMLElement | null;
+        // Fallback reset check
         if (tap(resetBtn)) return { action: 'RESET_INITIATED', tokens };
-
-        // 4. If on gacha_result, return to #event/teamforce/gacha
-        if (window.location.hash.includes('gacha_result') || window.location.hash.includes('gacha_action')) {
-          window.location.hash = '#event/teamforce/gacha';
-          return { action: 'RETURN_TO_GACHA', tokens };
-        }
 
         return { action: 'NONE', tokens };
       }, DREAD_BARRAGE_SELECTORS).catch(() => ({ action: 'NONE', tokens: null }));
@@ -1127,7 +1148,41 @@ export class DreadBarrageEngine {
       }
 
       if (stepOutcome.action === 'NONE') {
-        break;
+        const curHash = await this.page.evaluate(() => window.location.hash).catch(() => '');
+        if (!curHash.endsWith('#event/teamforce/gacha')) {
+          await this.page.evaluate(() => {
+            window.location.hash = '#event/teamforce/gacha';
+          }).catch(() => null);
+          await this.sleep(1200);
+          continue;
+        }
+
+        // If on gacha and tokens < 2, truly depleted
+        if (tokensRemaining !== null && tokensRemaining < 2) {
+          break;
+        }
+
+        // Wait up to 2 seconds for animation or DOM to settle
+        await this.sleep(1500);
+        const retryOutcome = await this.page.evaluate((sels) => {
+          const $ = (window as any).$ || (window as any).Zepto;
+          const tokenEl = document.querySelector(sels.GACHA_TOKEN_COUNT);
+          const tokenText = tokenEl?.textContent?.replace(/,/g, '').trim() || '';
+          const tokens = tokenText && /^\d+$/.test(tokenText) ? parseInt(tokenText, 10) : null;
+          const activeBtn = document.querySelector(
+            '.btn-bulk-play-box:not(.disable), .btn-use-all:not(.disable), .btn-bulk-play:not(.disable), .btn-play:not(.disable), .btn-reset:not(.disable)'
+          );
+          return { hasActiveBtn: !!activeBtn, tokens };
+        }, DREAD_BARRAGE_SELECTORS).catch(() => ({ hasActiveBtn: false, tokens: null }));
+
+        if (retryOutcome.tokens !== null) {
+          tokensRemaining = retryOutcome.tokens;
+        }
+
+        if (!retryOutcome.hasActiveBtn) {
+          break;
+        }
+        continue;
       }
 
       if (

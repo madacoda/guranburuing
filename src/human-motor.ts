@@ -1,6 +1,7 @@
 // src/human-motor.ts
 import { Page, ElementHandle } from 'puppeteer-core';
 import { config } from './config.js';
+import { rustBridge } from './core/rust-bridge.js';
 
 export interface Point {
   x: number;
@@ -54,6 +55,10 @@ let spareGaussian = 0;
  * with spare variate caching.
  */
 export function sampleGaussian(mean = 0, stdDev = 1): number {
+  const nativeVal = rustBridge.sampleGaussian(mean, stdDev);
+  if (nativeVal !== null) {
+    return nativeVal;
+  }
   if (hasSpareGaussian) {
     hasSpareGaussian = false;
     return mean + spareGaussian * stdDev;
@@ -75,6 +80,17 @@ export function sampleGaussian(mean = 0, stdDev = 1): number {
  * @param shape The shape parameter sigma (typically 0.20 - 0.35).
  */
 export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<void> {
+  const nativeDuration = rustBridge.sampleLogNormalDelay(
+    medianMs,
+    shape,
+    currentSpeedProfile,
+    Boolean(config.isProduction)
+  );
+  if (nativeDuration !== null) {
+    await new Promise(resolve => setTimeout(resolve, nativeDuration));
+    return;
+  }
+
   let effectiveMedian = medianMs;
   let allowHesitation = false;
 
@@ -191,6 +207,10 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
  * Evaluates a cubic Bézier curve at parameter t in [0, 1].
  */
 export function evaluateCubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+  const nativePt = rustBridge.evaluateCubicBezier(p0, p1, p2, p3, t);
+  if (nativePt !== null) {
+    return nativePt;
+  }
   const u = 1 - t;
   const tt = t * t;
   const uu = u * u;
@@ -214,6 +234,24 @@ export async function moveMouseSmoothly(page: Page, target: Point): Promise<void
 
   if (distance < 4 || currentSpeedProfile === 'turbo') {
     await page.mouse.move(target.x, target.y);
+    setPageCursorPos(page, { ...target });
+    return;
+  }
+
+  if (typeof page.mouse?.move !== 'function') {
+    setPageCursorPos(page, { ...target });
+    return;
+  }
+
+  const nativeTrajectory = rustBridge.computeBezierTrajectory(start, target, currentSpeedProfile);
+  if (nativeTrajectory !== null) {
+    for (let i = 0; i < nativeTrajectory.length; i++) {
+      const step = nativeTrajectory[i];
+      await page.mouse.move(step.x, step.y);
+      if (step.delayMs > 0) {
+        await new Promise(r => setTimeout(r, step.delayMs));
+      }
+    }
     setPageCursorPos(page, { ...target });
     return;
   }
@@ -307,6 +345,10 @@ export async function humanReactionDelay(baseMs = 320, shape = 0.22): Promise<vo
  * Samples a natural click coordinate within the inner portion of an element using a 2D Gaussian.
  */
 export function sampleTargetCoordinate(box: BoundingBox): Point {
+  const nativePt = rustBridge.sampleTargetCoordinate(box);
+  if (nativePt !== null) {
+    return nativePt;
+  }
   const sigmaX = box.width / 5.5;
   const sigmaY = box.height / 5.5;
 

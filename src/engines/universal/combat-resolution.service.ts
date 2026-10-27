@@ -155,6 +155,16 @@ export class CombatResolutionService {
           return true;
         }
 
+        // 1b. Party wipe check: if all player characters (frontline + sub) are at 0 HP
+        const rawPlayers = gStatus?.player?.param || pJsn?.player?.param;
+        const players = Array.isArray(rawPlayers) ? rawPlayers : (rawPlayers ? Object.values(rawPlayers) : []);
+        if (players.length > 0) {
+          const anyPlayerAlive = players.some((p: any) => p && Number(p.hp) > 0 && p.alive !== 0);
+          if (!anyPlayerAlive) {
+            return true;
+          }
+        }
+
         // 2. Multi-wave awareness:
         // In multi-wave quests (e.g. Slime Search: 2 battles, Angel Halo: 3 battles),
         // battle 1 boss dying does NOT conclude the overall quest!
@@ -236,7 +246,7 @@ export class CombatResolutionService {
         const stage = (window as any).stage;
         const pJsn = stage?.pJsnData;
         const gStatus = stage?.gGameStatus;
-        const rawBoss = pJsn?.boss?.param || pJsn?.boss || stage?.gEnemyStatus || gStatus?.boss?.param || gStatus?.boss;
+        const rawBoss = gStatus?.boss?.param || gStatus?.boss || stage?.gEnemyStatus || pJsn?.boss?.param || pJsn?.boss;
         const bosses = Array.isArray(rawBoss) ? rawBoss : (rawBoss?.param && Array.isArray(rawBoss.param) ? rawBoss.param : Object.values(rawBoss || {}));
 
         if (bosses.length > 0) {
@@ -338,12 +348,18 @@ export class CombatResolutionService {
         }
         if (cjs?.Tween?.tick) cjs.Tween.tick(2000, false);
 
+        const stage = (window as any).stage;
+        const pJsn = stage?.pJsnData;
+        const gStatus = stage?.gGameStatus;
+
         if (manual) {
           const autoBtn = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-          if (autoBtn && (autoBtn.classList.contains('display-on') || autoBtn.classList.contains('active') || autoBtn.classList.contains('full'))) {
+          const isAutoActive = gStatus?.auto_attack === 1 || gStatus?.auto_attack === true ||
+            (autoBtn && (autoBtn.classList.contains('active') || autoBtn.classList.contains('btn-auto-active')));
+          if (autoBtn && isAutoActive) {
             const $ = (window as any).$ || (window as any).Zepto;
             if ($) $(autoBtn).trigger('tap');
-            autoBtn.click();
+            else autoBtn.click();
           }
         } else {
           const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start');
@@ -354,9 +370,13 @@ export class CombatResolutionService {
           }
         }
 
-        const stage = (window as any).stage;
-        const pJsn = stage?.pJsnData;
-        const gStatus = stage?.gGameStatus;
+        // Ensure Charge Attack is set to Auto/ON (.lock0) rather than Hold/OFF (.lock1)
+        const lockBtn = document.querySelector('.btn-lock.lock1') as HTMLElement;
+        if (lockBtn && lockBtn.offsetParent !== null) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(lockBtn).trigger('tap');
+          lockBtn.click();
+        }
 
         // 1. Verify stage data has populated real boss information
         const firstBoss = pJsn?.boss?.param?.[0];
@@ -407,11 +427,15 @@ export class CombatResolutionService {
   public async cancelFullAutoAndActionQueue(): Promise<void> {
     try {
       await this.page.evaluate(() => {
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
         const auto = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-        if (auto && (auto.classList.contains('display-on') || auto.classList.contains('active') || auto.classList.contains('full'))) {
+        const isAutoActive = gStatus?.auto_attack === 1 || gStatus?.auto_attack === true ||
+          (auto && (auto.classList.contains('active') || auto.classList.contains('btn-auto-active')));
+        if (auto && isAutoActive) {
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(auto).trigger('tap');
-          auto.click();
+          else auto.click();
         }
       });
     } catch {}
@@ -1268,10 +1292,17 @@ export class CombatResolutionService {
         try {
           if (res.url().includes(targetSubstring)) {
             if (!resolved) {
+              const json = await res.json().catch(() => null);
+              if (json && json.popup && !Array.isArray(json.scenario)) {
+                resolved = true;
+                clearTimeout(timer);
+                this.page.off('response', responseHandler);
+                resolve({ resolved: false, json: null });
+                return;
+              }
               resolved = true;
               clearTimeout(timer);
               this.page.off('response', responseHandler);
-              const json = await res.json().catch(() => null);
               resolve({ resolved: true, json });
             }
           }
@@ -1387,15 +1418,27 @@ export class CombatResolutionService {
 
   public isManualWorkflow(): boolean {
     const mode = this.ctx.template.mode as string | undefined;
-    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
-    if (mode === 'assist' || mode === 'auto' || mode === 'smart_auto') return false;
+    if (mode === 'auto' || mode === 'smart_auto') return false;
 
-    const hasAuto = this.ctx.template.steps?.some(s => s.code === 'auto' || s.code === 'smart_full_auto');
+    const hasAuto = this.ctx.template.steps?.some(s =>
+      s.code === 'auto' || s.action === 'auto' ||
+      s.code === 'smart_full_auto' || s.action === 'smart_full_auto' ||
+      s.code === 'tap_ready' || s.action === 'tap_ready'
+    );
     if (hasAuto) return false;
 
     const hasManualSteps = this.ctx.template.steps?.some(s =>
-      s.code === 'skill' || s.code === 'attack' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'wait_element'
+      s.code === 'skill' || s.action === 'skill' ||
+      s.code === 'attack' || s.action === 'attack' ||
+      s.code === 'summon' || s.action === 'summon' ||
+      s.code === 'quick_call' || s.action === 'quick_call' ||
+      s.code === 'wait_element' || s.action === 'wait_element'
     );
-    return hasManualSteps || this.ctx.template.isSolo === true;
+    if (hasManualSteps) return true;
+
+    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
+    if (mode === 'assist') return false;
+
+    return this.ctx.template.isSolo === true;
   }
 }

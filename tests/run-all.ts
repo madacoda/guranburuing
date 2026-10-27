@@ -294,6 +294,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Seofon (Impossible) / Siete HL 4M Honors & Readiness Auto-Checker Tests',
     file: 'tests/test-siete-4m-readiness.ts',
     description: 'Verify Siete 4M Honors party catalog, schema validation, 77.77M Emblema math, hard gates, substitute chains, and CLI/template integration'
+  },
+  {
+    name: 'Rust Native Core (`gbf-core`) & Zero-Copy FFI Bridge Tests',
+    file: 'tests/test-rust-core-bridge.ts',
+    description: 'Verify gbf-core ABI v1.0.0 FFI bridge, Ziggurat kinematics, SIMD Aho-Corasick byte scanner, RaidVelocityTracker FxHashMap, and JST math'
   }
 ];
 

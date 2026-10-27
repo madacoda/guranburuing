@@ -283,21 +283,21 @@ export const SEARCH_RAID_CATALOG: readonly SearchRaidDefinition[] = Object.freez
     category: 'revans'
   },
   {
-    questId: '305481',
-    stageId: '12072',
-    stageType: '2',
-    name: 'Agastia (Impossible)',
-    aliases: ['agastia (impossible)', 'agastia', 'アガスティア', 'アガスティアhl'],
-    bossName: 'Agastia',
-    category: 'revans'
-  },
-  {
-    questId: '305491',
+    questId: '305421',
     stageId: '12072',
     stageType: '2',
     name: 'Cosmos (Impossible)',
     aliases: ['cosmos (impossible)', 'cosmos', 'コスモス', 'コスモスhl'],
     bossName: 'Cosmos',
+    category: 'revans'
+  },
+  {
+    questId: '305431',
+    stageId: '12072',
+    stageType: '2',
+    name: 'Agastia (Impossible)',
+    aliases: ['agastia (impossible)', 'agastia', 'アガスティア', 'アガスティアhl'],
+    bossName: 'Agastia',
     category: 'revans'
   },
 

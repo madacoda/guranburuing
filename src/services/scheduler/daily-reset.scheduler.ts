@@ -4,6 +4,7 @@ import { AccountConfig } from '../../types/account.types.js';
 import { dailyRoutineOrchestrator, DailyRoutineResult } from './daily-routine.orchestrator.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 import { GoldBarTrackerService } from '../telemetry/gold-bar-tracker.service.js';
+import { rustBridge } from '../../core/rust-bridge.js';
 
 export const DEFAULT_SCHEDULER_HOUR_JST = 21; // 21:00 JST (19:00 WIB) — GBF Peak Golden Time & Strike Time
 export const DEFAULT_SCHEDULER_BUFFER_SECONDS = 15;
@@ -37,6 +38,17 @@ export function getNextDailyResetJst(
   referenceDate: Date = new Date(),
   targetHourJst = DEFAULT_SCHEDULER_HOUR_JST
 ): { nextResetDate: Date; msRemaining: number } {
+  const nativeUtcMs = rustBridge.getNextDailyResetUtcMs(
+    referenceDate.getTime(),
+    targetHourJst,
+    bufferSeconds
+  );
+  if (nativeUtcMs !== null) {
+    return {
+      nextResetDate: new Date(nativeUtcMs),
+      msRemaining: Math.max(0, nativeUtcMs - referenceDate.getTime())
+    };
+  }
   const jstOffsetMs = 9 * 60 * 60 * 1000;
   const nowJstMs = referenceDate.getTime() + jstOffsetMs;
   const nowJstDate = new Date(nowJstMs);

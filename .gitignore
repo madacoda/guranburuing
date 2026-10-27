@@ -8,11 +8,20 @@ node_modules/
 .pnp
 .pnp.js
 
-# Production build outputs & TypeScript Cache
+# Production build outputs, TypeScript Cache & Rust Cargo Artifacts
 dist/
 build/
+target/
 *.tsbuildinfo
 .turbo/
+*.dll
+*.so
+*.dylib
+*.node
+*.pdb
+*.exp
+*.lib
+data/*.rkyv
 
 # Environment & Sensitive Credentials (STRICTLY FORBIDDEN FROM REPO)
 .env

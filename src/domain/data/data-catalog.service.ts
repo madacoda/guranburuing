@@ -165,10 +165,12 @@ export class DataCatalogService {
 
   private dataBasePath: string;
   private initialized = false;
+  private loadedDomains = new Set<string>();
 
   private constructor(basePath?: string) {
     this.dataBasePath = basePath || path.resolve(process.cwd(), 'data');
-    this.loadCatalog();
+    rustBridge.loadCatalog(this.dataBasePath);
+    this.initialized = true;
   }
 
   public static getInstance(basePath?: string): DataCatalogService {
@@ -178,453 +180,539 @@ export class DataCatalogService {
     return DataCatalogService.instance;
   }
 
-  private loadCatalog(): void {
+  public getLoadedDomainCount(): number {
+    return this.loadedDomains.size;
+  }
+
+  public preloadAll(): void {
+    const domains = [
+      'raids',
+      'ui',
+      'network',
+      'daily',
+      'elements',
+      'omens',
+      'plain',
+      'status',
+      'supporters',
+      'raid_join',
+      'events',
+      'side_stories',
+      'progression',
+      'endgame',
+      'siete'
+    ];
+    for (const d of domains) {
+      this.ensureDomainLoaded(d);
+    }
+  }
+
+  private ensureDomainLoaded(domain: string): void {
+    if (this.loadedDomains.has(domain)) return;
+    this.loadedDomains.add(domain);
+
     try {
-      // 1. Load Raids Catalog
-      const raidsPath = path.join(this.dataBasePath, 'raids', 'raids.catalog.json');
-      if (fs.existsSync(raidsPath)) {
-        const data = JSON.parse(fs.readFileSync(raidsPath, 'utf-8'));
-        for (const raid of data.raids || []) {
-          this.raidsById.set(raid.id.toLowerCase(), raid);
-          this.raidsByQuestId.set(raid.questId, raid);
-          const catKey = (raid.category || '').toLowerCase();
-          const catList = this.raidsByCategory.get(catKey) || [];
-          catList.push(raid);
-          this.raidsByCategory.set(catKey, catList);
-        }
-      }
-
-      // 2. Load Categories
-      const catPath = path.join(this.dataBasePath, 'raids', 'categories.json');
-      if (fs.existsSync(catPath)) {
-        const data = JSON.parse(fs.readFileSync(catPath, 'utf-8'));
-        for (const cat of data.categories || []) {
-          this.categoriesById.set(cat.id.toLowerCase(), cat);
-        }
-      }
-
-      // 3. Load UI Modals
-      const modalsPath = path.join(this.dataBasePath, 'ui', 'modals.catalog.json');
-      if (fs.existsSync(modalsPath)) {
-        const data = JSON.parse(fs.readFileSync(modalsPath, 'utf-8'));
-        for (const modal of data.modals || []) {
-          this.modalsById.set(modal.id.toLowerCase(), modal);
-        }
-      }
-
-      // 4. Load UI Routes
-      const routesPath = path.join(this.dataBasePath, 'ui', 'navigation-routes.json');
-      if (fs.existsSync(routesPath)) {
-        const data = JSON.parse(fs.readFileSync(routesPath, 'utf-8'));
-        for (const route of data.routes || []) {
-          this.routesByHash.set(route.hash.toLowerCase(), route);
-        }
-      }
-
-      // 5. Load UI Selectors
-      const selectorsPath = path.join(this.dataBasePath, 'ui', 'selectors.catalog.json');
-      if (fs.existsSync(selectorsPath)) {
-        const data = JSON.parse(fs.readFileSync(selectorsPath, 'utf-8'));
-        this.rawSelectors = data.selectors || {};
-      }
-
-      // 6. Load Endpoints
-      const endpointsPath = path.join(this.dataBasePath, 'network', 'endpoints.catalog.json');
-      if (fs.existsSync(endpointsPath)) {
-        const data = JSON.parse(fs.readFileSync(endpointsPath, 'utf-8'));
-        for (const [name, def] of Object.entries(data.endpoints || {})) {
-          this.endpointsByName.set(name.toLowerCase(), def as EndpointDefinition);
-        }
-      }
-
-      // 7. Load Daily Tasks
-      const tasksPath = path.join(this.dataBasePath, 'automation', 'daily-routines.json');
-      if (fs.existsSync(tasksPath)) {
-        const data = JSON.parse(fs.readFileSync(tasksPath, 'utf-8'));
-        this.allDailyTasksList = data.tasks || [];
-        for (const task of this.allDailyTasksList) {
-          this.tasksByTagOrId.set(task.id.toLowerCase(), task);
-          if (task.tag) this.tasksByTagOrId.set(task.tag.toLowerCase(), task);
-        }
-      }
-
-      // 8. Load Elements Catalog
-      const elementsPath = path.join(this.dataBasePath, 'elements', 'elements.catalog.json');
-      if (fs.existsSync(elementsPath)) {
-        const data = JSON.parse(fs.readFileSync(elementsPath, 'utf-8'));
-        for (const el of data.elements || []) {
-          this.elementsById.set(el.id.toLowerCase(), el);
-          this.elementsByInternalId.set(el.internalId, el);
-        }
-      }
-
-      // 9. Load Elemental Matrix
-      const matrixPath = path.join(this.dataBasePath, 'elements', 'elemental-matrix.json');
-      if (fs.existsSync(matrixPath)) {
-        const data = JSON.parse(fs.readFileSync(matrixPath, 'utf-8'));
-        for (const item of data.matrix || []) {
-          const key = `${item.attacker.toLowerCase()}_${item.defender.toLowerCase()}`;
-          this.matrixByKey.set(key, item);
-        }
-      }
-
-      // 10. Load Party Selection Rules
-      const partyRulesPath = path.join(this.dataBasePath, 'elements', 'party-selection-rules.json');
-      if (fs.existsSync(partyRulesPath)) {
-        const data = JSON.parse(fs.readFileSync(partyRulesPath, 'utf-8'));
-        const rules = data.partySelectionRules?.bossElementToPartyElement || {};
-        for (const [bossElem, rule] of Object.entries(rules)) {
-          this.partySelectionRules.set(bossElem.toLowerCase(), rule as PartySelectionRuleItem);
-        }
-      }
-
-      // 11. Load V2 Omens Catalog
-      const omensPath = path.join(this.dataBasePath, 'combat', 'omens.catalog.json');
-      if (fs.existsSync(omensPath)) {
-        const data = JSON.parse(fs.readFileSync(omensPath, 'utf-8'));
-        for (const omen of data.omens || []) {
-          this.omensById.set(omen.id.toLowerCase(), omen);
-          const rId = omen.raidId.toLowerCase();
-          const existing = this.omensByRaidId.get(rId) || [];
-          existing.push(omen);
-          this.omensByRaidId.set(rId, existing);
-        }
-      }
-
-      // 12. Load V2 Counter Taxonomy
-      const taxonomyPath = path.join(this.dataBasePath, 'combat', 'v2-counter-taxonomy.json');
-      if (fs.existsSync(taxonomyPath)) {
-        const data = JSON.parse(fs.readFileSync(taxonomyPath, 'utf-8'));
-        const resolvers = data.conditionResolvers || {};
-        for (const [condType, resolver] of Object.entries(resolvers)) {
-          this.conditionResolvers.set(condType.toLowerCase(), resolver as V2ConditionResolver);
-        }
-      }
-
-      // 13. Load Plain Damage Sources Catalog
-      const plainSourcesPath = path.join(this.dataBasePath, 'combat', 'plain-damage.catalog.json');
-      if (fs.existsSync(plainSourcesPath)) {
-        const data = JSON.parse(fs.readFileSync(plainSourcesPath, 'utf-8'));
-        const sources = data.sources || {};
-        for (const summon of sources.summons || []) {
-          this.plainSummonsById.set(summon.id.toLowerCase(), summon);
-        }
-        for (const character of sources.characters || []) {
-          this.plainCharactersById.set(character.id.toLowerCase(), character);
-          const elem = character.element.toLowerCase();
-          const list = this.plainCharactersByElement.get(elem) || [];
-          list.push(character);
-          this.plainCharactersByElement.set(elem, list);
-        }
-        for (const mc of sources.mcClassesAndWeapons || []) {
-          this.plainMCById.set(mc.id.toLowerCase(), mc);
-        }
-      }
-
-      // 14. Load Plain Damage Counter Engine
-      const plainEnginePath = path.join(this.dataBasePath, 'combat', 'plain-damage-counter-engine.json');
-      if (fs.existsSync(plainEnginePath)) {
-        const data = JSON.parse(fs.readFileSync(plainEnginePath, 'utf-8'));
-        this.plainSolverPipeline = data.solverPipeline || [];
-        this.plainRaidMappings = data.raidOmenMappings || [];
-        for (const mapping of this.plainRaidMappings) {
-          this.plainRaidMappingsByRaidId.set(mapping.raidId.toLowerCase(), mapping);
-        }
-      }
-
-      // 15. Load Status Effects, Dispel & Cleanse Catalog
-      const statusEffectsPath = path.join(this.dataBasePath, 'combat', 'status-effects.catalog.json');
-      if (fs.existsSync(statusEffectsPath)) {
-        const data = JSON.parse(fs.readFileSync(statusEffectsPath, 'utf-8'));
-        for (const buff of data.bossBuffs || []) {
-          this.bossBuffsById.set(buff.id.toLowerCase(), buff);
-        }
-        for (const debuff of data.partyDebuffs || []) {
-          this.partyDebuffsById.set(debuff.id.toLowerCase(), debuff);
-        }
-        this.dispelSummons = data.dispelSources?.summons || [];
-        this.dispelMCSkills = data.dispelSources?.mcSkills || [];
-        this.dispelCharacters = data.dispelSources?.characterHighlights || [];
-        this.cleanseMCSkills = data.cleanseSources?.mcSkills || [];
-        this.cleanseSummons = data.cleanseSources?.summons || [];
-        this.cleanseCharacters = data.cleanseSources?.characterHighlights || [];
-        this.zombifiedLockoutActions = data.decisionEngine?.zombifiedSafetyInterlock?.lockoutActions || [];
-        for (const act of this.zombifiedLockoutActions) {
-          this.zombifiedLockoutSet.add(act.toLowerCase());
-        }
-      }
-
-      // 16. Load Supporter Summons & Grid Archetypes
-      const supporterSummonsPath = path.join(this.dataBasePath, 'combat', 'supporter-summons.catalog.json');
-      if (fs.existsSync(supporterSummonsPath)) {
-        const data = JSON.parse(fs.readFileSync(supporterSummonsPath, 'utf-8'));
-        for (const arch of data.gridArchetypes || []) {
-          this.gridArchetypesById.set(arch.id.toLowerCase(), arch);
-        }
-        for (const elemSupp of data.elementalSupporters || []) {
-          this.elementalSupportersByElement.set(elemSupp.element.toLowerCase(), elemSupp);
-        }
-        this.supporterSelectionRules = data.selectionMatrix || [];
-        for (const rule of this.supporterSelectionRules) {
-          this.supporterRulesByQuestType.set(rule.questType.toLowerCase(), rule);
-        }
-      }
-
-      // 17. Load Raid Join Decision Catalog
-      const raidJoinPath = path.join(this.dataBasePath, 'raids', 'raid-join-decision.json');
-      if (fs.existsSync(raidJoinPath)) {
-        const data = JSON.parse(fs.readFileSync(raidJoinPath, 'utf-8'));
-        this.raidActionPolicies = data.actionPolicies || [];
-        for (const profile of data.raidProfiles || []) {
-          this.raidJoinProfilesById.set(profile.raidId.toLowerCase(), profile);
-        }
-        this.raidJoinDecisionSteps = data.decisionPipeline || [];
-      }
-
-      // 18. Load Tactical Action Priority Matrix
-      const tacticalPath = path.join(this.dataBasePath, 'combat', 'tactical-action-priority.json');
-      if (fs.existsSync(tacticalPath)) {
-        const data = JSON.parse(fs.readFileSync(tacticalPath, 'utf-8'));
-        this.tacticalExecutionTiers = data.executionTiers || [];
-      }
-
-      // 19. Load Events Catalog
-      const eventsPath = path.join(this.dataBasePath, 'events', 'events.catalog.json');
-      if (fs.existsSync(eventsPath)) {
-        const data = JSON.parse(fs.readFileSync(eventsPath, 'utf-8'));
-        for (const evt of data.events || []) {
-          this.eventsById.set(evt.id.toLowerCase(), evt);
-          if (evt.rawId) {
-            this.eventsByRawId.set(evt.rawId.toLowerCase(), evt);
-          }
-        }
-      }
-
-      // 20. Load Event Details (*.catalog.json in data/events except events.catalog.json)
-      const eventsDir = path.join(this.dataBasePath, 'events');
-      if (fs.existsSync(eventsDir)) {
-        const files = fs.readdirSync(eventsDir);
-        for (const file of files) {
-          if (file.endsWith('.catalog.json') && file !== 'events.catalog.json') {
-            try {
-              const detailPath = path.join(eventsDir, file);
-              const detailData: EventDetailDefinition = JSON.parse(fs.readFileSync(detailPath, 'utf-8'));
-              if (detailData && detailData.metadata && detailData.metadata.id) {
-                const idKey = detailData.metadata.id.toLowerCase();
-                this.eventDetailsById.set(idKey, detailData);
-                if (detailData.metadata.rawId) {
-                  this.eventDetailsById.set(detailData.metadata.rawId.toLowerCase(), detailData);
-                }
-
-                // Index quests
-                const allQuests: EventQuestDefinition[] = [
-                  ...(detailData.quests?.singleQuests || []),
-                  ...(detailData.quests?.raidQuests || []),
-                  ...(detailData.quests?.challengeQuests || []),
-                  ...(detailData.quests?.hellQuests || [])
-                ];
-                this.eventQuestsByEventId.set(idKey, allQuests);
-                if (detailData.metadata.rawId) {
-                  this.eventQuestsByEventId.set(detailData.metadata.rawId.toLowerCase(), allQuests);
-                }
-
-                // Index exchange items
-                if (detailData.exchangeShop?.items) {
-                  this.eventExchangeItemsByEventId.set(idKey, detailData.exchangeShop.items);
-                  if (detailData.metadata.rawId) {
-                    this.eventExchangeItemsByEventId.set(detailData.metadata.rawId.toLowerCase(), detailData.exchangeShop.items);
-                  }
-                }
-              }
-            } catch (detailErr: any) {
-              console.warn(`[DataCatalogService] Warning: Failed to parse event detail file ${file}:`, detailErr.message);
+      switch (domain) {
+        case 'raids': {
+          // 1. Load Raids Catalog
+          const raidsPath = path.join(this.dataBasePath, 'raids', 'raids.catalog.json');
+          if (fs.existsSync(raidsPath)) {
+            const data = JSON.parse(fs.readFileSync(raidsPath, 'utf-8'));
+            for (const raid of data.raids || []) {
+              this.raidsById.set(raid.id.toLowerCase(), raid);
+              this.raidsByQuestId.set(raid.questId, raid);
+              const catKey = (raid.category || '').toLowerCase();
+              const catList = this.raidsByCategory.get(catKey) || [];
+              catList.push(raid);
+              this.raidsByCategory.set(catKey, catList);
             }
           }
-        }
-      }
 
-      // 21. Load Side Stories Vault Catalog
-      const sideStoriesPath = path.join(this.dataBasePath, 'events', 'side-stories.catalog.json');
-      if (fs.existsSync(sideStoriesPath)) {
-        const data = JSON.parse(fs.readFileSync(sideStoriesPath, 'utf-8'));
-        this.sideStoriesGlobalTotals = data.globalTotals || null;
-        for (const story of data.sideStories || []) {
-          this.sideStoriesById.set(story.id.toLowerCase(), story);
-          if (story.sidestoryId) {
-            this.sideStoriesByNumericId.set(story.sidestoryId, story);
+          // 2. Load Categories
+          const catPath = path.join(this.dataBasePath, 'raids', 'categories.json');
+          if (fs.existsSync(catPath)) {
+            const data = JSON.parse(fs.readFileSync(catPath, 'utf-8'));
+            for (const cat of data.categories || []) {
+              this.categoriesById.set(cat.id.toLowerCase(), cat);
+            }
           }
-          const cat = story.category.toLowerCase();
-          const list = this.sideStoriesByCategory.get(cat) || [];
-          list.push(story);
-          this.sideStoriesByCategory.set(cat, list);
+          break;
         }
-      }
 
-      // 22. Load Weapon Grids Catalog (Vol. 18)
-      const weaponGridsPath = path.join(this.dataBasePath, 'combat', 'weapon-grids.catalog.json');
-      if (fs.existsSync(weaponGridsPath)) {
-        const data = JSON.parse(fs.readFileSync(weaponGridsPath, 'utf-8'));
-        for (const el of data.elements || []) {
-          this.weaponGridsByElement.set(el.elementId.toLowerCase(), el);
-          for (const g of [...(el.magnaGrids || []), ...(el.primalGrids || [])]) {
-            this.weaponGridsById.set(g.gridId.toLowerCase(), g);
+        case 'ui': {
+          // 3. Load UI Modals
+          const modalsPath = path.join(this.dataBasePath, 'ui', 'modals.catalog.json');
+          if (fs.existsSync(modalsPath)) {
+            const data = JSON.parse(fs.readFileSync(modalsPath, 'utf-8'));
+            for (const modal of data.modals || []) {
+              this.modalsById.set(modal.id.toLowerCase(), modal);
+            }
           }
-        }
-      }
 
-      // 23. Load Character Tiering Catalog (Vol. 19)
-      const charTieringPath = path.join(this.dataBasePath, 'combat', 'character-tiering.catalog.json');
-      if (fs.existsSync(charTieringPath)) {
-        const data = JSON.parse(fs.readFileSync(charTieringPath, 'utf-8'));
-        for (const el of data.elements || []) {
-          this.characterTiersByElement.set(el.elementId.toLowerCase(), el.characters || []);
-          for (const c of el.characters || []) {
-            this.characterTiersById.set(c.id.toLowerCase(), c);
+          // 4. Load UI Routes
+          const routesPath = path.join(this.dataBasePath, 'ui', 'navigation-routes.json');
+          if (fs.existsSync(routesPath)) {
+            const data = JSON.parse(fs.readFileSync(routesPath, 'utf-8'));
+            for (const route of data.routes || []) {
+              this.routesByHash.set(route.hash.toLowerCase(), route);
+            }
           }
-        }
-      }
 
-      // 24. Load Summon Hierarchies Catalog (Vol. 19)
-      const summonPath = path.join(this.dataBasePath, 'combat', 'summon-hierarchies.catalog.json');
-      if (fs.existsSync(summonPath)) {
-        const data = JSON.parse(fs.readFileSync(summonPath, 'utf-8'));
-        this.providenceSummons = data.providenceSummons || [];
-        this.archangelSubAuras = data.archangelSubAuras || [];
-        this.sixDragonSubAuras = data.sixDragonSubAuras || [];
-        this.arcarumSubAuras = data.arcarumSummons || [];
-      }
-
-      // 25. Load Revans & Apex Walkthroughs Catalog (Vol. 20)
-      const revansPath = path.join(this.dataBasePath, 'raids', 'revans-and-apex-walkthroughs.catalog.json');
-      if (fs.existsSync(revansPath)) {
-        const data = JSON.parse(fs.readFileSync(revansPath, 'utf-8'));
-        this.revansApexCategories = data.categories || [];
-        for (const cat of data.categories || []) {
-          for (const r of cat.raids || []) {
-            this.revansApexRaidsById.set(r.raidId.toLowerCase(), r);
+          // 5. Load UI Selectors
+          const selectorsPath = path.join(this.dataBasePath, 'ui', 'selectors.catalog.json');
+          if (fs.existsSync(selectorsPath)) {
+            const data = JSON.parse(fs.readFileSync(selectorsPath, 'utf-8'));
+            this.rawSelectors = data.selectors || {};
           }
+          break;
+        }
+
+        case 'network': {
+          // 6. Load Endpoints
+          const endpointsPath = path.join(this.dataBasePath, 'network', 'endpoints.catalog.json');
+          if (fs.existsSync(endpointsPath)) {
+            const data = JSON.parse(fs.readFileSync(endpointsPath, 'utf-8'));
+            for (const [name, def] of Object.entries(data.endpoints || {})) {
+              this.endpointsByName.set(name.toLowerCase(), def as EndpointDefinition);
+            }
+          }
+          break;
+        }
+
+        case 'daily': {
+          // 7. Load Daily Tasks
+          const tasksPath = path.join(this.dataBasePath, 'automation', 'daily-routines.json');
+          if (fs.existsSync(tasksPath)) {
+            const data = JSON.parse(fs.readFileSync(tasksPath, 'utf-8'));
+            this.allDailyTasksList = data.tasks || [];
+            for (const task of this.allDailyTasksList) {
+              this.tasksByTagOrId.set(task.id.toLowerCase(), task);
+              if (task.tag) this.tasksByTagOrId.set(task.tag.toLowerCase(), task);
+            }
+          }
+          break;
+        }
+
+        case 'elements': {
+          // 8. Load Elements Catalog
+          const elementsPath = path.join(this.dataBasePath, 'elements', 'elements.catalog.json');
+          if (fs.existsSync(elementsPath)) {
+            const data = JSON.parse(fs.readFileSync(elementsPath, 'utf-8'));
+            for (const el of data.elements || []) {
+              this.elementsById.set(el.id.toLowerCase(), el);
+              this.elementsByInternalId.set(el.internalId, el);
+            }
+          }
+
+          // 9. Load Elemental Matrix
+          const matrixPath = path.join(this.dataBasePath, 'elements', 'elemental-matrix.json');
+          if (fs.existsSync(matrixPath)) {
+            const data = JSON.parse(fs.readFileSync(matrixPath, 'utf-8'));
+            for (const item of data.matrix || []) {
+              const key = `${item.attacker.toLowerCase()}_${item.defender.toLowerCase()}`;
+              this.matrixByKey.set(key, item);
+            }
+          }
+
+          // 10. Load Party Selection Rules
+          const partyRulesPath = path.join(this.dataBasePath, 'elements', 'party-selection-rules.json');
+          if (fs.existsSync(partyRulesPath)) {
+            const data = JSON.parse(fs.readFileSync(partyRulesPath, 'utf-8'));
+            const rules = data.partySelectionRules?.bossElementToPartyElement || {};
+            for (const [bossElem, rule] of Object.entries(rules)) {
+              this.partySelectionRules.set(bossElem.toLowerCase(), rule as PartySelectionRuleItem);
+            }
+          }
+          break;
+        }
+
+        case 'omens': {
+          // 11. Load V2 Omens Catalog
+          const omensPath = path.join(this.dataBasePath, 'combat', 'omens.catalog.json');
+          if (fs.existsSync(omensPath)) {
+            const data = JSON.parse(fs.readFileSync(omensPath, 'utf-8'));
+            for (const omen of data.omens || []) {
+              this.omensById.set(omen.id.toLowerCase(), omen);
+              const rId = omen.raidId.toLowerCase();
+              const existing = this.omensByRaidId.get(rId) || [];
+              existing.push(omen);
+              this.omensByRaidId.set(rId, existing);
+            }
+          }
+
+          // 12. Load V2 Counter Taxonomy
+          const taxonomyPath = path.join(this.dataBasePath, 'combat', 'v2-counter-taxonomy.json');
+          if (fs.existsSync(taxonomyPath)) {
+            const data = JSON.parse(fs.readFileSync(taxonomyPath, 'utf-8'));
+            const resolvers = data.conditionResolvers || {};
+            for (const [condType, resolver] of Object.entries(resolvers)) {
+              this.conditionResolvers.set(condType.toLowerCase(), resolver as V2ConditionResolver);
+            }
+          }
+          break;
+        }
+
+        case 'plain': {
+          // 13. Load Plain Damage Sources Catalog
+          const plainSourcesPath = path.join(this.dataBasePath, 'combat', 'plain-damage.catalog.json');
+          if (fs.existsSync(plainSourcesPath)) {
+            const data = JSON.parse(fs.readFileSync(plainSourcesPath, 'utf-8'));
+            const sources = data.sources || {};
+            for (const summon of sources.summons || []) {
+              this.plainSummonsById.set(summon.id.toLowerCase(), summon);
+            }
+            for (const character of sources.characters || []) {
+              this.plainCharactersById.set(character.id.toLowerCase(), character);
+              const elem = character.element.toLowerCase();
+              const list = this.plainCharactersByElement.get(elem) || [];
+              list.push(character);
+              this.plainCharactersByElement.set(elem, list);
+            }
+            for (const mc of sources.mcClassesAndWeapons || []) {
+              this.plainMCById.set(mc.id.toLowerCase(), mc);
+            }
+          }
+
+          // 14. Load Plain Damage Counter Engine
+          const plainEnginePath = path.join(this.dataBasePath, 'combat', 'plain-damage-counter-engine.json');
+          if (fs.existsSync(plainEnginePath)) {
+            const data = JSON.parse(fs.readFileSync(plainEnginePath, 'utf-8'));
+            this.plainSolverPipeline = data.solverPipeline || [];
+            this.plainRaidMappings = data.raidOmenMappings || [];
+            for (const mapping of this.plainRaidMappings) {
+              this.plainRaidMappingsByRaidId.set(mapping.raidId.toLowerCase(), mapping);
+            }
+          }
+          break;
+        }
+
+        case 'status': {
+          // 15. Load Status Effects, Dispel & Cleanse Catalog
+          const statusEffectsPath = path.join(this.dataBasePath, 'combat', 'status-effects.catalog.json');
+          if (fs.existsSync(statusEffectsPath)) {
+            const data = JSON.parse(fs.readFileSync(statusEffectsPath, 'utf-8'));
+            for (const buff of data.bossBuffs || []) {
+              this.bossBuffsById.set(buff.id.toLowerCase(), buff);
+            }
+            for (const debuff of data.partyDebuffs || []) {
+              this.partyDebuffsById.set(debuff.id.toLowerCase(), debuff);
+            }
+            this.dispelSummons = data.dispelSources?.summons || [];
+            this.dispelMCSkills = data.dispelSources?.mcSkills || [];
+            this.dispelCharacters = data.dispelSources?.characterHighlights || [];
+            this.cleanseMCSkills = data.cleanseSources?.mcSkills || [];
+            this.cleanseSummons = data.cleanseSources?.summons || [];
+            this.cleanseCharacters = data.cleanseSources?.characterHighlights || [];
+            this.zombifiedLockoutActions = data.decisionEngine?.zombifiedSafetyInterlock?.lockoutActions || [];
+            for (const act of this.zombifiedLockoutActions) {
+              this.zombifiedLockoutSet.add(act.toLowerCase());
+            }
+          }
+          break;
+        }
+
+        case 'supporters': {
+          // 16. Load Supporter Summons & Grid Archetypes
+          const supporterSummonsPath = path.join(this.dataBasePath, 'combat', 'supporter-summons.catalog.json');
+          if (fs.existsSync(supporterSummonsPath)) {
+            const data = JSON.parse(fs.readFileSync(supporterSummonsPath, 'utf-8'));
+            for (const arch of data.gridArchetypes || []) {
+              this.gridArchetypesById.set(arch.id.toLowerCase(), arch);
+            }
+            for (const elemSupp of data.elementalSupporters || []) {
+              this.elementalSupportersByElement.set(elemSupp.element.toLowerCase(), elemSupp);
+            }
+            this.supporterSelectionRules = data.selectionMatrix || [];
+            for (const rule of this.supporterSelectionRules) {
+              this.supporterRulesByQuestType.set(rule.questType.toLowerCase(), rule);
+            }
+          }
+          break;
+        }
+
+        case 'raid_join': {
+          // 17. Load Raid Join Decision Catalog
+          const raidJoinPath = path.join(this.dataBasePath, 'raids', 'raid-join-decision.json');
+          if (fs.existsSync(raidJoinPath)) {
+            const data = JSON.parse(fs.readFileSync(raidJoinPath, 'utf-8'));
+            this.raidActionPolicies = data.actionPolicies || [];
+            for (const profile of data.raidProfiles || []) {
+              this.raidJoinProfilesById.set(profile.raidId.toLowerCase(), profile);
+            }
+            this.raidJoinDecisionSteps = data.decisionPipeline || [];
+          }
+
+          // 18. Load Tactical Action Priority Matrix
+          const tacticalPath = path.join(this.dataBasePath, 'combat', 'tactical-action-priority.json');
+          if (fs.existsSync(tacticalPath)) {
+            const data = JSON.parse(fs.readFileSync(tacticalPath, 'utf-8'));
+            this.tacticalExecutionTiers = data.executionTiers || [];
+          }
+          break;
+        }
+
+        case 'events': {
+          // 19. Load Events Catalog
+          const eventsPath = path.join(this.dataBasePath, 'events', 'events.catalog.json');
+          if (fs.existsSync(eventsPath)) {
+            const data = JSON.parse(fs.readFileSync(eventsPath, 'utf-8'));
+            for (const evt of data.events || []) {
+              this.eventsById.set(evt.id.toLowerCase(), evt);
+              if (evt.rawId) {
+                this.eventsByRawId.set(evt.rawId.toLowerCase(), evt);
+              }
+            }
+          }
+
+          // 20. Load Event Details (*.catalog.json in data/events except events.catalog.json)
+          const eventsDir = path.join(this.dataBasePath, 'events');
+          if (fs.existsSync(eventsDir)) {
+            const files = fs.readdirSync(eventsDir);
+            for (const file of files) {
+              if (file.endsWith('.catalog.json') && file !== 'events.catalog.json') {
+                try {
+                  const detailPath = path.join(eventsDir, file);
+                  const detailData: EventDetailDefinition = JSON.parse(fs.readFileSync(detailPath, 'utf-8'));
+                  if (detailData && detailData.metadata && detailData.metadata.id) {
+                    const idKey = detailData.metadata.id.toLowerCase();
+                    this.eventDetailsById.set(idKey, detailData);
+                    if (detailData.metadata.rawId) {
+                      this.eventDetailsById.set(detailData.metadata.rawId.toLowerCase(), detailData);
+                    }
+
+                    const allQuests: EventQuestDefinition[] = [
+                      ...(detailData.quests?.singleQuests || []),
+                      ...(detailData.quests?.raidQuests || []),
+                      ...(detailData.quests?.challengeQuests || []),
+                      ...(detailData.quests?.hellQuests || [])
+                    ];
+                    this.eventQuestsByEventId.set(idKey, allQuests);
+                    if (detailData.metadata.rawId) {
+                      this.eventQuestsByEventId.set(detailData.metadata.rawId.toLowerCase(), allQuests);
+                    }
+
+                    if (detailData.exchangeShop?.items) {
+                      this.eventExchangeItemsByEventId.set(idKey, detailData.exchangeShop.items);
+                      if (detailData.metadata.rawId) {
+                        this.eventExchangeItemsByEventId.set(detailData.metadata.rawId.toLowerCase(), detailData.exchangeShop.items);
+                      }
+                    }
+                  }
+                } catch (detailErr: any) {
+                  console.warn(`[DataCatalogService] Warning: Failed to parse event detail file ${file}:`, detailErr.message);
+                }
+              }
+            }
+          }
+          break;
+        }
+
+        case 'side_stories': {
+          // 21. Load Side Stories Vault Catalog
+          const sideStoriesPath = path.join(this.dataBasePath, 'events', 'side-stories.catalog.json');
+          if (fs.existsSync(sideStoriesPath)) {
+            const data = JSON.parse(fs.readFileSync(sideStoriesPath, 'utf-8'));
+            this.sideStoriesGlobalTotals = data.globalTotals || null;
+            for (const story of data.sideStories || []) {
+              this.sideStoriesById.set(story.id.toLowerCase(), story);
+              if (story.sidestoryId) {
+                this.sideStoriesByNumericId.set(story.sidestoryId, story);
+              }
+              const cat = story.category.toLowerCase();
+              const list = this.sideStoriesByCategory.get(cat) || [];
+              list.push(story);
+              this.sideStoriesByCategory.set(cat, list);
+            }
+          }
+          break;
+        }
+
+        case 'progression': {
+          // 22. Load Weapon Grids Catalog (Vol. 18)
+          const weaponGridsPath = path.join(this.dataBasePath, 'combat', 'weapon-grids.catalog.json');
+          if (fs.existsSync(weaponGridsPath)) {
+            const data = JSON.parse(fs.readFileSync(weaponGridsPath, 'utf-8'));
+            for (const el of data.elements || []) {
+              this.weaponGridsByElement.set(el.elementId.toLowerCase(), el);
+              for (const g of [...(el.magnaGrids || []), ...(el.primalGrids || [])]) {
+                this.weaponGridsById.set(g.gridId.toLowerCase(), g);
+              }
+            }
+          }
+
+          // 23. Load Character Tiering Catalog (Vol. 19)
+          const charTieringPath = path.join(this.dataBasePath, 'combat', 'character-tiering.catalog.json');
+          if (fs.existsSync(charTieringPath)) {
+            const data = JSON.parse(fs.readFileSync(charTieringPath, 'utf-8'));
+            for (const el of data.elements || []) {
+              this.characterTiersByElement.set(el.elementId.toLowerCase(), el.characters || []);
+              for (const c of el.characters || []) {
+                this.characterTiersById.set(c.id.toLowerCase(), c);
+              }
+            }
+          }
+
+          // 24. Load Summon Hierarchies Catalog (Vol. 19)
+          const summonPath = path.join(this.dataBasePath, 'combat', 'summon-hierarchies.catalog.json');
+          if (fs.existsSync(summonPath)) {
+            const data = JSON.parse(fs.readFileSync(summonPath, 'utf-8'));
+            this.providenceSummons = data.providenceSummons || [];
+            this.archangelSubAuras = data.archangelSubAuras || [];
+            this.sixDragonSubAuras = data.sixDragonSubAuras || [];
+            this.arcarumSubAuras = data.arcarumSummons || [];
+          }
+          break;
+        }
+
+        case 'endgame': {
+          // 25. Load Revans & Apex Walkthroughs Catalog (Vol. 20)
+          const revansPath = path.join(this.dataBasePath, 'raids', 'revans-and-apex-walkthroughs.catalog.json');
+          if (fs.existsSync(revansPath)) {
+            const data = JSON.parse(fs.readFileSync(revansPath, 'utf-8'));
+            this.revansApexCategories = data.categories || [];
+            for (const cat of data.categories || []) {
+              for (const r of cat.raids || []) {
+                this.revansApexRaidsById.set(r.raidId.toLowerCase(), r);
+              }
+            }
+          }
+
+          // 26. Load Guild Wars Tactics Catalog (Vol. 21)
+          const unfPath = path.join(this.dataBasePath, 'events', 'unf-guild-wars.catalog.json');
+          if (fs.existsSync(unfPath)) {
+            const data = JSON.parse(fs.readFileSync(unfPath, 'utf-8'));
+            this.guildWarsStages = data.stages || [];
+            for (const stage of this.guildWarsStages) {
+              this.guildWarsStagesById.set(stage.stageId.toLowerCase(), stage);
+            }
+            this.guildWarsMeat = data.meatOptimization || [];
+            this.guildWarsNightmares = data.nightmareStrategies || [];
+          }
+          break;
+        }
+
+        case 'siete': {
+          // 27. Load Seofon (Impossible) / Siete HL 4M Honors Party Compositions Catalog (Vol. 22)
+          const sietePath = path.join(this.dataBasePath, 'combat', 'siete-party-compositions.catalog.json');
+          if (fs.existsSync(sietePath)) {
+            const data = JSON.parse(fs.readFileSync(sietePath, 'utf-8'));
+            this.sieteRaidSpec = data.raidSpecification || null;
+            this.sieteReadinessThresholds = data.readinessThresholds || null;
+
+            this.sieteCharactersList = data.characterRegistry || [];
+            for (const char of this.sieteCharactersList) {
+              this.sieteCharactersByLookupKey.set(char.id.toLowerCase(), char);
+              if (char.npcId) this.sieteCharactersByLookupKey.set(char.npcId.toLowerCase(), char);
+              this.sieteCharactersByLookupKey.set(char.name.toLowerCase(), char);
+              if (char.japaneseName) this.sieteCharactersByLookupKey.set(char.japaneseName.toLowerCase(), char);
+              for (const alias of char.aliases || []) {
+                this.sieteCharactersByLookupKey.set(alias.toLowerCase(), char);
+              }
+            }
+
+            this.sieteWeaponsList = data.weaponRegistry || [];
+            for (const wpn of this.sieteWeaponsList) {
+              this.sieteWeaponsByLookupKey.set(wpn.id.toLowerCase(), wpn);
+              if (wpn.weaponId) this.sieteWeaponsByLookupKey.set(wpn.weaponId.toLowerCase(), wpn);
+              this.sieteWeaponsByLookupKey.set(wpn.name.toLowerCase(), wpn);
+              if (wpn.japaneseName) this.sieteWeaponsByLookupKey.set(wpn.japaneseName.toLowerCase(), wpn);
+              for (const alias of wpn.aliases || []) {
+                this.sieteWeaponsByLookupKey.set(alias.toLowerCase(), wpn);
+              }
+            }
+
+            this.sieteSummonsList = data.summonRegistry || [];
+            for (const sum of this.sieteSummonsList) {
+              this.sieteSummonsByLookupKey.set(sum.id.toLowerCase(), sum);
+              if (sum.summonId) this.sieteSummonsByLookupKey.set(sum.summonId.toLowerCase(), sum);
+              this.sieteSummonsByLookupKey.set(sum.name.toLowerCase(), sum);
+              if (sum.japaneseName) this.sieteSummonsByLookupKey.set(sum.japaneseName.toLowerCase(), sum);
+              for (const alias of sum.aliases || []) {
+                this.sieteSummonsByLookupKey.set(alias.toLowerCase(), sum);
+              }
+            }
+
+            this.sietePartyArchetypesList = data.partyArchetypes || [];
+            for (const arch of this.sietePartyArchetypesList) {
+              this.sietePartyArchetypesById.set(arch.archetypeId.toLowerCase(), arch);
+            }
+          }
+          break;
         }
       }
-
-      // 26. Load Guild Wars Tactics Catalog (Vol. 21)
-      const unfPath = path.join(this.dataBasePath, 'events', 'unf-guild-wars.catalog.json');
-      if (fs.existsSync(unfPath)) {
-        const data = JSON.parse(fs.readFileSync(unfPath, 'utf-8'));
-        this.guildWarsStages = data.stages || [];
-        for (const stage of this.guildWarsStages) {
-          this.guildWarsStagesById.set(stage.stageId.toLowerCase(), stage);
-        }
-        this.guildWarsMeat = data.meatOptimization || [];
-        this.guildWarsNightmares = data.nightmareStrategies || [];
-      }
-
-      // 27. Load Seofon (Impossible) / Siete HL 4M Honors Party Compositions Catalog (Vol. 22)
-      const sietePath = path.join(this.dataBasePath, 'combat', 'siete-party-compositions.catalog.json');
-      if (fs.existsSync(sietePath)) {
-        const data = JSON.parse(fs.readFileSync(sietePath, 'utf-8'));
-        this.sieteRaidSpec = data.raidSpecification || null;
-        this.sieteReadinessThresholds = data.readinessThresholds || null;
-
-        this.sieteCharactersList = data.characterRegistry || [];
-        for (const char of this.sieteCharactersList) {
-          this.sieteCharactersByLookupKey.set(char.id.toLowerCase(), char);
-          if (char.npcId) this.sieteCharactersByLookupKey.set(char.npcId.toLowerCase(), char);
-          this.sieteCharactersByLookupKey.set(char.name.toLowerCase(), char);
-          if (char.japaneseName) this.sieteCharactersByLookupKey.set(char.japaneseName.toLowerCase(), char);
-          for (const alias of char.aliases || []) {
-            this.sieteCharactersByLookupKey.set(alias.toLowerCase(), char);
-          }
-        }
-
-        this.sieteWeaponsList = data.weaponRegistry || [];
-        for (const wpn of this.sieteWeaponsList) {
-          this.sieteWeaponsByLookupKey.set(wpn.id.toLowerCase(), wpn);
-          if (wpn.weaponId) this.sieteWeaponsByLookupKey.set(wpn.weaponId.toLowerCase(), wpn);
-          this.sieteWeaponsByLookupKey.set(wpn.name.toLowerCase(), wpn);
-          if (wpn.japaneseName) this.sieteWeaponsByLookupKey.set(wpn.japaneseName.toLowerCase(), wpn);
-          for (const alias of wpn.aliases || []) {
-            this.sieteWeaponsByLookupKey.set(alias.toLowerCase(), wpn);
-          }
-        }
-
-        this.sieteSummonsList = data.summonRegistry || [];
-        for (const sum of this.sieteSummonsList) {
-          this.sieteSummonsByLookupKey.set(sum.id.toLowerCase(), sum);
-          if (sum.summonId) this.sieteSummonsByLookupKey.set(sum.summonId.toLowerCase(), sum);
-          this.sieteSummonsByLookupKey.set(sum.name.toLowerCase(), sum);
-          if (sum.japaneseName) this.sieteSummonsByLookupKey.set(sum.japaneseName.toLowerCase(), sum);
-          for (const alias of sum.aliases || []) {
-            this.sieteSummonsByLookupKey.set(alias.toLowerCase(), sum);
-          }
-        }
-
-        this.sietePartyArchetypesList = data.partyArchetypes || [];
-        for (const arch of this.sietePartyArchetypesList) {
-          this.sietePartyArchetypesById.set(arch.archetypeId.toLowerCase(), arch);
-        }
-      }
-
-      this.initialized = true;
     } catch (err: any) {
-      console.warn('[DataCatalogService] Warning: Failed to load some catalogs:', err.message);
+      console.warn(`[DataCatalogService] Warning: Failed to load catalog domain '${domain}':`, err.message);
     }
   }
 
   // Raid Queries
   public getRaidById(raidId: string): RaidCatalogItem | undefined {
+    this.ensureDomainLoaded('raids');
     return this.raidsById.get(raidId.toLowerCase());
   }
 
   public getRaidByQuestId(questId: string): RaidCatalogItem | undefined {
+    this.ensureDomainLoaded('raids');
     return this.raidsByQuestId.get(questId);
   }
 
   public getAllRaids(): RaidCatalogItem[] {
+    this.ensureDomainLoaded('raids');
     return Array.from(this.raidsById.values());
   }
 
   public getRaidsByCategory(category: string): RaidCatalogItem[] {
+    this.ensureDomainLoaded('raids');
     return this.raidsByCategory.get(category.toLowerCase()) || [];
   }
 
   // Category Queries
   public getCategory(categoryId: string): RaidCategoryDefinition | undefined {
+    this.ensureDomainLoaded('raids');
     return this.categoriesById.get(categoryId.toLowerCase());
   }
 
   public getAllCategories(): RaidCategoryDefinition[] {
+    this.ensureDomainLoaded('raids');
     return Array.from(this.categoriesById.values());
   }
 
   // Modal & Route Queries
   public getModal(modalId: string): ModalDefinition | undefined {
+    this.ensureDomainLoaded('ui');
     return this.modalsById.get(modalId.toLowerCase());
   }
 
   public getRoute(hash: string): NavigationRouteDefinition | undefined {
+    this.ensureDomainLoaded('ui');
     return this.routesByHash.get(hash.toLowerCase());
   }
 
   public getSelectors(): Record<string, any> {
+    this.ensureDomainLoaded('ui');
     return this.rawSelectors;
   }
 
   // Endpoint Queries
   public getEndpoint(name: string): EndpointDefinition | undefined {
+    this.ensureDomainLoaded('network');
     return this.endpointsByName.get(name.toLowerCase());
   }
 
   // Daily Task Queries
   public getDailyTask(tagOrId: string): DailyAutomationTask | undefined {
+    this.ensureDomainLoaded('daily');
     return this.tasksByTagOrId.get(tagOrId.toLowerCase());
   }
 
   public getAllDailyTasks(): DailyAutomationTask[] {
+    this.ensureDomainLoaded('daily');
     return [...this.allDailyTasksList];
   }
 
   // Element Queries
   public getElement(idOrInternalId: string | number): ElementDefinition | undefined {
+    this.ensureDomainLoaded('elements');
     if (typeof idOrInternalId === 'number') {
       return this.elementsByInternalId.get(idOrInternalId);
     }
@@ -636,10 +724,12 @@ export class DataCatalogService {
   }
 
   public getAllElements(): ElementDefinition[] {
+    this.ensureDomainLoaded('elements');
     return Array.from(this.elementsById.values());
   }
 
   public getOptimalElementForBoss(bossElement: string): string {
+    this.ensureDomainLoaded('elements');
     const rule = this.partySelectionRules.get(bossElement.toLowerCase());
     if (rule) return rule.optimalPartyElement;
     switch (bossElement.toLowerCase()) {
@@ -654,6 +744,7 @@ export class DataCatalogService {
   }
 
   public getElementMatrix(attacker: string, defender: string): ElementMatrixItem | undefined {
+    this.ensureDomainLoaded('elements');
     const key = `${attacker.toLowerCase()}_${defender.toLowerCase()}`;
     return this.matrixByKey.get(key);
   }
@@ -664,36 +755,44 @@ export class DataCatalogService {
   }
 
   public getPartySelectionRule(bossElement: string): PartySelectionRuleItem | undefined {
+    this.ensureDomainLoaded('elements');
     return this.partySelectionRules.get(bossElement.toLowerCase());
   }
 
   // V2 Omens & Counter Queries
   public getOmenById(id: string): V2OmenDefinition | undefined {
+    this.ensureDomainLoaded('omens');
     return this.omensById.get(id.toLowerCase());
   }
 
   public getOmensByRaidId(raidId: string): V2OmenDefinition[] {
+    this.ensureDomainLoaded('omens');
     return this.omensByRaidId.get(raidId.toLowerCase()) || [];
   }
 
   public getAllOmens(): V2OmenDefinition[] {
+    this.ensureDomainLoaded('omens');
     return Array.from(this.omensById.values());
   }
 
   public getConditionResolver(conditionType: string): V2ConditionResolver | undefined {
+    this.ensureDomainLoaded('omens');
     return this.conditionResolvers.get(conditionType.toLowerCase());
   }
 
   // Plain Damage & Counter Engine Queries
   public getPlainDamageSummons(): PlainDamageSummon[] {
+    this.ensureDomainLoaded('plain');
     return Array.from(this.plainSummonsById.values());
   }
 
   public getPlainDamageSummonById(id: string): PlainDamageSummon | undefined {
+    this.ensureDomainLoaded('plain');
     return this.plainSummonsById.get(id.toLowerCase());
   }
 
   public getPlainDamageCharacters(element?: string): PlainDamageCharacter[] {
+    this.ensureDomainLoaded('plain');
     if (element) {
       return this.plainCharactersByElement.get(element.toLowerCase()) || [];
     }
@@ -701,123 +800,151 @@ export class DataCatalogService {
   }
 
   public getPlainDamageCharacterById(id: string): PlainDamageCharacter | undefined {
+    this.ensureDomainLoaded('plain');
     return this.plainCharactersById.get(id.toLowerCase());
   }
 
   public getPlainDamageMCItems(): PlainDamageMC[] {
+    this.ensureDomainLoaded('plain');
     return Array.from(this.plainMCById.values());
   }
 
   public getPlainDamageMCById(id: string): PlainDamageMC | undefined {
+    this.ensureDomainLoaded('plain');
     return this.plainMCById.get(id.toLowerCase());
   }
 
   public getPlainDamageSolverPipeline(): PlainDamageSolverStep[] {
+    this.ensureDomainLoaded('plain');
     return this.plainSolverPipeline;
   }
 
   public getPlainDamageRaidMappings(): PlainDamageRaidOmenMapping[] {
+    this.ensureDomainLoaded('plain');
     return this.plainRaidMappings;
   }
 
   public getPlainDamageMappingForRaid(raidId: string): PlainDamageRaidOmenMapping | undefined {
+    this.ensureDomainLoaded('plain');
     return this.plainRaidMappingsByRaidId.get(raidId.toLowerCase());
   }
 
   // KMS Queries: Status Effects, Dispel & Cleanse
   public getBossBuff(id: string): BossBuffDefinition | undefined {
+    this.ensureDomainLoaded('status');
     return this.bossBuffsById.get(id.toLowerCase());
   }
 
   public getAllBossBuffs(): BossBuffDefinition[] {
+    this.ensureDomainLoaded('status');
     return Array.from(this.bossBuffsById.values());
   }
 
   public getPartyDebuff(id: string): PartyDebuffDefinition | undefined {
+    this.ensureDomainLoaded('status');
     return this.partyDebuffsById.get(id.toLowerCase());
   }
 
   public getAllPartyDebuffs(): PartyDebuffDefinition[] {
+    this.ensureDomainLoaded('status');
     return Array.from(this.partyDebuffsById.values());
   }
 
   public isActionBlockedByZombified(action: string): boolean {
+    this.ensureDomainLoaded('status');
     return this.zombifiedLockoutSet.has(action.toLowerCase());
   }
 
   public getDispelSummons(): DispelSourceSummon[] {
+    this.ensureDomainLoaded('status');
     return this.dispelSummons;
   }
 
   public getCleanseMCSkills(): CleanseSourceMCSkill[] {
+    this.ensureDomainLoaded('status');
     return this.cleanseMCSkills;
   }
 
   // KMS Queries: Supporter Summons & Grid Archetypes
   public getGridArchetype(id: string): GridArchetypeDefinition | undefined {
+    this.ensureDomainLoaded('supporters');
     return this.gridArchetypesById.get(id.toLowerCase());
   }
 
   public getAllGridArchetypes(): GridArchetypeDefinition[] {
+    this.ensureDomainLoaded('supporters');
     return Array.from(this.gridArchetypesById.values());
   }
 
   public getElementalSupporters(element: string): ElementalSupportersDefinition | undefined {
+    this.ensureDomainLoaded('supporters');
     return this.elementalSupportersByElement.get(element.toLowerCase());
   }
 
   public getSupporterSelectionRule(questType: string): SupporterSelectionMatrixItem | undefined {
+    this.ensureDomainLoaded('supporters');
     return this.supporterRulesByQuestType.get(questType.toLowerCase());
   }
 
   // KMS Queries: Raid Join Decision & Evaluation
   public getRaidJoinProfile(raidId: string): RaidJoinProfile | undefined {
+    this.ensureDomainLoaded('raid_join');
     return this.raidJoinProfilesById.get(raidId.toLowerCase());
   }
 
   public getAllRaidJoinProfiles(): RaidJoinProfile[] {
+    this.ensureDomainLoaded('raid_join');
     return Array.from(this.raidJoinProfilesById.values());
   }
 
   public getRaidActionPolicies(): RaidActionPolicy[] {
+    this.ensureDomainLoaded('raid_join');
     return this.raidActionPolicies;
   }
 
   public getTacticalExecutionTiers(): TacticalExecutionTier[] {
+    this.ensureDomainLoaded('raid_join');
     return this.tacticalExecutionTiers;
   }
 
   // KMS Queries: Events Subsystem (Vol. 15)
   public getEvent(idOrRawId: string): EventMasterItem | undefined {
+    this.ensureDomainLoaded('events');
     const key = idOrRawId.toLowerCase();
     return this.eventsById.get(key) || this.eventsByRawId.get(key);
   }
 
   public getAllEvents(): EventMasterItem[] {
+    this.ensureDomainLoaded('events');
     return Array.from(this.eventsById.values());
   }
 
   public getActiveEvents(): EventMasterItem[] {
+    this.ensureDomainLoaded('events');
     return this.getAllEvents().filter(e => e.status === 'active' || e.status === 'rerun');
   }
 
   public getEventDetail(idOrRawId: string): EventDetailDefinition | undefined {
+    this.ensureDomainLoaded('events');
     const key = idOrRawId.toLowerCase();
     return this.eventDetailsById.get(key);
   }
 
   public getEventQuests(idOrRawId: string): EventQuestDefinition[] {
+    this.ensureDomainLoaded('events');
     const key = idOrRawId.toLowerCase();
     return this.eventQuestsByEventId.get(key) || [];
   }
 
   public getEventExchangeItems(idOrRawId: string): EventExchangeItem[] {
+    this.ensureDomainLoaded('events');
     const key = idOrRawId.toLowerCase();
     return this.eventExchangeItemsByEventId.get(key) || [];
   }
 
   // KMS Queries: Side Stories Vault (Vol. 16)
   public getSideStory(idOrNumericId: string | number): SideStoryMasterItem | undefined {
+    this.ensureDomainLoaded('side_stories');
     if (typeof idOrNumericId === 'number') {
       return this.sideStoriesByNumericId.get(idOrNumericId);
     }
@@ -829,133 +956,164 @@ export class DataCatalogService {
   }
 
   public getAllSideStories(): SideStoryMasterItem[] {
+    this.ensureDomainLoaded('side_stories');
     return Array.from(this.sideStoriesById.values());
   }
 
   public getSideStoriesByCategory(category: string): SideStoryMasterItem[] {
+    this.ensureDomainLoaded('side_stories');
     return this.sideStoriesByCategory.get(category.toLowerCase()) || [];
   }
 
   public getAvailableSideStories(mainQuestChapterCleared: number): SideStoryMasterItem[] {
+    this.ensureDomainLoaded('side_stories');
     return this.getAllSideStories().filter(
       s => s.unlockPrerequisite.mainQuestChapter <= mainQuestChapterCleared
     );
   }
 
   public getSideStoriesGlobalTotals(): SideStoryGlobalTotals | null {
+    this.ensureDomainLoaded('side_stories');
     return this.sideStoriesGlobalTotals;
   }
 
   // KMS Queries: Weapon Grids & Progression (Vol. 18)
   public getWeaponGrids(elementId: string): ElementalWeaponGrids | undefined {
+    this.ensureDomainLoaded('progression');
     return this.weaponGridsByElement.get(elementId.toLowerCase());
   }
 
   public getWeaponGridById(gridId: string): WeaponGridDefinition | undefined {
+    this.ensureDomainLoaded('progression');
     return this.weaponGridsById.get(gridId.toLowerCase());
   }
 
   public getAllElementalWeaponGrids(): ElementalWeaponGrids[] {
+    this.ensureDomainLoaded('progression');
     return Array.from(this.weaponGridsByElement.values());
   }
 
   // KMS Queries: Character Tiering & Roles (Vol. 19)
   public getCharacterTiers(elementId: string): CharacterTierDefinition[] {
+    this.ensureDomainLoaded('progression');
     return this.characterTiersByElement.get(elementId.toLowerCase()) || [];
   }
 
   public getCharacterTierById(characterId: string): CharacterTierDefinition | undefined {
+    this.ensureDomainLoaded('progression');
     return this.characterTiersById.get(characterId.toLowerCase());
   }
 
   // KMS Queries: Summon Hierarchies & Sub-Auras (Vol. 19)
   public getProvidenceSummons(): ProvidenceSummonDefinition[] {
+    this.ensureDomainLoaded('progression');
     return this.providenceSummons;
   }
 
   public getArchangelSubAuras(): ArchangelSubAuraDefinition[] {
+    this.ensureDomainLoaded('progression');
     return this.archangelSubAuras;
   }
 
   public getSixDragonSubAuras(): SixDragonSubAuraDefinition[] {
+    this.ensureDomainLoaded('progression');
     return this.sixDragonSubAuras;
   }
 
   public getArcarumSubAuras(): ArcarumSubAuraDefinition[] {
+    this.ensureDomainLoaded('progression');
     return this.arcarumSubAuras;
   }
 
   // KMS Queries: Revans & Apex Raids (Vol. 20)
   public getRevansApexRaid(raidId: string): RevansApexRaidDefinition | undefined {
+    this.ensureDomainLoaded('endgame');
     return this.revansApexRaidsById.get(raidId.toLowerCase());
   }
 
   public getRevansApexCategories(): RevansApexCategoryDefinition[] {
+    this.ensureDomainLoaded('endgame');
     return this.revansApexCategories;
   }
 
   public getAllRevansApexRaids(): RevansApexRaidDefinition[] {
+    this.ensureDomainLoaded('endgame');
     return Array.from(this.revansApexRaidsById.values());
   }
 
   // KMS Queries: Guild Wars Tactics (Vol. 21)
   public getGuildWarsStages(): GuildWarsStageDefinition[] {
+    this.ensureDomainLoaded('endgame');
     return this.guildWarsStages;
   }
 
   public getGuildWarsStage(stageId: string): GuildWarsStageDefinition | undefined {
+    this.ensureDomainLoaded('endgame');
     return this.guildWarsStagesById.get(stageId.toLowerCase());
   }
 
   public getGuildWarsMeatOptimizations(): GuildWarsMeatOptimizationDefinition[] {
+    this.ensureDomainLoaded('endgame');
     return this.guildWarsMeat;
   }
 
   public getGuildWarsNightmareStrategies(): GuildWarsNightmareStrategyDefinition[] {
+    this.ensureDomainLoaded('endgame');
     return this.guildWarsNightmares;
   }
 
   // KMS Queries: Seofon (Impossible) / Siete HL 4M Honors & Readiness (Vol. 22)
   public getSieteRaidSpecification(): SieteRaidSpecification | null {
+    this.ensureDomainLoaded('siete');
     return this.sieteRaidSpec;
   }
 
   public getSieteReadinessThresholds(): SieteReadinessThresholds | null {
+    this.ensureDomainLoaded('siete');
     return this.sieteReadinessThresholds;
   }
 
   public getSieteCharacter(idOrAlias: string): SieteCharacterRegistryItem | undefined {
+    this.ensureDomainLoaded('siete');
     const key = idOrAlias.trim().toLowerCase();
     return this.sieteCharactersByLookupKey.get(key);
   }
 
   public getAllSieteCharacters(): SieteCharacterRegistryItem[] {
+    this.ensureDomainLoaded('siete');
     return [...this.sieteCharactersList];
   }
 
   public getSieteWeapon(idOrAlias: string): SieteWeaponRegistryItem | undefined {
+    this.ensureDomainLoaded('siete');
     const key = idOrAlias.trim().toLowerCase();
     return this.sieteWeaponsByLookupKey.get(key);
   }
 
   public getAllSieteWeapons(): SieteWeaponRegistryItem[] {
+    this.ensureDomainLoaded('siete');
     return [...this.sieteWeaponsList];
   }
 
   public getSieteSummon(idOrAlias: string): SieteSummonRegistryItem | undefined {
+    this.ensureDomainLoaded('siete');
     const key = idOrAlias.trim().toLowerCase();
     return this.sieteSummonsByLookupKey.get(key);
   }
 
   public getAllSieteSummons(): SieteSummonRegistryItem[] {
+    this.ensureDomainLoaded('siete');
     return [...this.sieteSummonsList];
   }
 
   public getSietePartyArchetype(archetypeId: string): SietePartyArchetypeDefinition | undefined {
-    return this.sietePartyArchetypesById.get(archetypeId.trim().toLowerCase());
+    this.ensureDomainLoaded('siete');
+    const key = archetypeId.trim().toLowerCase();
+    return this.sietePartyArchetypesById.get(key);
   }
 
   public getAllSietePartyArchetypes(): SietePartyArchetypeDefinition[] {
+    this.ensureDomainLoaded('siete');
     return [...this.sietePartyArchetypesList];
   }
 }

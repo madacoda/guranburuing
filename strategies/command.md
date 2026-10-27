@@ -20,14 +20,17 @@ Fast, categorized terminal reference for all operational commands, workflows, da
 - [11. Gold Bar (GB) Hunting & High-Difficulty Raids](#11-gold-bar-gb-hunting--high-difficulty-raids)
 - [12. Magna 3 (Omega Rebirth) Fast Leeching & OTK Burst](#12-magna-3-omega-rebirth-fast-leeching--otk-burst)
 - [13. Endgame 6-Man & Six Dragons Assist Raids](#13-endgame-6-man--six-dragons-assist-raids)
+- [13b. Revans Series: Seofon (Siete HL) 4M Honors Blue Chest & Readiness Auto-Checker](#13b-revans-series-seofon-siete-hl-4m-honors-blue-chest--readiness-auto-checker)
+- [13c. Revans Series: Agastia (Impossible) 4M Honors Blue Chest & 6-Ougi Loop](#13c-revans-series-agastia-impossible-4m-honors-blue-chest--6-ougi-loop)
 - [14. Autonomous Finder Slot & Raid Auto-Setting (`autoSetRaid`)](#14-autonomous-finder-slot--raid-auto-setting-autosetraid)
 - [15. Guild Wars (Unite & Fight)](#15-guild-wars-unite--fight)
 - [15b. Dread Barrage (Valiant Battles)](#15b-dread-barrage-valiant-battles)
 - [16. Story, Scenario & Collaboration Events](#16-story-scenario--collaboration-events)
 - [17. Fate Episodes Auto-Farmer](#17-fate-episodes-auto-farmer)
 - [18. Rise of the Beasts (ROTB)](#18-rise-of-the-beasts-rotb)
+- [18b. Special & Extra Quests: Shiny Slime Search (Very Hard)](#18b-special--extra-quests-shiny-slime-search-very-hard)
 - [19. Interactive Selector & Generic Workflow Runner](#19-interactive-selector--generic-workflow-runner)
-- [20. Complete Synced Workflow Templates Master Catalog (74 Templates)](#20-complete-synced-workflow-templates-master-catalog-74-templates)
+- [20. Complete Synced Workflow Templates Master Catalog (88 Templates)](#20-complete-synced-workflow-templates-master-catalog-88-templates)
 - [21. Gateway Server, Web Cockpit & Mobile PWA](#21-gateway-server-web-cockpit--mobile-pwa)
 - [22. Discord Remote Controller & Two-Way CAPTCHA Relay](#22-discord-remote-controller--two-way-captcha-relay)
 - [23. Discord Rich Presence (RPC)](#23-discord-rich-presence-rpc)
@@ -323,13 +326,91 @@ Fast assist farming and leeching for foundational endgame 6-man and Six Dragons 
 
 ---
 
+## 13b. Revans Series: Seofon (Siete HL) 4M Honors Blue Chest & Readiness Auto-Checker
+
+Autonomous farming, mathematical threshold evaluation, and roster readiness auditing for **Seofon (Impossible)** / **Siete HL** (`#quest/assist`, Quest ID `305411` Join / `305401` Host, Stage ID `12072`, Element: Wind, V2 system, 6 players). Primary farming source for **Sette di Spade** (*Siete Swords*), Wind Awakening Orbs, and Eternity Sands.
+
+### ⚔️ Seofon 4M Honors Operational Commands & Auto-Checker Suite
+| Command | Windowed Variant | Scope / Mode | Target Honors / Purpose | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `bun run siete` / `seofon` / `raid-seofon` | `bun run siete:windowed` / `seofon:windowed` / `raid-seofon:windowed` | Finder Tab 1 Farmer | **4,000,000** | Autonomous 4M Honors Blue Chest burst farmer (`templates/raid-seofon.json`, `autoSetRaid: true`) |
+| `bun run siete:check` | `bun run siete:check -- --windowed` | Live CDP Audit | Readiness Audit | Connects to active Chrome session (`#party/index`), audits equipped deck & inventory against Siete catalog |
+| `bun run siete:check:offline` | — | Offline Roster | Readiness Audit | Evaluates default reference Fire roster (`data/combat/siete-roster.example.json`) with zero browser launch |
+| `bun run siete:check:json` | — | Offline JSON | Machine Telemetry | Generates structured JSON readiness snapshot (`logs/siete-readiness-snapshot.json`) |
+
+### 🛠️ Custom CLI Readiness Checker Options (`src/cli/run-siete-check.ts`)
+```bash
+# 1. Audit active Chrome session live via CDP:
+bun src/cli/run-siete-check.ts acc1
+
+# 2. Evaluate a custom exported roster JSON offline:
+bun src/cli/run-siete-check.ts acc1 --offline --roster data/combat/my-fire-roster.json
+
+# 3. Test readiness against a specific archetype (e.g. Manadiver burst):
+bun src/cli/run-siete-check.ts acc1 --offline --archetype siete_fire_manadiver_burst_2t
+
+# 4. Generate Markdown report output to terminal / pipe:
+bun src/cli/run-siete-check.ts acc1 --offline --markdown
+```
+
+### 🔬 Raid Mathematics & V2 Battle Physics
+| Metric / Constraint | Threshold / Requirement | Operational Meaning & Engine Enforcement |
+| :--- | :---: | :--- |
+| **Total HP & Base DEF** | `2,500,000,000` (2.5B) / `20.0` DEF | 6-player raid; fast rooms clear in 90–150 seconds. High defense demands flat supplemental & high damage caps |
+| **Blue Chest Guarantee** | **`4,000,000` Honors** | ~100% Blue Chest proc rate for Sette di Spade (*Siete Swords*), Eternity Sands & Wind Awakening Orbs |
+| **Equivalent Total Damage** | **`400,000,000` Damage** | Target damage across 2–4 turns at standard 0.01 honor-per-damage ratio |
+| **Signature Omen Cancel** | **`77,777,777` Damage** | Single-turn burst required to cancel *Emblema*, *Infinito Creare* (80%/50%/20%), and *Cien Mil Espadas* |
+| **100% Fire Execution Protocol** | **Entry Trigger** | **999,999 Plain Damage** dealt to any non-Fire ally. Frontline & backline must be 100% Fire (no Dark Death sacrifice; use Fire Ragazzo) |
+| **99-Turn Summon Lock** | **Entry Trigger** | All summons (including Quick Call) locked for 99 turns. Must rely on passive Main/Supporter & Sub-Auras |
+| **Autonomous Finder Slot 1** | `autoSetRaid: true` | Auto-detects and configures Finder Slot 1 to Quest `305411` with 0ms pre-check overhead |
+
+### 📋 5 Codified Party Archetypes (`data/combat/siete-party-compositions.catalog.json`)
+1. **`siete_fire_manadiver_burst_2t` (Tier SS — 2–3 Turns, 35–45s)**: Manadiver (Overtrance/Wild Magica) or Relic Buster + Percival (Grand) + Zeta (Grand) + Alanaan (FLB Sk4). Turn 1 Alanaan field + Turn 2 Percival Sk3 (*Schlacht*) yields 220M–270M peak turn.
+2. **`siete_fire_berserker_fa_burst_4t` (Tier SS — 3–5 Turns, 55–75s)**: Berserker (Beast Fang/Ullikummi) or Sumaibito + Percival (Grand) + Wilnas (Grand) + Michael (Grand). 100% hands-free Full Auto reaching 4.0M by Turn 4.
+3. **`siete_fire_kengo_ougi_loop` (Tier S — 4–6 Turns, 75–95s, Magna/F2P Friendly)**: Kengo (Unsigned Kaneshige Fire) + Wilnas (Grand) + Silva (Yukata) + Satyr (Fire). Cycles 5–7 Charge Attacks and 1 Fatal Chain every 1–2 turns to effortlessly cancel *Cien Mil Espadas*.
+4. **`siete_fire_monk_lumberjack_fa_sustain` (Tier S — 5–7 Turns, 85–110s)**: Monk/Lumberjack + Percival + Satyr + Ragazzo self-sacrifice into Fraux (FLB upright domain). Unkillable sustain with high end-of-turn nuke throughput.
+5. **`siete_fire_paladin_yamato_host_solver` (Tier A — 6–10 Turns, 100%–0% Full Clear)**: Paladin/Yamato + Percival + Satyr + Fenie (Grand). Survives the lethal 10% HP 77,777 fixed damage trigger (*Cuatro Mil Espadas*) via Paladin Sk1 100% cut & Fenie auto-revive.
+
+### 🛡️ 4 Hard Readiness Gates Checked by `SieteReadinessCheckerService`
+- `gate_100_percent_fire_allies`: Blocks party configurations containing off-element characters that trigger the 999,999 wipe.
+- `gate_turn1_summon_lock_compliance`: Verifies passive aura power under 99-turn summon lock without active Turn-1 calls.
+- `gate_minimum_hp_threshold`: Asserts estimated party HP $\ge 50,000$ to absorb transition triggers and omen misses.
+- `gate_77m_omen_and_4m_honors_pace`: Projects peak turn burst $\ge 77,777,777$ and verifies time-to-4M-honors pace.
+- **Generated Artifacts**: Persists detailed diagnosis to `logs/siete-readiness-report.md` and machine-readable `logs/siete-readiness-snapshot.json`.
+
+---
+
+## 13c. Revans Series: Agastia (Impossible) 4M Honors Blue Chest & 6-Ougi Loop
+
+High-tier automated 4,000,000 Honors Blue Chest farmer for **Agastia (Impossible)** (Dark Element V2 Revans, Stage ID `12072`, Quest ID `305431`) via Finder Assist Tab 1 (`autoSetRaid: true`).
+
+Executes a precision **Light Kengo 6-Ougi Loop** configured in **Deck 191** (EX A Light Party 1: **Kengo** + **Yuni** + **Cagliostro (Grand)** + **Sahar / Lucio (Grand 5★ Lv100)** + **Vajra (Light Sub 1)** + **Mahira (Holiday Sub 2)**) designed to cancel Agastia's lethal **Satellite Cannon** omen (requires **6 Charge Attacks in a single turn**) and output over 400M total damage (~4M honors) within 2–3 turns.
+
+### ⚡ Operational Commands
+
+| Command | Windowed Variant | Finder Quest ID | Party Slot | Target Honors | Description |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| `bun run agastia` / `raid-agastia` | `bun run agastia:windowed` / `raid-agastia:windowed` | `305431` (Stage `12072`) | **Deck 191** (EX A Light 1) | **`4,000,000`** | Autonomous Finder Slot 1 Assist join $\rightarrow$ Turn 1 `Magnum Opus` + `Synthesia` + `200% Double Ougi` $\rightarrow$ Turn 2 6-Ougi Satellite Cannon cancel burst $\rightarrow$ Turn 3 Finisher |
+| `bun src/cli/run-workflow.ts acc1 raid-agastia [runs]` | `[--windowed]` `[--headless]` | `305431` | Deck 191 | `4,000,000` | Custom run count invocation with live telemetry and auto-berry recovery |
+
+### 🔬 Raid Mathematics & V2 Battle Physics
+| Metric / Constraint | Threshold / Requirement | Operational Meaning & Engine Enforcement |
+| :--- | :---: | :--- |
+| **Total HP & Base DEF** | `2,000,000,000` (2.0B) / `20.0` DEF | 6-man high defense Dark raid. Demands heavy C.A. cap (`+63%`), C.A. supplemental (`+1,000,000`), and rapid charge bar generation (`+100%` gain) |
+| **Blue Chest Guarantee** | **`4,000,000` Honors** | Near-guaranteed Blue Chest drop for Agastia Daggers (*Agastia Revans*), Eternity Sands & Dark Awakening Orbs |
+| **Signature Omen Cancel** | **6 Charge Attacks (C.A.)** | Satellite Cannon fires every 2 turns. If uncanceled: catastrophic AoE wipe + permanent Skill Seal. Canceled via MC (2 C.A.s) + Yuni/Cagliostro/Sahar + Vajra Overchain |
+| **Overchain & Backup Anchor** | **Vajra (Light Sub 1)** | Provides Chain Burst passive support and enters with 200% max charge bar if any frontline ally falls |
+| **Skill & Plain Support** | **Mahira (Holiday Sub 2)** | Provides backline support and emergency dispel/plain damage utility |
+
+---
+
 ## 14. Autonomous Finder Slot & Raid Auto-Setting (`autoSetRaid`)
 
 Eliminates the requirement for manual in-game raid selection on Finder Tab 1 (Slot 1). All Tab 1 assist workflows automatically reconfigure Finder Slot 1 to the required raid whenever needed.
 
 ### How It Works
 When running an assist raid workflow with `autoSetRaid: true`:
-1. **Zero-Overhead Fast Pre-Check**: The engine inspects the current lobby thumbnail icon (`.prt-search-switch-display.slot1 .img-quest`). If Slot 1 already matches the target encounter (e.g. Beelzebub `305181`), it proceeds immediately with **0ms modal overhead**.
+1. **Zero-Overhead Fast Pre-Check**: The engine inspects the current lobby thumbnail icon (`.prt-search-switch-display.slot1 .img-quest`). If Slot 1 already matches the target encounter (e.g. Beelzebub `305181` or Seofon `305411`), it proceeds immediately with **0ms modal overhead**.
 2. **Autonomous Reconfiguration**: If a different raid is configured (for example, Slot 1 was left on Leviathan Mare `305631` from previous farming), the engine:
    - Clicks the Set Filters button (`.btn-search-setting`).
    - Selects Slot 1 (`.btn-select-search-slot[data-slot="1"]`).
@@ -373,7 +454,7 @@ confirm_result
 | :--- | :---: | :---: | :--- |
 | `autoSetRaid` | `boolean` | `false` | Enables automatic slot reconfiguration in Set Filters modal |
 | `autoSetRaidSlot` | `number` | `raidSlot \|\| 1` | Specifies which Finder slot (1–4) to configure (defaults to `1`) |
-| `targetRaidQuestId` | `string \| number` | auto-resolved | Explicit quest ID override (e.g. `"305181"` for Bubz, `"305631"` for Leviathan Mare) |
+| `targetRaidQuestId` | `string \| number` | auto-resolved | Explicit quest ID override (e.g. `"305181"` for Bubz, `"305411"` for Seofon, `"305631"` for Leviathan Mare) |
 
 ---
 
@@ -398,6 +479,13 @@ Fast 1-turn OTK and Full Auto farming for Dread Barrage 1-Star through 5-Star en
 
 | Command | Windowed Variant | Star / Boss | Description |
 | :--- | :--- | :---: | :--- |
+| `bun run db:gacha` / `db:tokens` | `bun run db:gacha --windowed` | **Token Drawbox** | **Auto Token Draw**: Empties boxes on `#event/teamforce/gacha` via Bulk Box Play, Use All & auto box reset |
+| `bun run db:status` | — | Dashboard | Live Dread Barrage status, token counts, honor progress & daily missions audit |
+| `bun run db:missions` | — | Skyscope / Daily | Sweeps daily & cumulative Dread Barrage missions and claims badges |
+| `bun run db:rewards` | — | Honor / Badges | Auto-claims all unlocked battle badge and honor rewards |
+| `bun run db:unparalleled` / `db:strong` | `bun run db:unparalleled --windowed` | Daily Host | Auto-hosts and clears daily 2/2 Unparalleled Foes (Tier-scaling) |
+| `bun run db:valiant` | `bun run db:valiant --windowed` | Special | Clears daily high-honor Valiant Battle |
+| `bun run db:all` | `bun run db:all --windowed` | Full Pipeline | Runs Raids $\rightarrow$ Unparalleled $\rightarrow$ Valiant $\rightarrow$ Missions $\rightarrow$ Rewards $\rightarrow$ Token Gacha |
 | `bun run db:3star` / `db3` / `db-3star` | `bun run db:3star:windowed` | 3★ (Lvl 90 Corpus Volans) | C4S1 $\rightarrow$ C4S3 on C1 $\rightarrow$ Quick Call $\rightarrow$ F5 $\rightarrow$ C2S1 $\rightarrow$ Attack $\rightarrow$ Rerun |
 | `bun run db:1star` / `db1` | `bun run db:1star:windowed` | 1★ (Lvl 60 Lacerta Currens) | 0-button Quick Call $\rightarrow$ F5 $\rightarrow$ Rerun (9M HP) |
 | `bun run db:2star` / `db2` | `bun run db:2star:windowed` | 2★ (Lvl 75 Ferrum Agile) | 0-button Quick Call $\rightarrow$ F5 $\rightarrow$ Rerun (21.5M HP) |
@@ -476,7 +564,7 @@ Execute any pre-packaged, modified, or custom workflow template dynamically.
 | Command | Arguments / Flags | Description |
 | :--- | :--- | :--- |
 | `bun run workflow` / `run-workflow` | — | Interactive terminal menu (arrow-key template picker) |
-| `bun run workflow:validate` | — | Validates all 74 templates against strict Zod schema |
+| `bun run workflow:validate` | — | Validates all 87 templates against strict Zod schema |
 | `bun run templates:sync` | — | Scans `templates/` and auto-registers CLI scripts in `package.json` |
 | `bun run acc1 <template> [runs]` | `[runs]` `[--windowed]` | Runs specified template on Account 1 |
 | `bun run acc1:windowed <template> [runs]` | `[runs]` | Runs specified template on Account 1 in visible window |
@@ -532,7 +620,7 @@ Configure raid candidate filtering boundaries directly in the workflow JSON (`te
 
 ---
 
-## 20. Complete Synced Workflow Templates Master Catalog (74 Templates)
+## 20. Complete Synced Workflow Templates Master Catalog (87 Templates)
 
 Every JSON template in `templates/` is auto-synced into `package.json` with both headless and `:windowed` scripts.
 
@@ -610,8 +698,17 @@ Every JSON template in `templates/` is auto-synced into `package.json` with both
 | | `raid-the-world` | `bun run raid-the-world` | `bun run raid-the-world:windowed` |
 | | `raid-fediel` | `bun run raid-fediel` | `bun run raid-fediel:windowed` |
 | | `raid-wilnas` | `bun run raid-wilnas` | `bun run raid-wilnas:windowed` |
+| | `raid-empyreal-ascension` | `bun run raid-empyreal-ascension` | `bun run raid-empyreal-ascension:windowed` |
+| **Revans Raids (6-Man V2)** | `raid-seofon` | `bun run raid-seofon` *(or `siete`)* | `bun run raid-seofon:windowed` *(or `siete:windowed`)* |
+| | `raid-agastia` | `bun run raid-agastia` *(or `agastia`)* | `bun run raid-agastia:windowed` *(or `agastia:windowed`)* |
 | **Guild Wars** | `gw-meat-light` | `bun run gw-meat-light` | `bun run gw-meat-light:windowed` |
 | | `gw-nm95-light` | `bun run gw-nm95-light` | `bun run gw-nm95-light:windowed` |
+| **Dread Barrage** | `dread-barrage-1star-otk` | `bun run dread-barrage-1star-otk` | `bun run dread-barrage-1star-otk:windowed` |
+| | `dread-barrage-2star-otk` | `bun run dread-barrage-2star-otk` | `bun run dread-barrage-2star-otk:windowed` |
+| | `dread-barrage-3star-otk` | `bun run dread-barrage-3star-otk` | `bun run dread-barrage-3star-otk:windowed` |
+| | `dread-barrage-4star-fa` | `bun run dread-barrage-4star-fa` | `bun run dread-barrage-4star-fa:windowed` |
+| | `dread-barrage-5star-fa` | `bun run dread-barrage-5star-fa` | `bun run dread-barrage-5star-fa:windowed` |
+| **Special & Extra Quests** | `shiny-slime-search` | `bun run shiny-slime-search` *(or `slime`)* | `bun run shiny-slime-search:windowed` *(or `slime:windowed`)* |
 | **Dailies, Events & Fates** | `daily-favorites` | `bun run daily-favorites` | `bun run daily-favorites:windowed` |
 | | `daily-universal` | `bun run daily-universal` | `bun run daily-universal:windowed` |
 | | `event-story` | `bun run event-story` | `bun run event-story:windowed` |
@@ -649,13 +746,33 @@ Autonomous bidirectional Discord bot bridge for mobile monitoring, on-demand pre
 | `bun run test:discord` | — | Tests Discord webhook, DM relay connection, and command parsing |
 
 ### Discord Operator Slash Commands (`/gbf <command>`)
-- `/gbf <preset> [args]`: Executes whitelisted preset or template (e.g. `/gbf daily`, `/gbf daily:host`, `/gbf gb-akasha 100`, `/gbf bubz 50`, `/gbf leech:leviathan`).
+- `/gbf <preset> [args]`: Executes whitelisted preset or template (e.g. `/gbf daily`, `/gbf daily:host`, `/gbf gb-akasha 100`, `/gbf bubz 50`, `/gbf siete 200`, `/gbf siete:check`, `/gbf leech:leviathan`).
 - **Preemptive Task Switching**: If a task is executing and you issue another command, the controller **automatically terminates the running task and launches the new task immediately** without requiring a manual `/gbf stop`.
 - `/gbf stop` (or `/gbf halt`): Gracefully terminates active running job and releases CDP port 9222.
 - `/gbf status`: Displays active job, PID, uptime, scheduler state, and latest terminal output snippet.
 - `/gbf scheduler:off` / `/gbf scheduler:on`: Pauses or resumes autonomous 21:00 JST (19:00 WIB) Peak-Hour daily scheduler.
 - `/gbf logs`: Displays last 15 lines of live terminal output.
 - `/gbf help`: Displays the operator command reference.
+
+---
+
+## 22b. Cloud VPS Operations & Emergency Dual-Node Control
+
+Controls the remote 24/7 Linux Cloud VPS (`$VPS_IP`) hosting the Discord ChatOps Gateway, PM2 process manager, and autonomous schedulers.
+
+| Command | Arguments / Flags | Host | Description |
+| :--- | :---: | :---: | :--- |
+| `bun run vps:status` | — | Remote VPS | Queries remote PM2 service status (`gbf-controller`), memory, CPU, and running processes |
+| `bun run vps:stop` | — | Remote VPS | **Emergency Halt**: Stops PM2 daemon, kills active daily host runners, and runs `pm2 save` |
+| `bun run vps:start` | — | Remote VPS | Launches PM2 daemon with `ecosystem.config.cjs` and saves persistent boot state |
+| `bun run vps:restart` | — | Remote VPS | Restarts PM2 `gbf-controller` process |
+| `bun run vps:logs` | `[lines]` | Remote VPS | Streams the last N lines of remote PM2 logs (default: 50 lines) |
+| `bun run vps:login` | — | Remote VPS | Launches interactive remote VNC/CDP browser mirror (`scripts/vps-browser.ps1`) |
+| `bun run session:sync <acc>` | `[flags]` | Local ➔ VPS | 1-Click syncs local cookies and session state to cloud VPS |
+
+> [!IMPORTANT]
+> **Emergency Dual-Node Kill Rule**: Whenever an operator commands to stop schedulers or halt background jobs, **both** local processes and the remote VPS daemon (`bun run vps:stop`) must be inspected and confirmed stopped. Never assume a process is offline based on local checks alone.
+
 
 ---
 
@@ -684,12 +801,18 @@ Mandatory quality gates executed locally and in CI.
 
 | Command | Scope | Description |
 | :--- | :---: | :--- |
-| `bun run verify` | Full Pre-Flight | Runs Hygiene + Schema Validation + `tsc` Build + All 52 Test Suites |
-| `bun run test` / `test:all` | Unified Runner | Executes all 52 test suites in parallel (`tests/run-all.ts`) |
-| `bun run test:node` | Node/TSX | Runs all 52 test suites under Node.js runtime via tsx |
+| `bun run verify` | Full Pre-Flight | Runs Hygiene + Schema Validation + `tsc` Build + All 57 Test Suites |
+| `bun run test` / `test:all` | Unified Runner | Executes all 57 test suites in parallel (`tests/run-all.ts`) |
+| `bun run test:node` | Node/TSX | Runs all 57 test suites under Node.js runtime via tsx |
 | `bun run hygiene` / `audit:secrets` | Security Gate | Audits git index for secret leaks, personal paths, or credentials |
-| `bun run workflow:validate` | Schema Gate | Validates all 74 workflow templates against Zod AST schemas |
+| `bun run workflow:validate` | Schema Gate | Validates all 87 workflow templates against Zod AST schemas |
 | `bun run typecheck` / `build` | Type Safety | Executes TypeScript static type-checking (`tsc --noEmit` / `tsc`) |
+| `bun run siete:check` | Readiness Audit | Audits active game session or offline roster against Seofon 4M requirements |
+| `bun tests/test-siete-4m-readiness.ts` | Unit Tests | Tests Siete 4M Honors party catalog, 77.77M Emblema math, hard gates, substitute chains, and CLI/template integration |
+| `bun tests/test-stoppage-and-captcha-safety.ts` | Unit Tests | Tests renderer freeze watchdog, about:blank standby mode, and CAPTCHA safety |
+| `bun tests/test-shiny-slime-search.ts` | Unit Tests | Tests Shiny Slime Search 400151, back button action, and shorthand DSL |
+| `bun tests/test-gold-bar-standardized-rotations.ts` | Unit Tests | Tests standardized 1.5M honor threshold across PBHL, Akasha, GOHL |
+| `bun tests/test-magna3-farm-templates.ts` | Unit Tests | Tests all 6 Magna 3 farm templates and adaptive damage strategy |
 | `bun tests/test-finder-slot-configurator.ts` | Unit Tests | Tests Search Raid Catalog, query resolver, and slot configurator |
 | `bun run test:engine` | Unit Tests | Tests Universal Workflow Engine state machines and retries |
 | `bun run test:daily` | Unit Tests | Tests Daily Routine Pro Skip and modal reconciliation |
@@ -699,7 +822,7 @@ Mandatory quality gates executed locally and in CI.
 
 ---
 
-### Pre-Flight Quality Scorecard (52 / 52 Test Suites)
+### Pre-Flight Quality Scorecard (57 / 57 Test Suites)
 
 ```
 ========================================================================
@@ -741,23 +864,28 @@ Mandatory quality gates executed locally and in CI.
   [34] ✅ PASS | Arcarum Zone Mundus (Stage 10) Militis Bosses & Map Tests
   [35] ✅ PASS | Arcarum Zone Goliath (Stage 3) Bosses & Workflows Tests
   [36] ✅ PASS | Fate Stories Engine & Routine Unit Tests
-  [37] ✅ PASS | Production vs Local Environment & Performance Architecture Tests
-  [38] ✅ PASS | Mobage OAuth Redirect & Cookie Replacement Tests
-  [39] ✅ PASS | Suspended Quest & Combat Resume Engine Tests
-  [40] ✅ PASS | Arcarum Zone Joculator (Stage 7) Lady of Redemption Tests
-  [41] ✅ PASS | Duplicate Workflow Prevention & Canonical Alias Tests
-  [42] ✅ PASS | Raid: The World (HL) Multi-Battle Template & DSL Tests
-  [43] ✅ PASS | Raid: Dark Rapture (Hard) Multi-Battle Template & DSL Tests
-  [44] ✅ PASS | Raid: The Fallen Angel of Cunning (HL) Multi-Battle Template & DSL Tests
-  [45] ✅ PASS | Raid: Long Live the King (HL) Multi-Battle Template & DSL Tests
-  [46] ✅ PASS | Finder Slot Configurator & Auto Set Raid Tests
-  [47] ✅ PASS | Raid: Fediel (Impossible) Multi-Battle Template & DSL Tests
-  [48] ✅ PASS | Raid: Wilnas (Impossible) Multi-Battle Template & DSL Tests
-  [49] ✅ PASS | Arcarum Stage 7 (Xeno Cocytus Militis) Template & DSL Tests
-  [50] ✅ PASS | Arcarum Stage 6 (Xeno Ifrit Militis) Template & Screen Guard Tests
-  [51] ✅ PASS | Human Behavioral Mimicry & Account Cadence Tests
-  [52] ✅ PASS | Standardized Gold Bar Rotations & 1.5M Honor Verification Tests
+  [37] ✅ PASS | Multi-Part Story Scene Skip Engine Tests
+  [38] ✅ PASS | Production vs Local Environment & Performance Architecture Tests
+  [39] ✅ PASS | Mobage OAuth Redirect & Cookie Replacement Tests
+  [40] ✅ PASS | Suspended Quest & Combat Resume Engine Tests
+  [41] ✅ PASS | Arcarum Zone Joculator (Stage 7) Lady of Redemption Tests
+  [42] ✅ PASS | Duplicate Workflow Prevention & Canonical Alias Tests
+  [43] ✅ PASS | Raid: The World (HL) Multi-Battle Template & DSL Tests
+  [44] ✅ PASS | Raid: Dark Rapture (Hard) Multi-Battle Template & DSL Tests
+  [45] ✅ PASS | Raid: The Fallen Angel of Cunning (HL) Multi-Battle Template & DSL Tests
+  [46] ✅ PASS | Raid: Long Live the King (HL) Multi-Battle Template & DSL Tests
+  [47] ✅ PASS | Finder Slot Configurator & Auto Set Raid Tests
+  [48] ✅ PASS | Raid: Fediel (Impossible) Multi-Battle Template & DSL Tests
+  [49] ✅ PASS | Raid: Wilnas (Impossible) Multi-Battle Template & DSL Tests
+  [50] ✅ PASS | Arcarum Stage 7 (Xeno Cocytus Militis) Template & DSL Tests
+  [51] ✅ PASS | Arcarum Stage 6 (Xeno Ifrit Militis) Template & Screen Guard Tests
+  [52] ✅ PASS | Human Behavioral Mimicry & Account Cadence Tests
+  [53] ✅ PASS | Standardized Gold Bar Rotations & 1.5M Honor Verification Tests
+  [54] ✅ PASS | Mid-Execution Stoppage, Renderer Freeze Watchdog & Standby Mode Tests
+  [55] ✅ PASS | Magna 3 (Omega Rebirth) All-Element Farm Templates & Strategy Tests
+  [56] ✅ PASS | Shiny Slime Search (Very Hard) Workflow & Back Button Tests
+  [57] ✅ PASS | Seofon (Impossible) / Siete HL 4M Honors & Readiness Auto-Checker Tests
 ------------------------------------------------------------------------
-Total Suites: 52 | Passed: 52 | Failed: 0 (100% GOLD INDUSTRY STANDARD)
+Total Suites: 57 | Passed: 57 | Failed: 0 (100% GOLD INDUSTRY STANDARD)
 ========================================================================
 ```

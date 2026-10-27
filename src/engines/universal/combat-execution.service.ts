@@ -32,16 +32,28 @@ export class CombatExecutionService {
   public isManualWorkflow(): boolean {
     if (this.deps.isManualWorkflow) return this.deps.isManualWorkflow();
     const mode = this.ctx.template.mode as string | undefined;
-    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
-    if (mode === 'assist' || mode === 'auto' || mode === 'smart_auto') return false;
+    if (mode === 'auto' || mode === 'smart_auto') return false;
 
-    const hasAuto = this.ctx.template.steps?.some(s => s.code === 'auto' || s.code === 'smart_full_auto');
+    const hasAuto = this.ctx.template.steps?.some(s =>
+      s.code === 'auto' || s.action === 'auto' ||
+      s.code === 'smart_full_auto' || s.action === 'smart_full_auto' ||
+      s.code === 'tap_ready' || s.action === 'tap_ready'
+    );
     if (hasAuto) return false;
 
     const hasManualSteps = this.ctx.template.steps?.some(s =>
-      s.code === 'skill' || s.code === 'attack' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'wait_element'
+      s.code === 'skill' || s.action === 'skill' ||
+      s.code === 'attack' || s.action === 'attack' ||
+      s.code === 'summon' || s.action === 'summon' ||
+      s.code === 'quick_call' || s.action === 'quick_call' ||
+      s.code === 'wait_element' || s.action === 'wait_element'
     );
-    return hasManualSteps || this.ctx.template.isSolo === true;
+    if (hasManualSteps) return true;
+
+    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
+    if (mode === 'assist') return false;
+
+    return this.ctx.template.isSolo === true;
   }
 
   /**
@@ -398,28 +410,80 @@ export class CombatExecutionService {
    */
   public async handleHeal(step: WorkflowStep): Promise<boolean> {
     const pType = step.potionType || 'green';
+    await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+
+    const partyCheck = await this.page.evaluate(() => {
+      const stage = (window as any).stage;
+      const rawPlayers = stage?.gGameStatus?.player?.param || stage?.pJsnData?.player?.param;
+      const players = Array.isArray(rawPlayers) ? rawPlayers : (rawPlayers ? Object.values(rawPlayers) : []);
+      const frontline = players.slice(0, 4).filter((p: any) => p && Number(p.hp) > 0 && p.alive !== 0);
+      if (frontline.length === 0) return { shouldHeal: false, reason: 'no_alive_frontline' };
+
+      for (const p of frontline as any[]) {
+        const debuffs = p?.condition?.debuff || [];
+        const hasZombie = Array.isArray(debuffs) && debuffs.some((d: any) => {
+          const st = String(d?.status || '');
+          const nm = String(d?.name || '').toLowerCase();
+          return st === '1263' || st === '1397' || nm.includes('zombi') || nm.includes('ゾンビ');
+        });
+        if (hasZombie) return { shouldHeal: false, reason: 'zombified' };
+      }
+
+      const minRatio = Math.min(...frontline.map((p: any) => {
+        const max = Number(p.hpmax) || 1;
+        return Number(p.hp) / max;
+      }));
+      if (minRatio >= 0.90) return { shouldHeal: false, reason: 'healthy' };
+      return { shouldHeal: true, reason: 'damaged' };
+    }).catch(() => ({ shouldHeal: true, reason: 'unknown' }));
+
+    if (!partyCheck.shouldHeal) {
+      console.log(`[Combat] Skipping ${pType} potion (${partyCheck.reason}).`);
+      return true;
+    }
 
     const tempTrayBtn = await this.page.$('.btn-temporary, .btn-item');
     if (tempTrayBtn) {
-      await humanizedClick(this.page, tempTrayBtn);
-      await humanReactionDelay(120, 0.1);
+      await tempTrayBtn.evaluate((el: any) => {
+        const pop = document.querySelector('.pop-temporary-item, .pop-usual.pop-show, .lis-item') as HTMLElement;
+        if (pop && pop.offsetParent !== null) return;
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(el).trigger('tap');
+        else el.click();
+      }).catch(() => null);
+      await humanReactionDelay(180, 0.1);
     }
 
     const itemSelector = pType === 'green'
-      ? '.lis-item[item-id="1"], .btn-item-small'
+      ? '.lis-item.item-small:not(.disable), .lis-item[item-id="1"]:not(.disable), .btn-temporary-small:not(.disable), .btn-item-small:not(.disable)'
       : pType === 'blue'
-      ? '.lis-item[item-id="2"], .btn-item-all'
-      : '.lis-item[item-id="3"], .btn-item-elixir';
+      ? '.lis-item.item-large:not(.disable), .lis-item[item-id="2"]:not(.disable), .btn-temporary-large:not(.disable), .btn-item-all:not(.disable)'
+      : '.lis-item[item-id="3"]:not(.disable), .btn-item-elixir:not(.disable)';
 
-    const potionBtn = await this.page.waitForSelector(itemSelector, { visible: true, timeout: 2500 }).catch(() => null);
+    const potionBtn = await this.page.waitForSelector(itemSelector, { visible: true, timeout: 1500 }).catch(() => null);
     if (potionBtn) {
-      await humanizedClick(this.page, potionBtn);
-      const okBtn = await this.page.waitForSelector('.btn-usual-ok.btn-item-use, .btn-usual-ok.se-use', { visible: true, timeout: 1500 }).catch(() => null);
-      if (okBtn) await humanizedClick(this.page, okBtn);
+      await potionBtn.evaluate((el: any) => {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(el).trigger('tap');
+        else el.click();
+      }).catch(() => null);
+      await humanReactionDelay(150, 0.1);
+      const okBtn = await this.page.waitForSelector('.btn-usual-ok.btn-item-use, .btn-usual-ok.se-use, #pop .btn-usual-ok, .pop-temporary-item .btn-usual-ok', { visible: true, timeout: 1200 }).catch(() => null);
+      if (okBtn) {
+        await okBtn.evaluate((el: any) => {
+          if (el.offsetParent === null) return;
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(el).trigger('tap');
+          else el.click();
+        }).catch(() => null);
+      }
       await logNormalDelay(250, 0.1);
+      await this.deps.combatResolution.dismissCombatDrawersAndPopups();
       return true;
     }
-    return false;
+
+    await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+    return step.optional ? true : false;
   }
 
   /**
@@ -466,12 +530,28 @@ export class CombatExecutionService {
       await this.deps.combatResolution.waitForWave(targetWave, isTurbo ? 6000 : 10000);
     }
 
-    // 1. Fast O(1) JavaScript game state inspection
+    // 1. Fast O(1) JavaScript game state & DOM attribute inspection
     const jsSkillCheck = await this.page.evaluate((cNum: number, sNum: number) => {
       const stage = (window as any).stage;
+      const gStatus = stage?.gGameStatus;
       const pJsn = stage?.pJsnData;
-      const abilityMap = pJsn?.ability || {};
       const charPos = cNum - 1;
+
+      // 1a. Check if frontline slot charPos is dead or empty
+      const rawPlayers = gStatus?.player?.param || pJsn?.player?.param;
+      const players = Array.isArray(rawPlayers) ? rawPlayers : (rawPlayers ? Object.values(rawPlayers) : []);
+      if (players.length > 0) {
+        const p = players[charPos] as any;
+        if (!p || Number(p.hp) <= 0 || p.alive === 0) {
+          return { found: true, isReady: false, recast: 'KO', name: p?.name || '' };
+        }
+      }
+      const charPortraitEl = document.querySelector(`.lis-character${charPos}`) as HTMLElement;
+      if (charPortraitEl && (charPortraitEl.classList.contains('blank') || charPortraitEl.classList.contains('empty'))) {
+        return { found: true, isReady: false, recast: 'empty', name: '' };
+      }
+
+      const abilityMap = pJsn?.ability || {};
       let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
       if (!charObj) {
         charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
@@ -486,6 +566,30 @@ export class CombatExecutionService {
           return { found: true, isReady, recast, name: abilityData['ability-name'] || '' };
         }
       }
+
+      // Fallback O(1) DOM attribute check (works even while character drawer is closed)
+      const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
+      if (domEl) {
+        const container = (domEl.closest('.lis-ability') || domEl) as HTMLElement;
+        const recastAttr = container.getAttribute('ability-recast') || domEl.getAttribute('ability-recast') || container.querySelector('[ability-recast]')?.getAttribute('ability-recast') || '';
+        const abilityName = container.getAttribute('ability-name') || domEl.getAttribute('ability-name') || container.querySelector('[ability-name]')?.getAttribute('ability-name') || '';
+        const isUnavailable =
+          container.classList.contains('btn-ability-unavailable') ||
+          container.classList.contains('btn-ability-off') ||
+          domEl.classList.contains('btn-ability-unavailable') ||
+          domEl.classList.contains('btn-ability-off') ||
+          container.classList.contains('empty') ||
+          container.classList.contains('disabled') ||
+          (recastAttr !== '' && recastAttr !== '0');
+        const isAvailable =
+          container.classList.contains('btn-ability-available') ||
+          domEl.classList.contains('btn-ability-available') ||
+          !!container.querySelector('.btn-ability-available');
+        if (isUnavailable && !isAvailable) {
+          return { found: true, isReady: false, recast: recastAttr || 'unavailable', name: abilityName };
+        }
+      }
+
       return { found: false, isReady: null, recast: '', name: '' };
     }, char, skill).catch(() => ({ found: false, isReady: null, recast: '', name: '' }));
 
@@ -516,10 +620,25 @@ export class CombatExecutionService {
     }, charIdx, char, skill).catch(() => false);
 
     if (!isDrawerOpen) {
-      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, .prt-command-chara[pos="${charIdx}"] .btn-command-character, .prt-command-chara[pos="${charIdx}"], .prt-command-chara.chara${char} .btn-command-character, .prt-command-chara.chara${char}, [pos="${charIdx}"].btn-command-character, [pos="${charIdx}"]`;
+      // Strictly match character command portrait buttons only (never bare [pos="0..3"] which matches enemy targets/abilities)
+      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, .btn-command-character[pos="${charIdx}"]`;
       const maxOpenAttempts = step.ensureCast ? 5 : 3;
 
       for (let openAttempt = 1; openAttempt <= maxOpenAttempts; openAttempt++) {
+        // If another character's ability drawer or summon drawer is currently open, close it first so character portraits are visible
+        await this.page.evaluate((cNum: number, sNum: number) => {
+          const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
+          if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
+            return;
+          }
+          const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+          if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(back).trigger('tap');
+            back.click();
+          }
+        }, char, skill).catch(() => null);
+
         let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 1000 : 2500 }).catch(() => null);
         if (!charBtn) {
           await this.deps.combatResolution.dismissCombatDrawersAndPopups();
@@ -528,15 +647,19 @@ export class CombatExecutionService {
         }
 
         if (charBtn) {
-          await humanizedClick(this.page, charBtn);
-          await charBtn.evaluate((el: any) => {
+          await humanizedClick(this.page, charBtn).catch(() => null);
+          await charBtn.evaluate((el: any, cNum: number, sNum: number) => {
+            const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
+            if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
+              return;
+            }
             const $ = (window as any).$ || (window as any).Zepto;
             if ($) {
               $(el).trigger('tap');
-              $(el).trigger('click');
+            } else {
+              el.click();
             }
-            el.click();
-          }).catch(() => null);
+          }, char, skill).catch(() => null);
 
           // Wait for ability drawer to open specifically for character `char`
           isDrawerOpen = await this.page.waitForFunction((cIdx: number, cNum: number, sNum: number) => {
@@ -548,11 +671,9 @@ export class CombatExecutionService {
             const hasBack = back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none';
             if (hasBack) {
               const charPortrait = document.querySelector(`.prt-command-chara[pos="${cIdx}"], .lis-character${cIdx}, .prt-command-chara.chara${cNum}`);
-              if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active'))) {
+              if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active') || charPortrait.classList.contains('display-on'))) {
                 return true;
               }
-              const anyCharSelected = document.querySelector('.prt-command-chara.selected, .lis-character.selected');
-              if (!anyCharSelected) return true;
             }
             return false;
           }, { timeout: isTurbo ? 1500 : 3000 }, charIdx, char, skill).then(() => true).catch(() => false);
@@ -676,8 +797,16 @@ export class CombatExecutionService {
         // Wait for network response
         const netSuccess = await netPromise;
 
-        // Verify if skill actually went on cooldown in client state
+        // Verify if skill actually went on cooldown in client state or DOM
         const recastCheck = await this.page.evaluate((cNum: number, sNum: number) => {
+          const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
+          if (domEl) {
+            const container = (domEl.closest('.lis-ability') || domEl) as HTMLElement;
+            const recastAttr = container.getAttribute('ability-recast') || domEl.getAttribute('ability-recast') || container.querySelector('[ability-recast]')?.getAttribute('ability-recast') || '';
+            if ((recastAttr !== '' && recastAttr !== '0') || container.classList.contains('btn-ability-unavailable') || domEl.classList.contains('btn-ability-unavailable')) {
+              return true;
+            }
+          }
           const stage = (window as any).stage;
           const pJsn = stage?.pJsnData;
           const abilityMap = pJsn?.ability || {};
@@ -697,7 +826,7 @@ export class CombatExecutionService {
           return false;
         }, char, skill).catch(() => false);
 
-        const isCastConfirmed = step.ensureCast ? (netSuccess || recastCheck) : (netSuccess || recastCheck || clicked);
+        const isCastConfirmed = netSuccess || recastCheck;
         if (isCastConfirmed) {
           console.log(`[Combat] ⚡ Cast Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''}${step.ensureCast ? ' (Verified)' : ''}`);
 
@@ -713,6 +842,10 @@ export class CombatExecutionService {
               }
             }
           }, (step.targetCharacter ? step.targetCharacter - 1 : 0)).catch(() => null);
+
+          if (!isTurbo) {
+            await new Promise(r => setTimeout(r, 150));
+          }
 
           // 7. Fast-tick animation and unlock UI
           await this.page.evaluate(() => {
@@ -734,7 +867,8 @@ export class CombatExecutionService {
             const isDefeated = gStatus?.win || pJsn?.is_clear || pJsn?.finish;
             const firstBoss = pJsn?.boss?.param?.[0];
             const bossDead = firstBoss && Number(firstBoss.hp) <= 0;
-            return isDefeated || bossDead;
+            const isUnlocked = !gStatus || (!gStatus.lock && !gStatus.btn_lock && !gStatus.animation);
+            return isDefeated || bossDead || isUnlocked;
           }, { timeout: 1200 }).catch(() => null);
 
           await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1000);
@@ -772,13 +906,21 @@ export class CombatExecutionService {
     await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 800 : 2500);
     if (await this.deps.combatResolution.isBattleEnded()) return true;
 
-    // Fast O(1) JavaScript game state inspection for summon readiness
+    // Fast O(1) JavaScript game state & DOM inspection for summon readiness
     const jsSummonCheck = await this.page.evaluate((targetSlot: number, targetNameStr: string) => {
       const stage = (window as any).stage;
-      const rawSummons = stage?.pJsnData?.summon || stage?.gGameStatus?.summon;
+      const gStatus = stage?.gGameStatus;
+      if (gStatus && (gStatus.summon_enable === 0 || gStatus.summon_enable === false)) {
+        return { found: true, isReady: false, recast: 'turn_limit', name: '', resolvedSlot: targetSlot };
+      }
+      const summonBtn = document.querySelector('.btn-command-summon') as HTMLElement;
+      if (summonBtn && summonBtn.classList.contains(' summon-off')) {
+        return { found: true, isReady: false, recast: 'turn_limit', name: '', resolvedSlot: targetSlot };
+      }
+      const rawSummons = gStatus?.summon || stage?.pJsnData?.summon;
+      let resolvedSlot = targetSlot;
       if (rawSummons) {
         const summonsList = Array.isArray(rawSummons) ? rawSummons : Object.values(rawSummons);
-        let resolvedSlot = targetSlot;
         if (targetNameStr) {
           const matchIdx = summonsList.findIndex((s: any) => {
             if (!s) return false;
@@ -790,13 +932,32 @@ export class CombatExecutionService {
         }
 
         const sIdx = resolvedSlot - 1;
-        const s: any = summonsList[sIdx] || summonsList.find((item: any) => Number(item?.pos) === sIdx);
+        const s: any = (resolvedSlot === 6 && (gStatus?.supporter || stage?.pJsnData?.supporter))
+          ? (gStatus?.supporter || stage?.pJsnData?.supporter)
+          : (summonsList.find((item: any) => Number(item?.pos) === resolvedSlot) || summonsList[sIdx]);
         if (s) {
           const recast = String(s.recast ?? '');
-          const isReady = s.available_flag === 1 || s.available_flag === true || recast === '0' || recast === '';
+          const isReady = (recast === '0' || recast === '') && s.available_flag !== 0 && s.available_flag !== false;
           return { found: true, isReady, recast, name: s.name || '', resolvedSlot };
         }
       }
+
+      // Fallback O(1) DOM attribute check (works even while summon tray is closed; GBF .lis-summon uses 1-based pos="1..6")
+      const domEl = (document.querySelector(`.lis-summon[pos="${resolvedSlot}"]`) || document.querySelector(`.lis-summon:nth-child(${resolvedSlot})`)) as HTMLElement;
+      if (domEl) {
+        const recastAttr = domEl.getAttribute('summon-recast') || domEl.getAttribute('recast') || '';
+        const summonName = domEl.getAttribute('summon-name') || '';
+        const isUnavailable =
+          domEl.classList.contains('btn-summon-unavailable') ||
+          domEl.classList.contains('off') ||
+          domEl.classList.contains('disabled') ||
+          (recastAttr !== '' && recastAttr !== '0');
+        const isAvailable = domEl.classList.contains('btn-summon-available') || domEl.classList.contains('on');
+        if (isUnavailable && !isAvailable) {
+          return { found: true, isReady: false, recast: recastAttr || 'unavailable', name: summonName, resolvedSlot };
+        }
+      }
+
       return { found: false, isReady: null, recast: '', name: '', resolvedSlot: targetSlot };
     }, slot, targetName).catch(() => ({ found: false, isReady: null, recast: '', name: '', resolvedSlot: slot }));
 
@@ -811,60 +972,79 @@ export class CombatExecutionService {
     }
 
     // 2. Open summon tray if not already open
-    const isSummonOpen = await this.page.evaluate(() => {
-      const slotEl = document.querySelector('.lis-summon, .btn-summon-use');
-      const tab = document.querySelector('.btn-command-summon, .prt-command-summon');
-      const isOpen = tab?.classList.contains('summon-on') || tab?.classList.contains('selected');
-      return isOpen || (!!slotEl && (slotEl as HTMLElement).offsetWidth > 0 && window.getComputedStyle(slotEl).display !== 'none');
-    }).catch(() => false);
+    let isSummonOpen = await this.page.evaluate((targetSlot: number) => {
+      const slotEl = (document.querySelector(`.lis-summon[pos="${targetSlot}"]`) || document.querySelector('.lis-summon')) as HTMLElement;
+      const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+      const trayVisible = !!(tray && tray.classList.contains('summon-on') && tray.offsetParent !== null);
+      return trayVisible || !!(slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0);
+    }, slot).catch(() => false);
 
     if (!isSummonOpen) {
-      const summonTrayBtn = await this.page.$('.prt-list-top.btn-command-summon:not(.summon-on), .btn-command-summon, .btn-summon-available, .prt-command-summon');
-      if (summonTrayBtn) {
-        await humanizedClick(this.page, summonTrayBtn);
-        await summonTrayBtn.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(el).trigger('tap');
-          el.click();
-        }).catch(() => null);
-        if (!isTurbo) await humanReactionDelay(180, 0.1);
+      for (let openTry = 1; openTry <= 3 && !isSummonOpen; openTry++) {
+        const hadOpenDrawer = await this.page.evaluate(() => {
+          const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+          if (tray && tray.classList.contains('summon-on') && tray.offsetParent !== null) return false;
+          const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+          if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(back).trigger('tap');
+            else back.click();
+            return true;
+          }
+          return false;
+        }).catch(() => false);
+
+        if (hadOpenDrawer) {
+          await new Promise(r => setTimeout(r, isTurbo ? 90 : 160));
+        }
+
+        const summonTrayBtn = await this.page.waitForSelector('.prt-list-top.btn-command-summon:not(.summon-on), .btn-command-summon', { visible: true, timeout: isTurbo ? 500 : 900 }).catch(() => null);
+        if (summonTrayBtn) {
+          await humanizedClick(this.page, summonTrayBtn).catch(() => null);
+          await new Promise(r => setTimeout(r, isTurbo ? 120 : 200));
+          await summonTrayBtn.evaluate((el: any) => {
+            const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+            const slotEl = document.querySelector('.lis-summon') as HTMLElement;
+            if ((tray && tray.classList.contains('summon-on')) || (slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0)) return;
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(el).trigger('tap');
+            else el.click();
+          }).catch(() => null);
+        }
+
+        isSummonOpen = await this.page.waitForFunction((targetSlot: number) => {
+          const slotEl = (document.querySelector(`.lis-summon[pos="${targetSlot}"]`) || document.querySelector('.lis-summon')) as HTMLElement;
+          const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+          return !!(slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0) || !!(tray && tray.classList.contains('summon-on'));
+        }, { timeout: isTurbo ? 700 : 1200 }, slot).then(() => true).catch(() => false);
       }
     }
 
-    // 3. Locate target summon slot button (in GBF, pos attribute is 0-indexed: slot 1 is pos 0, slot 4 is pos 3)
-    const targetPos = slot - 1;
-    const summonSelectors = [
-      `.lis-summon[pos="${targetPos}"]`,
-      `.btn-summon-use[pos="${targetPos}"]`,
-      `div[pos="${targetPos}"].lis-summon`,
-      `.lis-summon:nth-child(${slot})`,
-      `.lis-summon.summon-${slot}`,
-      `.lis-summon[pos="${slot}"]`,
-      `.btn-summon-use[pos="${slot}"]`
-    ];
+    // 3. Locate target summon slot button (in GBF .prt-summon-list, pos is 1-indexed: slot 1..5 is pos="1..5", slot 6 is supporter)
+    const combinedSummonSelector = slot === 6
+      ? `.lis-summon.supporter, .lis-summon[pos="6"], .lis-summon[pos="supporter"], .btn-summon-use[pos="6"], .lis-summon:nth-child(6), .lis-summon.summon-6`
+      : `.lis-summon[pos="${slot}"], .btn-summon-use[pos="${slot}"], .lis-summon:nth-child(${slot}), .lis-summon.summon-${slot}`;
 
-    let summonSlot: any = null;
-    for (const sel of summonSelectors) {
-      summonSlot = await this.page.waitForSelector(sel, { visible: true, timeout: isTurbo ? 1000 : 2500 }).catch(() => null);
-      if (summonSlot) break;
-    }
-
+    let summonSlot: any = await this.page.waitForSelector(combinedSummonSelector, { visible: true, timeout: isTurbo ? 900 : 1800 }).catch(() => null);
     if (!summonSlot) {
-      const allSummons = await this.page.$$('.lis-summon, .btn-summon-use');
-      if (allSummons && allSummons.length >= slot) {
-        summonSlot = allSummons[slot - 1];
+      const allSummonCards = await this.page.$$('.prt-summon-list .lis-summon, .lis-summon').catch(() => []);
+      if (allSummonCards.length >= slot) {
+        summonSlot = allSummonCards[slot - 1];
       }
     }
 
     if (summonSlot) {
       const isUnavailable = await summonSlot.evaluate((el: any) => {
+        const recastAttr = el.getAttribute('summon-recast') || el.getAttribute('recast') || '';
         return el.classList.contains('btn-summon-unavailable') ||
                el.classList.contains('off') ||
-               el.classList.contains('disabled');
+               el.classList.contains('disabled') ||
+               (recastAttr !== '' && recastAttr !== '0');
       }).catch(() => false);
 
-      if (isUnavailable && (jsSummonCheck.isReady === false || !jsSummonCheck.found)) {
+      if (isUnavailable) {
         console.log(`[Combat] Summon slot ${slot} is on cooldown or unavailable.`);
+        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
         if (step.optional) return true;
         return false;
       }
@@ -872,27 +1052,38 @@ export class CombatExecutionService {
       const targetNet = step.waitForNetwork || 'summon_result.json';
       const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 2500 : 4500);
 
-      await humanizedClick(this.page, summonSlot);
+      await humanizedClick(this.page, summonSlot).catch(() => null);
+      await new Promise(r => setTimeout(r, isTurbo ? 140 : 220));
       await summonSlot.evaluate((el: any) => {
+        const pop = document.querySelector('.pop-summon-detail, .pop-usual.pop-show, #pop .btn-usual-ok') as HTMLElement;
+        if (pop && pop.offsetParent !== null) return;
         const $ = (window as any).$ || (window as any).Zepto;
         if ($) $(el).trigger('tap');
-        el.click();
+        else el.click();
       }).catch(() => null);
-      if (!isTurbo) await logNormalDelay(150, 0.1);
 
-      // 4. Click Call confirmation button
+      // 4. Click Call confirmation button inside the summon detail popup (never bare .btn-summon-use which matches tray cards)
       const okBtn = await this.page.waitForSelector(
-        '.btn-usual-ok.btn-summon-use, .pop-summon-detail .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, .btn-summon-use, .btn-call, .se-summon-call, #pop .btn-usual-ok, .btn-usual-ok',
+        '.btn-usual-ok.btn-summon-use, .pop-summon-detail .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, #pop .btn-usual-ok, .btn-call, .se-summon-call',
         { visible: true, timeout: isTurbo ? 1200 : 2500 }
       ).catch(() => null);
 
       if (okBtn) {
-        await humanizedClick(this.page, okBtn);
+        await humanizedClick(this.page, okBtn).catch(() => null);
+        await new Promise(r => setTimeout(r, isTurbo ? 100 : 180));
         await okBtn.evaluate((el: any) => {
+          if (el.offsetParent === null) return;
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(el).trigger('tap');
-          el.click();
+          else el.click();
         }).catch(() => null);
+      } else {
+        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+        if (step.optional) {
+          console.log(`[Combat] Optional summon slot ${slot} popup did not open; skipping.`);
+          return true;
+        }
+        return false;
       }
 
       console.log(`[Combat] 🔮 Invoked Summon Slot ${slot}. Awaiting resolution...`);
@@ -1606,7 +1797,7 @@ export class CombatExecutionService {
     }
 
     const targetNet = step.waitForNetwork || 'normal_attack_result.json';
-    const maxAttempts = 3;
+    const maxAttempts = 5;
     const initialTurn = this.ctx.state.currentTurn;
     const initialHonors = this.ctx.state.currentScore;
 
@@ -1618,6 +1809,10 @@ export class CombatExecutionService {
         return true;
       }
 
+      if (attempt > 1) {
+        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+        await new Promise(r => setTimeout(r, 500));
+      }
       await this.deps.combatResolution.dismissCombatDrawersAndPopups();
 
       await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 500 : 3000);
@@ -1664,27 +1859,26 @@ export class CombatExecutionService {
 
       let tapped = false;
       if (atkBtn) {
-        const box = await atkBtn.boundingBox().catch(() => null);
-        if (box && box.width > 0 && box.height > 0) {
-          const tapX = Math.round(box.x + box.width / 2 + (isTurbo ? 0 : sampleGaussian(0, 3)));
-          const tapY = Math.round(box.y + box.height / 2 + (isTurbo ? 0 : sampleGaussian(0, 2)));
-          await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
-          await this.page.mouse.click(tapX, tapY).catch(() => null);
-          tapped = true;
-        } else {
-          await humanizedClick(this.page, atkBtn).catch(() => null);
-          tapped = true;
-        }
-
-        await atkBtn.evaluate((el: any) => {
+        tapped = await atkBtn.evaluate((el: any) => {
+          if (!el || el.classList.contains('display-off')) return false;
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) {
             $(el).trigger('tap');
-            $(el).trigger('click');
+          } else {
+            el.click();
           }
-          el.click();
-        }).catch(() => null);
-        tapped = true;
+          return true;
+        }).catch(() => false);
+
+        if (!tapped) {
+          const box = await atkBtn.boundingBox().catch(() => null);
+          if (box && box.width > 0 && box.height > 0) {
+            const tapX = Math.round(box.x + box.width / 2 + (isTurbo ? 0 : sampleGaussian(0, 3)));
+            const tapY = Math.round(box.y + box.height / 2 + (isTurbo ? 0 : sampleGaussian(0, 2)));
+            await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
+            tapped = true;
+          }
+        }
       }
 
       if (!tapped) {
@@ -1749,7 +1943,13 @@ export class CombatExecutionService {
 
         if (json.status?.turn !== undefined) this.ctx.state.currentTurn = Number(json.status.turn);
         else if (json.turn !== undefined) this.ctx.state.currentTurn = Number(json.turn);
-        this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
+
+        let caCount = 0;
+        if (Array.isArray(json.scenario)) {
+          caCount = json.scenario.filter((ev: any) => ev && (ev.cmd === 'special' || ev.cmd === 'special_npc')).length;
+        }
+        const lockoutMs = caCount >= 5 ? 11500 : caCount === 4 ? 10000 : caCount === 3 ? 7800 : caCount === 2 ? 5500 : caCount === 1 ? 3600 : 2200;
+        this.ctx.state.lastAttackLockoutExpires = Date.now() + lockoutMs;
       }
 
       const clientState = await this.page.evaluate((prevTurn) => {
@@ -1808,12 +2008,16 @@ export class CombatExecutionService {
       if (cjs?.Tween?.tick) {
         cjs.Tween.tick(2000, false);
       }
+      const stage = (window as any).stage;
+      const gStatus = stage?.gGameStatus;
       if (manual) {
         const auto = document.querySelector('.btn-auto, .btn-ability-auto, #btn-auto') as HTMLElement;
-        if (auto && (auto.classList.contains('display-on') || auto.classList.contains('active') || auto.classList.contains('full'))) {
+        const isAutoActive = gStatus?.auto_attack === 1 || gStatus?.auto_attack === true ||
+          (auto && (auto.classList.contains('active') || auto.classList.contains('btn-auto-active')));
+        if (auto && isAutoActive) {
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(auto).trigger('tap');
-          auto.click();
+          else auto.click();
         }
       } else {
         const ready = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready') as HTMLElement;
@@ -1823,9 +2027,30 @@ export class CombatExecutionService {
           ready.click();
         }
       }
+      const lockBtn = document.querySelector('.btn-lock.lock1') as HTMLElement;
+      if (lockBtn && lockBtn.offsetParent !== null) {
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(lockBtn).trigger('tap');
+        lockBtn.click();
+      }
     }, isManual, config.TICKER_FPS).catch(() => null);
 
     if (!isTurbo) await logNormalDelay(100, 0.1);
+
+    // Wait out server-side Charge Attack (Ougi) lockout window before executing next turn's skills/summons
+    if (this.ctx.state.lastAttackLockoutExpires > Date.now()) {
+      const waitRemainingMs = this.ctx.state.lastAttackLockoutExpires - Date.now();
+      if (waitRemainingMs > 400) {
+        console.log(`[Combat] ⏳ Awaiting post-Ougi server lockout (${(waitRemainingMs / 1000).toFixed(1)}s remaining)...`);
+        while (Date.now() < this.ctx.state.lastAttackLockoutExpires) {
+          if (this.ctx.state.stopRequested) break;
+          await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+          if (await this.deps.combatResolution.isBattleEnded()) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+      }
+    }
 
     await this.deps.combatResolution.syncCurrentHonors();
     const updatedTurn = await this.page.evaluate(() => {

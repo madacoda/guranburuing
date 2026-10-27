@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 import { AlertRelay } from '../../alert-relay.js';
+import { rustBridge } from '../../core/rust-bridge.js';
 
 export interface GoldBarDropRecord {
   id: string;
@@ -88,6 +89,10 @@ export class GoldBarTrackerService {
    * Any activity between 00:00:00 and 04:59:59 JST belongs to the previous day's server cycle.
    */
   public static getGbfDay(date: Date = new Date()): string {
+    const nativeDay = rustBridge.getGbfServerDayYmd(date.getTime());
+    if (nativeDay !== null) {
+      return nativeDay;
+    }
     // Offset by -5 hours in JST to align 05:00 JST as the start of the day
     const jstTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
     jstTime.setHours(jstTime.getHours() - 5);

@@ -463,6 +463,20 @@ export class UniversalWorkflowEngine {
       }
 
       if (!started) {
+        if (this.ctx.state.lastStartFailureWasRaidLimit) {
+          console.log(`[Workflow] Recovered from 3-raid backup limit via passive wait cycle. Resuming runs immediately...`);
+          consecutiveStartFailures = 0;
+          this.ctx.state.lastStartFailureWasRaidLimit = false;
+          continue;
+        }
+
+        if (this.ctx.state.lastStartFailureWasRaidWait || this.ctx.state.lastStartFailureWasMaintenance) {
+          consecutiveStartFailures = 0;
+          this.ctx.state.lastStartFailureWasRaidWait = false;
+          this.ctx.state.lastStartFailureWasMaintenance = false;
+          continue;
+        }
+
         consecutiveStartFailures++;
         console.warn(`[Workflow] Quest launch failed on Run ${runNumber} (Failure ${consecutiveStartFailures}/${MAX_START_FAILURES}).`);
 
@@ -484,20 +498,6 @@ export class UniversalWorkflowEngine {
         if (recovery.isFatal) {
           console.error(`[Workflow] ❌ Unrecoverable screen condition encountered (${recovery.condition}): ${recovery.reason}. Aborting loop.`);
           break;
-        }
-
-        if (this.ctx.state.lastStartFailureWasRaidLimit) {
-          console.log(`[Workflow] Recovered from 3-raid backup limit via passive wait cycle. Resuming runs immediately...`);
-          consecutiveStartFailures = 0;
-          this.ctx.state.lastStartFailureWasRaidLimit = false;
-          continue;
-        }
-
-        if (this.ctx.state.lastStartFailureWasRaidWait || this.ctx.state.lastStartFailureWasMaintenance) {
-          consecutiveStartFailures = 0;
-          this.ctx.state.lastStartFailureWasRaidWait = false;
-          this.ctx.state.lastStartFailureWasMaintenance = false;
-          continue;
         }
 
         if (consecutiveStartFailures >= MAX_START_FAILURES) {
@@ -536,7 +536,7 @@ export class UniversalWorkflowEngine {
             await this.combatExecution.ensureBattleConcluded(10);
           }
         }
-        if (!hasConfirmResultStep) {
+        if (!hasConfirmResultStep || !(this.ctx.state as any).confirmResultExecuted) {
           await this.combatResolution.handleConfirmResult();
         }
         await this.combatResolution.syncCurrentHonors();
@@ -645,6 +645,7 @@ export class UniversalWorkflowEngine {
   private async executeStepPipeline(runNumber: number): Promise<boolean> {
     this.ctx.state.currentScore = 0;
     this.ctx.state.currentTurn = 1;
+    (this.ctx.state as any).confirmResultExecuted = false;
 
     if (this.template.mode !== 'routine') {
       await this.combatResolution.ensureInitialCombatReady();
@@ -745,6 +746,12 @@ export class UniversalWorkflowEngine {
         }
       }
 
+      if (stepAction === 'confirm_result') {
+        if (!this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore < this.template.targetScore) {
+          await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
+        }
+      }
+
       console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
 
       const success = await this.executeSingleStep(step, i + 1, runNumber);
@@ -791,16 +798,28 @@ export class UniversalWorkflowEngine {
 
   public isManualWorkflow(): boolean {
     const mode = this.template.mode as string | undefined;
-    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
-    if (mode === 'assist' || mode === 'auto' || mode === 'smart_auto') return false;
+    if (mode === 'auto' || mode === 'smart_auto') return false;
 
-    const hasAuto = this.template.steps?.some(s => s.code === 'auto' || s.code === 'smart_full_auto');
+    const hasAuto = this.template.steps?.some(s =>
+      s.code === 'auto' || s.action === 'auto' ||
+      s.code === 'smart_full_auto' || s.action === 'smart_full_auto' ||
+      s.code === 'tap_ready' || s.action === 'tap_ready'
+    );
     if (hasAuto) return false;
 
     const hasManualSteps = this.template.steps?.some(s =>
-      s.code === 'skill' || s.code === 'attack' || s.code === 'summon' || s.code === 'quick_call' || s.code === 'wait_element'
+      s.code === 'skill' || s.action === 'skill' ||
+      s.code === 'attack' || s.action === 'attack' ||
+      s.code === 'summon' || s.action === 'summon' ||
+      s.code === 'quick_call' || s.action === 'quick_call' ||
+      s.code === 'wait_element' || s.action === 'wait_element'
     );
-    return hasManualSteps || this.template.isSolo === true;
+    if (hasManualSteps) return true;
+
+    if (mode === 'single' || mode === 'multi' || mode === 'routine' || mode === 'combat' || mode === 'manual') return true;
+    if (mode === 'assist') return false;
+
+    return this.template.isSolo === true;
   }
 
   private createExecutionContext(): WorkflowExecutionContext {
@@ -1002,6 +1021,7 @@ export class UniversalWorkflowEngine {
         return true;
 
       case 'confirm_result':
+        (this.ctx.state as any).confirmResultExecuted = true;
         return await this.combatResolution.handleConfirmResult();
 
       case 'loop_while':

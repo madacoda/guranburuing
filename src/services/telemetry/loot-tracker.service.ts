@@ -7,6 +7,7 @@ import {
   LootItem,
   RaidLootInspectionOutcome
 } from '../../domain/telemetry/loot.types.js';
+import { rustBridge } from '../../core/rust-bridge.js';
 
 /**
  * Universal service for inspecting, tracking, and capturing proof of battle loot.
@@ -58,6 +59,11 @@ export class LootTrackerService implements ILootTrackerService {
    */
   public static hasGoldBarInHtml(html: string): boolean {
     if (!html || typeof html !== 'string') return false;
+    // Fast SIMD Aho-Corasick pre-filter in Rust: if no candidate bytes exist, return false in ~1µs
+    const fastFlags = rustBridge.scanPayloadFlags(html);
+    if (fastFlags !== null && !fastFlags.hasGoldBar && !html.includes('%')) {
+      return false;
+    }
     let decoded = html;
     if (html.includes('%')) {
       try {
@@ -161,6 +167,59 @@ export class LootTrackerService implements ILootTrackerService {
   }
 
   /**
+   * Zero-serialization structural check for Blue Chest (chest 11 / special_reward) in a parsed payload.
+   * Eliminates `JSON.stringify(data)` memory allocations on large battle result payloads.
+   */
+  public static hasBlueChestInPayload(data: any): boolean {
+    if (!data || typeof data !== 'object') return false;
+    if (data.special_reward_flag || data.special_reward || data.reward_box_11) {
+      return true;
+    }
+    if (data.rewards?.reward_list?.['11'] || data.option?.result_data?.rewards?.reward_list?.['11']) {
+      return true;
+    }
+    let found = false;
+    const walk = (node: any): void => {
+      if (!node || found) return;
+      if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+          walk(node[i]);
+          if (found) return;
+        }
+        return;
+      }
+      if (typeof node === 'object') {
+        if (node.reward_box_11 || node.special_reward || node.special_reward_flag) {
+          found = true;
+          return;
+        }
+        const boxType = String(node.box_type ?? node.box_id ?? node.box ?? node.reward_type ?? '');
+        if (boxType === '11') {
+          found = true;
+          return;
+        }
+        for (const k of Object.keys(node)) {
+          if (k === 'reward_box_11') {
+            found = true;
+            return;
+          }
+          walk(node[k]);
+          if (found) return;
+        }
+      }
+    };
+    walk(data);
+    if (!found && typeof data.data === 'string') {
+      const fastFlags = rustBridge.scanPayloadFlags(data.data);
+      if (fastFlags !== null) {
+        return fastFlags.hasBlueChest;
+      }
+      return data.data.includes('reward_box_11') || data.data.includes('special_reward') || data.data.includes('特別報酬');
+    }
+    return found;
+  }
+
+  /**
    * Parses JSON API responses (/reward.json, /result.json, etc.) for drops.
    */
   public inspectRewardResponse(data: any): RaidLootInspectionOutcome {
@@ -176,11 +235,7 @@ export class LootTrackerService implements ILootTrackerService {
 
     try {
       outcome.hasGoldBar = LootTrackerService.hasGoldBarInPayload(data);
-
-      const dataStr = JSON.stringify(data);
-      if (data.special_reward_flag || data.special_reward || data.reward_box_11 || dataStr.includes('reward_box_11')) {
-        outcome.hasBlueChest = true;
-      }
+      outcome.hasBlueChest = LootTrackerService.hasBlueChestInPayload(data);
 
       if (data.raid_id) outcome.raidId = String(data.raid_id);
       else if (data.Point?.raid_id) outcome.raidId = String(data.Point.raid_id);

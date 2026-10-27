@@ -763,10 +763,19 @@ export class QuestNavigationService {
             await logNormalDelay(600, 0.1);
           }
 
-          const hasCards = await this.page.evaluate(() => {
+          const hasCards = await this.page.evaluate((spec: RaidCardFilterSpec) => {
             const cards = document.querySelectorAll('#prt-search-list .btn-multi-raid.lis-raid.search, #prt-search-list .btn-multi-raid, .lis-raid.search');
-            return Array.from(cards).some(c => (c as HTMLElement).offsetParent !== null);
-          }).catch(() => false);
+            return Array.from(cards).some(c => {
+              const el = c as HTMLElement;
+              if (el.offsetParent === null) return false;
+              const imgEl = el.querySelector('img') as HTMLImageElement;
+              const imgSrc = (imgEl?.src || '').trim();
+              if (spec && spec.targetQuestId && imgSrc) {
+                return imgSrc.includes(spec.targetQuestId);
+              }
+              return true;
+            });
+          }, cardFilterSpec).catch(() => false);
 
           if (hasCards) {
             console.log('[Patience Standby] 🌟 Fresh raids detected! Ending standby early and entering search...');
@@ -942,7 +951,26 @@ export class QuestNavigationService {
    * Scans and selects supporter summon card on #quest/supporter_raid by priority.
    */
   public async selectSupporterCard(priorities: string[]): Promise<boolean> {
-    const cardSelected = await this.page.evaluate((priors: string[]) => {
+    const elementName = (this.ctx.template.element || '').trim().toLowerCase();
+    const cardSelected = await this.page.evaluate((priors: string[], elem: string) => {
+      const elemMap: Record<string, string> = {
+        fire: '1',
+        water: '2',
+        earth: '3',
+        wind: '4',
+        light: '5',
+        dark: '6'
+      };
+      const attrType = elemMap[elem];
+      if (attrType) {
+        const attrTab = document.querySelector(`.btn-type[data-type="${attrType}"], .icon-supporter-type-${attrType}`) as HTMLElement;
+        if (attrTab && !attrTab.classList.contains('selected')) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(attrTab).trigger('tap');
+          attrTab.click();
+        }
+      }
+
       const cards = Array.from(document.querySelectorAll(
         '.btn-supporter, .lis-supporter, .prt-supporter-attribute .lis-supporter, .prt-supporter-detail'
       )) as HTMLElement[];
@@ -967,7 +995,7 @@ export class QuestNavigationService {
       if ($) $(first).trigger('tap');
       first.click();
       return true;
-    }, priorities).catch(() => false);
+    }, priorities, elementName).catch(() => false);
 
     if (cardSelected) {
       await logNormalDelay(400, 0.12);
