@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/launch-gbf-chrome.sh
 # Cross-platform Linux / Ubuntu headless Chrome launcher for Granblue Fantasy Remote Controller
-# Optimized for 1 vCPU / 1 GB RAM low-memory VPS instances
+# Optimized for 1-2 vCPU / 1-2 GB RAM low-resource VPS instances
 
 set -e
 
@@ -113,10 +113,10 @@ TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 1024)
 CPU_CORES=$(nproc 2>/dev/null || echo 1)
 
 if [[ "$TOTAL_RAM_MB" -ge 1800 ]]; then
-  # 2GB+ RAM VPS (Production Profile)
+  # 2GB+ RAM VPS (Production Profile - Single Renderer for 2-vCPU Efficiency)
   V8_HEAP_MB=${V8_MAX_OLD_SPACE:-1024}
   DISK_CACHE_BYTES=${DISK_CACHE_SIZE:-536870912} # 512MB persistent game asset cache
-  RENDERER_PROC_LIMIT=${RENDERER_LIMIT:-2}
+  RENDERER_PROC_LIMIT=${RENDERER_LIMIT:-1}
 else
   # 1GB RAM Low-Spec Fallback
   V8_HEAP_MB=${V8_MAX_OLD_SPACE:-384}
@@ -134,6 +134,9 @@ if [[ "$SHM_AVAILABLE_MB" -lt 256 ]]; then
   SHM_ARGS+=("--disable-dev-shm-usage")
 fi
 
+# NOTE: Do NOT pass --disable-gpu-vsync or --use-angle=swiftshader on CPU-only VPS instances!
+# --disable-gpu-vsync + SwiftShader causes --type=gpu-process to spin at 50-60% CPU in an uncapped loop.
+# Instead, use lightweight Skia 2D CPU rasterization (--disable-gpu-compositing --disable-accelerated-2d-canvas).
 CHROME_ARGS=(
   "--remote-debugging-port=$PORT"
   "--remote-allow-origins=*"
@@ -146,6 +149,7 @@ CHROME_ARGS=(
   "--use-mock-keychain"
   "--js-flags=--max-old-space-size=$V8_HEAP_MB"
   "--renderer-process-limit=$RENDERER_PROC_LIMIT"
+  "--process-per-site"
   "--disable-background-timer-throttling"
   "--disable-backgrounding-occluded-windows"
   "--disable-renderer-backgrounding"
@@ -159,9 +163,16 @@ CHROME_ARGS=(
   "--disable-default-apps"
   "--disable-speech-api"
   "--disable-breakpad"
-  "--disable-features=Translate,OptimizationHints,MediaRouter,ForceThirdPartyCookieBlockingEnabled,ThirdPartyCookieDeprecationTrial,BlockThirdPartyCookies,ThirdPartyStoragePartitioning,TrackingProtection3pcd,PartitionedCookies,CalculateNativeWinOcclusion,InterestFeedContentSuggestions"
+  "--disable-features=Translate,OptimizationHints,MediaRouter,ForceThirdPartyCookieBlockingEnabled,ThirdPartyCookieDeprecationTrial,BlockThirdPartyCookies,ThirdPartyStoragePartitioning,TrackingProtection3pcd,PartitionedCookies,CalculateNativeWinOcclusion,InterestFeedContentSuggestions,PaintHolding"
   "--enable-features=NetworkService,NetworkServiceInProcess"
-  "--disable-gpu-vsync"
+  "--disable-gpu-compositing"
+  "--disable-accelerated-2d-canvas"
+  "--disable-gpu-rasterization"
+  "--disable-canvas-aa"
+  "--disable-2d-canvas-clip-aa"
+  "--num-raster-threads=1"
+  "--wm-window-animations-disabled"
+  "--animation-duration-scale=0"
   "--run-all-compositor-stages-before-draw=false"
   "--metrics-recording-only"
   "--window-size=$TARGET_WINDOW_SIZE"
@@ -173,10 +184,8 @@ WRAPPER_CMD=()
 if [[ "$HEADLESS" == "true" ]]; then
   CHROME_ARGS+=(
     "--headless=new"
+    "--ozone-platform=headless"
     "--disable-blink-features=AutomationControlled"
-    "--enable-unsafe-swiftshader"
-    "--use-gl=angle"
-    "--use-angle=swiftshader"
   )
 else
   # Windowed mode requested on Linux
@@ -190,10 +199,8 @@ else
       echo "👉 Tip: Install Xvfb for virtual display: sudo apt-get install -y xvfb"
       CHROME_ARGS+=(
         "--headless=new"
+        "--ozone-platform=headless"
         "--disable-blink-features=AutomationControlled"
-        "--enable-unsafe-swiftshader"
-        "--use-gl=angle"
-        "--use-angle=swiftshader"
       )
     fi
   fi

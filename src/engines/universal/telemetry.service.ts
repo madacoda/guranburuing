@@ -6,6 +6,7 @@ import { UniversalContext } from './types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
 import { goldBarTracker } from '../../services/telemetry/gold-bar-tracker.service.js';
 import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
+import { rustBridge } from '../../core/rust-bridge.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 import { logNormalDelay } from '../../human-motor.js';
 import { WorkflowRunResult } from '../../types/workflow.types.js';
@@ -339,6 +340,15 @@ export class UniversalTelemetryService {
 
     if (payload.special_reward_flag || payload.special_reward || payload.reward_box_11) {
       found = true;
+    }
+
+    if (!found && rustBridge.isNativeLoaded && typeof payload === 'object') {
+      try {
+        const scanned = rustBridge.scanBattleTelemetry(JSON.stringify(payload));
+        if (scanned.hasBlueChest) {
+          found = true;
+        }
+      } catch {}
     }
 
     if (!found) {

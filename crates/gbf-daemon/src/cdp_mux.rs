@@ -140,7 +140,14 @@ pub fn recommended_low_ram_chrome_flags(
         "--disable-dev-shm-usage".to_string(),
         "--disable-background-networking".to_string(),
         "--disable-gpu-shader-disk-cache".to_string(),
-        "--renderer-process-limit=2".to_string(),
+        "--disable-gpu-compositing".to_string(),
+        "--disable-accelerated-2d-canvas".to_string(),
+        "--disable-gpu-rasterization".to_string(),
+        "--disable-canvas-aa".to_string(),
+        "--num-raster-threads=1".to_string(),
+        "--animation-duration-scale=0".to_string(),
+        "--process-per-site".to_string(),
+        "--renderer-process-limit=1".to_string(),
         format!("--js-flags=--max-old-space-size={heap_mb}"),
         "--disable-features=Translate,OptimizationHints,MediaRouter,CalculateNativeWinOcclusion,IsolateOrigins,site-per-process".to_string(),
         "--mute-audio".to_string(),
@@ -340,7 +347,8 @@ mod tests {
             .contains("framerate = 12"));
 
         let flags = recommended_low_ram_chrome_flags(true, 9222, 256);
-        assert!(flags.iter().any(|f| f == "--renderer-process-limit=2"));
+        assert!(flags.iter().any(|f| f == "--renderer-process-limit=1"));
+        assert!(flags.iter().any(|f| f == "--disable-gpu-compositing"));
         assert!(flags.iter().any(|f| f == "--js-flags=--max-old-space-size=256"));
         assert!(flags
             .iter()

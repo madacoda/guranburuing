@@ -3,6 +3,7 @@ import { Page, HTTPResponse } from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
 import { SentinelWatchdog } from '../sentinel-watchdog.js';
+import { config } from '../config.js';
 import { AlertRelay } from '../alert-relay.js';
 import { DropLogger } from './drop-logger.js';
 import { goldBarTracker } from '../services/telemetry/gold-bar-tracker.service.js';
@@ -251,7 +252,13 @@ export class UniversalWorkflowEngine {
 
   public async ensureViewportAndMobile(): Promise<void> {
     try {
-      await this.page.setViewport({ width: 480, height: 960, isMobile: true, hasTouch: true });
+      await this.page.setViewport({
+        width: config.VIEWPORT_WIDTH || 360,
+        height: config.VIEWPORT_HEIGHT || 720,
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 1
+      });
     } catch {
       // In mock tests or disconnected pages
     }

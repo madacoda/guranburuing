@@ -472,25 +472,91 @@ export class CdpConnectionManager {
   }
 
   public async optimizePageEnvironment(page: Page): Promise<void> {
-    try {
-      await page.evaluate(() => {
+    const headlessCpuDietScript = `
+      (() => {
         try {
-          // 1. Mute GBF WebAudio/SoundJS to eliminate CPU audio decoding
           localStorage.setItem('sound_bgm_volume', '0');
           localStorage.setItem('sound_se_volume', '0');
           localStorage.setItem('sound_voice_volume', '0');
-          // 2. Set quality to standard/lite (suppresses heavy canvas particle effects)
           localStorage.setItem('quality', '1');
-          
-          const g = (window as any).Game;
-          if (g?.storage) {
+          localStorage.setItem('fps', '1');
+
+          const g = window.Game;
+          if (g && g.storage) {
             g.storage.set('sound_bgm_volume', '0');
             g.storage.set('sound_se_volume', '0');
             g.storage.set('sound_voice_volume', '0');
             g.storage.set('quality', '1');
+            g.storage.set('fps', '1');
           }
-        } catch {}
-      }).catch(() => null);
+          if (g && g.setting) {
+            g.setting.quality = 1;
+            g.setting.fps = 1;
+          }
+        } catch (e) {}
+
+        // Inject CSS animation/transition suppressor for headless CPU reduction
+        const injectCssDiet = () => {
+          try {
+            if (document.head && !document.getElementById('gbf-headless-cpu-diet')) {
+              const style = document.createElement('style');
+              style.id = 'gbf-headless-cpu-diet';
+              style.textContent = '*, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }';
+              document.head.appendChild(style);
+            }
+          } catch (e) {}
+        };
+        injectCssDiet();
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', injectCssDiet, { once: true });
+        }
+
+        // Hook CreateJS Stage.prototype.draw to decouple TweenJS state ticks (100% speed)
+        // from expensive 2D Canvas software pixel blitting (throttled to 2 FPS in headless mode)
+        if (!window.__gbf_canvas_throttler_installed__) {
+          window.__gbf_canvas_throttler_installed__ = true;
+          const hookCreateJs = () => {
+            try {
+              const cjs = window.createjs;
+              if (!cjs) return false;
+              if (cjs.Ticker) {
+                try {
+                  if (typeof cjs.Ticker.setFPS === 'function') cjs.Ticker.setFPS(15);
+                  else cjs.Ticker.framerate = 15;
+                } catch (e) {}
+              }
+              if (cjs.Stage && cjs.Stage.prototype && !cjs.Stage.prototype.__gbf_draw_throttled__) {
+                const origDraw = cjs.Stage.prototype.draw;
+                let lastDrawMs = 0;
+                cjs.Stage.prototype.draw = function(ctx, ignoreCache) {
+                  const now = Date.now();
+                  if (now - lastDrawMs < 500) {
+                    return true;
+                  }
+                  lastDrawMs = now;
+                  return origDraw.call(this, ctx, ignoreCache);
+                };
+                cjs.Stage.prototype.__gbf_draw_throttled__ = true;
+                return true;
+              }
+            } catch (e) {}
+            return false;
+          };
+          if (!hookCreateJs()) {
+            let attempts = 0;
+            const timer = setInterval(() => {
+              attempts++;
+              if (hookCreateJs() || attempts >= 25) {
+                clearInterval(timer);
+              }
+            }, 300);
+          }
+        }
+      })();
+    `;
+
+    try {
+      await page.evaluate(headlessCpuDietScript).catch(() => null);
 
       if (config.isProduction && config.VIEWPORT_WIDTH && config.VIEWPORT_HEIGHT) {
         await page.setViewport({
@@ -502,12 +568,15 @@ export class CdpConnectionManager {
         }).catch(() => null);
       }
 
-      // 3. Headless / Production CDP Audio Stream Diet:
+      // 3. Headless / Production CDP Audio Stream & New-Document CPU Diet:
       // Blocks non-essential WebAudio stream downloads (.mp3/.ogg/.wav/.m4a) at the network layer
-      // so Chromium never allocates audio decode buffers, while keeping all images/CAPTCHAs intact.
+      // and persists the CreateJS/CSS CPU diet across F5 reloads while keeping all images/CAPTCHAs intact.
       if ((config.HEADLESS || config.isProduction) && typeof (page as any).createCDPSession === 'function') {
         const client = await page.createCDPSession().catch(() => null);
         if (client) {
+          await client.send('Page.addScriptToEvaluateOnNewDocument', {
+            source: headlessCpuDietScript
+          }).catch(() => null);
           await client.send('Network.enable').catch(() => null);
           await client.send('Network.setBlockedURLs', {
             urls: ['*.mp3', '*.ogg', '*.wav', '*.m4a', '*/assets/sound/*']
