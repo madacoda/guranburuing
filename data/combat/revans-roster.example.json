@@ -1,0 +1,207 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-10-27T15:20:00.000Z",
+  "accountId": "acc1",
+  "source": "roster_config",
+  "mcClassesUnlocked": [
+    "Manadiver",
+    "Kengo",
+    "Sumaibito",
+    "Onmyoji",
+    "Paladin",
+    "Berserker",
+    "Viking",
+    "Iatromantis",
+    "Rising Force",
+    "Luchador",
+    "Chrysaor",
+    "Wizard Origin"
+  ],
+  "elements": {
+    "fire": {
+      "element": "fire",
+      "activeMcClass": "Manadiver",
+      "mcClassesUnlocked": ["Manadiver", "Kengo", "Sumaibito", "Onmyoji"],
+      "estimatedPartyHp": 65971,
+      "maxHpDeckPriority": 155,
+      "characters": [
+        { "npcId": "3040425000", "name": "Percival", "element": "fire", "level": 80 },
+        { "npcId": "3040499000", "name": "Zeta", "element": "fire", "level": 80 },
+        { "npcId": "3040580000", "name": "Yuel", "element": "fire", "level": 80 },
+        { "npcId": "3040440000", "name": "Michael", "element": "fire", "level": 80 },
+        { "npcId": "3040167000", "name": "Alanaan", "element": "fire", "level": 100 }
+      ],
+      "weapons": [
+        { "weaponId": "1040218900", "name": "Overrider", "element": "fire", "copies": 2, "level": 150, "isMainhand": true },
+        { "weaponId": "1040023700", "name": "Lord of Flames", "element": "fire", "copies": 1, "level": 150 },
+        { "weaponId": "1040315900", "name": "Crimson Scale", "element": "fire", "copies": 1, "level": 150 },
+        { "weaponId": "1040310700", "name": "Scythe of Renunciation", "element": "fire", "copies": 1, "level": 210 }
+      ],
+      "summons": [
+        { "summonId": "2040448000", "name": "Versusia", "level": 150, "slotRole": "main" },
+        { "summonId": "2040321000", "name": "The Sun", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040317000", "name": "The Devil", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040306000", "name": "Michael", "level": 150, "slotRole": "sub_aura" }
+      ]
+    },
+    "water": {
+      "element": "water",
+      "activeMcClass": "Kengo",
+      "mcClassesUnlocked": ["Kengo", "Manadiver", "Paladin"],
+      "estimatedPartyHp": 76076,
+      "maxHpDeckPriority": 165,
+      "characters": [
+        { "npcId": "3040502000", "name": "Payila", "element": "water", "level": 80 },
+        { "npcId": "3040168000", "name": "Haaselia", "element": "water", "level": 100 },
+        { "npcId": "3040147000", "name": "Vajra", "element": "water", "level": 100 },
+        { "npcId": "3040132000", "name": "Anne", "element": "water", "level": 100 },
+        { "npcId": "3040190000", "name": "Europa", "element": "water", "level": 100 },
+        { "npcId": "3040472000", "name": "Fediel", "element": "water", "level": 80 },
+        { "npcId": "3040351000", "name": "Helel ben Shalem", "element": "water", "level": 80 },
+        { "npcId": "3040007000", "name": "Lily", "element": "water", "level": 100 },
+        { "npcId": "3040160000", "name": "Maria Theresa", "element": "water", "level": 80 }
+      ],
+      "weapons": [
+        { "weaponId": "1040909400", "name": "Unsigned Kaneshige", "element": "water", "copies": 1, "level": 200, "isMainhand": true },
+        { "weaponId": "1040913800", "name": "Schrodinger", "element": "water", "copies": 2, "level": 150 },
+        { "weaponId": "1040808200", "name": "Tyros Zither", "element": "water", "copies": 3, "level": 150 },
+        { "weaponId": "1040119700", "name": "Leviathan Gaze Mare", "element": "water", "copies": 3, "level": 150 },
+        { "weaponId": "1040415100", "name": "Staff of Renunciation", "element": "water", "copies": 1, "level": 200 },
+        { "weaponId": "1040710700", "name": "Reflection of The Moon", "element": "water", "copies": 1, "level": 200 },
+        { "weaponId": "1040415300", "name": "Wand of Charmtide", "element": "water", "copies": 1, "level": 150 }
+      ],
+      "summons": [
+        { "summonId": "2040028000", "name": "Leviathan Omega", "level": 220, "slotRole": "main" },
+        { "summonId": "2040313000", "name": "Justice", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040320000", "name": "The Moon", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040311000", "name": "Gabriel", "level": 150, "slotRole": "sub_aura" }
+      ]
+    },
+    "earth": {
+      "element": "earth",
+      "activeMcClass": "Kengo",
+      "mcClassesUnlocked": ["Kengo", "Manadiver", "Rising Force", "Luchador"],
+      "estimatedPartyHp": 87039,
+      "maxHpDeckPriority": 34,
+      "characters": [
+        { "npcId": "3040375000", "name": "Satyr", "element": "earth", "level": 80 },
+        { "npcId": "3040037000", "name": "Eahta", "element": "earth", "level": 150 },
+        { "npcId": "3040019000", "name": "Arulumaya", "element": "earth", "level": 100 },
+        { "npcId": "3040164000", "name": "Caim", "element": "earth", "level": 100 },
+        { "npcId": "3040538000", "name": "Raziel", "element": "earth", "level": 80 },
+        { "npcId": "3040377000", "name": "Cidala", "element": "earth", "level": 100 },
+        { "npcId": "3040583000", "name": "Lu Woh", "element": "earth", "level": 80 },
+        { "npcId": "3040249000", "name": "Narmaya", "element": "earth", "level": 80 },
+        { "npcId": "3040107000", "name": "Mahira", "element": "earth", "level": 100 }
+      ],
+      "weapons": [
+        { "weaponId": "1040909500", "name": "Unsigned Kaneshige", "element": "earth", "copies": 1, "level": 200, "isMainhand": true },
+        { "weaponId": "1040513400", "name": "Galleon's Jaw", "element": "earth", "copies": 1, "level": 150 },
+        { "weaponId": "1040910000", "name": "Ichigo Hitofuri", "element": "earth", "copies": 2, "level": 150 },
+        { "weaponId": "1040020900", "name": "World Ender", "element": "earth", "copies": 1, "level": 150 },
+        { "weaponId": "1040916800", "name": "Bloodwrought Coral", "element": "earth", "copies": 2, "level": 150 },
+        { "weaponId": "1040809500", "name": "Harp of Renunciation", "element": "earth", "copies": 1, "level": 200 },
+        { "weaponId": "1040215500", "name": "Binds of The Hanged Man", "element": "earth", "copies": 1, "level": 200 }
+      ],
+      "summons": [
+        { "summonId": "2040084000", "name": "Titan", "level": 230, "slotRole": "main" },
+        { "summonId": "2040314000", "name": "The Hanged Man", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040318000", "name": "The Tower", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040203000", "name": "Uriel", "level": 100, "slotRole": "sub_aura" }
+      ]
+    },
+    "wind": {
+      "element": "wind",
+      "activeMcClass": "Manadiver",
+      "mcClassesUnlocked": ["Manadiver", "Kengo", "Paladin", "Wizard Origin"],
+      "estimatedPartyHp": 85580,
+      "maxHpDeckPriority": 181,
+      "characters": [
+        { "npcId": "3040427000", "name": "Lich", "element": "wind", "level": 80 },
+        { "npcId": "3040438000", "name": "Charlotta", "element": "wind", "level": 80 },
+        { "npcId": "3040452000", "name": "Ewiyar", "element": "wind", "level": 80 },
+        { "npcId": "3040163000", "name": "Estarriola", "element": "wind", "level": 80 },
+        { "npcId": "3040166000", "name": "Katzelia", "element": "wind", "level": 80 },
+        { "npcId": "3040478000", "name": "Vania", "element": "wind", "level": 80 },
+        { "npcId": "3040544000", "name": "Galleon", "element": "wind", "level": 80 },
+        { "npcId": "3040038000", "name": "Niyon", "element": "wind", "level": 150 },
+        { "npcId": "3040036000", "name": "Seofon", "element": "wind", "level": 150 }
+      ],
+      "weapons": [
+        { "weaponId": "1040116800", "name": "Piercing Galewing", "element": "wind", "copies": 2, "level": 150, "isMainhand": true },
+        { "weaponId": "1040024200", "name": "Claíomh Solais Díon", "element": "wind", "copies": 2, "level": 150 },
+        { "weaponId": "1040117200", "name": "Kaguya's Folding Fan", "element": "wind", "copies": 1, "level": 150 },
+        { "weaponId": "1040024300", "name": "Sette di Spade", "element": "wind", "copies": 2, "level": 150 },
+        { "weaponId": "1040212600", "name": "Spear of Renunciation", "element": "wind", "copies": 1, "level": 200 }
+      ],
+      "summons": [
+        { "summonId": "2040098000", "name": "Zephyrus", "level": 200, "slotRole": "main" },
+        { "summonId": "2040202000", "name": "Raphael", "level": 150, "slotRole": "sub_aura" },
+        { "summonId": "2040322000", "name": "Judgement", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040316000", "name": "Temperance", "level": 200, "slotRole": "sub" }
+      ]
+    },
+    "light": {
+      "element": "light",
+      "activeMcClass": "Kengo",
+      "mcClassesUnlocked": ["Kengo", "Iatromantis", "Manadiver", "Berserker"],
+      "estimatedPartyHp": 71996,
+      "maxHpDeckPriority": 53,
+      "characters": [
+        { "npcId": "3040480000", "name": "Seruel", "element": "light", "level": 80 },
+        { "npcId": "3040141000", "name": "Vira", "element": "light", "level": 100 },
+        { "npcId": "3040197000", "name": "Kumbhira", "element": "light", "level": 100 },
+        { "npcId": "3040441000", "name": "Makura", "element": "light", "level": 100 },
+        { "npcId": "3040162000", "name": "Geisenborger", "element": "light", "level": 80 },
+        { "npcId": "3040617000", "name": "Vajra", "element": "light", "level": 80 },
+        { "npcId": "3040634000", "name": "Amaterasu", "element": "light", "level": 80 },
+        { "npcId": "3040372000", "name": "Mahira", "element": "light", "level": 80 },
+        { "npcId": "3040341000", "name": "Nehan", "element": "light", "level": 80 }
+      ],
+      "weapons": [
+        { "weaponId": "1040909700", "name": "Unsigned Kaneshige", "element": "light", "copies": 1, "level": 200, "isMainhand": true },
+        { "weaponId": "1040814500", "name": "Harmonia", "element": "light", "copies": 2, "level": 150 },
+        { "weaponId": "1040112500", "name": "Ivory Ark", "element": "light", "copies": 2, "level": 150 },
+        { "weaponId": "1040913300", "name": "Harakhte", "element": "light", "copies": 1, "level": 150 },
+        { "weaponId": "1040017100", "name": "Sword of Renunciation", "element": "light", "copies": 1, "level": 200 }
+      ],
+      "summons": [
+        { "summonId": "2040080000", "name": "Zeus", "level": 210, "slotRole": "main" },
+        { "summonId": "2040425000", "name": "Triple Zero", "level": 150, "slotRole": "sub" },
+        { "summonId": "2040319000", "name": "The Star", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040330000", "name": "Metatron", "level": 150, "slotRole": "sub_aura" }
+      ]
+    },
+    "dark": {
+      "element": "dark",
+      "activeMcClass": "Manadiver",
+      "mcClassesUnlocked": ["Manadiver", "Kengo", "Berserker", "Viking"],
+      "estimatedPartyHp": 58352,
+      "maxHpDeckPriority": 201,
+      "characters": [
+        { "npcId": "3040376000", "name": "Fediel", "element": "dark", "level": 80 },
+        { "npcId": "3040357000", "name": "Lich", "element": "dark", "level": 80 },
+        { "npcId": "3040443000", "name": "Halluel and Malluel", "element": "dark", "level": 80 },
+        { "npcId": "3040035000", "name": "Seox", "element": "dark", "level": 150 },
+        { "npcId": "3040536000", "name": "Orologia", "element": "dark", "level": 80 },
+        { "npcId": "3040456000", "name": "Ilsa", "element": "dark", "level": 80 },
+        { "npcId": "3040252000", "name": "Vikala", "element": "dark", "level": 100 },
+        { "npcId": "3040169000", "name": "Nier", "element": "dark", "level": 100 }
+      ],
+      "weapons": [
+        { "weaponId": "1040315100", "name": "Ereshkigal", "element": "dark", "copies": 1, "level": 150, "isMainhand": true },
+        { "weaponId": "1040314300", "name": "Pain and Suffering", "element": "dark", "copies": 2, "level": 150 },
+        { "weaponId": "1040116600", "name": "Eternal Signature", "element": "dark", "copies": 1, "level": 150 },
+        { "weaponId": "1040711100", "name": "Agonize", "element": "dark", "copies": 2, "level": 150 },
+        { "weaponId": "1040909800", "name": "Unsigned Kaneshige", "element": "dark", "copies": 1, "level": 200 },
+        { "weaponId": "1040911000", "name": "Katana of Repudiation", "element": "dark", "copies": 1, "level": 220 }
+      ],
+      "summons": [
+        { "summonId": "2040090000", "name": "Hades", "level": 200, "slotRole": "main" },
+        { "summonId": "2040315000", "name": "Death", "level": 200, "slotRole": "sub" },
+        { "summonId": "2040327000", "name": "Sariel", "level": 150, "slotRole": "sub_aura" },
+        { "summonId": "2040418000", "name": "Fediel", "level": 40, "slotRole": "sub_aura" }
+      ]
+    }
+  }
+}

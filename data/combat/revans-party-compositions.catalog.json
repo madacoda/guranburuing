@@ -1,0 +1,2437 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-10-27",
+  "description": "Authoritative KMS Revans Series (Impossible) Lv275 6-Player Raid Readiness & Party Composition Catalog for Mugen, Diaspora, Siegfried, Seofon (Siete), Cosmos, and Agastia (4,000,000 Honors Blue Chest Target).",
+  "raids": {
+    "mugen": {
+      "raidId": "mugen",
+      "raidName": "Mugen (Impossible)",
+      "bossName": "Lvl 275 Mugen",
+      "questId": "305381",
+      "stageId": "12069",
+      "bossElement": "fire",
+      "advantageousElement": "water",
+      "attributeCode": "2",
+      "blueChestTargetHonors": 4000000,
+      "equivalentTargetDamage": 400000000,
+      "minimumEntryHp": 60000,
+      "recommendedComfortHp": 70000,
+      "entryMechanicWarning": "Ballistic Boy (Entry) deals heavy multi-hit Fire damage & inflicts Skill Sealed on allies below 25% HP. At 70% HP, Giant's Stride transforms Mugen into Cypher (10M DMG cuts, Infinite Impact 100k supplemental buff unless Paladin Shield/Full Cut or 100M+ burst skips).",
+      "signatureWeaponDrop": {
+        "name": "Extinction Blade",
+        "weaponId": "1040023900",
+        "weaponType": "sword",
+        "description": "Fire Revans Sword (Attack Awakening for Burst / Defense Awakening for HL HP)"
+      },
+      "coreOmens": [
+        {
+          "trigger": "Entry (100% HP)",
+          "omenName": "Ballistic Boy",
+          "cancelCondition": "Cannot be cancelled (Survive with >= 60,000 Water HP + heal/shield above 25% HP)",
+          "requiredTacticalTags": ["heal_sustain", "damage_cut_or_shield"],
+          "failureConsequence": "Allies dropping into Red HP (<25%) suffer permanent Skill Seal until healed."
+        },
+        {
+          "trigger": "Phase 1 Charge Max / 5-Hit Omen",
+          "omenName": "Full-Force Counterattack",
+          "cancelCondition": "Deal 30 hits OR land 5 debuffs OR Guard all allies",
+          "requiredTacticalTags": ["hit_count_30"],
+          "failureConsequence": "Massive Fire AoE damage + ATK Up on Mugen."
+        },
+        {
+          "trigger": "70% HP Transition -> Phase 2 (Cypher)",
+          "omenName": "Giant Banishment / Infinite Impact",
+          "cancelCondition": "100% DMG Cut / Paladin Shield / Unchallenged OR Burst 4M Honors via Kengo Ougi Loop + Haaselia 5* + Payila",
+          "requiredTacticalTags": ["ougi_battery", "damage_cut_or_shield", "multistrike_burst"],
+          "failureConsequence": "100,000 Fire damage to all allies + permanent 100,000 supplemental damage buff to Mugen."
+        }
+      ],
+      "requiredTacticalTagsForComfort": [
+        "ougi_battery",
+        "heal_sustain",
+        "damage_cut_or_shield",
+        "hit_count_30"
+      ],
+      "characterRegistry": [
+        {
+          "id": "payila",
+          "npcId": "3040502000",
+          "name": "Payila",
+          "aliases": ["Payila", "Payila (Zodiac)"],
+          "element": "water",
+          "priorityTier": "CORE",
+          "role": "Apex Water Double-Strike / Teamwide Double Action & Burst Carry",
+          "tacticalTags": ["multistrike_burst", "hit_count_30", "dispel"],
+          "estimatedTurnDamageContribution": 38000000,
+          "estimatedPeakBurstContribution": 68000000,
+          "notes": "Water Zodiac who trivializes Mugen's 10M damage instances and 30-hit omens while doubling team turn output."
+        },
+        {
+          "id": "haaselia_flb",
+          "npcId": "3040168000",
+          "name": "Haaselia",
+          "aliases": ["Haaselia", "Haaselia (FLB)", "Haaselia (5*)"],
+          "element": "water",
+          "priorityTier": "CORE",
+          "role": "5* Evoker Ougi Battery / Moon Buff / Auto-Nuke & Charge Bar Engine",
+          "tacticalTags": ["ougi_battery", "hit_count_30", "heal_sustain", "damage_cut_or_shield"],
+          "estimatedTurnDamageContribution": 30000000,
+          "estimatedPeakBurstContribution": 48000000,
+          "notes": "Core Mugen MVP: S3 grants 20% charge bar + Moon buff twice per turn, fueling infinite Kengo Ougi loops."
+        },
+        {
+          "id": "vajra_ulb",
+          "npcId": "3040147000",
+          "name": "Vajra",
+          "aliases": ["Vajra", "Vajra (ULB)"],
+          "element": "water",
+          "priorityTier": "CORE",
+          "role": "Double Ougi / Charge Bar Battery / Dispel & DEF Down",
+          "tacticalTags": ["ougi_battery", "dispel", "hit_count_30"],
+          "estimatedTurnDamageContribution": 26000000,
+          "estimatedPeakBurstContribution": 40000000,
+          "notes": "200% charge bar double Ougi + teamwide buffs and Dispel for Mugen Kengo loops."
+        },
+        {
+          "id": "anne_flb",
+          "npcId": "3040132000",
+          "name": "Anne",
+          "aliases": ["Anne", "Anne (FLB)"],
+          "element": "water",
+          "priorityTier": "HIGH",
+          "role": "Defensive Tank / 100% DEF Buffs / Hostility Shield & Ougi Sustain",
+          "tacticalTags": ["damage_cut_or_shield", "heal_sustain", "ougi_battery"],
+          "estimatedTurnDamageContribution": 16000000,
+          "estimatedPeakBurstContribution": 24000000,
+          "notes": "Provides massive DEF up and damage mitigation so Water party easily survives Phase 2 Cypher punches."
+        },
+        {
+          "id": "europa_flb",
+          "npcId": "3040190000",
+          "name": "Europa",
+          "aliases": ["Europa", "Europa (Grand)", "Europa (FLB)"],
+          "element": "water",
+          "priorityTier": "HIGH",
+          "role": "Fire Switch + Guaranteed TA + Heal/Clarity & Hit-Count Flurry",
+          "tacticalTags": ["damage_cut_or_shield", "heal_sustain", "hit_count_30"],
+          "estimatedTurnDamageContribution": 24000000,
+          "estimatedPeakBurstContribution": 38000000,
+          "notes": "FLB Europa provides S2 Fire Switch + DMG mitigation and massive multi-hit normal/skill damage."
+        },
+        {
+          "id": "fediel_summer",
+          "npcId": "3040472000",
+          "name": "Fediel (Summer)",
+          "aliases": ["Fediel", "Fediel (Summer)", "Summer Fediel"],
+          "element": "water",
+          "priorityTier": "HIGH",
+          "role": "10,000 Shield + Veil + Auto-Nuke + Ougi Specs Field",
+          "tacticalTags": ["damage_cut_or_shield", "debuff_spam", "hit_count_30"],
+          "estimatedTurnDamageContribution": 22000000,
+          "estimatedPeakBurstContribution": 34000000,
+          "notes": "Grants thick barrier and Ougi/skill supplemental damage."
+        },
+        {
+          "id": "shalem_summer",
+          "npcId": "3040351000",
+          "name": "Helel ben Shalem (Summer)",
+          "aliases": ["Helel ben Shalem", "Shalem (Summer)", "Summer Shalem"],
+          "element": "water",
+          "priorityTier": "HIGH",
+          "role": "Debuff Spammer / Can't Act / Double Ougi Nuke",
+          "tacticalTags": ["debuff_spam", "ougi_battery", "dispel"],
+          "estimatedTurnDamageContribution": 23000000,
+          "estimatedPeakBurstContribution": 36000000,
+          "notes": "Instantly clears debuff omens and locks Mugen with Can't Act."
+        },
+        {
+          "id": "lily_flb",
+          "npcId": "3040007000",
+          "name": "Lily",
+          "aliases": ["Lily", "Lily (FLB)"],
+          "element": "water",
+          "priorityTier": "VIABLE",
+          "role": "70% Fire Cut + Auto-Heal & Clarity on Enemy Special",
+          "tacticalTags": ["heal_sustain", "damage_cut_or_shield"],
+          "estimatedTurnDamageContribution": 14000000,
+          "estimatedPeakBurstContribution": 20000000,
+          "notes": "Safe healer/cut unit for Full Auto or Paladin/Kengo Mugen runs."
+        },
+        {
+          "id": "maria_theresa",
+          "npcId": "3040160000",
+          "name": "Maria Theresa",
+          "aliases": ["Maria Theresa"],
+          "element": "water",
+          "priorityTier": "VIABLE",
+          "role": "Backline Dispel Enhancement & Emergency Full Reset Heal",
+          "tacticalTags": ["heal_sustain", "dispel"],
+          "estimatedTurnDamageContribution": 12000000,
+          "estimatedPeakBurstContribution": 18000000,
+          "notes": "Excellent backline anchor for Mugen."
+        }
+      ],
+      "weaponRegistry": [
+        {
+          "id": "unsigned_kaneshige_water",
+          "weaponId": "1040909400",
+          "name": "Unsigned Kaneshige",
+          "aliases": ["Unsigned Kaneshige", "Water Kaneshige"],
+          "element": "water",
+          "weaponType": "katana",
+          "priorityTier": "CORE",
+          "role": "Kengo Mainhand Charge Bar Engine",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Core Kengo mainhand enabling every-turn Full Chain Ougi loops in Mugen."
+        },
+        {
+          "id": "schrodinger",
+          "weaponId": "1040913800",
+          "name": "Schrodinger",
+          "aliases": ["Schrodinger", "Schrodinger Mk II"],
+          "element": "water",
+          "weaponType": "katana",
+          "priorityTier": "CORE",
+          "role": "Diaspora Revans Katana (Ougi Cap / DEF / HP)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 14,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Provides massive Ougi damage, DEF, and HP for Mugen survival and 4M Blue Chest pacing."
+        },
+        {
+          "id": "tyros_zither",
+          "weaponId": "1040808200",
+          "name": "Tyros Zither",
+          "aliases": ["Tyros Zither", "Europa Harp"],
+          "element": "water",
+          "weaponType": "harp",
+          "priorityTier": "HIGH",
+          "role": "Magna Sentence (C.A. DMG + C.A. Cap)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 19,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Boosts Leviathan Omega C.A. DMG and C.A. Cap."
+        },
+        {
+          "id": "leviathan_gaze_mare",
+          "weaponId": "1040119700",
+          "name": "Leviathan Gaze Mare",
+          "aliases": ["Leviathan Gaze Mare", "M3 Water Dagger"],
+          "element": "water",
+          "weaponType": "dagger",
+          "priorityTier": "HIGH",
+          "role": "M3 Exalto & Magna ATK/HP",
+          "recommendedCopies": 3,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 15,
+          "notes": "Boosts Leviathan Omega aura and foundational grid power."
+        },
+        {
+          "id": "water_dark_opus",
+          "weaponId": "1040415100",
+          "name": "Staff of Renunciation",
+          "aliases": ["Staff of Renunciation", "Staff of Repudiation"],
+          "element": "water",
+          "weaponType": "staff",
+          "priorityTier": "CORE",
+          "role": "Water Dark Opus (Stamina/Progression + Majesty + C.A. Cap)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "Essential HP + Damage Cap anchor."
+        },
+        {
+          "id": "reflection_of_the_moon",
+          "weaponId": "1040710700",
+          "name": "Reflection of The Moon",
+          "aliases": ["Reflection of The Moon"],
+          "element": "water",
+          "weaponType": "bow",
+          "priorityTier": "CORE",
+          "role": "New World Foundation Weapon (Damage Cap + Haaselia Enable)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Unlocks Haaselia 5* full potential and grants grid Damage Cap."
+        },
+        {
+          "id": "wand_of_charmtide",
+          "weaponId": "1040415300",
+          "name": "Wand of Charmtide",
+          "aliases": ["Wand of Charmtide", "Gabriel Wand"],
+          "element": "water",
+          "weaponType": "staff",
+          "priorityTier": "CORE",
+          "role": "Seraphic Amplification vs Fire",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 15,
+          "notes": "23% Seraphic amplification against Fire (Mugen)."
+        }
+      ],
+      "summonRegistry": [
+        {
+          "id": "leviathan_omega",
+          "summonId": "2040028000",
+          "name": "Leviathan Omega",
+          "aliases": ["Leviathan Omega"],
+          "role": "MAIN_OR_SUPPORT",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Lv200+ Magna Water Main Summon."
+        },
+        {
+          "id": "justice_summon",
+          "summonId": "2040313000",
+          "name": "Justice",
+          "aliases": ["Justice"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "30% Water HP sub-aura + HP balancing call to rescue low-HP allies from Ballistic Boy Skill Seal."
+        },
+        {
+          "id": "the_moon_summon",
+          "summonId": "2040320000",
+          "name": "The Moon",
+          "aliases": ["The Moon"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Seraphic amplification vs Fire enemies."
+        },
+        {
+          "id": "gabriel_summon",
+          "summonId": "2040311000",
+          "name": "Gabriel",
+          "aliases": ["Gabriel"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Water Damage Cap sub-aura + 70% Fire DMG Cut call."
+        }
+      ],
+      "archetypes": [
+        {
+          "archetypeId": "mugen_kengo_haaselia_ougi",
+          "name": "Water Kengo + Haaselia 5* + Payila Ougi Loop",
+          "playstyle": "OUGI_LOOP",
+          "recommendedFor": "Fast & safe 4,000,000 Honors Blue Chest farming + Full Auto / Solo transition through Cypher Phase 2.",
+          "minimumViableHp": 60000,
+          "recommendedComfortHp": 72000,
+          "estimatedTurnsTo4MHonors": 4,
+          "mcSpec": {
+            "primaryClass": "Kengo",
+            "alternativeClasses": ["Manadiver", "Paladin"],
+            "recommendedSkills": ["One with the Blade", "No More Doubt", "Splitting Spirit", "Dispel"],
+            "preferredMainhandIds": ["unsigned_kaneshige_water", "schrodinger"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Primary Ougi/Multi-Hit Carry",
+              "primaryCharacterId": "payila",
+              "acceptableSubstitutes": ["europa_flb", "shalem_summer"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "Charge Bar & Moon Buff Engine",
+              "primaryCharacterId": "haaselia_flb",
+              "acceptableSubstitutes": ["fediel_summer", "lily_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Double Ougi & Dispel Partner",
+              "primaryCharacterId": "vajra_ulb",
+              "acceptableSubstitutes": ["anne_flb", "europa_flb", "shalem_summer"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Defensive Tank / Sub-Anchor",
+              "primaryCharacterId": "anne_flb",
+              "acceptableSubstitutes": ["lily_flb", "maria_theresa"]
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Backline Passive / Emergency Stabilizer",
+              "primaryCharacterId": "maria_theresa",
+              "acceptableSubstitutes": ["europa_flb", "fediel_summer"]
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Kengo Mainhand (Unsigned Kaneshige)",
+              "primaryWeaponId": "unsigned_kaneshige_water",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["schrodinger"]
+            },
+            {
+              "roleLabel": "Revans Ougi/HP Katanas (2x Schrodinger)",
+              "primaryWeaponId": "schrodinger",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["tyros_zither"]
+            },
+            {
+              "roleLabel": "Magna Core / Sentence (Tyros Zither / Leviathan Gaze Mare)",
+              "primaryWeaponId": "tyros_zither",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["leviathan_gaze_mare"]
+            },
+            {
+              "roleLabel": "Dark Opus Staff (Renunciation / Repudiation)",
+              "primaryWeaponId": "water_dark_opus",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            },
+            {
+              "roleLabel": "NWF & Seraphic Cap (Reflection of The Moon + Wand of Charmtide)",
+              "primaryWeaponId": "reflection_of_the_moon",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["wand_of_charmtide"]
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["leviathan_omega"],
+            "preferredSupportSummonIds": ["leviathan_omega"],
+            "recommendedSubAuraSummonIds": ["justice_summon", "the_moon_summon", "gabriel_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1 (Post-Ballistic Boy): Call Justice if any ally dropped <25% HP -> Haaselia S3 (x2) + S2 -> Vajra S1/S3 -> Payila S1/S3 -> Kengo S1 + No More Doubt -> Attack (Full Chain Ougi ~95M DMG).",
+            "Turn 2: Haaselia S3 (x2) -> Payila S2 -> Attack (Full Chain Ougi + 30+ hits clears Full-Force Counterattack ~110M DMG).",
+            "Turn 3 (70% Giant's Stride -> Cypher): Haaselia S3 (x2) -> Payila S3 (Double Action) -> Attack (Full Chain Ougi ~125M DMG).",
+            "Turn 4: Call Gabriel (70% Fire Cut) if Giant Banishment is active -> Haaselia S3 (x2) -> Attack (Reaches 4,000,000+ Honors Blue Chest)."
+          ]
+        }
+      ]
+    },
+    "diaspora": {
+      "raidId": "diaspora",
+      "raidName": "Diaspora (Impossible)",
+      "bossName": "Lvl 275 Diaspora",
+      "questId": "305391",
+      "stageId": "12070",
+      "bossElement": "water",
+      "advantageousElement": "earth",
+      "attributeCode": "3",
+      "blueChestTargetHonors": 4000000,
+      "equivalentTargetDamage": 400000000,
+      "minimumEntryHp": 55000,
+      "recommendedComfortHp": 75000,
+      "entryMechanicWarning": "Diaspora has two distinct roles: (1) Host builds 100% Gamma Analysis (Charge Attack DMG) using Earth Kengo + Satyr + Eahta before signaling Joiners; (2) Joiners enter post-Gamma and burst 4M Honors via Normal/Skill damage + 37-hit / 11-debuff omen clears.",
+      "signatureWeaponDrop": {
+        "name": "Schrodinger",
+        "weaponId": "1040913800",
+        "weaponType": "katana",
+        "description": "Water Revans Katana (Core Ougi & HL Defense weapon for Mugen / Hexa / Faa0)"
+      },
+      "coreOmens": [
+        {
+          "trigger": "Phase 1 (Host Gamma Building)",
+          "omenName": "Emergency Repair -> Self-Destruct Sequence",
+          "cancelCondition": "Deal 30,000,000 Charge Attack damage in 1 turn to reach 100% Gamma Analysis, then Guard",
+          "requiredTacticalTags": ["ougi_battery", "heal_sustain", "host_tank"],
+          "failureConsequence": "If Alpha/Beta reaches 100% instead of Gamma, Joiners' Normal/Skill damage is heavily resisted."
+        },
+        {
+          "trigger": "Phase 2 (Post-Gamma Joiner / Every 2 Turns)",
+          "omenName": "True Mark (Modified)",
+          "cancelCondition": "Land 11 debuffs OR deal 37 hits OR deal 97 hits",
+          "requiredTacticalTags": ["hit_count_37", "debuff_spam_11", "burst_joiner"],
+          "failureConsequence": "Heavy Water AoE + Diaspora heals and gains massive buffs."
+        }
+      ],
+      "requiredTacticalTagsForComfort": [
+        "ougi_battery",
+        "host_tank",
+        "hit_count_37",
+        "debuff_spam_11"
+      ],
+      "characterRegistry": [
+        {
+          "id": "eahta_ulb",
+          "npcId": "3040037000",
+          "name": "Eahta",
+          "aliases": ["Eahta", "Okto", "Eahta (Lv150)"],
+          "element": "earth",
+          "priorityTier": "CORE",
+          "role": "Transcendence Lv150 200% Charge Bar Double-Ougi Gamma Engine",
+          "tacticalTags": ["ougi_battery", "hit_count_37"],
+          "estimatedTurnDamageContribution": 36000000,
+          "estimatedPeakBurstContribution": 55000000,
+          "notes": "Lv150 Eahta effortlessly pumps Gamma Analysis to 100% in 3-4 turns and provides Dispel/Delay immunity."
+        },
+        {
+          "id": "satyr_earth",
+          "npcId": "3040375000",
+          "name": "Satyr (Earth)",
+          "aliases": ["Satyr", "Satyr (Earth)"],
+          "element": "earth",
+          "priorityTier": "CORE",
+          "role": "Permanent Hostility Tank / Every-Turn Heal + Cleanse + Charge Bar Battery",
+          "tacticalTags": ["host_tank", "heal_sustain", "ougi_battery", "debuff_spam_11"],
+          "estimatedTurnDamageContribution": 18000000,
+          "estimatedPeakBurstContribution": 26000000,
+          "notes": "The single most important character for Diaspora 100% Gamma Hosting."
+        },
+        {
+          "id": "caim_flb",
+          "npcId": "3040164000",
+          "name": "Caim",
+          "aliases": ["Caim", "Caim (FLB)"],
+          "element": "earth",
+          "priorityTier": "CORE",
+          "role": "Highlander Grid Passive (+20% ATK / +50% DEF / +10% DMG Cap) & 5* Utility",
+          "tacticalTags": ["host_tank", "burst_joiner", "debuff_spam_11"],
+          "estimatedTurnDamageContribution": 22000000,
+          "estimatedPeakBurstContribution": 35000000,
+          "notes": "Core backline (or 5* frontline) anchor for both Host Kengo and Joiner Burst."
+        },
+        {
+          "id": "raziel_summer",
+          "npcId": "3040538000",
+          "name": "Raziel (Summer)",
+          "aliases": ["Raziel", "Raziel (Summer)", "Summer Raziel"],
+          "element": "earth",
+          "priorityTier": "CORE",
+          "role": "Apex Earth Joiner Burst / Multi-Hit Flurry & Skill Nuke Carry",
+          "tacticalTags": ["burst_joiner", "hit_count_37", "debuff_spam_11"],
+          "estimatedTurnDamageContribution": 42000000,
+          "estimatedPeakBurstContribution": 75000000,
+          "notes": "Top-tier Diaspora Joiner burst unit capable of clearing 37/97-hit omens and dealing 150M+ in 2 turns."
+        },
+        {
+          "id": "cidala_flb",
+          "npcId": "3040377000",
+          "name": "Cidala",
+          "aliases": ["Cidala", "Cidala (FLB)"],
+          "element": "earth",
+          "priorityTier": "CORE",
+          "role": "Double-Strike Flurry / Debuff Spammer / Joiner Burst & Omen Solver",
+          "tacticalTags": ["burst_joiner", "hit_count_37", "debuff_spam_11"],
+          "estimatedTurnDamageContribution": 34000000,
+          "estimatedPeakBurstContribution": 58000000,
+          "notes": "FLB Cidala provides high hit counts, debuffs, and massive normal/CA damage."
+        },
+        {
+          "id": "lu_woh_summer",
+          "npcId": "3040583000",
+          "name": "Lu Woh (Summer)",
+          "aliases": ["Lu Woh", "Lu Woh (Summer)", "Summer Lu Woh"],
+          "element": "earth",
+          "priorityTier": "HIGH",
+          "role": "Field Effect + Multi-Hit + Teamwide Keen/Supplemental",
+          "tacticalTags": ["burst_joiner", "hit_count_37", "heal_sustain"],
+          "estimatedTurnDamageContribution": 28000000,
+          "estimatedPeakBurstContribution": 46000000,
+          "notes": "Strong buffer and hit-count amplifier for Earth burst and FA."
+        },
+        {
+          "id": "arulumaya_flb",
+          "npcId": "3040019000",
+          "name": "Arulumaya",
+          "aliases": ["Arulumaya", "Arulumaya (FLB)"],
+          "element": "earth",
+          "priorityTier": "HIGH",
+          "role": "Veil + Charge Bar + Water Switch + Debuff Spammer",
+          "tacticalTags": ["ougi_battery", "debuff_spam_11", "heal_sustain"],
+          "estimatedTurnDamageContribution": 20000000,
+          "estimatedPeakBurstContribution": 30000000,
+          "notes": "Ideal 3rd slot for Diaspora 100% Gamma Host alongside Satyr + Eahta."
+        },
+        {
+          "id": "narmaya_holiday",
+          "npcId": "3040249000",
+          "name": "Narmaya (Holiday)",
+          "aliases": ["Narmaya", "Narmaya (Holiday)", "Holiday Narmaya"],
+          "element": "earth",
+          "priorityTier": "HIGH",
+          "role": "80% Assassin Burst + Sub-All Counter Tank",
+          "tacticalTags": ["burst_joiner", "host_tank", "hit_count_37"],
+          "estimatedTurnDamageContribution": 30000000,
+          "estimatedPeakBurstContribution": 52000000,
+          "notes": "Classic Earth burst powerhouse."
+        },
+        {
+          "id": "mahira_flb",
+          "npcId": "3040107000",
+          "name": "Mahira",
+          "aliases": ["Mahira", "Mahira (FLB)"],
+          "element": "earth",
+          "priorityTier": "VIABLE",
+          "role": "Echoes + DEF Down + Debuff Count Solver",
+          "tacticalTags": ["hit_count_37", "debuff_spam_11"],
+          "estimatedTurnDamageContribution": 18000000,
+          "estimatedPeakBurstContribution": 28000000,
+          "notes": "Adds teamwide echoes and multi-debuffs."
+        }
+      ],
+      "weaponRegistry": [
+        {
+          "id": "unsigned_kaneshige_earth",
+          "weaponId": "1040909500",
+          "name": "Unsigned Kaneshige",
+          "aliases": ["Unsigned Kaneshige", "Earth Kaneshige"],
+          "element": "earth",
+          "weaponType": "katana",
+          "priorityTier": "CORE",
+          "role": "Earth Kengo Mainhand for 100% Gamma Hosting",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Essential mainhand for Diaspora Gamma Host."
+        },
+        {
+          "id": "galleons_jaw",
+          "weaponId": "1040513400",
+          "name": "Galleon's Jaw",
+          "aliases": ["Galleon's Jaw", "Galleon Staff"],
+          "element": "earth",
+          "weaponType": "staff",
+          "priorityTier": "CORE",
+          "role": "3-Staff Resonator (40% EX ATK + 100k Supplemental + 7% Cap)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 100000,
+          "hpBonusPercent": 0,
+          "notes": "Core Earth Resonator weapon."
+        },
+        {
+          "id": "ichigo_hitofuri",
+          "weaponId": "1040910000",
+          "name": "Ichigo Hitofuri",
+          "aliases": ["Ichigo Hitofuri", "Cain Katana"],
+          "element": "earth",
+          "weaponType": "katana",
+          "priorityTier": "HIGH",
+          "role": "Titan Primal Stamina + Might Anchor",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Core Caim Highlander / Titan Stamina weapon."
+        },
+        {
+          "id": "world_ender",
+          "weaponId": "1040020900",
+          "name": "World Ender",
+          "aliases": ["World Ender", "Sandalphon Sword"],
+          "element": "earth",
+          "weaponType": "sword",
+          "priorityTier": "HIGH",
+          "role": "Primal Skill Supplemental & Counter",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 50000,
+          "hpBonusPercent": 0,
+          "notes": "Boosts skill damage and cap in Caim Highlander grids."
+        },
+        {
+          "id": "bloodwrought_coral",
+          "weaponId": "1040916800",
+          "name": "Bloodwrought Coral",
+          "aliases": ["Bloodwrought Coral"],
+          "element": "earth",
+          "weaponType": "katana",
+          "priorityTier": "HIGH",
+          "role": "Earth Katana Grid Cap & Supplemental",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 50000,
+          "hpBonusPercent": 15,
+          "notes": "Strong modern Earth katana for both Kengo and Burst grids."
+        },
+        {
+          "id": "earth_dark_opus",
+          "weaponId": "1040809500",
+          "name": "Harp of Renunciation",
+          "aliases": ["Harp of Renunciation", "Harp of Repudiation"],
+          "element": "earth",
+          "weaponType": "harp",
+          "priorityTier": "CORE",
+          "role": "Earth Dark Opus Harp",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "Core HP + Damage Cap anchor."
+        },
+        {
+          "id": "binds_of_the_hanged_man",
+          "weaponId": "1040215500",
+          "name": "Binds of The Hanged Man",
+          "aliases": ["Binds of The Hanged Man"],
+          "element": "earth",
+          "weaponType": "spear",
+          "priorityTier": "CORE",
+          "role": "New World Foundation Spear (Damage Cap)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Core Caim Highlander Damage Cap slot."
+        }
+      ],
+      "summonRegistry": [
+        {
+          "id": "titan_primal",
+          "summonId": "2040084000",
+          "name": "Titan",
+          "aliases": ["Titan"],
+          "role": "MAIN_OR_SUPPORT",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Transcended Titan Lv230 Primal Aura."
+        },
+        {
+          "id": "the_hanged_man",
+          "summonId": "2040314000",
+          "name": "The Hanged Man",
+          "aliases": ["The Hanged Man"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Seraphic amplification vs Water (Diaspora) + Cleanse call."
+        },
+        {
+          "id": "the_tower",
+          "summonId": "2040318000",
+          "name": "The Tower",
+          "aliases": ["The Tower"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "30% Earth HP sub-aura."
+        },
+        {
+          "id": "uriel_summon",
+          "summonId": "2040203000",
+          "name": "Uriel",
+          "aliases": ["Uriel"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Earth Damage Cap sub-aura + 30% Charge Bar & ATK/DEF call."
+        }
+      ],
+      "archetypes": [
+        {
+          "archetypeId": "diaspora_kengo_gamma_host",
+          "name": "Earth Kengo 100% Gamma Host (Satyr + Eahta Lv150 + Caim)",
+          "playstyle": "HOST_TANK",
+          "recommendedFor": "Effortless 100% Gamma Analysis Host (~30M+ CA DMG/turn) & Full Auto continuation.",
+          "minimumViableHp": 55000,
+          "recommendedComfortHp": 75000,
+          "estimatedTurnsTo4MHonors": 4,
+          "mcSpec": {
+            "primaryClass": "Kengo",
+            "alternativeClasses": ["Rising Force"],
+            "recommendedSkills": ["One with the Blade", "No More Doubt", "Splitting Spirit", "Miserable Mist"],
+            "preferredMainhandIds": ["unsigned_kaneshige_earth", "ichigo_hitofuri"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Permanent Hostility Tank & Healer",
+              "primaryCharacterId": "satyr_earth",
+              "acceptableSubstitutes": ["arulumaya_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "200% Charge Bar Gamma Ougi Carry",
+              "primaryCharacterId": "eahta_ulb",
+              "acceptableSubstitutes": ["cidala_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Veil / Charge Bar / Debuff Partner",
+              "primaryCharacterId": "arulumaya_flb",
+              "acceptableSubstitutes": ["cidala_flb", "lu_woh_summer", "mahira_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Highlander Grid Anchor (+50% DEF / +10% Cap)",
+              "primaryCharacterId": "caim_flb",
+              "acceptableSubstitutes": ["lu_woh_summer"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Backline Burst / Cleanup Carry",
+              "primaryCharacterId": "raziel_summer",
+              "acceptableSubstitutes": ["narmaya_holiday", "cidala_flb"]
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Kengo Mainhand (Unsigned Kaneshige)",
+              "primaryWeaponId": "unsigned_kaneshige_earth",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["ichigo_hitofuri"]
+            },
+            {
+              "roleLabel": "Caim Highlander Cap Core (Galleon's Jaw + World Ender)",
+              "primaryWeaponId": "galleons_jaw",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["world_ender"]
+            },
+            {
+              "roleLabel": "Caim Highlander Katana/Might (Ichigo Hitofuri + Bloodwrought Coral)",
+              "primaryWeaponId": "ichigo_hitofuri",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["bloodwrought_coral"]
+            },
+            {
+              "roleLabel": "Earth Dark Opus Harp",
+              "primaryWeaponId": "earth_dark_opus",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            },
+            {
+              "roleLabel": "NWF Spear (Binds of The Hanged Man)",
+              "primaryWeaponId": "binds_of_the_hanged_man",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["titan_primal"],
+            "preferredSupportSummonIds": ["titan_primal"],
+            "recommendedSubAuraSummonIds": ["the_hanged_man", "the_tower", "uriel_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1: Satyr S1/S2 -> Arulumaya S2/S4 -> Eahta S1 -> Kengo S1 + No More Doubt -> Attack (Full Chain builds ~35% Gamma).",
+            "Turn 2: Call Uriel -> Eahta S3 -> Attack (Full Chain builds ~70% Gamma).",
+            "Turn 3: Satyr S3 -> Attack (Reaches 100% Gamma Analysis -> Triggers Emergency Repair).",
+            "Turn 4: Deal 30M+ Ougi Damage to cancel Emergency Repair -> Self-Destruct Sequence -> Guard & open raid to Joiners (4,000,000+ Honors secured!)."
+          ]
+        },
+        {
+          "archetypeId": "diaspora_joiner_burst",
+          "name": "Earth Joiner Blue Chest Burst (Summer Raziel + Cidala + Summer Lu Woh + Caim)",
+          "playstyle": "BURST_BLUE_CHEST",
+          "recommendedFor": "Joining pubbed post-Gamma Diaspora raids for 2-3 turn 4,000,000 Honors Blue Chests.",
+          "minimumViableHp": 50000,
+          "recommendedComfortHp": 65000,
+          "estimatedTurnsTo4MHonors": 3,
+          "mcSpec": {
+            "primaryClass": "Manadiver",
+            "alternativeClasses": ["Luchador", "Kengo", "Chrysaor"],
+            "recommendedSkills": ["Wild Magica", "Secret Triad", "Splitting Spirit"],
+            "preferredMainhandIds": ["galleons_jaw", "world_ender"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Primary Joiner Multi-Hit & Burst Carry",
+              "primaryCharacterId": "raziel_summer",
+              "acceptableSubstitutes": ["narmaya_holiday", "eahta_ulb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "Double-Strike Flurry & Debuff Solver",
+              "primaryCharacterId": "cidala_flb",
+              "acceptableSubstitutes": ["mahira_flb", "arulumaya_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Field & Supplemental Buffer",
+              "primaryCharacterId": "lu_woh_summer",
+              "acceptableSubstitutes": ["satyr_earth", "mahira_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Caim Highlander Passive Anchor",
+              "primaryCharacterId": "caim_flb",
+              "acceptableSubstitutes": ["eahta_ulb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Cleanup Anchor",
+              "primaryCharacterId": "eahta_ulb",
+              "acceptableSubstitutes": ["satyr_earth"]
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Mainhand & Resonator (Galleon's Jaw)",
+              "primaryWeaponId": "galleons_jaw",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["world_ender"]
+            },
+            {
+              "roleLabel": "Skill & Cap Core (World Ender + Bloodwrought Coral)",
+              "primaryWeaponId": "world_ender",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["bloodwrought_coral"]
+            },
+            {
+              "roleLabel": "Primal Stamina Core (Ichigo Hitofuri)",
+              "primaryWeaponId": "ichigo_hitofuri",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["unsigned_kaneshige_earth"]
+            },
+            {
+              "roleLabel": "Earth Dark Opus Harp",
+              "primaryWeaponId": "earth_dark_opus",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            },
+            {
+              "roleLabel": "NWF Spear (Binds of The Hanged Man)",
+              "primaryWeaponId": "binds_of_the_hanged_man",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["titan_primal"],
+            "preferredSupportSummonIds": ["titan_primal"],
+            "recommendedSubAuraSummonIds": ["the_hanged_man", "the_tower", "uriel_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1 (Join Post-100% Gamma): Summer Lu Woh S1/S2/S3 -> Cidala S1/S2/S3 -> Summer Raziel S1/S2/S3 -> MC Wild Magica -> Attack (~160M DMG).",
+            "Turn 2 (True Mark Omen): Clear 37-hit / 11-debuff omen via Summer Raziel + Cidala multi-hits -> Attack (~140M DMG).",
+            "Turn 3: Call Uriel -> Full burst attack (4,000,000+ Honors Blue Chest)."
+          ]
+        }
+      ]
+    },
+    "siegfried": {
+      "raidId": "siegfried",
+      "raidName": "Siegfried (Impossible)",
+      "bossName": "Lvl 275 Siegfried",
+      "questId": "305401",
+      "stageId": "12071",
+      "bossElement": "earth",
+      "advantageousElement": "wind",
+      "attributeCode": "4",
+      "blueChestTargetHonors": 4000000,
+      "equivalentTargetDamage": 400000000,
+      "minimumEntryHp": 55000,
+      "recommendedComfortHp": 70000,
+      "entryMechanicWarning": "Siegfried caps all incoming damage at 300,000 per hit (450,000 for Charge Attacks) and raises his Fafnir Quality Level unless you land 3 Debuff/Dispel/Delay skills on Uwe/Magen. At 75%/50%/25% HP, Manigance removes 3 buffs and triggers Qual Fafnir on the next turn.",
+      "signatureWeaponDrop": {
+        "name": "Fang of the Dragonslayer",
+        "weaponId": "1040115700",
+        "weaponType": "dagger",
+        "description": "Earth Revans Dagger (Core Earth ATK/DEF awakening grid weapon)"
+      },
+      "coreOmens": [
+        {
+          "trigger": "CT Max Omen",
+          "omenName": "Uwe / Magen",
+          "cancelCondition": "Use 3 Debuff skills (Uwe) OR 3 Dispel/Delay skills (Magen) OR Guard alongside DEF buffs",
+          "requiredTacticalTags": ["dispel_spam", "delay_spam", "debuff_spam"],
+          "failureConsequence": "Increases Siegfried's Quality Level and strips buffs."
+        },
+        {
+          "trigger": "75% / 50% / 25% HP Triggers",
+          "omenName": "Manigance -> Qual Fafnir",
+          "cancelCondition": "Cannot be cancelled (Mitigate with Wind DEF Up / Paladin Shield / Charlotta Grand / Katzelia + Dispel buffs immediately)",
+          "requiredTacticalTags": ["dispel_spam", "wind_def_shield", "heal_sustain"],
+          "failureConsequence": "Qual Fafnir deals extreme multi-elemental/Earth damage scaling with Quality Level."
+        }
+      ],
+      "requiredTacticalTagsForComfort": [
+        "dispel_spam",
+        "delay_spam",
+        "debuff_spam",
+        "wind_def_shield"
+      ],
+      "characterRegistry": [
+        {
+          "id": "lich_halloween",
+          "npcId": "3040427000",
+          "name": "Lich (Halloween)",
+          "aliases": ["Lich", "Lich (Halloween)", "Halloween Lich"],
+          "element": "wind",
+          "priorityTier": "CORE",
+          "role": "End-of-Turn Multi-Hit Skill Nuke + Delay + Debuff Spammer",
+          "tacticalTags": ["delay_spam", "debuff_spam", "dispel_spam", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 34000000,
+          "estimatedPeakBurstContribution": 52000000,
+          "notes": "Bypasses Siegfried's 300k per-hit damage cap with multi-hit end-of-turn skill nukes and delays."
+        },
+        {
+          "id": "charlotta_grand",
+          "npcId": "3040438000",
+          "name": "Charlotta (Grand)",
+          "aliases": ["Charlotta", "Charlotta (Grand)", "Grand Charlotta"],
+          "element": "wind",
+          "priorityTier": "CORE",
+          "role": "Permanent Team Buffs + Dispel + Unchallenged + Ougi Battery",
+          "tacticalTags": ["dispel_spam", "wind_def_shield", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 30000000,
+          "estimatedPeakBurstContribution": 46000000,
+          "notes": "After 10 turns or fast Ougi ramp, Charlotta provides Dispel on skills, Unchallenged for Qual Fafnir, and teamwide Charge Bar."
+        },
+        {
+          "id": "ewiyar_grand",
+          "npcId": "3040452000",
+          "name": "Ewiyar (Grand)",
+          "aliases": ["Ewiyar", "Ewiyar (Grand)", "Grand Ewiyar"],
+          "element": "wind",
+          "priorityTier": "CORE",
+          "role": "Debuff Cleanse + Teamwide Echoes/Hype + Multi-Hit Skill Buffer",
+          "tacticalTags": ["debuff_spam", "multi_hit_nuke", "heal_sustain"],
+          "estimatedTurnDamageContribution": 28000000,
+          "estimatedPeakBurstContribution": 44000000,
+          "notes": "Provides teamwide echoes to multiply instances under Siegfried's 300k hit cap."
+        },
+        {
+          "id": "estarriola",
+          "npcId": "3040163000",
+          "name": "Estarriola",
+          "aliases": ["Estarriola"],
+          "element": "wind",
+          "priorityTier": "CORE",
+          "role": "Every-Turn Auto-Dispel + Auto-Heal + Auto-Nuke without clicking skills",
+          "tacticalTags": ["dispel_spam", "heal_sustain", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 26000000,
+          "estimatedPeakBurstContribution": 38000000,
+          "notes": "Top-tier Siegfried FA/Burst character: automatically dispels Siegfried's buffs every turn."
+        },
+        {
+          "id": "vania_wind",
+          "npcId": "3040478000",
+          "name": "Vania (Wind)",
+          "aliases": ["Vania", "Vania (Wind)"],
+          "element": "wind",
+          "priorityTier": "HIGH",
+          "role": "Shield + Delay + Dispel + Multi-Hit Skill Spammer",
+          "tacticalTags": ["dispel_spam", "delay_spam", "wind_def_shield", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 27000000,
+          "estimatedPeakBurstContribution": 42000000,
+          "notes": "Directly solves Magen (Dispel/Delay) and protects the party with thick shields."
+        },
+        {
+          "id": "galleon_summer",
+          "npcId": "3040544000",
+          "name": "Galleon (Summer)",
+          "aliases": ["Galleon", "Galleon (Summer)", "Summer Galleon"],
+          "element": "wind",
+          "priorityTier": "HIGH",
+          "role": "Turn-Based Buffs + DEF Up + Extra Attack Instances",
+          "tacticalTags": ["wind_def_shield", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 29000000,
+          "estimatedPeakBurstContribution": 48000000,
+          "notes": "Great Wind buffer for multi-instance damage against Siegfried."
+        },
+        {
+          "id": "niyon_ulb",
+          "npcId": "3040038000",
+          "name": "Niyon",
+          "aliases": ["Niyon", "Nio", "Niyon (Lv150)"],
+          "element": "wind",
+          "priorityTier": "HIGH",
+          "role": "Transcendence Lv150 Shield + Dispel Cancel + echoes/tuning",
+          "tacticalTags": ["wind_def_shield", "debuff_spam", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 25000000,
+          "estimatedPeakBurstContribution": 40000000,
+          "notes": "Lv150 Niyon provides Dispel Guard so Manigance cannot strip all core buffs."
+        },
+        {
+          "id": "seofon_ulb",
+          "npcId": "3040036000",
+          "name": "Seofon",
+          "aliases": ["Seofon", "Siete", "Seofon (Lv150)"],
+          "element": "wind",
+          "priorityTier": "HIGH",
+          "role": "Transcendence Lv150 Ougi Specs + Full Chain Burst + Omen Cancel",
+          "tacticalTags": ["wind_def_shield", "multi_hit_nuke"],
+          "estimatedTurnDamageContribution": 28000000,
+          "estimatedPeakBurstContribution": 45000000,
+          "notes": "Lv150 Seofon capitalizes on Siegfried's higher 450k Charge Attack cap."
+        },
+        {
+          "id": "katzelia",
+          "npcId": "3040166000",
+          "name": "Katzelia",
+          "aliases": ["Katzelia"],
+          "element": "wind",
+          "priorityTier": "CORE",
+          "role": "Backline Earth Switch / +30% DEF / Regen Passive",
+          "tacticalTags": ["wind_def_shield", "heal_sustain"],
+          "estimatedTurnDamageContribution": 15000000,
+          "estimatedPeakBurstContribution": 22000000,
+          "notes": "Essential backline Evoker for Siegfried survivability."
+        }
+      ],
+      "weaponRegistry": [
+        {
+          "id": "piercing_galewing",
+          "weaponId": "1040116800",
+          "name": "Piercing Galewing",
+          "aliases": ["Piercing Galewing", "Ewiyar Dagger"],
+          "element": "wind",
+          "weaponType": "dagger",
+          "priorityTier": "CORE",
+          "role": "Wind Exalto (+30% Zephyrus Aura & Damage Cap)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 14,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 20,
+          "notes": "Core Zephyrus Exalto weapon."
+        },
+        {
+          "id": "claiomh_solais_dion",
+          "weaponId": "1040024200",
+          "name": "Claíomh Solais Díon",
+          "aliases": ["Claíomh Solais Díon", "Claiomh Solais Dion", "Charlotta Sword"],
+          "element": "wind",
+          "weaponType": "sword",
+          "priorityTier": "CORE",
+          "role": "Wind Resonator (40% EX ATK + 25% DEF + 7% Damage Cap)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 14,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "2 copies grant +50% DEF and +14% Special Damage Cap, trivializing Siegfried's damage."
+        },
+        {
+          "id": "kaguya_folding_fan",
+          "weaponId": "1040117200",
+          "name": "Kaguya's Folding Fan",
+          "aliases": ["Kaguya's Folding Fan", "Kaguya Fan"],
+          "element": "wind",
+          "weaponType": "dagger",
+          "priorityTier": "CORE",
+          "role": "Primal Supplemental & Multi-Hit Cap Amplifier",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 80000,
+          "hpBonusPercent": 0,
+          "notes": "Maximizes per-instance damage up to Siegfried's 300k cap."
+        },
+        {
+          "id": "sette_di_spade",
+          "weaponId": "1040024300",
+          "name": "Sette di Spade",
+          "aliases": ["Sette di Spade"],
+          "element": "wind",
+          "weaponType": "sword",
+          "priorityTier": "HIGH",
+          "role": "Seofon Revans Sword (Ougi Cap & HP)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Provides huge HP and Charge Attack damage."
+        },
+        {
+          "id": "wind_dark_opus",
+          "weaponId": "1040212600",
+          "name": "Spear of Renunciation",
+          "aliases": ["Spear of Renunciation", "Spear of Repudiation"],
+          "element": "wind",
+          "weaponType": "spear",
+          "priorityTier": "CORE",
+          "role": "Wind Dark Opus Spear",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "Core HP + Damage Cap anchor."
+        }
+      ],
+      "summonRegistry": [
+        {
+          "id": "zephyrus_primal",
+          "summonId": "2040098000",
+          "name": "Zephyrus",
+          "aliases": ["Zephyrus"],
+          "role": "MAIN_OR_SUPPORT",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Transcended Zephyrus Lv200+ Primal Aura + Dispel call."
+        },
+        {
+          "id": "raphael_summon",
+          "summonId": "2040202000",
+          "name": "Raphael",
+          "aliases": ["Raphael"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Wind Damage Cap sub-aura."
+        },
+        {
+          "id": "judgement_summon",
+          "summonId": "2040322000",
+          "name": "Judgement",
+          "aliases": ["Judgement"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Seraphic amplification vs Earth (Siegfried)."
+        },
+        {
+          "id": "temperance_summon",
+          "summonId": "2040316000",
+          "name": "Temperance",
+          "aliases": ["Temperance"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "30% Wind HP sub-aura."
+        }
+      ],
+      "archetypes": [
+        {
+          "archetypeId": "siegfried_manadiver_multihit_fa",
+          "name": "Wind Manadiver + Halloween Lich + Grand Charlotta + Estarriola",
+          "playstyle": "FULL_AUTO_SOLO",
+          "recommendedFor": "Effortless 4,000,000 Honors Blue Chest in 3-4 turns & 100% safe Full Auto through Manigance/Qual Fafnir.",
+          "minimumViableHp": 55000,
+          "recommendedComfortHp": 70000,
+          "estimatedTurnsTo4MHonors": 4,
+          "mcSpec": {
+            "primaryClass": "Manadiver",
+            "alternativeClasses": ["Paladin", "Kengo", "Wizard Origin"],
+            "recommendedSkills": ["Wild Magica", "Overtrance", "Dispel", "Miserable Mist"],
+            "preferredMainhandIds": ["piercing_galewing", "kaguya_folding_fan"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Multi-Hit Skill Nuke & Delay/Debuff Solver",
+              "primaryCharacterId": "lich_halloween",
+              "acceptableSubstitutes": ["vania_wind", "galleon_summer"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "Dispel + Unchallenged + Charge Battery",
+              "primaryCharacterId": "charlotta_grand",
+              "acceptableSubstitutes": ["niyon_ulb", "seofon_ulb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Auto-Dispel / Echoes Partner",
+              "primaryCharacterId": "ewiyar_grand",
+              "acceptableSubstitutes": ["estarriola", "vania_wind", "galleon_summer"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Auto-Dispel / Sub-Anchor",
+              "primaryCharacterId": "estarriola",
+              "acceptableSubstitutes": ["seofon_ulb", "niyon_ulb"]
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Backline DEF & Regen Passive",
+              "primaryCharacterId": "katzelia",
+              "acceptableSubstitutes": ["niyon_ulb"]
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Wind Exalto Core (2x Piercing Galewing)",
+              "primaryWeaponId": "piercing_galewing",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["kaguya_folding_fan"]
+            },
+            {
+              "roleLabel": "Wind DEF/Cap Resonators (2x Claíomh Solais Díon)",
+              "primaryWeaponId": "claiomh_solais_dion",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["sette_di_spade"]
+            },
+            {
+              "roleLabel": "Supplemental & Multi-Hit (Kaguya's Folding Fan)",
+              "primaryWeaponId": "kaguya_folding_fan",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["sette_di_spade"]
+            },
+            {
+              "roleLabel": "Wind Dark Opus Spear",
+              "primaryWeaponId": "wind_dark_opus",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["zephyrus_primal"],
+            "preferredSupportSummonIds": ["zephyrus_primal"],
+            "recommendedSubAuraSummonIds": ["raphael_summon", "judgement_summon", "temperance_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1: Ewiyar S1/S2/S3 -> Charlotta S1/S2/S3 -> Halloween Lich S1/S2/S3 -> MC Wild Magica + Dispel -> Attack (~110M DMG across multi-hit instances).",
+            "Turn 2 (Uwe / Magen Omen): Cancel via Lich + Charlotta + MC Dispel/Debuff skills -> Attack (~105M DMG).",
+            "Turn 3 (75% Manigance -> Qual Fafnir): Dispel Siegfried's buffs with Zephyrus call / Charlotta S2 -> Attack with +50% DEF from 2x Claíomh Solais Díon (~100M DMG).",
+            "Turn 4: Full attack + end-of-turn Lich/Manadiver skill nukes (4,000,000+ Honors Blue Chest)."
+          ]
+        }
+      ]
+    },
+    "siete": {
+      "raidId": "siete",
+      "raidName": "Seofon (Impossible)",
+      "bossName": "Lvl 275 Seofon",
+      "questId": "305411",
+      "stageId": "12072",
+      "bossElement": "wind",
+      "advantageousElement": "fire",
+      "attributeCode": "1",
+      "blueChestTargetHonors": 4000000,
+      "equivalentTargetDamage": 400000000,
+      "minimumEntryHp": 45000,
+      "recommendedComfortHp": 60000,
+      "entryMechanicWarning": "Entry Cien Mil Espadas deals 40,000 fixed damage + wipes the raid with 3,000,000 plain damage if ANY non-Fire ally is in the party. Every omen (Emblema / 50% / 10%) is cancelled exclusively by dealing 77,777,777 damage in a single turn.",
+      "signatureWeaponDrop": {
+        "name": "Sette di Spade",
+        "weaponId": "1040024300",
+        "weaponType": "sword",
+        "description": "Wind Revans Sword (Universal Ougi & HL Sword grid staple)"
+      },
+      "coreOmens": [
+        {
+          "trigger": "Entry (100% HP)",
+          "omenName": "Cien Mil Espadas",
+          "cancelCondition": "100% Fire-Element Party + >= 45,000 HP",
+          "requiredTacticalTags": ["fire_element_pure"],
+          "failureConsequence": "3,000,000 plain damage wipe."
+        },
+        {
+          "trigger": "80% / 60% / 40% / 20% HP",
+          "omenName": "Emblema (Ignis / Aquae / Terrae / Venti)",
+          "cancelCondition": "Deal 77,777,777 damage in 1 turn",
+          "requiredTacticalTags": ["burst_77m", "triple_strike_burst"],
+          "failureConsequence": "Applies fatal elemental buff to Seofon."
+        }
+      ],
+      "requiredTacticalTagsForComfort": [
+        "burst_77m",
+        "triple_strike_burst",
+        "tag_team_burst"
+      ],
+      "characterRegistry": [
+        {
+          "id": "percival_grand",
+          "npcId": "3040425000",
+          "name": "Percival (Grand)",
+          "aliases": ["Percival", "Percival (Grand)", "Grand Percival"],
+          "element": "fire",
+          "priorityTier": "CORE",
+          "role": "King's Awe Tag-Team Burst & Singed Amplifier",
+          "tacticalTags": ["burst_77m", "tag_team_burst", "fire_element_pure"],
+          "estimatedTurnDamageContribution": 45000000,
+          "estimatedPeakBurstContribution": 75000000,
+          "notes": "S3 Königlicher Befehl executes a full-party out-of-turn attack to effortlessly clear 77,777,777 Emblema omens."
+        },
+        {
+          "id": "zeta_grand",
+          "npcId": "3040499000",
+          "name": "Zeta (Grand)",
+          "aliases": ["Zeta", "Zeta (Grand)", "Grand Zeta"],
+          "element": "fire",
+          "priorityTier": "CORE",
+          "role": "Triple-Strike Assassin & Supplemental Damage Carry",
+          "tacticalTags": ["burst_77m", "triple_strike_burst", "fire_element_pure"],
+          "estimatedTurnDamageContribution": 48000000,
+          "estimatedPeakBurstContribution": 82000000,
+          "notes": "Highest single-unit normal attack burst in Fire."
+        },
+        {
+          "id": "yuel_grand",
+          "npcId": "3040580000",
+          "name": "Yuel (Grand)",
+          "aliases": ["Yuel", "Yuel (Grand)", "Grand Yuel"],
+          "element": "fire",
+          "priorityTier": "CORE",
+          "role": "Foxflame Amplifier / Echoes / Double Strike Partner",
+          "tacticalTags": ["burst_77m", "triple_strike_burst", "fire_element_pure"],
+          "estimatedTurnDamageContribution": 34000000,
+          "estimatedPeakBurstContribution": 55000000,
+          "notes": "Amplifies Percival & Zeta burst turns."
+        },
+        {
+          "id": "michael_grand",
+          "npcId": "3040440000",
+          "name": "Michael (Grand)",
+          "aliases": ["Michael", "Michael (Grand)"],
+          "element": "fire",
+          "priorityTier": "CORE",
+          "role": "Backline +20% Fire Aura & +10% Damage Cap Passive",
+          "tacticalTags": ["burst_77m", "fire_element_pure"],
+          "estimatedTurnDamageContribution": 26000000,
+          "estimatedPeakBurstContribution": 40000000,
+          "notes": "Mandatory backline passive slot."
+        },
+        {
+          "id": "alanaan_flb",
+          "npcId": "3040167000",
+          "name": "Alanaan",
+          "aliases": ["Alanaan", "Alanaan (FLB)"],
+          "element": "fire",
+          "priorityTier": "HIGH",
+          "role": "Sun-Field Crit/Echoes & Backline Anchor",
+          "tacticalTags": ["burst_77m", "fire_element_pure"],
+          "estimatedTurnDamageContribution": 32000000,
+          "estimatedPeakBurstContribution": 60000000,
+          "notes": "Strong backline/frontline Fire Evoker."
+        }
+      ],
+      "weaponRegistry": [
+        {
+          "id": "overrider",
+          "weaponId": "1040218900",
+          "name": "Overrider",
+          "aliases": ["Overrider", "Grand Zeta Spear"],
+          "element": "fire",
+          "weaponType": "spear",
+          "priorityTier": "CORE",
+          "role": "Fire PnS (100k Supplemental + 14% Cap across 2 copies)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 14,
+          "supplementalDamageFlat": 100000,
+          "hpBonusPercent": 0,
+          "notes": "Core Fire burst grid weapon."
+        },
+        {
+          "id": "lord_of_flames",
+          "weaponId": "1040023700",
+          "name": "Lord of Flames",
+          "aliases": ["Lord of Flames", "Grand Percival Sword"],
+          "element": "fire",
+          "weaponType": "sword",
+          "priorityTier": "CORE",
+          "role": "4-Weapon Resonator (40% EX ATK + 25% DEF + 7% Cap)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 15,
+          "notes": "Core Fire Resonator sword."
+        },
+        {
+          "id": "crimson_scale",
+          "weaponId": "1040315900",
+          "name": "Crimson Scale",
+          "aliases": ["Crimson Scale", "Michael Axe"],
+          "element": "fire",
+          "weaponType": "axe",
+          "priorityTier": "CORE",
+          "role": "50k Supplemental + 7% Damage Cap",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 50000,
+          "hpBonusPercent": 0,
+          "notes": "Stacks with Overrider for 150k total supplemental."
+        },
+        {
+          "id": "fire_dark_opus",
+          "weaponId": "1040310700",
+          "name": "Scythe of Renunciation",
+          "aliases": ["Scythe of Renunciation", "Scythe of Repudiation"],
+          "element": "fire",
+          "weaponType": "axe",
+          "priorityTier": "CORE",
+          "role": "Fire Dark Opus Axe Lv210",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "Core HP + Damage Cap anchor."
+        }
+      ],
+      "summonRegistry": [
+        {
+          "id": "versusia_summon",
+          "summonId": "2040448000",
+          "name": "Versusia",
+          "aliases": ["Versusia"],
+          "role": "MAIN_OR_SUPPORT",
+          "damageCapBonusPercent": 5,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 20,
+          "notes": "Fire Main Summon."
+        },
+        {
+          "id": "the_sun",
+          "summonId": "2040321000",
+          "name": "The Sun",
+          "aliases": ["The Sun"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Seraphic amp + Double Strike call."
+        },
+        {
+          "id": "the_devil",
+          "summonId": "2040317000",
+          "name": "The Devil",
+          "aliases": ["The Devil"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "30% Fire HP sub-aura."
+        },
+        {
+          "id": "michael_summon",
+          "summonId": "2040306000",
+          "name": "Michael",
+          "aliases": ["Michael"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Fire Damage Cap sub-aura."
+        }
+      ],
+      "archetypes": [
+        {
+          "archetypeId": "siete_manadiver_percival_zeta_burst",
+          "name": "Fire Manadiver + Grand Percival + Grand Zeta + Grand Yuel Burst",
+          "playstyle": "BURST_BLUE_CHEST",
+          "recommendedFor": "2-3 Turn 4,000,000 Honors Blue Chest & guaranteed 77,777,777 Emblema omen cancellation.",
+          "minimumViableHp": 45000,
+          "recommendedComfortHp": 60000,
+          "estimatedTurnsTo4MHonors": 3,
+          "mcSpec": {
+            "primaryClass": "Manadiver",
+            "alternativeClasses": ["Sumaibito", "Kengo", "Onmyoji"],
+            "recommendedSkills": ["Wild Magica", "Secret Triad", "Overtrance", "Splitting Spirit"],
+            "preferredMainhandIds": ["overrider", "lord_of_flames"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Tag-Team & Singed Carry",
+              "primaryCharacterId": "percival_grand",
+              "acceptableSubstitutes": ["alanaan_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "Triple-Strike Assassin Carry",
+              "primaryCharacterId": "zeta_grand",
+              "acceptableSubstitutes": ["yuel_grand"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Echoes & Foxflame Buffer",
+              "primaryCharacterId": "yuel_grand",
+              "acceptableSubstitutes": ["alanaan_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Backline +20% Aura & +10% Cap",
+              "primaryCharacterId": "michael_grand",
+              "acceptableSubstitutes": ["alanaan_flb"]
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Backline Evoker Anchor",
+              "primaryCharacterId": "alanaan_flb",
+              "acceptableSubstitutes": ["michael_grand"]
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Fire Supplemental Core (2x Overrider)",
+              "primaryWeaponId": "overrider",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["crimson_scale"]
+            },
+            {
+              "roleLabel": "Resonator Core (Lord of Flames)",
+              "primaryWeaponId": "lord_of_flames",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            },
+            {
+              "roleLabel": "Supplemental Axe (Crimson Scale)",
+              "primaryWeaponId": "crimson_scale",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            },
+            {
+              "roleLabel": "Fire Dark Opus Axe",
+              "primaryWeaponId": "fire_dark_opus",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["versusia_summon"],
+            "preferredSupportSummonIds": ["versusia_summon"],
+            "recommendedSubAuraSummonIds": ["the_sun", "the_devil", "michael_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1: Call The Sun -> Yuel S1/S2/S3 -> Zeta S2/S3/S1 -> Percival S1 -> MC Wild Magica -> Attack (~165M DMG).",
+            "Turn 2 (Emblema 77,777,777 Omen): Percival S3 (Tag Team) + Attack (~205M DMG cancels Emblema).",
+            "Turn 3: Call Beelzebub/Triple Zero -> Attack (Reaches 4,000,000+ Honors Blue Chest)."
+          ]
+        }
+      ]
+    },
+    "cosmos": {
+      "raidId": "cosmos",
+      "raidName": "Cosmos (Impossible)",
+      "bossName": "Lvl 275 Cosmos",
+      "questId": "305421",
+      "stageId": "12073",
+      "bossElement": "light",
+      "advantageousElement": "dark",
+      "attributeCode": "6",
+      "blueChestTargetHonors": 4000000,
+      "equivalentTargetDamage": 400000000,
+      "minimumEntryHp": 50000,
+      "recommendedComfortHp": 60000,
+      "entryMechanicWarning": "Cosmos features the Arbitration Gauge (Blue <- Red). Charge Attacks shift the needle toward Blue; Normal Attacks/Skills shift it toward Red. If the needle hits either extreme, Cosmos triggers a punitive special and drains 300% charge bar.",
+      "signatureWeaponDrop": {
+        "name": "Concordia",
+        "weaponId": "1040417800",
+        "weaponType": "staff",
+        "description": "Light Revans Staff (Core Light Ougi & Skill Cap weapon)"
+      },
+      "coreOmens": [
+        {
+          "trigger": "Blue Zone CT Max Omen",
+          "omenName": "Binary Star (Blue)",
+          "cancelCondition": "Deal 30 hits OR use 4 skills (shifts needle Right toward center)",
+          "requiredTacticalTags": ["hit_count_30", "skill_spam"],
+          "failureConsequence": "Heavy Light AoE + pushes needle further Left toward extreme."
+        },
+        {
+          "trigger": "Red Zone CT Max Omen",
+          "omenName": "Dual Force (Red)",
+          "cancelCondition": "Perform 3 Charge Attacks OR land 8 debuffs (shifts needle Left toward center)",
+          "requiredTacticalTags": ["ougi_3_chain", "debuff_spam_8"],
+          "failureConsequence": "Heavy Light AoE + pushes needle further Right toward extreme."
+        },
+        {
+          "trigger": "75% / 50% / 25% HP Triggers",
+          "omenName": "equilibrium / Arbitration Threshold",
+          "cancelCondition": "Keep needle balanced near center using Fediel + Lich + HalMal / Seox Lv150 / Orologia",
+          "requiredTacticalTags": ["ougi_3_chain", "hit_count_30", "debuff_spam_8", "shield_veil"],
+          "failureConsequence": "300% Charge Bar drain + buff wipe if needle hits extreme."
+        }
+      ],
+      "requiredTacticalTagsForComfort": [
+        "ougi_3_chain",
+        "hit_count_30",
+        "debuff_spam_8",
+        "shield_veil"
+      ],
+      "characterRegistry": [
+        {
+          "id": "fediel_grand",
+          "npcId": "3040376000",
+          "name": "Fediel (Grand)",
+          "aliases": ["Fediel", "Fediel (Grand)", "Grand Fediel"],
+          "element": "dark",
+          "priorityTier": "CORE",
+          "role": "10,000 Barrier + Veil + DEF/C.A. Specs Field + Double Ougi + Multi-Hit Auto-Nuke",
+          "tacticalTags": ["ougi_3_chain", "hit_count_30", "shield_veil", "debuff_spam_8"],
+          "estimatedTurnDamageContribution": 30000000,
+          "estimatedPeakBurstContribution": 46000000,
+          "notes": "Cornerstone of Cosmos HL: provides both Double Ougi (shifts left) and multi-hit auto-nukes (shifts right) while protecting the party."
+        },
+        {
+          "id": "lich_grand",
+          "npcId": "3040357000",
+          "name": "Lich (Grand)",
+          "aliases": ["Lich", "Lich (Grand)", "Grand Lich"],
+          "element": "dark",
+          "priorityTier": "CORE",
+          "role": "10-Hit End-of-Turn Skill Nuke + Delay + Debuff Spammer + Charge Bar Conversion",
+          "tacticalTags": ["hit_count_30", "debuff_spam_8", "skill_spam", "ougi_3_chain"],
+          "estimatedTurnDamageContribution": 34000000,
+          "estimatedPeakBurstContribution": 50000000,
+          "notes": "Synergizes with Fediel's field to heal the team every turn while solving both 30-hit and 8-debuff omens."
+        },
+        {
+          "id": "halmal_grand",
+          "npcId": "3040443000",
+          "name": "Halluel and Malluel (Grand)",
+          "aliases": ["Halluel and Malluel", "HalMal (Grand)", "Grand HalMal"],
+          "element": "dark",
+          "priorityTier": "CORE",
+          "role": "Cosmos Tailor-Made Solver (3x Skill Copy / Cant Act / Dispel / Multi-Hit / Debuffs)",
+          "tacticalTags": ["hit_count_30", "debuff_spam_8", "skill_spam"],
+          "estimatedTurnDamageContribution": 32000000,
+          "estimatedPeakBurstContribution": 52000000,
+          "notes": "Designed specifically for Cosmos HL to balance the Arbitration needle and cancel every omen."
+        },
+        {
+          "id": "seox_ulb",
+          "npcId": "3040035000",
+          "name": "Seox",
+          "aliases": ["Seox", "Six", "Seox (Lv150)"],
+          "element": "dark",
+          "priorityTier": "CORE",
+          "role": "Transcendence Lv150 Multi-Hit Flurry / Ougi & Counter Carry",
+          "tacticalTags": ["hit_count_30", "ougi_3_chain", "skill_spam"],
+          "estimatedTurnDamageContribution": 38000000,
+          "estimatedPeakBurstContribution": 62000000,
+          "notes": "Lv150 Seox delivers unmatched multi-hit normal attacks, Ougis, and 6-hit counters."
+        },
+        {
+          "id": "orologia_grand",
+          "npcId": "3040536000",
+          "name": "Orologia (Grand)",
+          "aliases": ["Orologia", "Orologia (Grand)", "Grand Orologia"],
+          "element": "dark",
+          "priorityTier": "CORE",
+          "role": "Omnipotent Buffer / Full Heal / Skill Reset / Multi-Hit Nuke & Debuff Solver",
+          "tacticalTags": ["hit_count_30", "debuff_spam_8", "skill_spam", "shield_veil"],
+          "estimatedTurnDamageContribution": 35000000,
+          "estimatedPeakBurstContribution": 58000000,
+          "notes": "Adapts between offensive multi-hit nukes and full defensive resets for Cosmos."
+        },
+        {
+          "id": "ilsa_yukata",
+          "npcId": "3040456000",
+          "name": "Ilsa (Yukata)",
+          "aliases": ["Ilsa", "Ilsa (Yukata)", "Yukata Ilsa"],
+          "element": "dark",
+          "priorityTier": "HIGH",
+          "role": "30+ Hit Triple-Strike Flurry & End-of-Turn Nuke Carry",
+          "tacticalTags": ["hit_count_30", "debuff_spam_8"],
+          "estimatedTurnDamageContribution": 36000000,
+          "estimatedPeakBurstContribution": 60000000,
+          "notes": "Solves 30-hit omens single-handedly while dealing massive burst damage."
+        },
+        {
+          "id": "vikala_flb",
+          "npcId": "3040252000",
+          "name": "Vikala",
+          "aliases": ["Vikala", "Vikala (FLB)"],
+          "element": "dark",
+          "priorityTier": "HIGH",
+          "role": "Utopia Field (50% C.A. DMG / 30% C.A. Cap / Dodge All / Dispel)",
+          "tacticalTags": ["ougi_3_chain", "shield_veil"],
+          "estimatedTurnDamageContribution": 24000000,
+          "estimatedPeakBurstContribution": 38000000,
+          "notes": "FLB Vikala powers Dark Kengo Ougi loops and provides Dispel + Dodge."
+        },
+        {
+          "id": "nier_flb",
+          "npcId": "3040169000",
+          "name": "Nier",
+          "aliases": ["Nier", "Nier (FLB)"],
+          "element": "dark",
+          "priorityTier": "HIGH",
+          "role": "Backline Autorevive/Absorption & 5* Evoker Burst Support",
+          "tacticalTags": ["shield_veil", "ougi_3_chain"],
+          "estimatedTurnDamageContribution": 20000000,
+          "estimatedPeakBurstContribution": 34000000,
+          "notes": "Provides ultimate insurance against Cosmos triggers."
+        }
+      ],
+      "weaponRegistry": [
+        {
+          "id": "ereshkigal",
+          "weaponId": "1040315100",
+          "name": "Ereshkigal",
+          "aliases": ["Ereshkigal"],
+          "element": "dark",
+          "weaponType": "axe",
+          "priorityTier": "CORE",
+          "role": "150 Gold Moon Illustrious Axe (Teamwide Double Strike / Instant Burst)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Allows Berserker/Viking to burst 200M-300M+ damage in 2 turns on Cosmos."
+        },
+        {
+          "id": "pain_and_suffering",
+          "weaponId": "1040314300",
+          "name": "Pain and Suffering",
+          "aliases": ["Pain and Suffering", "PnS", "Lich Axe"],
+          "element": "dark",
+          "weaponType": "axe",
+          "priorityTier": "CORE",
+          "role": "100,000 Supplemental Damage + 14% Damage Cap (across 2 copies)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 14,
+          "supplementalDamageFlat": 100000,
+          "hpBonusPercent": 0,
+          "notes": "Mandatory Dark grid core."
+        },
+        {
+          "id": "eternal_signature",
+          "weaponId": "1040116600",
+          "name": "Eternal Signature",
+          "aliases": ["Eternal Signature", "Orologia Katana"],
+          "element": "dark",
+          "weaponType": "dagger",
+          "priorityTier": "CORE",
+          "role": "Dark Exalto (+30% Aura & Damage Cap + DEF)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 7,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 15,
+          "notes": "Boosts Hades/Celeste aura and Damage Cap."
+        },
+        {
+          "id": "agonize",
+          "weaponId": "1040711100",
+          "name": "Agonize",
+          "aliases": ["Agonize"],
+          "element": "dark",
+          "weaponType": "bow",
+          "priorityTier": "HIGH",
+          "role": "100,000 Skill Supplemental Damage (2 copies)",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 100000,
+          "hpBonusPercent": 0,
+          "notes": "Supercharges Lich, Fediel, and Orologia multi-hit skill nukes."
+        },
+        {
+          "id": "unsigned_kaneshige_dark",
+          "weaponId": "1040909800",
+          "name": "Unsigned Kaneshige",
+          "aliases": ["Unsigned Kaneshige", "Dark Kaneshige"],
+          "element": "dark",
+          "weaponType": "katana",
+          "priorityTier": "CORE",
+          "role": "Dark Kengo Mainhand",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Core Kengo mainhand for balanced Cosmos runs."
+        },
+        {
+          "id": "dark_opus_katana",
+          "weaponId": "1040911000",
+          "name": "Katana of Repudiation",
+          "aliases": ["Katana of Repudiation", "Katana of Renunciation"],
+          "element": "dark",
+          "weaponType": "katana",
+          "priorityTier": "CORE",
+          "role": "Dark Opus Katana Lv220",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "Transcended Dark Opus Katana."
+        }
+      ],
+      "summonRegistry": [
+        {
+          "id": "hades_primal",
+          "summonId": "2040090000",
+          "name": "Hades",
+          "aliases": ["Hades", "Celeste Omega"],
+          "role": "MAIN_OR_SUPPORT",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Hades Lv200 / Celeste Omega Lv200 Main Summon."
+        },
+        {
+          "id": "death_summon",
+          "summonId": "2040315000",
+          "name": "Death",
+          "aliases": ["Death"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Seraphic amplification vs Light (Cosmos)."
+        },
+        {
+          "id": "sariel_summon",
+          "summonId": "2040327000",
+          "name": "Sariel",
+          "aliases": ["Sariel"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Dark Damage Cap sub-aura."
+        },
+        {
+          "id": "fediel_summon",
+          "summonId": "2040418000",
+          "name": "Fediel",
+          "aliases": ["Fediel"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 20,
+          "notes": "Boosts Hades aura."
+        }
+      ],
+      "archetypes": [
+        {
+          "archetypeId": "cosmos_manadiver_kengo_balanced",
+          "name": "Dark Manadiver / Kengo Balanced Arbitration (Fediel + Lich + HalMal / Orologia)",
+          "playstyle": "OUGI_LOOP",
+          "recommendedFor": "Consistent 4,000,000 Honors Blue Chest & Solo/Full Auto needle control without hitting Blue/Red extremes.",
+          "minimumViableHp": 50000,
+          "recommendedComfortHp": 58000,
+          "estimatedTurnsTo4MHonors": 4,
+          "mcSpec": {
+            "primaryClass": "Manadiver",
+            "alternativeClasses": ["Kengo", "Berserker", "Viking"],
+            "recommendedSkills": ["Wild Magica", "Secret Triad", "Miserable Mist", "Dispel"],
+            "preferredMainhandIds": ["eternal_signature", "unsigned_kaneshige_dark", "ereshkigal"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Barrier/Veil/Field & Double Ougi Anchor",
+              "primaryCharacterId": "fediel_grand",
+              "acceptableSubstitutes": ["vikala_flb"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "10-Hit Skill Nuke & 8-Debuff Omen Solver",
+              "primaryCharacterId": "lich_grand",
+              "acceptableSubstitutes": ["orologia_grand"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Arbitration Balancer & 30-Hit Solver",
+              "primaryCharacterId": "halmal_grand",
+              "acceptableSubstitutes": ["orologia_grand", "seox_ulb", "ilsa_yukata"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Burst / Cleanup Carry",
+              "primaryCharacterId": "seox_ulb",
+              "acceptableSubstitutes": ["ilsa_yukata", "orologia_grand"]
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Backline Autorevive / Insurance Anchor",
+              "primaryCharacterId": "nier_flb",
+              "acceptableSubstitutes": ["vikala_flb"]
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Supplemental Core (2x Pain and Suffering)",
+              "primaryWeaponId": "pain_and_suffering",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["agonize"]
+            },
+            {
+              "roleLabel": "Exalto / Illustrious Core (Eternal Signature + Ereshkigal)",
+              "primaryWeaponId": "eternal_signature",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["ereshkigal", "unsigned_kaneshige_dark"]
+            },
+            {
+              "roleLabel": "Skill Supplemental Bows (2x Agonize)",
+              "primaryWeaponId": "agonize",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["unsigned_kaneshige_dark"]
+            },
+            {
+              "roleLabel": "Dark Opus Katana Lv220",
+              "primaryWeaponId": "dark_opus_katana",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["hades_primal"],
+            "preferredSupportSummonIds": ["hades_primal"],
+            "recommendedSubAuraSummonIds": ["death_summon", "sariel_summon", "fediel_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1: Fediel S1/S3 -> Lich S1/S2/S3 -> HalMal (or Orologia/Seox) S1/S2/S3 -> MC Wild Magica -> Attack (~115M DMG; Fediel+Lich end-of-turn nukes rebalance the needle).",
+            "Turn 2 (Binary Star / Dual Force Omen): Cancel 30-hit / 8-debuff / 3-CA omen automatically via Fediel Double Ougi + Lich 10-hit nuke -> Attack (~110M DMG).",
+            "Turn 3 (75% Trigger): Tank with Fediel 10k Barrier + DEF field -> Attack (~105M DMG).",
+            "Turn 4: Full attack + end-of-turn skill barrage (4,000,000+ Honors Blue Chest)."
+          ]
+        }
+      ]
+    },
+    "agastia": {
+      "raidId": "agastia",
+      "raidName": "Agastia (Impossible)",
+      "bossName": "Lvl 275 Agastia",
+      "questId": "305431",
+      "stageId": "12074",
+      "bossElement": "dark",
+      "advantageousElement": "light",
+      "attributeCode": "5",
+      "blueChestTargetHonors": 4000000,
+      "equivalentTargetDamage": 400000000,
+      "minimumEntryHp": 60000,
+      "recommendedComfortHp": 70000,
+      "entryMechanicWarning": "Entry Abominable Cell deals 30,000 fixed Dark damage + Zombified/Halred unless blocked by Veil. At 90%/70%/50% HP, Exadeath Cannon deals 999,999 Dark damage unless tanked by Sub-All (Grand Vira S1 / Geisenborger) or cancelled via 6-Elemental damage. Phase 2 unlocks Overtrance (Super-T) when cancelling omens.",
+      "signatureWeaponDrop": {
+        "name": "Forbidance",
+        "weaponId": "1040417900",
+        "weaponType": "staff",
+        "description": "Dark Revans Staff (Core Dark Ougi & Skill Cap weapon)"
+      },
+      "coreOmens": [
+        {
+          "trigger": "Entry (100% HP)",
+          "omenName": "Abominable Cell",
+          "cancelCondition": "Survive 30,000 fixed Dark damage + block Zombified with Veil/Clarity (Seruel Summer / Vira Grand / Harmonia)",
+          "requiredTacticalTags": ["veil_clarity"],
+          "failureConsequence": "Zombified causes healing skills to damage your own party."
+        },
+        {
+          "trigger": "90% / 70% / 50% HP Triggers",
+          "omenName": "Exadeath Cannon",
+          "cancelCondition": "Tank with Sub-All + Guts/Aegis (Grand Vira S1) OR Guard + 100% Cut OR deal 6-Element damage",
+          "requiredTacticalTags": ["sub_all_tank", "dispel_spam"],
+          "failureConsequence": "999,999 Dark damage to targets."
+        },
+        {
+          "trigger": "CT Max / Phase 2 Omens",
+          "omenName": "Enhanced Cell / 5-CA / 30-Hit / 5-Debuff Omens",
+          "cancelCondition": "Perform 5-6 Charge Attacks OR deal 30 hits OR land 5 debuffs / Delay (Harmonia / Kengo / Seruel / Makura / Kumbhira)",
+          "requiredTacticalTags": ["ougi_5_chain", "delay_dispel", "hit_count_30"],
+          "failureConsequence": "Heavy Dark AoE + strips buffs and denies Super-T gauge."
+        }
+      ],
+      "requiredTacticalTagsForComfort": [
+        "veil_clarity",
+        "sub_all_tank",
+        "ougi_5_chain",
+        "delay_dispel"
+      ],
+      "characterRegistry": [
+        {
+          "id": "seruel_summer",
+          "npcId": "3040480000",
+          "name": "Seruel (Summer)",
+          "aliases": ["Seruel", "Seruel (Summer)", "Summer Seruel"],
+          "element": "light",
+          "priorityTier": "CORE",
+          "role": "Veil + Charge Bar Battery + Double Ougi + Skill Nuke & Dispel",
+          "tacticalTags": ["veil_clarity", "ougi_5_chain", "delay_dispel", "hit_count_30"],
+          "estimatedTurnDamageContribution": 34000000,
+          "estimatedPeakBurstContribution": 52000000,
+          "notes": "Blocks Zombified with Veil and fuels 5-6 Chain Ougi omens every turn in Agastia."
+        },
+        {
+          "id": "vira_grand_flb",
+          "npcId": "3040141000",
+          "name": "Vira (Grand)",
+          "aliases": ["Vira", "Vira (Grand)", "Grand Vira", "Chevira"],
+          "element": "light",
+          "priorityTier": "CORE",
+          "role": "Aegis Merge Sub-All Tank (absorbs 90%/70%/50% Exadeath Cannon) + Dispel + Veil",
+          "tacticalTags": ["sub_all_tank", "veil_clarity", "delay_dispel"],
+          "estimatedTurnDamageContribution": 22000000,
+          "estimatedPeakBurstContribution": 34000000,
+          "notes": "Trivializes Agastia's 999,999 Exadeath Cannon triggers via Aegis Merge Sub-All while providing Dispel."
+        },
+        {
+          "id": "kumbhira_flb",
+          "npcId": "3040197000",
+          "name": "Kumbhira",
+          "aliases": ["Kumbhira", "Kumbhira (FLB)"],
+          "element": "light",
+          "priorityTier": "CORE",
+          "role": "Multi-Hit Reckless Abandon Nukes + Hostility Tank + Teamwide Damage Amplify",
+          "tacticalTags": ["hit_count_30", "sub_all_tank", "ougi_5_chain"],
+          "estimatedTurnDamageContribution": 35000000,
+          "estimatedPeakBurstContribution": 56000000,
+          "notes": "Delivers massive end-of-turn multi-hit skill damage and Ougis to clear 30-hit and CA omens."
+        },
+        {
+          "id": "makura_flb",
+          "npcId": "3040441000",
+          "name": "Makura",
+          "aliases": ["Makura", "Makura (FLB)"],
+          "element": "light",
+          "priorityTier": "CORE",
+          "role": "Double-Strike + Dodge Counter Nukes + Substitution Switch",
+          "tacticalTags": ["hit_count_30", "delay_dispel"],
+          "estimatedTurnDamageContribution": 32000000,
+          "estimatedPeakBurstContribution": 54000000,
+          "notes": "Can pass permanent Double Strike + Echoes + Dodge-Nukes to Kumbhira or Seruel."
+        },
+        {
+          "id": "vajra_valentine",
+          "npcId": "3040617000",
+          "name": "Vajra (Valentine)",
+          "aliases": ["Vajra", "Vajra (Valentine)", "Valentine Vajra"],
+          "element": "light",
+          "priorityTier": "HIGH",
+          "role": "Light Ougi & Multi-Hit Charge Battery",
+          "tacticalTags": ["ougi_5_chain", "hit_count_30", "delay_dispel"],
+          "estimatedTurnDamageContribution": 30000000,
+          "estimatedPeakBurstContribution": 48000000,
+          "notes": "High-tempo Ougi & multi-hit partner for Light Kengo/Manadiver in Agastia."
+        },
+        {
+          "id": "amaterasu",
+          "npcId": "3040634000",
+          "name": "Amaterasu",
+          "aliases": ["Amaterasu"],
+          "element": "light",
+          "priorityTier": "HIGH",
+          "role": "Heal/Clarity + Ougi Battery + Dispel Support",
+          "tacticalTags": ["veil_clarity", "heal_sustain", "ougi_5_chain", "delay_dispel"],
+          "estimatedTurnDamageContribution": 26000000,
+          "estimatedPeakBurstContribution": 40000000,
+          "notes": "Cleanse + sustain + Ougi acceleration."
+        },
+        {
+          "id": "mahira_holiday",
+          "npcId": "3040372000",
+          "name": "Mahira (Holiday)",
+          "aliases": ["Mahira", "Mahira (Holiday)", "Holiday Mahira"],
+          "element": "light",
+          "priorityTier": "HIGH",
+          "role": "Dispel + Skill Nuke + Heal/Cleanse Support",
+          "tacticalTags": ["delay_dispel", "heal_sustain", "hit_count_30"],
+          "estimatedTurnDamageContribution": 24000000,
+          "estimatedPeakBurstContribution": 36000000,
+          "notes": "Strong Dispel and sustain unit for Agastia."
+        },
+        {
+          "id": "nehan_grand",
+          "npcId": "3040341000",
+          "name": "Nehan",
+          "aliases": ["Nehan", "Nehan (Grand)"],
+          "element": "light",
+          "priorityTier": "HIGH",
+          "role": "Double Strike + 50k Supplemental + 100% TA Burst Enabler",
+          "tacticalTags": ["hit_count_30", "ougi_5_chain"],
+          "estimatedTurnDamageContribution": 28000000,
+          "estimatedPeakBurstContribution": 60000000,
+          "notes": "Note: S3 cuts Max HP by 40%, so only press S1/S2 in Agastia unless bursting past triggers."
+        },
+        {
+          "id": "geisenborger",
+          "npcId": "3040162000",
+          "name": "Geisenborger",
+          "aliases": ["Geisenborger"],
+          "element": "light",
+          "priorityTier": "CORE",
+          "role": "Backline 10,000 Dark Damage Cap Passive (caps single-hit Dark damage to 10k!)",
+          "tacticalTags": ["sub_all_tank"],
+          "estimatedTurnDamageContribution": 18000000,
+          "estimatedPeakBurstContribution": 28000000,
+          "notes": "Backline Geisenborger caps Dark single-hit damage at 10,000, making Agastia's 999,999 Exadeath Cannon deal only 10,000!"
+        }
+      ],
+      "weaponRegistry": [
+        {
+          "id": "harmonia",
+          "weaponId": "1040814500",
+          "name": "Harmonia",
+          "aliases": ["Harmonia", "Yuni Harp"],
+          "element": "light",
+          "weaponType": "harp",
+          "priorityTier": "CORE",
+          "role": "100,000 Supplemental Damage + 14% Cap (2 copies) & Delay-on-Ougi Mainhand",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 14,
+          "supplementalDamageFlat": 100000,
+          "hpBonusPercent": 0,
+          "notes": "Mandatory Light grid core; also acts as a Delay-on-Ougi mainhand for Rising Force / Iatromantis."
+        },
+        {
+          "id": "unsigned_kaneshige_light",
+          "weaponId": "1040909700",
+          "name": "Unsigned Kaneshige",
+          "aliases": ["Unsigned Kaneshige", "Light Kaneshige"],
+          "element": "light",
+          "weaponType": "katana",
+          "priorityTier": "CORE",
+          "role": "Light Kengo Mainhand (5-6 Chain Ougi Engine)",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Core Kengo mainhand for Agastia Ougi loops."
+        },
+        {
+          "id": "ivory_ark",
+          "weaponId": "1040112500",
+          "name": "Ivory Ark",
+          "aliases": ["Ivory Ark", "Noa Dagger"],
+          "element": "light",
+          "weaponType": "dagger",
+          "priorityTier": "HIGH",
+          "role": "Zeus Primal ATK + HP + Crit Anchor",
+          "recommendedCopies": 2,
+          "damageCapBonusPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 35,
+          "notes": "2x Ivory Ark under Zeus Lv210 pushes Light party HP past 70,000."
+        },
+        {
+          "id": "harakhte",
+          "weaponId": "1040913300",
+          "name": "Harakhte",
+          "aliases": ["Harakhte", "Horus Katana"],
+          "element": "light",
+          "weaponType": "katana",
+          "priorityTier": "HIGH",
+          "role": "Ougi Cap & Supplemental C.A. Damage",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "Boosts Charge Attack damage and cap for Light Kengo."
+        },
+        {
+          "id": "light_dark_opus",
+          "weaponId": "1040017100",
+          "name": "Sword of Renunciation",
+          "aliases": ["Sword of Renunciation", "Sword of Repudiation"],
+          "element": "light",
+          "weaponType": "sword",
+          "priorityTier": "CORE",
+          "role": "Light Dark Opus Sword",
+          "recommendedCopies": 1,
+          "damageCapBonusPercent": 15,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 25,
+          "notes": "Core HP + Damage Cap anchor."
+        }
+      ],
+      "summonRegistry": [
+        {
+          "id": "zeus_primal",
+          "summonId": "2040080000",
+          "name": "Zeus",
+          "aliases": ["Zeus", "Luminiera Omega"],
+          "role": "MAIN_OR_SUPPORT",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 30,
+          "notes": "Transcended Zeus Lv210 Primal Aura + 3000 Barrier call."
+        },
+        {
+          "id": "triple_zero",
+          "summonId": "2040425000",
+          "name": "Triple Zero",
+          "aliases": ["Triple Zero", "000"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "6-Elemental damage call (cancels Agastia's 90%/70%/50% Exadeath Cannon!) + Instant Omen Cancel on 2nd call."
+        },
+        {
+          "id": "the_star",
+          "summonId": "2040319000",
+          "name": "The Star",
+          "aliases": ["The Star"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 0,
+          "seraphicAmpPercent": 10,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Seraphic amplification vs Dark (Agastia)."
+        },
+        {
+          "id": "metatron_summon",
+          "summonId": "2040330000",
+          "name": "Metatron",
+          "aliases": ["Metatron"],
+          "role": "SUB_AURA",
+          "damageCapBonusPercent": 10,
+          "seraphicAmpPercent": 0,
+          "supplementalDamageFlat": 0,
+          "hpBonusPercent": 0,
+          "notes": "10% Light Damage Cap sub-aura + Dispel call."
+        }
+      ],
+      "archetypes": [
+        {
+          "archetypeId": "agastia_kengo_seruel_vira_ougi",
+          "name": "Light Kengo + Summer Seruel + Grand Vira + Kumbhira + Backline Geisenborger",
+          "playstyle": "OUGI_LOOP",
+          "recommendedFor": "Reliable 4,000,000 Honors Blue Chest & 100% safe navigation through Abominable Cell and 90%/70%/50% Exadeath Cannon.",
+          "minimumViableHp": 60000,
+          "recommendedComfortHp": 70000,
+          "estimatedTurnsTo4MHonors": 4,
+          "mcSpec": {
+            "primaryClass": "Kengo",
+            "alternativeClasses": ["Iatromantis", "Manadiver"],
+            "recommendedSkills": ["One with the Blade", "No More Doubt", "Splitting Spirit", "Dispel"],
+            "preferredMainhandIds": ["unsigned_kaneshige_light", "harmonia"]
+          },
+          "characterSlots": [
+            {
+              "slotNumber": 1,
+              "position": "frontline",
+              "roleLabel": "Veil + Charge Bar + Double Ougi Carry",
+              "primaryCharacterId": "seruel_summer",
+              "acceptableSubstitutes": ["vajra_valentine", "amaterasu"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 2,
+              "position": "frontline",
+              "roleLabel": "Sub-All Tank (Exadeath Cannon) & Dispel",
+              "primaryCharacterId": "vira_grand_flb",
+              "acceptableSubstitutes": ["makura_flb", "mahira_holiday"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 3,
+              "position": "frontline",
+              "roleLabel": "Multi-Hit Skill & Ougi Carry",
+              "primaryCharacterId": "kumbhira_flb",
+              "acceptableSubstitutes": ["makura_flb", "vajra_valentine", "nehan_grand"],
+              "requiredForOmenClear": true
+            },
+            {
+              "slotNumber": 4,
+              "position": "backline",
+              "roleLabel": "Sub-Carry / Double Strike Anchor",
+              "primaryCharacterId": "makura_flb",
+              "acceptableSubstitutes": ["amaterasu", "mahira_holiday"]
+            },
+            {
+              "slotNumber": 5,
+              "position": "backline",
+              "roleLabel": "Backline 10,000 Dark Damage Cap Passive",
+              "primaryCharacterId": "geisenborger",
+              "acceptableSubstitutes": ["amaterasu"],
+              "requiredForOmenClear": true
+            }
+          ],
+          "weaponSlots": [
+            {
+              "roleLabel": "Kengo Mainhand (Unsigned Kaneshige)",
+              "primaryWeaponId": "unsigned_kaneshige_light",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": ["harmonia"]
+            },
+            {
+              "roleLabel": "Light Supplemental Core (2x Harmonia)",
+              "primaryWeaponId": "harmonia",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["harakhte"]
+            },
+            {
+              "roleLabel": "Zeus HP/Crit Anchors (2x Ivory Ark)",
+              "primaryWeaponId": "ivory_ark",
+              "recommendedCopies": 2,
+              "acceptableSubstitutes": ["harakhte"]
+            },
+            {
+              "roleLabel": "Ougi Cap Katana (Harakhte)",
+              "primaryWeaponId": "harakhte",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            },
+            {
+              "roleLabel": "Light Dark Opus Sword",
+              "primaryWeaponId": "light_dark_opus",
+              "recommendedCopies": 1,
+              "acceptableSubstitutes": []
+            }
+          ],
+          "summonSpec": {
+            "preferredMainSummonIds": ["zeus_primal"],
+            "preferredSupportSummonIds": ["zeus_primal"],
+            "recommendedSubAuraSummonIds": ["triple_zero", "the_star", "metatron_summon"]
+          },
+          "turnByTurnRotation": [
+            "Turn 1 (Post-Abominable Cell): Summer Seruel S2 (Veil/Cleanse) + S1/S3 -> Grand Vira S1 (Aegis Merge) -> Kumbhira S1/S2 -> Kengo S1 + No More Doubt -> Attack (5-6 Chain Ougi ~105M DMG).",
+            "Turn 2 (90% Exadeath Cannon): Call Triple Zero (6-Elemental hits cancel Exadeath Cannon!) OR tank with Vira S1 + Geisenborger 10k cap -> Attack (~110M DMG).",
+            "Turn 3 (70% Exadeath Cannon): Vira S1 (Sub-All) + Seruel S3 -> Attack (~105M DMG).",
+            "Turn 4 (Phase 2 Overtrance): Activate Super-T (Full Heal + Cooldown Reset) -> Full Chain Ougi (4,000,000+ Honors Blue Chest)."
+          ]
+        }
+      ]
+    }
+  }
+}
