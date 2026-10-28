@@ -517,7 +517,29 @@ export class CdpConnectionManager {
           document.addEventListener('DOMContentLoaded', injectCssDiet, { once: true });
         }
 
-        // 2. Canvas 2D & WebGL (SwiftShader) Software Rasterizer Diet:
+        // 2. Decouple requestAnimationFrame from Chromium's 60Hz Viz DisplayScheduler (--type=gpu-process):
+        // Replacing native window.requestAnimationFrame with a 15 FPS (66ms) setTimeout timer prevents Blink
+        // from setting NeedsBeginFrame=true at 60Hz in --type=gpu-process, cutting SwiftShader/Viz compositor CPU by ~85%
+        // while passing performance.now() so CreateJS TweenJS/MovieClip animations advance at 100% real-time speed.
+        if (!window.__gbf_raf_throttler_installed__) {
+          window.__gbf_raf_throttler_installed__ = true;
+          try {
+            let lastRafMs = 0;
+            window.requestAnimationFrame = function(cb) {
+              const now = performance.now();
+              const wait = Math.max(16, 66 - Math.max(0, now - lastRafMs));
+              return window.setTimeout(function() {
+                lastRafMs = performance.now();
+                cb(lastRafMs);
+              }, wait);
+            };
+            window.cancelAnimationFrame = function(id) {
+              window.clearTimeout(id);
+            };
+          } catch (e) {}
+        }
+
+        // 3. Canvas 2D & WebGL (SwiftShader) Software Rasterizer Diet:
         // Only rasterize pixels onto <canvas> (2D or WebGL) during a 35ms window once per 1000ms (~1 FPS paint).
         // Eliminates ~96.5% of CPU bitmap blitting and SwiftShader WebGL shader calls in --type=gpu-process,
         // while keeping 100% of CreateJS TweenJS/Timeline ticks and game state transitions running at full speed.
@@ -581,6 +603,10 @@ export class CdpConnectionManager {
     `;
 
     try {
+      // Persist on Puppeteer's main Page CDP session (NEVER detach, or Chromium wipes addScriptToEvaluateOnNewDocument on F5 reload!)
+      if (typeof page.evaluateOnNewDocument === 'function') {
+        await page.evaluateOnNewDocument(headlessCpuDietScript).catch(() => null);
+      }
       await page.evaluate(headlessCpuDietScript).catch(() => null);
 
       if (config.isProduction && config.VIEWPORT_WIDTH && config.VIEWPORT_HEIGHT) {
@@ -593,20 +619,14 @@ export class CdpConnectionManager {
         }).catch(() => null);
       }
 
-      // 3. Headless / Production CDP Audio Stream & New-Document CPU Diet:
-      // Blocks non-essential WebAudio stream downloads (.mp3/.ogg/.wav/.m4a) at the network layer
-      // and persists the CreateJS/CSS CPU diet across F5 reloads while keeping all images/CAPTCHAs intact.
-      if ((config.HEADLESS || config.isProduction) && typeof (page as any).createCDPSession === 'function') {
-        const client = await page.createCDPSession().catch(() => null);
-        if (client) {
-          await client.send('Page.addScriptToEvaluateOnNewDocument', {
-            source: headlessCpuDietScript
-          }).catch(() => null);
-          await client.send('Network.enable').catch(() => null);
-          await client.send('Network.setBlockedURLs', {
+      // 4. Headless / Production CDP Audio Stream Diet on persistent Page session:
+      if (config.HEADLESS || config.isProduction) {
+        const persistentClient = typeof (page as any)._client === 'function' ? (page as any)._client() : null;
+        if (persistentClient && typeof persistentClient.send === 'function') {
+          await persistentClient.send('Network.enable').catch(() => null);
+          await persistentClient.send('Network.setBlockedURLs', {
             urls: ['*.mp3', '*.ogg', '*.wav', '*.m4a', '*/assets/sound/*']
           }).catch(() => null);
-          await client.detach().catch(() => null);
         }
       }
     } catch (e: any) {
