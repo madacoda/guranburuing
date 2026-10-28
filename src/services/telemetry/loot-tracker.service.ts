@@ -220,9 +220,10 @@ export class LootTrackerService implements ILootTrackerService {
   }
 
   /**
-   * Parses JSON API responses (/reward.json, /result.json, etc.) for drops.
+   * Parses JSON API responses (/reward.json, /result.json, etc.) or raw byte payloads for drops.
+   * Leverages SIMD zero-allocation Rust flag scanning when available.
    */
-  public inspectRewardResponse(data: any): RaidLootInspectionOutcome {
+  public inspectRewardResponse(data: string | Uint8Array | any): RaidLootInspectionOutcome {
     const outcome: RaidLootInspectionOutcome = {
       hasGoldBar: false,
       hasBlueChest: false,
@@ -234,15 +235,37 @@ export class LootTrackerService implements ILootTrackerService {
     if (!data) return outcome;
 
     try {
-      outcome.hasGoldBar = LootTrackerService.hasGoldBarInPayload(data);
-      outcome.hasBlueChest = LootTrackerService.hasBlueChestInPayload(data);
+      let parsed = data;
 
-      if (data.raid_id) outcome.raidId = String(data.raid_id);
-      else if (data.Point?.raid_id) outcome.raidId = String(data.Point.raid_id);
-      else if (data.option?.result_data?.Point?.raid_id) outcome.raidId = String(data.option.result_data.Point.raid_id);
+      // Zero-allocation Rust fast-path for raw strings or binary response buffers
+      if (typeof data === 'string' || data instanceof Uint8Array) {
+        if (rustBridge.isActive()) {
+          const flags = rustBridge.scanPayloadFlags(data);
+          if (flags) {
+            outcome.hasGoldBar = flags.hasGoldBar;
+            outcome.hasBlueChest = flags.hasBlueChest;
+          }
+        }
+        if (typeof data === 'string') {
+          try {
+            parsed = JSON.parse(data);
+          } catch {
+            return outcome;
+          }
+        } else {
+          return outcome;
+        }
+      }
+
+      outcome.hasGoldBar = outcome.hasGoldBar || LootTrackerService.hasGoldBarInPayload(parsed);
+      outcome.hasBlueChest = outcome.hasBlueChest || LootTrackerService.hasBlueChestInPayload(parsed);
+
+      if (parsed.raid_id) outcome.raidId = String(parsed.raid_id);
+      else if (parsed.Point?.raid_id) outcome.raidId = String(parsed.Point.raid_id);
+      else if (parsed.option?.result_data?.Point?.raid_id) outcome.raidId = String(parsed.option.result_data.Point.raid_id);
 
       // Extract rewards array
-      const rewards = data.rewards?.reward_list || data.rewards || data.reward_list || [];
+      const rewards = parsed.rewards?.reward_list || parsed.rewards || parsed.reward_list || [];
       if (Array.isArray(rewards)) {
         for (const r of rewards) {
           const id = String(r.item_id || r.id || '');

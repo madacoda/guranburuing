@@ -17,7 +17,7 @@ export interface RaidLootInspectionOutcome {
 }
 
 export interface ILootTrackerService {
-  inspectRewardResponse(data: any): RaidLootInspectionOutcome;
+  inspectRewardResponse(data: string | Uint8Array | any): RaidLootInspectionOutcome;
   inspectDomRewards(): Promise<RaidLootInspectionOutcome>;
   captureCleanLootProof(page: any, raidId?: string): Promise<{ buffer?: Buffer; path: string }>;
   recordLootOutcome(outcome: RaidLootInspectionOutcome, questName: string): void;
