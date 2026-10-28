@@ -514,6 +514,7 @@ export class CombatExecutionService {
    * via internal game state and DOM markers, dispatches clicks, and handles single-target popups.
    */
   public async handleSkill(step: WorkflowStep): Promise<boolean> {
+    (this.ctx.state as any).lastAttackReloadedAt = 0;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     const isManual = this.isManualWorkflow();
     const char = step.character || 1;
@@ -1705,6 +1706,7 @@ export class CombatExecutionService {
    * Dispatches Quick Summon call.
    */
   public async handleQuickCall(step: WorkflowStep): Promise<boolean> {
+    (this.ctx.state as any).lastAttackReloadedAt = 0;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     await this.deps.combatResolution.dismissCombatDrawersAndPopups();
     await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 600 : 3000);
@@ -1766,6 +1768,7 @@ export class CombatExecutionService {
    * network confirmation (normal_attack_result.json), and an automated retry loop.
    */
   public async handleAttack(step: WorkflowStep): Promise<boolean> {
+    (this.ctx.state as any).lastAttackReloadedAt = 0;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
 
     // HonorGuard: Suppress attack immediately if targetScore has already been met
@@ -1779,6 +1782,20 @@ export class CombatExecutionService {
     const initialTurn = this.ctx.state.currentTurn;
     const initialHonors = this.ctx.state.currentScore;
 
+    const preAttackState = await this.page.evaluate(() => {
+      const stage = (window as any).stage;
+      const gStatus = stage?.gGameStatus;
+      const pJsn = stage?.pJsnData;
+      const turn = Number(pJsn?.turn || gStatus?.turn || 0);
+      const rawBoss = gStatus?.boss?.param || pJsn?.boss?.param || [];
+      const firstBoss = Array.isArray(rawBoss) ? rawBoss[0] : Object.values(rawBoss || {})[0];
+      const bossHp = firstBoss && (firstBoss as any).hp !== undefined ? Number((firstBoss as any).hp) : -1;
+      return { turn, bossHp };
+    }).catch(() => ({ turn: 0, bossHp: -1 }));
+
+    const baselineTurn = preAttackState.turn > 0 ? preAttackState.turn : initialTurn;
+    const baselineBossHp = preAttackState.bossHp;
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       if (this.ctx.state.stopRequested) return false;
       if (await this.deps.combatResolution.isBattleEnded()) {
@@ -1789,11 +1806,10 @@ export class CombatExecutionService {
 
       if (attempt > 1) {
         await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
-        await new Promise(r => setTimeout(r, 500));
       }
       await this.deps.combatResolution.dismissCombatDrawersAndPopups();
 
-      await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 500 : 3000);
+      await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 450 : 2000);
       if (await this.deps.combatResolution.isBattleEnded()) {
         await this.deps.combatResolution.syncCurrentHonors();
         console.log(`[Combat] Battle concluded before attack dispatch. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
@@ -1811,7 +1827,7 @@ export class CombatExecutionService {
         if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') return false;
         const isReady = el.classList.contains('display-on') && !el.classList.contains('lock') && !el.classList.contains('display-off');
         return isReady;
-      }, { timeout: isTurbo ? 1200 : 3000 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
+      }, { timeout: isTurbo ? 1000 : 2200 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
 
       if (!atkBtn) {
         if (await this.deps.combatResolution.isBattleEnded()) {
@@ -1829,11 +1845,11 @@ export class CombatExecutionService {
       }
 
       if (this.ctx.template.humanMotor !== false && !isTurbo) {
-        // Natural ocular-motor reaction latency (120ms - 220ms) before striking attack
-        await logNormalDelay(160, 0.18);
+        // Minimal ocular-motor reaction latency before striking attack
+        await logNormalDelay(80, 0.12);
       }
 
-      const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 3500 : 5000);
+      const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 1800 : 2400);
 
       let tapped = false;
       if (atkBtn) {
@@ -1926,21 +1942,54 @@ export class CombatExecutionService {
         if (Array.isArray(json.scenario)) {
           caCount = json.scenario.filter((ev: any) => ev && (ev.cmd === 'special' || ev.cmd === 'special_npc')).length;
         }
-        const lockoutMs = caCount >= 5 ? 11500 : caCount === 4 ? 10000 : caCount === 3 ? 7800 : caCount === 2 ? 5500 : caCount === 1 ? 3600 : 2200;
+        const lockoutMs = caCount >= 5 ? 11500 : caCount === 4 ? 10000 : caCount === 3 ? 7800 : caCount === 2 ? 5500 : caCount === 1 ? 3400 : 1400;
         this.ctx.state.lastAttackLockoutExpires = Date.now() + lockoutMs;
       }
 
-      const clientState = await this.page.evaluate((prevTurn) => {
+      const clientState = await this.page.evaluate((prevTurn: number, prevBossHp: number) => {
         const stage = (window as any).stage;
         const gStatus = stage?.gGameStatus;
-        const currentTurn = Number(stage?.pJsnData?.turn || gStatus?.turn || 0);
-        return { turnAdvanced: currentTurn > prevTurn };
-      }, this.ctx.state.currentTurn).catch(() => ({ turnAdvanced: false }));
+        const pJsn = stage?.pJsnData;
+        const currentTurn = Number(pJsn?.turn || gStatus?.turn || 0);
+        const rawBoss = gStatus?.boss?.param || pJsn?.boss?.param || [];
+        const firstBoss = Array.isArray(rawBoss) ? rawBoss[0] : Object.values(rawBoss || {})[0];
+        const currentBossHp = firstBoss && (firstBoss as any).hp !== undefined ? Number((firstBoss as any).hp) : -1;
 
-      const serverTurnAdvanced = clientState.turnAdvanced || this.ctx.state.currentTurn > initialTurn;
+        const atkEl = document.querySelector('.btn-attack-start') as HTMLElement | null;
+        const backEl = document.querySelector('.btn-command-back.display-on') as HTMLElement | null;
+        const drawerOpen = Boolean(backEl && backEl.offsetParent !== null && window.getComputedStyle(backEl).display !== 'none');
+        const atkHiddenAfterTap = Boolean(
+          atkEl &&
+          (atkEl.classList.contains('display-off') || atkEl.classList.contains('lock') || window.getComputedStyle(atkEl).display === 'none') &&
+          !drawerOpen
+        );
+        const attackInProgress = Boolean(
+          gStatus?.attacking === 1 ||
+          gStatus?.attacking === true ||
+          gStatus?.turn_ing === 1 ||
+          atkHiddenAfterTap
+        );
+
+        return {
+          currentTurn,
+          turnAdvanced: prevTurn > 0 && currentTurn > prevTurn,
+          bossHpDropped: prevBossHp > 0 && currentBossHp >= 0 && currentBossHp < prevBossHp,
+          attackInProgress
+        };
+      }, baselineTurn, baselineBossHp).catch(() => ({
+        currentTurn: 0,
+        turnAdvanced: false,
+        bossHpDropped: false,
+        attackInProgress: false
+      }));
+
+      const serverTurnAdvanced = clientState.turnAdvanced || this.ctx.state.currentTurn > baselineTurn;
       const serverHonorsIncreased = this.ctx.state.currentScore > initialHonors;
 
-      if (resolved || serverTurnAdvanced || serverHonorsIncreased) {
+      if (resolved || serverTurnAdvanced || serverHonorsIncreased || clientState.bossHpDropped) {
+        if (clientState.currentTurn > this.ctx.state.currentTurn) {
+          this.ctx.state.currentTurn = clientState.currentTurn;
+        }
         await this.deps.combatResolution.syncCurrentHonors();
         console.log(`[Combat] Attack registered successfully (attempt ${attempt}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
         await this.deps.combatResolution.getAndLogEnemyHp(`Turn ${this.ctx.state.currentTurn} Attack`);
@@ -1953,11 +2002,85 @@ export class CombatExecutionService {
         return true;
       }
 
-      console.warn(`[Combat] Attack unacknowledged on attempt ${attempt}/${maxAttempts}. Retrying immediately...`);
-      if (!isTurbo) await logNormalDelay(200, 0.12);
+      if (clientState.attackInProgress) {
+        console.log(`[Combat] Attack already in progress on attempt ${attempt}/${maxAttempts}. Reloading (F5) to skip animation & sync turn...`);
+        await this.executeFastAttackSyncReload(isTurbo);
+        (this.ctx.state as any).lastAttackReloadedAt = Date.now();
+        console.log(`[Combat] Attack synced via reload (attempt ${attempt}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        return true;
+      }
+
+      console.warn(`[Combat] Attack unacknowledged on attempt ${attempt}/${maxAttempts}. Checking if attack already executed & reloading (F5)...`);
+      await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+      await this.executeFastAttackSyncReload(isTurbo);
+
+      if (await this.deps.combatResolution.isBattleEnded()) {
+        await this.deps.combatResolution.syncCurrentHonors();
+        (this.ctx.state as any).lastAttackReloadedAt = Date.now();
+        console.log(`[Combat] Battle concluded upon post-attack reload check. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        return true;
+      }
+
+      const postReloadState = await this.page.evaluate((prevTurn: number, prevBossHp: number) => {
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        const pJsn = stage?.pJsnData;
+        const currentTurn = Number(pJsn?.turn || gStatus?.turn || 0);
+        const rawBoss = gStatus?.boss?.param || pJsn?.boss?.param || [];
+        const firstBoss = Array.isArray(rawBoss) ? rawBoss[0] : Object.values(rawBoss || {})[0];
+        const currentBossHp = firstBoss && (firstBoss as any).hp !== undefined ? Number((firstBoss as any).hp) : -1;
+        return {
+          currentTurn,
+          turnAdvanced: prevTurn > 0 && currentTurn > prevTurn,
+          bossHpDropped: prevBossHp > 0 && currentBossHp >= 0 && currentBossHp < prevBossHp
+        };
+      }, baselineTurn, baselineBossHp).catch(() => ({
+        currentTurn: 0,
+        turnAdvanced: false,
+        bossHpDropped: false
+      }));
+
+      if (postReloadState.currentTurn > this.ctx.state.currentTurn) {
+        this.ctx.state.currentTurn = postReloadState.currentTurn;
+      }
+
+      const confirmedAfterReload =
+        postReloadState.turnAdvanced ||
+        postReloadState.bossHpDropped ||
+        this.ctx.state.currentTurn > baselineTurn ||
+        this.ctx.state.currentScore > initialHonors;
+
+      if (confirmedAfterReload) {
+        (this.ctx.state as any).lastAttackReloadedAt = Date.now();
+        console.log(`[Combat] Post-reload verification confirmed attack already executed (Turn ${baselineTurn} -> ${this.ctx.state.currentTurn}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        return true;
+      }
+
+      console.log(`[Combat] Post-reload check: attack not yet executed (Turn ${this.ctx.state.currentTurn || baselineTurn}). Retrying immediately on refreshed state...`);
     }
 
     return false;
+  }
+
+  /**
+   * Performs a fast in-combat reload to resync turn/honors state when an attack is already in progress or unacknowledged.
+   */
+  private async executeFastAttackSyncReload(isTurbo: boolean): Promise<void> {
+    await Promise.all([
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => null),
+      this.page.evaluate(() => location.reload()).catch(() => null)
+    ]);
+    await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+    await this.deps.combatResolution.waitForBattleToMount(isTurbo ? 4000 : 6000);
+    await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+    await this.deps.combatResolution.syncCurrentHonors();
+    const updatedTurn = await this.page.evaluate(() => {
+      const stage = (window as any).stage;
+      return Number(stage?.pJsnData?.turn || stage?.gGameStatus?.turn || 0);
+    }).catch(() => 0);
+    if (updatedTurn > 0) {
+      this.ctx.state.currentTurn = updatedTurn;
+    }
   }
 
   /**
@@ -1965,14 +2088,22 @@ export class CombatExecutionService {
    */
   public async handleReload(step: WorkflowStep): Promise<boolean> {
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
-    await Promise.all([
-      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
-      this.page.evaluate(() => location.reload()).catch(() => null)
-    ]);
-    if (!isTurbo) await logNormalDelay(100, 0.1);
-    await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
-    await this.deps.combatResolution.waitForBattleToMount(isTurbo ? 5000 : 8000);
-    await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+    const lastAttackReloadedAt = Number((this.ctx.state as any).lastAttackReloadedAt || 0);
+    const alreadyReloadedByAttack = lastAttackReloadedAt > 0 && (Date.now() - lastAttackReloadedAt < 2000);
+    (this.ctx.state as any).lastAttackReloadedAt = 0;
+
+    if (alreadyReloadedByAttack) {
+      console.log('[Combat] ⏩ Skipping redundant F5 reload (already reloaded during attack verification).');
+    } else {
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
+        this.page.evaluate(() => location.reload()).catch(() => null)
+      ]);
+      if (!isTurbo) await logNormalDelay(60, 0.1);
+      await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+      await this.deps.combatResolution.waitForBattleToMount(isTurbo ? 5000 : 8000);
+      await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+    }
 
     const isManual = this.isManualWorkflow();
     await this.page.evaluate((manual: boolean, targetFps: number) => {

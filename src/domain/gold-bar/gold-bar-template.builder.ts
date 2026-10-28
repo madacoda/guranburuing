@@ -39,8 +39,8 @@ export function buildGoldBarWorkflowTemplate(
       {
         code: 'wait_random',
         name: 'Human Delay for UI Interactable',
-        minMs: 400,
-        maxMs: 800
+        minMs: 120,
+        maxMs: 250
       },
       {
         code: 'skill',
@@ -85,8 +85,8 @@ export function buildGoldBarWorkflowTemplate(
       {
         code: 'wait_random',
         name: 'Human-like Random Delay',
-        minMs: 500,
-        maxMs: 1500
+        minMs: 150,
+        maxMs: 300
       },
       {
         code: 'attack',

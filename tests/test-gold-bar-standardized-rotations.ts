@@ -89,9 +89,9 @@ console.log('  [Step 1]  ✅ wait_element (target: .btn-attack-start)');
 
 // Step 2: Wait a bit
 assert.strictEqual(akasha.steps[1].code, 'wait_random');
-assert.strictEqual(akasha.steps[1].minMs, 400);
-assert.strictEqual(akasha.steps[1].maxMs, 800);
-console.log('  [Step 2]  ✅ wait_random (400ms - 800ms) - make sure all interactable');
+assert.strictEqual(akasha.steps[1].minMs, 120);
+assert.strictEqual(akasha.steps[1].maxMs, 250);
+console.log('  [Step 2]  ✅ wait_random (120ms - 250ms) - make sure all interactable');
 
 // Step 3: C4S1 (ensureCast)
 assert.strictEqual(akasha.steps[2].code, 'skill');
@@ -130,9 +130,9 @@ console.log('  [Step 9]  ✅ reload');
 
 // Step 10: Wait a bit, randomize / human like
 assert.strictEqual(akasha.steps[9].code, 'wait_random');
-assert.strictEqual(akasha.steps[9].minMs, 500);
-assert.strictEqual(akasha.steps[9].maxMs, 1500);
-console.log('  [Step 10] ✅ wait_random (500ms - 1500ms, human-like delay)');
+assert.strictEqual(akasha.steps[9].minMs, 150);
+assert.strictEqual(akasha.steps[9].maxMs, 300);
+console.log('  [Step 10] ✅ wait_random (150ms - 300ms, human-like delay)');
 
 // Step 11: Attack again
 assert.strictEqual(akasha.steps[10].code, 'attack');
@@ -163,6 +163,77 @@ for (const tmpl of [akasha, pbhl, go, farm]) {
   assert.strictEqual(reloaded.targetScore, 1500000, `${tmpl.name} DSL targetScore mismatch`);
 }
 console.log('  ✅ [PASS] DSL Round-Trip Serialization validated with 100% fidelity');
+
+console.log('\n--- 7. Testing Unacknowledged Attack State Check & Reload Deduplication ---');
+{
+  const { UniversalWorkflowEngine } = await import('../src/engines/universal-workflow.engine.js');
+  let reloadCalls = 0;
+  let simulatedTurn = 1;
+
+  (globalThis as any).location = {
+    reload: () => {
+      reloadCalls++;
+      // Simulate server having already processed the attack when reload happens
+      simulatedTurn = 2;
+      (globalThis as any).window.stage.pJsnData.turn = 2;
+      (globalThis as any).window.stage.pJsnData.user_point = 850000;
+    }
+  };
+  (globalThis as any).window = {
+    location: { hash: '#raid_multi/47000112233', reload: (globalThis as any).location.reload },
+    getComputedStyle: () => ({ display: 'block', visibility: 'visible' }),
+    stage: {
+      pJsnData: { turn: 1, user_point: 0, boss: { param: [{ hp: 500000000, hpmax: 500000000 }] } },
+      gGameStatus: { turn: 1, lock: false, attacking: false }
+    }
+  };
+  (globalThis as any).document = {
+    querySelector: (sel: string) => {
+      if (sel.includes('.btn-attack-start') || sel.includes('.cnt-raid')) {
+        return {
+          offsetWidth: 100,
+          offsetHeight: 40,
+          offsetParent: {},
+          classList: { contains: (cls: string) => cls === 'display-on' },
+          click: () => {}
+        };
+      }
+      return null;
+    },
+    querySelectorAll: () => []
+  };
+
+  const mockPage = {
+    url: () => 'https://game.granbluefantasy.jp/#raid_multi/47000112233',
+    viewport: () => ({ width: 360, height: 720 }),
+    on: () => {},
+    off: () => {},
+    evaluate: async (fn: any, ...args: any[]) => (typeof fn === 'function' ? fn(...args) : null),
+    waitForFunction: async () => true,
+    waitForNavigation: async () => null,
+    $: async (sel: string) => ({
+      evaluate: async () => true,
+      boundingBox: async () => ({ x: 250, y: 320, width: 80, height: 40 })
+    }),
+    touchscreen: { tap: async () => {} },
+    mouse: { click: async () => {} }
+  } as any;
+
+  const mockSentinel = { assertSafe: async () => {}, isArmed: true } as any;
+  const engine = new UniversalWorkflowEngine(mockPage, mockSentinel, { ...akasha, speedProfile: 'turbo' }, 'acc1');
+  // Stub waitForNetworkResponseAndPayload to simulate missed/unacknowledged network event on attempt 1
+  engine.combatResolution.waitForNetworkResponseAndPayload = async () => ({ resolved: false, json: null });
+
+  const atkOk = await engine.combatExecution.handleAttack({ code: 'attack', waitForNetwork: 'normal_attack_result.json' });
+  assert.strictEqual(atkOk, true, 'handleAttack must succeed after reload confirms turn advanced');
+  assert.strictEqual(reloadCalls, 1, 'handleAttack must trigger exactly 1 reload to verify attack state');
+  assert.strictEqual(engine.ctx.state.currentTurn, 2, 'currentTurn must advance to 2 after post-reload verification');
+
+  // Immediately following handleReload step in gb-akasha must skip redundant second reload
+  await engine.combatExecution.handleReload({ code: 'reload' });
+  assert.strictEqual(reloadCalls, 1, 'Subsequent handleReload must skip redundant F5 reload when handleAttack just reloaded');
+  console.log('  ✅ [PASS] Unacknowledged attack checked state via reload, confirmed Turn 1 -> 2, and skipped redundant F5 reload');
+}
 
 console.log('\n========================================================================');
 console.log('🎉 ALL STANDARDIZED GOLD BAR ROTATION TESTS PASSED (100%)');
