@@ -517,21 +517,20 @@ export class CdpConnectionManager {
           document.addEventListener('DOMContentLoaded', injectCssDiet, { once: true });
         }
 
-        // 2. Canvas 2D Software Rasterizer & CreateJS Draw Diet:
-        // Only rasterize pixels onto <canvas> during a 35ms window once per 1000ms (~1 FPS canvas paint).
-        // Eliminates ~96.5% of CPU bitmap blitting and prevents Blink from dirtying the canvas layer on 29/30 frames
-        // (stopping --type=gpu-process SwiftShader from spinning), while keeping 100% of CreateJS TweenJS/Timeline
-        // ticks and game state transitions running at full speed.
+        // 2. Canvas 2D & WebGL (SwiftShader) Software Rasterizer Diet:
+        // Only rasterize pixels onto <canvas> (2D or WebGL) during a 35ms window once per 1000ms (~1 FPS paint).
+        // Eliminates ~96.5% of CPU bitmap blitting and SwiftShader WebGL shader calls in --type=gpu-process,
+        // while keeping 100% of CreateJS TweenJS/Timeline ticks and game state transitions running at full speed.
         if (!window.__gbf_canvas_throttler_installed__) {
           window.__gbf_canvas_throttler_installed__ = true;
+          const shouldPaintCanvas = () => (Date.now() % 1000) < 35;
+
           try {
             if (typeof CanvasRenderingContext2D !== 'undefined' && CanvasRenderingContext2D.prototype) {
               const proto = CanvasRenderingContext2D.prototype;
               const origDrawImage = proto.drawImage;
               const origClearRect = proto.clearRect;
               const origFillRect = proto.fillRect;
-
-              const shouldPaintCanvas = () => (Date.now() % 1000) < 35;
 
               proto.drawImage = function() {
                 if (!shouldPaintCanvas()) return;
@@ -545,6 +544,36 @@ export class CdpConnectionManager {
                 if (!shouldPaintCanvas()) return;
                 return origFillRect.apply(this, arguments);
               };
+            }
+          } catch (e) {}
+
+          try {
+            for (const GL of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+              if (GL && GL.prototype) {
+                const glProto = GL.prototype;
+                const origDrawArrays = glProto.drawArrays;
+                const origDrawElements = glProto.drawElements;
+                const origClear = glProto.clear;
+
+                if (origDrawArrays) {
+                  glProto.drawArrays = function() {
+                    if (!shouldPaintCanvas()) return;
+                    return origDrawArrays.apply(this, arguments);
+                  };
+                }
+                if (origDrawElements) {
+                  glProto.drawElements = function() {
+                    if (!shouldPaintCanvas()) return;
+                    return origDrawElements.apply(this, arguments);
+                  };
+                }
+                if (origClear) {
+                  glProto.clear = function() {
+                    if (!shouldPaintCanvas()) return;
+                    return origClear.apply(this, arguments);
+                  };
+                }
+              }
             }
           } catch (e) {}
         }
