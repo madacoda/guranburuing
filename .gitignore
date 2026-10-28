@@ -22,6 +22,7 @@ target/
 *.exp
 *.lib
 data/*.rkyv
+data/.catalog.cache.bin
 
 # Environment & Sensitive Credentials (STRICTLY FORBIDDEN FROM REPO)
 .env

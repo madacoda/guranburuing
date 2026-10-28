@@ -533,12 +533,14 @@ export function parseSingleDslAction(
       };
     }
     if (fastToken.opcode === 3) {
+      const delay = fastToken.arg1 > 0 ? fastToken.arg1 : undefined;
       return {
         id: `step_${stepIndex}`,
         name: 'Execute Normal Attack',
         code: 'attack',
         action: 'attack',
-        waitForNetwork: 'normal_attack_result.json'
+        waitForNetwork: 'normal_attack_result.json',
+        ...(delay !== undefined ? { delayAfterMs: delay } : {})
       };
     }
     if (fastToken.opcode === 4) {
@@ -721,6 +723,99 @@ export function parseSingleDslAction(
         action: 'touch_tap',
         x,
         y
+      };
+    }
+    if (fastToken.opcode === 20) {
+      return {
+        id: `step_${stepIndex}`,
+        name: `Instant Reload F5 (Step ${stepIndex})`,
+        code: 'reload',
+        action: 'reload'
+      };
+    }
+    if (fastToken.opcode === 21) {
+      const occurrence = getReadyOccurrence ? getReadyOccurrence() : 1;
+      const hasPrior = hasPriorCombatActions ? hasPriorCombatActions() : false;
+      if (occurrence === 1 && !hasPrior && fastToken.arg1 === 0) {
+        return {
+          id: `step_${stepIndex}`,
+          name: 'Tap Ready Screen (Quick Call)',
+          code: 'tap_ready',
+          action: 'tap_ready',
+          waitForNetwork: 'summon_result.json'
+        };
+      }
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Tap Ready Screen (Full Auto / Turn Action)',
+        code: 'tap_ready',
+        action: 'tap_ready'
+      };
+    }
+    if (fastToken.opcode === 22) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Confirm Battle Result & Dismiss Popups',
+        code: 'confirm_result',
+        action: 'confirm_result'
+      };
+    }
+    if (fastToken.opcode === 23) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Log Enemy HP & Remaining HP',
+        code: 'log_enemy_hp',
+        action: 'log_enemy_hp'
+      };
+    }
+    if (fastToken.opcode === 24) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Exit Combat if Enemy Defeated',
+        code: 'exit_if_dead',
+        action: 'exit_if_dead'
+      };
+    }
+    if (fastToken.opcode === 25) {
+      const threshold = fastToken.arg1;
+      return {
+        id: `step_${stepIndex}`,
+        name: `Exit if Enemy HP <= ${threshold}%`,
+        code: 'exit_if_hp',
+        action: 'exit_if_hp',
+        targetHpPct: threshold
+      };
+    }
+    if (fastToken.opcode === 26) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Run All Pinned Favorite Daily Pro Skips',
+        code: 'pro_skip_favorites',
+        action: 'pro_skip_favorites'
+      };
+    }
+    if (fastToken.opcode === 27) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Clear Fate Episode (Cutscene Skip & Full Auto Combat)',
+        code: 'auto_fate_episode',
+        action: 'auto_fate_episode'
+      };
+    }
+    if (fastToken.opcode === 28) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Fast-Skip Story Dialogue & Scene',
+        code: 'skip_story_scene',
+        action: 'skip_story_scene'
+      };
+    }
+    if (fastToken.opcode === 29) {
+      return {
+        id: `step_${stepIndex}`,
+        name: 'Dismiss All Popups and Modals',
+        code: 'dismiss_popups',
+        action: 'dismiss_popups'
       };
     }
   }

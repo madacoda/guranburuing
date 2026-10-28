@@ -3,8 +3,23 @@ import path from 'path';
 import crypto from 'crypto';
 import { spawnSync } from 'child_process';
 import { Database } from 'bun:sqlite';
+import { rustBridge } from '../src/core/rust-bridge.js';
 
 function getMasterKey(localStatePath: string): Buffer {
+  // Fast path (<20µs): Native Rust Win32 CryptUnprotectData FFI without spawning PowerShell
+  try {
+    const rawState = JSON.parse(fs.readFileSync(localStatePath, 'utf-8'));
+    const encryptedKeyB64 = rawState?.os_crypt?.encrypted_key;
+    if (typeof encryptedKeyB64 === 'string' && encryptedKeyB64.length > 8) {
+      const encryptedKeyBytes = Buffer.from(encryptedKeyB64, 'base64');
+      const dpapiBytes = encryptedKeyBytes.subarray(5); // Strip 'DPAPI' 5-byte header
+      const rustKey = rustBridge.dpapiUnprotect(dpapiBytes);
+      if (rustKey && rustKey.length > 0) {
+        return rustKey;
+      }
+    }
+  } catch {}
+
   const psCmd = `
     Add-Type -AssemblyName System.Security
     $localState = Get-Content "${localStatePath.replace(/\\/g, '\\\\')}" -Raw | ConvertFrom-Json
@@ -45,11 +60,15 @@ function extractFromBrowser(name: string, browserDir: string) {
   // Copy Cookies DB to temp file because it's locked by running browser
   const tempDb = path.resolve(`.temp_${name.replace(/\s+/g, '_')}_cookies.db`);
   try {
-    const psScript = path.resolve('scripts/copy-locked.ps1');
-    const copyRes = spawnSync('powershell', ['-NoProfile', '-File', psScript, cookiePath, tempDb], { encoding: 'utf-8' });
-    if (!fs.existsSync(tempDb)) {
-      console.log(`Could not copy locked cookie DB: ${copyRes.stderr || copyRes.stdout}`);
-      return;
+    // Fast path (<1ms): Native Rust Win32 FILE_SHARE_READ|WRITE|DELETE file copy
+    const copiedNatively = rustBridge.copyLockedFile(cookiePath, tempDb);
+    if (!copiedNatively || !fs.existsSync(tempDb)) {
+      const psScript = path.resolve('scripts/copy-locked.ps1');
+      const copyRes = spawnSync('powershell', ['-NoProfile', '-File', psScript, cookiePath, tempDb], { encoding: 'utf-8' });
+      if (!fs.existsSync(tempDb)) {
+        console.log(`Could not copy locked cookie DB: ${copyRes.stderr || copyRes.stdout}`);
+        return;
+      }
     }
 
     const db = new Database(tempDb, { readonly: true });

@@ -116,6 +116,9 @@ interface NativeSymbols {
   gbf_clean_profile_locks: (ptr: number, len: number) => number;
   gbf_copy_locked_file: (srcPtr: number, srcLen: number, dstPtr: number, dstLen: number) => number;
   gbf_dpapi_unprotect: (inPtr: number, inLen: number, outPtr: number, outCap: number) => number;
+  gbf_patch_chrome_preferences: (ptr: number, len: number) => number;
+  gbf_put_port_on_standby: (port: number, preserveVerification: number) => number;
+  gbf_hash_frame_bytes: (ptr: number, len: number) => bigint;
 }
 
 let symbols: NativeSymbols | null = null;
@@ -289,6 +292,18 @@ function initRustBridge(): void {
       gbf_dpapi_unprotect: {
         args: [FFIType.ptr, FFIType.usize, FFIType.ptr, FFIType.usize],
         returns: FFIType.u32
+      },
+      gbf_patch_chrome_preferences: {
+        args: [FFIType.ptr, FFIType.usize],
+        returns: FFIType.u32
+      },
+      gbf_put_port_on_standby: {
+        args: [FFIType.u16, FFIType.u8],
+        returns: FFIType.i32
+      },
+      gbf_hash_frame_bytes: {
+        args: [FFIType.ptr, FFIType.usize],
+        returns: FFIType.u64
       }
     });
 
@@ -569,6 +584,10 @@ export const rustBridge = {
     };
   },
 
+  tokenizeDslLine(line: string): RustDslFastToken | null {
+    return this.parseDslLineFast(line);
+  },
+
   loadCatalog(dataDir: string): number | null {
     if (!symbols || !ffiPtrFn) return null;
     const { buf, len } = encodeToBytes(dataDir);
@@ -585,6 +604,10 @@ export const rustBridge = {
       questId: catalogOutBuf[0],
       blueChestHonors: catalogOutBuf[1]
     };
+  },
+
+  lookupRaid(query: string): { questId: number; blueChestHonors: number } | null {
+    return this.lookupRaidInCatalog(query);
   },
 
   lookupOptimalElementCode(bossElement: string): number | null {
@@ -642,5 +665,35 @@ export const rustBridge = {
     );
     if (outLen === 0) return null;
     return Buffer.from(dpapiOutBuf.subarray(0, outLen));
+  },
+
+  patchChromePreferences(profileDir: string): boolean | null {
+    if (!symbols || !ffiPtrFn) return null;
+    const { buf, len } = encodeToBytes(profileDir);
+    if (len === 0) return false;
+    return symbols.gbf_patch_chrome_preferences(ffiPtrFn(buf), len) !== 0;
+  },
+
+  putPortOnStandby(port: number, preserveVerification = false): number | null {
+    if (!symbols) return null;
+    return symbols.gbf_put_port_on_standby(port, preserveVerification ? 1 : 0);
+  },
+
+  hashFrameBytes(input: string | Uint8Array): bigint {
+    const { buf, len } = encodeToBytes(input);
+    if (len === 0) return 0n;
+    if (symbols && ffiPtrFn) {
+      return symbols.gbf_hash_frame_bytes(ffiPtrFn(buf), len);
+    }
+    // Pure TypeScript strided 64-bit FNV-1a fallback
+    let hash = 0xcbf29ce484222325n ^ BigInt(len);
+    const prime = 0x100000001b3n;
+    const mask = 0xffffffffffffffffn;
+    hash = (hash * prime) & mask;
+    const stride = Math.max(1, Math.floor(len / 256));
+    for (let i = 0; i < len; i += stride) {
+      hash = ((hash ^ BigInt(buf[i])) * prime) & mask;
+    }
+    return hash;
   }
 };

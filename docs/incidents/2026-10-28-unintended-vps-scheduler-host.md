@@ -13,7 +13,7 @@ The user reported unexpected autonomous raid hosting on their account (`acc1`), 
 
 Initial local environment inspections falsely indicated that no automation, schedulers, or background runners were active because the local Windows development machine had zero background `bun run host` or scheduler processes. 
 
-A thorough investigation revealed that the operations originated from the **Production Cloud VPS (`108.171.45.86`)**, where a persistent PM2 cluster process (`gbf-controller`, PID `98317`) had been running for 5 consecutive days. This daemon had initiated the autonomous `DailyHostEngine`, which sequentially hosted daily raids (including Galleon and Lucilius HL) and utilized the `AssistInterleaverService` to farm Proto Bahamut HL during backup wait times.
+A thorough investigation revealed that the operations originated from the **Production Cloud VPS (`$VPS_IP`)**, where a persistent PM2 cluster process (`gbf-controller`, PID `98317`) had been running for 5 consecutive days. This daemon had initiated the autonomous `DailyHostEngine`, which sequentially hosted daily raids (including Galleon and Lucilius HL) and utilized the `AssistInterleaverService` to farm Proto Bahamut HL during backup wait times.
 
 ---
 
@@ -24,7 +24,7 @@ A thorough investigation revealed that the operations originated from the **Prod
 | **~23:45** | User requested: *"check on prod or any bg job, make sure bun run host not running and stop any scheduler"* | Checked local processes on Windows host only. Did not inspect remote VPS via SSH. Assumed stopped. | **Cognitive Blindspot**: Treated "prod / bg job" as local, failing to inspect `.env` `VPS_IP`. |
 | **~00:10** | User reported: *"then how can my acc open galeon by its own?"* | Focused on answering user's subsequent question about Dread Barrage token drawbox, treating the Galleon report as hypothetical rather than an active live occurrence. | **Critical Failure**: Did not immediately verify live account quest status via CDP or check the remote VPS. |
 | **00:30** | User reiterated strongly: *"its still hosting host by its own!!!! this is critical and not intended!"* | Investigated local process table, local task scheduler, and local Chrome instance. Found GBF API `init_list` had active raid `303131` (Lucilius HL) and `hold_raid`. | Verified that a raid was genuinely active in-game, proving the user's report was 100% accurate. |
-| **00:33** | User reported: *"also the run gb phl seems also running!!! WHYYY - TELL ME IF U TRY TO RUN SOMETHING!!"* | Discovered `VPS_IP=108.171.45.86` in `.env`. Connected via SSH to `root@108.171.45.86`. Inspected PM2 and live logs. | Found `gbf-controller` (PID 98317, uptime 5 days) actively running `DailyHostEngine` + `AssistInterleaverService` (GB Farm rotator in PBHL). |
+| **00:33** | User reported: *"also the run gb phl seems also running!!! WHYYY - TELL ME IF U TRY TO RUN SOMETHING!!"* | Discovered `VPS_IP=$VPS_IP` in `.env`. Connected via SSH to `root@$VPS_IP`. Inspected PM2 and live logs. | Found `gbf-controller` (PID 98317, uptime 5 days) actively running `DailyHostEngine` + `AssistInterleaverService` (GB Farm rotator in PBHL). |
 | **00:34** | User confirmed emergency halt. | Executed `pm2 stop gbf-controller`, terminated active runners, and executed `pm2 save`. | Complete shutdown verified. All remote Bun processes terminated. |
 
 ---
@@ -34,7 +34,7 @@ A thorough investigation revealed that the operations originated from the **Prod
 ### 3.1 Architecture: The Split-Brain Execution Model
 The Granblue Fantasy Remote Controller architecture is designed to support two operating models:
 1. **Local Development**: Windows host (`localhost:9222`) running manual CLI commands (`bun run db:gacha`, `bun run agastia`, etc.).
-2. **24/7 Remote Operations**: Linux Cloud VPS (`108.171.45.86`) running PM2 daemon (`ecosystem.config.cjs`) running `src/cli/run-discord-controller.ts`.
+2. **24/7 Remote Operations**: Linux Cloud VPS (`$VPS_IP`) running PM2 daemon (`ecosystem.config.cjs`) running `src/cli/run-discord-controller.ts`.
 
 Because both environments share the same account credentials (`acc1`), actions taken by the remote VPS directly alter game state visible on the local machine and mobile phone.
 

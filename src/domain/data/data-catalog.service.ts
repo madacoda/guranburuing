@@ -1,6 +1,7 @@
 // src/domain/data/data-catalog.service.ts
 import fs from 'fs';
 import path from 'path';
+import { rustBridge } from '../../core/rust-bridge.js';
 import {
   RaidCatalogItem,
   RaidCategoryDefinition,

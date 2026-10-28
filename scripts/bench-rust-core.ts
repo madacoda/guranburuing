@@ -115,3 +115,46 @@ console.log('--- 2. Neuromuscular Gaussian Sampling (50,000 samples) ---');
 console.log(`  • JS Box-Muller (Math.log/cos):       ${jsMotorMs.toFixed(2)} ms`);
 console.log(`  • Rust Ziggurat Xoshiro256++ (FFI):   ${rustMotorMs.toFixed(2)} ms`);
 console.log(`  (Checksums: ${jsSum.toFixed(1)} / ${rustSum.toFixed(1)} | Hits: ${jsHits}/${rustHits})\n`);
+
+// Benchmark D: Single-Pass DSL Byte Scanner vs Regex Cascade (20,000 lines)
+const sampleDslLines = [
+  'c1s3 (make sure)',
+  'c4s2 on 2',
+  'attack wait 350ms',
+  'summon slot #6',
+  'exit_if_score 1,500,000',
+  'f5',
+  'tap ready',
+  'confirm'
+];
+const DSL_ITERS = 2500; // 2,500 * 8 = 20,000 lines
+const tDslStart = performance.now();
+let dslValid = 0;
+for (let i = 0; i < DSL_ITERS; i++) {
+  for (const line of sampleDslLines) {
+    const tok = rustBridge.tokenizeDslLine(line);
+    if (tok && tok.opcode > 0) dslValid++;
+  }
+}
+const dslElapsedMs = performance.now() - tDslStart;
+console.log('--- 3. Single-Pass DSL Byte Scanner (20,000 lines) ---');
+console.log(`  • Rust Single-Pass Scanner (FFI):     ${dslElapsedMs.toFixed(2)} ms (${((dslElapsedMs * 1000) / (DSL_ITERS * sampleDslLines.length)).toFixed(2)} µs/line | Valid: ${dslValid})\n`);
+
+// Benchmark E: Binary Catalog Archive (`data/catalog.rkyv`) & O(1) Raid Lookup (50,000 lookups)
+rustBridge.loadCatalog('data');
+const tCatLoadStart = performance.now();
+const catCount = rustBridge.loadCatalog('data');
+const catLoadUs = (performance.now() - tCatLoadStart) * 1000;
+
+const LOOKUP_ITERS = 50000;
+const tLookupStart = performance.now();
+let foundRaids = 0;
+for (let i = 0; i < LOOKUP_ITERS; i++) {
+  const r = rustBridge.lookupRaid('siete');
+  if (r && r.questId > 0) foundRaids++;
+}
+const lookupElapsedMs = performance.now() - tLookupStart;
+console.log('--- 4. Pre-Indexed Binary Catalog (`data/catalog.rkyv`) & FxHashMap Lookups ---');
+console.log(`  • Warm Binary Catalog Load (${catCount} items): ${catLoadUs.toFixed(2)} µs`);
+console.log(`  • 50,000 O(1) Raid Lookups:           ${lookupElapsedMs.toFixed(2)} ms (${((lookupElapsedMs * 1000) / LOOKUP_ITERS).toFixed(2)} µs/lookup | Hits: ${foundRaids})\n`);
+

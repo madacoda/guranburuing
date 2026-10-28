@@ -9,6 +9,11 @@ import { LootTrackerService } from '../src/services/telemetry/loot-tracker.servi
 import { GoldBarTrackerService } from '../src/services/telemetry/gold-bar-tracker.service.js';
 import { getNextDailyResetJst } from '../src/services/scheduler/daily-reset.scheduler.js';
 import { RaidVelocityTracker } from '../src/engines/raid-evaluator.js';
+import { parseShorthandDsl } from '../src/templates/dsl-compiler.js';
+import { MOBAGE_SESSION_IMMUNITY_SCRIPT } from '../src/auth/session-immunity.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 console.log('========================================================================');
 console.log('       Rust Native Core (`gbf-core`) & Zero-Copy FFI Bridge Suite       ');
@@ -189,6 +194,87 @@ console.log('\n5. Verifying Zero-Allocation JST Daily Reset & 05:00 JST Server D
   const refDate = new Date(1773572400000);
   const sched = getNextDailyResetJst(15, refDate, 21);
   assert(sched.msRemaining === 3615000, `Next 21:00:15 JST reset calculated in <10ns: ${sched.msRemaining}ms`);
+}
+
+// 6. Single-Pass DSL Byte Scanner & Workflow Compiler
+console.log('\n6. Verifying Single-Pass DSL Byte Scanner (Opcodes 1..=29) & Workflow Compiler...');
+if (rustBridge.isActive()) {
+  const tSkill = rustBridge.tokenizeDslLine('c1s3 (make sure)')!;
+  assert(tSkill.opcode === 1 && tSkill.arg1 === 1 && tSkill.arg2 === 3 && tSkill.arg3 === 1, 'Tokenized c1s3 (make sure) with ensureCast=1');
+
+  const tTarget = rustBridge.tokenizeDslLine('c4s2 on 2')!;
+  assert(tTarget.opcode === 2 && tTarget.arg1 === 4 && tTarget.arg2 === 2 && tTarget.arg3 === 2, 'Tokenized targeted skill c4s2 on 2');
+
+  const tAtk = rustBridge.tokenizeDslLine('attack wait 350ms')!;
+  assert(tAtk.opcode === 3 && tAtk.arg1 === 350, 'Tokenized attack wait 350ms');
+
+  const tSum = rustBridge.tokenizeDslLine('summon slot #6')!;
+  assert(tSum.opcode === 5 && tSum.arg1 === 6, 'Tokenized summon slot #6');
+
+  const tReload = rustBridge.tokenizeDslLine('f5')!;
+  assert(tReload.opcode === 20, 'Tokenized f5 -> reload (opcode 20)');
+
+  const tHp = rustBridge.tokenizeDslLine('exit_if_hp 25%')!;
+  assert(tHp.opcode === 25 && tHp.arg1 === 25, 'Tokenized exit_if_hp 25% (opcode 25)');
+
+  const compiled = parseShorthandDsl('Name: Test Fast DSL\nc1s3 (make sure)\nattack 350\nf5\nconfirm', 'Test Fast DSL');
+  assert(
+    compiled.steps.length === 4 &&
+      compiled.steps[0].ensureCast === true &&
+      compiled.steps[1].delayAfterMs === 350 &&
+      compiled.steps[2].action === 'reload' &&
+      compiled.steps[3].action === 'confirm_result',
+    'parseShorthandDsl compiled 4 fast-path opcodes accurately'
+  );
+}
+
+// 7. Pre-Indexed Binary Catalog Archive (`data/catalog.rkyv`)
+console.log('\n7. Verifying Pre-Indexed Binary Catalog Archive (`data/catalog.rkyv`) & O(1) Lookups...');
+if (rustBridge.isActive()) {
+  const dataDir = path.resolve(process.cwd(), 'data');
+  const totalLoaded = rustBridge.loadCatalog(dataDir);
+  assert(totalLoaded !== null && totalLoaded > 50, `Loaded ${totalLoaded} catalog entities into Rust static index`);
+
+  const archivePath = path.join(dataDir, 'catalog.rkyv');
+  assert(fs.existsSync(archivePath), 'Generated pre-indexed binary catalog archive (data/catalog.rkyv)');
+
+  const counts = rustBridge.getCatalogCounts()!;
+  assert(counts.raids > 10 && counts.selectors > 10, `Catalog counts verified: raids=${counts.raids}, omens=${counts.omens}, selectors=${counts.selectors}`);
+
+  const elemCode = rustBridge.lookupOptimalElementCode('wind');
+  assert(elemCode === 1, 'Optimal element lookup against wind boss -> 1 (Fire)');
+}
+
+// 8. Native Launcher, Chrome Preferences Patcher & Screencast Frame Deduplication
+console.log('\n8. Verifying Native Launcher, Preferences Patcher & 64-bit Frame Hasher...');
+if (rustBridge.isActive()) {
+  const tmpProfile = path.join(os.tmpdir(), `gbf_bridge_test_${Date.now()}`);
+  fs.mkdirSync(tmpProfile, { recursive: true });
+  fs.writeFileSync(path.join(tmpProfile, 'SingletonLock'), 'locked');
+
+  const cleaned = rustBridge.cleanProfileLocks(tmpProfile);
+  assert(cleaned === 1 && !fs.existsSync(path.join(tmpProfile, 'SingletonLock')), 'Cleaned stale SingletonLock via Rust');
+
+  const patched = rustBridge.patchChromePreferences(tmpProfile);
+  const prefsPath = path.join(tmpProfile, 'Default', 'Preferences');
+  assert(patched === true && fs.existsSync(prefsPath), 'Patched Default/Preferences JSON for third-party Mobage cookies in <0.5ms');
+
+  const h1 = rustBridge.hashFrameBytes('FRAME_PAYLOAD_ALPHA_1234567890');
+  const h2 = rustBridge.hashFrameBytes('FRAME_PAYLOAD_ALPHA_1234567890');
+  const h3 = rustBridge.hashFrameBytes('FRAME_PAYLOAD_BETA__0987654321');
+  assert(h1 !== 0n && h1 === h2 && h1 !== h3, '64-bit strided FNV-1a screencast frame hash deduplicates accurately');
+
+  let validV8Script = false;
+  try {
+    // Verify MOBAGE_SESSION_IMMUNITY_SCRIPT is 100% valid standard ECMAScript (no raw TypeScript annotations)
+    new Function(MOBAGE_SESSION_IMMUNITY_SCRIPT);
+    validV8Script =
+      MOBAGE_SESSION_IMMUNITY_SCRIPT.includes('webdriver') &&
+      MOBAGE_SESSION_IMMUNITY_SCRIPT.includes('visibilityState');
+  } catch {}
+  assert(validV8Script, 'MOBAGE_SESSION_IMMUNITY_SCRIPT parses as valid V8 ECMAScript with puprs/chaser-oxide stealth shield');
+
+  fs.rmSync(tmpProfile, { recursive: true, force: true });
 }
 
 console.log(`\n========================================================================`);

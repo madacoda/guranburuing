@@ -3,27 +3,52 @@ import { Page } from 'puppeteer-core';
 
 /**
  * Client-side script injected into top-level window and all iframes (including Mobage session_iframe).
- * 
- * Root Cause Explanation:
- * In modern Chromium, Mobage embeds connect.mobage.jp/connect/1.0/jssdk/session_iframe inside
- * game.granbluefantasy.jp as a third-party iframe. Due to Chrome's third-party cookie restrictions
- * and CHIPS partitioning, session_iframe evaluates CSSID token hash against sessionState and
- * erroneously dispatches:
- *   postMessage({ type: 'notification', topic: 'session_state_change_response', extra: { status: 'changed' } })
- * 
- * Granblue's app.js mobageSubscribeLogout listener hears status: 'changed' and executes c.logout(),
- * clearing midship and kicking the player out to #top.
- * 
- * This immunity shield intercepts session_state_change_response messages in both directions
- * (incoming capture phase listener and outgoing postMessage wrapper), forcing extra.status = 'unchanged'.
- * Granblue's logout listener is thus disarmed and never kicks the authenticated session out.
+ *
+ * Combines:
+ * 1. Mobage Third-Party Cookie / CHIPS Session Immunity:
+ *    Intercepts `session_state_change_response` postMessages in both capture and outgoing phases,
+ *    forcing `status = 'unchanged'` so Granblue's `mobageSubscribeLogout` never falsely logs out.
+ * 2. `puprs` / `chaser-oxide` Stealth & Visibility Evasions:
+ *    - Masks `navigator.webdriver = false`
+ *    - Purges `cdc_` automation markers on `window` / `document`
+ *    - Forces `document.hidden = false` and `document.visibilityState = 'visible'` so headless/background
+ *      tabs on low-resource VPS instances never throttle CreateJS `requestAnimationFrame` combat timers.
  */
 export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
 (() => {
   if (window.__gbf_session_immunity_installed__) return;
   window.__gbf_session_immunity_installed__ = true;
 
-  function neutralizeSessionState(msg: any): boolean {
+  // 1. puprs / chaser-oxide Stealth & Headless Visibility Shield
+  try {
+    Object.defineProperty(Navigator.prototype, 'webdriver', {
+      get: () => false,
+      configurable: true
+    });
+  } catch (e) {}
+
+  try {
+    Object.defineProperty(document, 'hidden', {
+      get: () => false,
+      configurable: true
+    });
+    Object.defineProperty(document, 'visibilityState', {
+      get: () => 'visible',
+      configurable: true
+    });
+  } catch (e) {}
+
+  try {
+    for (const key of Object.getOwnPropertyNames(window)) {
+      if (key.indexOf('cdc_') === 0 || key.indexOf('__webdriver') === 0) {
+        try {
+          delete window[key];
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  function neutralizeSessionState(msg) {
     if (!msg || typeof msg !== 'object') return false;
     let mutated = false;
     if (
@@ -35,7 +60,7 @@ export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
       if (msg.status === 'changed') {
         try {
           Object.defineProperty(msg, 'status', { value: 'unchanged', writable: true, configurable: true });
-        } catch {
+        } catch (e) {
           msg.status = 'unchanged';
         }
         mutated = true;
@@ -43,7 +68,7 @@ export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
       if (msg.extra && msg.extra.status === 'changed') {
         try {
           Object.defineProperty(msg.extra, 'status', { value: 'unchanged', writable: true, configurable: true });
-        } catch {
+        } catch (e) {
           msg.extra.status = 'unchanged';
         }
         mutated = true;
@@ -52,7 +77,7 @@ export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
     return mutated;
   }
 
-  // 1. Intercept incoming window message events on the capture phase (runs BEFORE Granblue's listener)
+  // 2. Intercept incoming window message events on the capture phase (runs BEFORE Granblue's listener)
   window.addEventListener('message', (event) => {
     try {
       if (neutralizeSessionState(event.data)) {
@@ -62,9 +87,9 @@ export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
     } catch (e) {}
   }, true);
 
-  // 2. Intercept outgoing postMessage calls within this frame/window
+  // 3. Intercept outgoing postMessage calls within this frame/window
   const origPostMessage = window.postMessage;
-  window.postMessage = function(message: any, targetOrigin: any, transfer: any) {
+  window.postMessage = function(message, targetOrigin, transfer) {
     try {
       if (neutralizeSessionState(message)) {
         console.warn('[SessionImmunity] Intercepted outgoing session_state_change_response; forced status to unchanged');
@@ -73,23 +98,23 @@ export const MOBAGE_SESSION_IMMUNITY_SCRIPT = `
     return origPostMessage.call(this, message, targetOrigin, transfer);
   };
 
-  // 3. Intercept MessagePort.postMessage calls if used by child frames
+  // 4. Intercept MessagePort.postMessage calls if used by child frames
   if (typeof MessagePort !== 'undefined' && MessagePort.prototype && MessagePort.prototype.postMessage) {
     const origPortPostMessage = MessagePort.prototype.postMessage;
-    MessagePort.prototype.postMessage = function(message: any, transfer: any) {
+    MessagePort.prototype.postMessage = function(message, transfer) {
       try {
         if (neutralizeSessionState(message)) {
           console.warn('[SessionImmunity] Intercepted outgoing MessagePort session response; forced status to unchanged');
         }
       } catch (e) {}
-      return origPortPostMessage.apply(this, arguments as any);
+      return origPortPostMessage.apply(this, arguments);
     };
   }
 })();
 `;
 
 /**
- * Installs the Mobage Session Immunity Shield on a Puppeteer Page.
+ * Installs the Mobage Session Immunity & Stealth Shield on a Puppeteer Page.
  * Evaluates immediately in the current document and registers Page.addScriptToEvaluateOnNewDocument
  * so all future navigations and child iframes inherit the immunity shield.
  */

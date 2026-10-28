@@ -1,5 +1,7 @@
+use serde::Deserialize;
+use serde_json::{json, Value};
 use std::fs::{self, File, OpenOptions};
-use std::io;
+use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::path::Path;
 use std::time::Duration;
@@ -63,6 +65,217 @@ pub fn clean_profile_locks(profile_dir: &str) -> u32 {
         }
     }
     removed
+}
+
+/// Patches Chromium's `{profile_dir}/Default/Preferences` JSON in `< 0.5ms` to:
+/// 1. Allow third-party cookies for Mobage & Granblue Fantasy (`cookie_controls_mode = 0`, `block_third_party_cookies = false`)
+/// 2. Mark `exit_type = "Normal"` and `exited_cleanly = true` to suppress crash-restore bubbles
+/// 3. Disable password manager prompts (`credentials_enable_service = false`)
+pub fn patch_chrome_preferences(profile_dir: &str) -> bool {
+    let default_dir = Path::new(profile_dir).join("Default");
+    if fs::create_dir_all(&default_dir).is_err() {
+        return false;
+    }
+    let pref_path = default_dir.join("Preferences");
+    let mut root: Value = if let Ok(raw) = fs::read_to_string(&pref_path) {
+        serde_json::from_str(&raw).unwrap_or_else(|_| json!({}))
+    } else {
+        json!({})
+    };
+
+    let Some(root_obj) = root.as_object_mut() else {
+        return false;
+    };
+
+    root_obj.insert("credentials_enable_service".to_string(), json!(false));
+
+    let profile_entry = root_obj
+        .entry("profile".to_string())
+        .or_insert_with(|| json!({}));
+    if !profile_entry.is_object() {
+        *profile_entry = json!({});
+    }
+    if let Some(prof) = profile_entry.as_object_mut() {
+        prof.insert("cookie_controls_mode".to_string(), json!(0));
+        prof.insert("block_third_party_cookies".to_string(), json!(false));
+        prof.insert("exit_type".to_string(), json!("Normal"));
+        prof.insert("exited_cleanly".to_string(), json!(true));
+        prof.insert("password_manager_enabled".to_string(), json!(false));
+
+        let cs = prof
+            .entry("content_settings".to_string())
+            .or_insert_with(|| json!({}));
+        if !cs.is_object() {
+            *cs = json!({});
+        }
+        if let Some(cs_obj) = cs.as_object_mut() {
+            let exc = cs_obj
+                .entry("exceptions".to_string())
+                .or_insert_with(|| json!({}));
+            if !exc.is_object() {
+                *exc = json!({});
+            }
+            if let Some(exc_obj) = exc.as_object_mut() {
+                let cookies = exc_obj
+                    .entry("cookies".to_string())
+                    .or_insert_with(|| json!({}));
+                if !cookies.is_object() {
+                    *cookies = json!({});
+                }
+                if let Some(c_obj) = cookies.as_object_mut() {
+                    for pattern in [
+                        "https://[*.]mbga.jp,*",
+                        "https://[*.]mobage.jp,*",
+                        "https://[*.]granbluefantasy.jp,*",
+                    ] {
+                        c_obj.insert(
+                            pattern.to_string(),
+                            json!({ "expiration": "0", "model": 0, "setting": 1 }),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(serialized) = serde_json::to_vec(&root) {
+        fs::write(&pref_path, serialized).is_ok()
+    } else {
+        false
+    }
+}
+
+#[derive(Deserialize)]
+struct CdpTargetInfo {
+    #[serde(default)]
+    id: String,
+    #[serde(rename = "type", default)]
+    target_type: String,
+    #[serde(default)]
+    url: String,
+}
+
+fn cdp_http_request(port: u16, method: &str, path: &str, timeout_ms: u64) -> Option<(u16, String)> {
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
+    let timeout = Duration::from_millis(timeout_ms.clamp(25, 3000));
+    let mut stream = TcpStream::connect_timeout(&addr, timeout).ok()?;
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+
+    let req = format!(
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+    );
+    stream.write_all(req.as_bytes()).ok()?;
+
+    let mut resp = String::new();
+    let _ = stream.read_to_string(&mut resp);
+    let (headers, body) = resp.split_once("\r\n\r\n")?;
+    let status_line = headers.lines().next()?;
+    let status_code = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse::<u16>().ok())?;
+    Some((status_code, body.to_string()))
+}
+
+/// Puts a Chrome CDP port into zero-CPU `about:blank` standby over raw TCP HTTP/1.1 (`< 2ms` local).
+/// Returns the number of GBF tabs closed (`>= 0`), or `-1` if the CDP port is unreachable.
+pub fn put_port_on_standby_http(port: u16, preserve_verification: bool) -> i32 {
+    if port == 0 {
+        return -1;
+    }
+    let Some((status, body)) = cdp_http_request(port, "GET", "/json/list", 400) else {
+        return -1;
+    };
+    if status != 200 {
+        return -1;
+    }
+    let Ok(targets) = serde_json::from_str::<Vec<CdpTargetInfo>>(&body) else {
+        return -1;
+    };
+
+    let pages: Vec<&CdpTargetInfo> = targets
+        .iter()
+        .filter(|t| t.target_type == "page")
+        .collect();
+
+    if preserve_verification {
+        let has_captcha = pages.iter().any(|t| {
+            let u = t.url.to_ascii_lowercase();
+            u.contains("recaptcha") || u.contains("challenge") || u.contains("captcha")
+        });
+        if has_captcha {
+            return 0;
+        }
+    }
+
+    let gbf_pages: Vec<&CdpTargetInfo> = pages
+        .iter()
+        .copied()
+        .filter(|t| {
+            t.url.contains("granbluefantasy.jp")
+                || t.url.contains("mbga.jp")
+                || t.url.contains("mobage.jp")
+        })
+        .collect();
+
+    if gbf_pages.is_empty() {
+        return 0;
+    }
+
+    let has_blank = pages.iter().any(|t| t.url == "about:blank");
+    if !has_blank && pages.len() <= gbf_pages.len() {
+        let put_ok = cdp_http_request(port, "PUT", "/json/new?about:blank", 400)
+            .map(|(code, _)| (200..300).contains(&code))
+            .unwrap_or(false);
+        if !put_ok {
+            let _ = cdp_http_request(port, "GET", "/json/new?about:blank", 400);
+        }
+    }
+
+    let mut closed = 0;
+    for page in gbf_pages {
+        if !page.id.is_empty() {
+            let close_path = format!("/json/close/{}", page.id);
+            if cdp_http_request(port, "GET", &close_path, 400).is_some() {
+                closed += 1;
+            }
+        }
+    }
+    closed
+}
+
+/// Ultra-fast 64-bit strided FNV-1a hash for screencast JPEG/WebP frame buffers.
+/// Hashes frame length, header/trailer slices, and up to 512 evenly spaced sample bytes in `< 1µs`
+/// so duplicate idle frames can be skipped without full-buffer hashing or base64 allocation.
+pub fn hash_frame_bytes(bytes: &[u8]) -> u64 {
+    let len = bytes.len();
+    if len == 0 {
+        return 0;
+    }
+    let mut hash: u64 = 0xcbf29ce484222325 ^ (len as u64);
+    hash = hash.wrapping_mul(0x100000001b3);
+
+    let head_end = len.min(64);
+    for &b in &bytes[..head_end] {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+
+    let stride = (len / 512).max(1);
+    let mut idx = head_end;
+    while idx < len {
+        hash ^= bytes[idx] as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+        idx += stride;
+    }
+
+    let tail_start = len.saturating_sub(64);
+    for &b in &bytes[tail_start..] {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 /// Copies a file even when locked exclusively by a running Chromium instance on Windows
@@ -182,7 +395,21 @@ mod tests {
         assert_eq!(removed, 1);
         assert!(!lock_file.exists());
 
+        assert!(patch_chrome_preferences(tmp_dir.to_str().unwrap()));
+        let prefs_raw = fs::read_to_string(tmp_dir.join("Default").join("Preferences")).unwrap();
+        assert!(prefs_raw.contains("cookie_controls_mode"));
+        assert!(prefs_raw.contains("mbga.jp"));
+
         let _ = fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_hash_frame_bytes() {
+        let f1 = vec![0xab_u8; 4096];
+        let mut f2 = f1.clone();
+        assert_eq!(hash_frame_bytes(&f1), hash_frame_bytes(&f2));
+        f2[2048] = 0xcd;
+        assert_ne!(hash_frame_bytes(&f1), hash_frame_bytes(&f2));
     }
 
     #[cfg(windows)]

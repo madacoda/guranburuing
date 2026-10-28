@@ -1,8 +1,10 @@
 import puppeteer, { Browser, Page } from 'puppeteer-core';
 import { execSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 import { config } from './config.js';
 import { installMobageSessionImmunity } from './auth/session-immunity.js';
+import { rustBridge } from './core/rust-bridge.js';
 
 export class CdpConnectionManager {
   private browser: Browser | null = null;
@@ -43,6 +45,16 @@ export class CdpConnectionManager {
     port: number = config.CDP_PORT,
     preserveVerification = true
   ): Promise<boolean> {
+    const fastStandbyClosed = rustBridge.putPortOnStandby(port, preserveVerification);
+    if (fastStandbyClosed !== null && fastStandbyClosed >= 0) {
+      if (fastStandbyClosed > 0) {
+        console.log(
+          `[CDP:Standby] 💤 Closed ${fastStandbyClosed} active GBF tab(s) on port ${port} via native Rust TCP bridge. Browser is in 0%-CPU standby (about:blank).`
+        );
+      }
+      return true;
+    }
+
     try {
       const listRes = await fetch(`http://127.0.0.1:${port}/json/list`, {
         signal: AbortSignal.timeout(2000)
@@ -409,6 +421,24 @@ export class CdpConnectionManager {
   }
 
   private launchChromeProcess(isHeadless: boolean, port: number, profileDir: string, proxy: string, forceRestart = false): void {
+    const resolvedProfileDir = profileDir
+      ? path.resolve(process.cwd(), profileDir)
+      : path.resolve(process.cwd(), `.gbf-chrome-profile-${port}`);
+
+    // Fast path via native Rust TCP probe (<0.2ms): avoid spawning a 75MB PowerShell/bash process
+    // if Chrome is already listening on `port` in the requested Headless/Windowed mode.
+    if (!forceRestart && rustBridge.probeCdpPort(port, 120) === true) {
+      const markerPath = path.join(resolvedProfileDir, '.gbf-headless-mode');
+      const hasHeadlessMarker = fs.existsSync(markerPath);
+      if (isHeadless === hasHeadlessMarker) {
+        return;
+      }
+    }
+
+    // Pre-clean stale Chromium SingletonLocks & patch third-party cookie Preferences in Rust (<0.5ms)
+    rustBridge.cleanProfileLocks(resolvedProfileDir);
+    rustBridge.patchChromePreferences(resolvedProfileDir);
+
     const isWin = process.platform === 'win32';
     if (isWin) {
       const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');

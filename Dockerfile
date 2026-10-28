@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ==============================================================================
-# Stage 1: Compile Ultra-Lean Native Rust Core (`libgbf_core.so`)
+# Stage 1: Compile Ultra-Lean Native Rust Workspace (`libgbf_core.so` & `gbf-daemon`)
 # ==============================================================================
 FROM rust:1-slim-bookworm AS rust-builder
 
@@ -8,7 +8,7 @@ WORKDIR /build
 COPY Cargo.toml ./
 COPY crates ./crates
 
-RUN cargo build --release --package gbf-core
+RUN cargo build --release --workspace
 
 # ==============================================================================
 # Stage 2: Production Bun + Headless Chromium Runtime
@@ -50,8 +50,9 @@ COPY package.json bun.lock tsconfig.json ./
 # Install production dependencies
 RUN bun install --frozen-lockfile
 
-# Copy application code, assets, and compiled native Rust shared library
+# Copy application code, assets, and compiled native Rust shared library + daemon binary
 COPY --from=rust-builder /build/target/release/libgbf_core.so ./target/release/libgbf_core.so
+COPY --from=rust-builder /build/target/release/gbf-daemon ./target/release/gbf-daemon
 COPY src ./src
 COPY templates ./templates
 COPY public ./public

@@ -1,12 +1,15 @@
 // src/gateway/screencast.ts
 import { Page, CDPSession } from 'puppeteer-core';
 import { WebSocket } from 'ws';
+import { rustBridge } from '../core/rust-bridge.js';
 
 export class ScreencastManager {
   private cdpSession: CDPSession | null = null;
   private clients: Set<WebSocket> = new Set();
   private isStreaming = false;
   private lastFrameTime = 0;
+  private lastFrameHash: bigint = 0n;
+  private lastFramePayload: string | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
   private isCapturing = false;
   private readonly MAX_BUFFER_BYTES = 256 * 1024; // 256 KB buffer limit before dropping frames
@@ -30,7 +33,10 @@ export class ScreencastManager {
   public registerClient(ws: WebSocket): void {
     this.clients.add(ws);
 
-    // Send immediate snapshot so user never sees blank / "connecting" screen
+    // Send cached frame in <0.1ms if available, then trigger a fresh snapshot
+    if (this.lastFramePayload && ws.readyState === WebSocket.OPEN) {
+      ws.send(this.lastFramePayload);
+    }
     this.sendImmediateSnapshot(ws).catch(() => {});
 
     ws.on('close', () => {
@@ -84,11 +90,20 @@ export class ScreencastManager {
   }
 
   private broadcastFrame(data: string, targetWs?: WebSocket): void {
+    const frameHash = rustBridge.hashFrameBytes(data);
+    if (!targetWs && frameHash !== 0n && frameHash === this.lastFrameHash) {
+      return;
+    }
+    if (frameHash !== 0n) {
+      this.lastFrameHash = frameHash;
+    }
+
     const message = JSON.stringify({
       type: 'EVENT_SCREENCAST_FRAME',
       data: `data:image/jpeg;base64,${data}`,
       timestamp: Date.now()
     });
+    this.lastFramePayload = message;
 
     if (targetWs) {
       if (targetWs.readyState === WebSocket.OPEN) {

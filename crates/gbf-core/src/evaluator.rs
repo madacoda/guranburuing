@@ -1,8 +1,7 @@
 // crates/gbf-core/src/evaluator.rs
-use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use std::collections::VecDeque;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 const MAX_VELOCITY_ENTRIES: usize = 500;
 const DEFAULT_TTL_MS: f64 = 180_000.0;
@@ -142,7 +141,7 @@ pub fn record_observation(
 
     let key = hash_raid_id_bytes(raid_id);
     let effective_ttl = if ttl_ms > 0.0 { ttl_ms } else { DEFAULT_TTL_MS };
-    let mut store = VELOCITY_STORE.lock();
+    let mut store = VELOCITY_STORE.lock().unwrap_or_else(|e| e.into_inner());
     store.prune(now_ms, effective_ttl);
 
     if let Some(existing) = store.map.get_mut(&key) {
@@ -190,7 +189,7 @@ pub fn get_observation_metrics(
     }
     let key = hash_raid_id_bytes(raid_id);
     let effective_ttl = if ttl_ms > 0.0 { ttl_ms } else { DEFAULT_TTL_MS };
-    let mut store = VELOCITY_STORE.lock();
+    let mut store = VELOCITY_STORE.lock().unwrap_or_else(|e| e.into_inner());
     let entry = store.map.get(&key).copied()?;
     if now_ms - entry.last_seen_at > effective_ttl {
         store.map.remove(&key);
@@ -200,13 +199,13 @@ pub fn get_observation_metrics(
 }
 
 pub fn clear_velocity_store() {
-    let mut store = VELOCITY_STORE.lock();
+    let mut store = VELOCITY_STORE.lock().unwrap_or_else(|e| e.into_inner());
     store.map.clear();
     store.order.clear();
 }
 
 pub fn velocity_store_size() -> usize {
-    VELOCITY_STORE.lock().map.len()
+    VELOCITY_STORE.lock().unwrap_or_else(|e| e.into_inner()).map.len()
 }
 
 #[cfg(test)]

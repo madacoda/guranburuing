@@ -344,3 +344,33 @@ pub unsafe extern "C" fn gbf_dpapi_unprotect(
     out_slice.copy_from_slice(&decrypted);
     decrypted.len() as u32
 }
+
+
+#[no_mangle]
+pub unsafe extern "C" fn gbf_patch_chrome_preferences(ptr: *const u8, len: usize) -> u32 {
+    if ptr.is_null() || len == 0 {
+        return 0;
+    }
+    let Ok(dir_str) = core::str::from_utf8(slice::from_raw_parts(ptr, len)) else {
+        return 0;
+    };
+    if launcher::patch_chrome_preferences(dir_str) {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn gbf_put_port_on_standby(port: u16, preserve_verification: u8) -> i32 {
+    launcher::put_port_on_standby_http(port, preserve_verification != 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gbf_hash_frame_bytes(ptr: *const u8, len: usize) -> u64 {
+    if ptr.is_null() || len == 0 {
+        return 0;
+    }
+    let bytes = slice::from_raw_parts(ptr, len);
+    launcher::hash_frame_bytes(bytes)
+}
