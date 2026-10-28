@@ -595,6 +595,8 @@
     "siete:check": "bun src/cli/run-siete-check.ts",
     "siete:check:offline": "bun src/cli/run-siete-check.ts --offline",
     "siete:check:json": "bun src/cli/run-siete-check.ts --offline --json",
+    "siete:setup": "bun src/cli/run-siete-setup.ts",
+    "siete:setup:dry": "bun src/cli/run-siete-setup.ts --dry-run",
     "siete": "bun src/cli/run-workflow.ts acc1 raid-seofon",
     "siete:windowed": "bun src/cli/run-workflow.ts acc1 raid-seofon --windowed",
     "seofon": "bun src/cli/run-workflow.ts acc1 raid-seofon",

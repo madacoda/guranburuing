@@ -1,6 +1,6 @@
 {
   "name": "Raid - Seofon (Impossible) 4M Honors",
-  "description": "Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer: Finder Tab 1 (Quest ID 305411), Fire Agni/Colossus supporter, respects Turn-1 99-turn summon lock (no Turn-1 quick_call), executes Turn 1-3 Percival Sk3 Tri-Strike + Zeta/Wilnas/Alanaan burst rotation to cancel 77,777,777 Emblema and hit 4,000,000 honors.",
+  "description": "Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer [Ex A Party 3 (Group 15, Priority 153): MC Manadiver + Percival + Zeta + Yuel (Backline: Michael + Alanaan)]. Respects Turn-1 99-turn summon lock (no Turn-1 quick_call), cancels 77,777,777 Emblema, and hits 4,000,000 honors in 2-3 turns.",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "mode": "assist",
   "targetEnemy": "Seofon",
@@ -43,47 +43,39 @@
     },
     {
       "code": "skill",
-      "name": "Character 4 Skill 1 (Alanaan Field / Wilnas / Michael)",
-      "character": 4,
-      "skill": 1,
-      "optional": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "code": "skill",
-      "name": "Character 4 Skill 2 (Party Echo / Nuke)",
-      "character": 4,
+      "name": "Character 1 Skill 2 (MC Miserable Mist)",
+      "character": 1,
       "skill": 2,
       "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
       "code": "skill",
-      "name": "Character 4 Skill 4 (Alanaan FLB Renunciation)",
-      "character": 4,
+      "name": "Character 1 Skill 3 (MC Secret Triad +30% Charge & Fill Diamonds)",
+      "character": 1,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 1 (MC Manadiver Aether Siphon Drain Diamond for +40% Charge)",
+      "character": 1,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 1 Skill 4 (MC Wild Magica Double Strike)",
+      "character": 1,
       "skill": 4,
       "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
       "code": "skill",
-      "name": "Character 3 Skill 2 (Zeta / Wilnas Nuke)",
-      "character": 3,
-      "skill": 2,
-      "optional": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "code": "skill",
-      "name": "Character 3 Skill 3 (Zeta Scarlet Vow)",
-      "character": 3,
-      "skill": 3,
-      "optional": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "code": "skill",
-      "name": "Character 2 Skill 1 (Percival X-Seele Singed)",
+      "name": "Character 2 Skill 1 (Percival Roter Wirbel + Singed)",
       "character": 2,
       "skill": 1,
       "optional": true,
@@ -91,7 +83,7 @@
     },
     {
       "code": "skill",
-      "name": "Character 2 Skill 2 (Percival Regieren)",
+      "name": "Character 2 Skill 2 (Percival Regieren + Grovel/Petrify)",
       "character": 2,
       "skill": 2,
       "optional": true,
@@ -99,23 +91,65 @@
     },
     {
       "code": "skill",
-      "name": "Character 1 Skill 2 (MC Wild Magica / Beast Fang)",
-      "character": 1,
+      "name": "Character 3 Skill 3 (Zeta Arvess Fugue Salted Wound Assassin)",
+      "character": 3,
+      "skill": 3,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 3 Skill 2 (Zeta Roar of a Thousand Flames + Assassin Nuke)",
+      "character": 3,
       "skill": 2,
       "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
       "code": "skill",
-      "name": "Character 1 Skill 3 (MC Secret Triad / Ulfhedinn)",
-      "character": 1,
+      "name": "Character 3 Skill 1 (Zeta Furious Resonance + Crimson Will Echo & Dispel)",
+      "character": 3,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 1 (Yuel Foxflame Familiars + Team DMG Amplify & Singed)",
+      "character": 4,
+      "skill": 1,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 2 (Yuel Crimson Dance: Chin + Stance)",
+      "character": 4,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "code": "skill",
+      "name": "Character 4 Skill 3 (Yuel Third Dance: Shien 3-Hit Flurry Out-of-Turn Attack)",
+      "character": 4,
       "skill": 3,
       "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
+      "code": "reload",
+      "name": "Reload F5 (Cancel Yuel Shien Out-of-Turn Attack Animation)"
+    },
+    {
+      "code": "wait_element",
+      "name": "Wait for Combat Ready after Yuel Shien Reload",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
       "code": "attack",
-      "name": "Execute Turn 1 Attack (Cancels 77,777,777 Emblema)",
+      "name": "Execute Turn 1 Attack (Cancels 77,777,777 Emblema & Triggers Celestial Dominion)",
       "waitForNetwork": "normal_attack_result.json"
     },
     {
@@ -130,23 +164,30 @@
     },
     {
       "code": "skill",
-      "name": "Character 3 Skill 1 (Zeta Assassin / Wilnas Buff)",
-      "character": 3,
-      "skill": 1,
-      "optional": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "code": "skill",
-      "name": "Character 2 Skill 3 (Percival Schlacht Tri-Strike Burst)",
+      "name": "Character 2 Skill 3 (Percival Koenig Dekret Full-Party Out-of-Turn Attack)",
       "character": 2,
       "skill": 3,
       "optional": true,
       "waitForNetwork": "ability_result.json"
     },
     {
+      "code": "reload",
+      "name": "Reload F5 (Cancel Koenig Dekret Out-of-Turn Attack Animation & Sync Honors)"
+    },
+    {
+      "code": "exit_if_score",
+      "name": "Exit Early if 4,000,000 Honors Reached",
+      "targetScore": 4000000
+    },
+    {
+      "code": "wait_element",
+      "name": "Wait for Turn 2 Normal Attack Ready",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
       "code": "attack",
-      "name": "Execute Turn 2 Tri-Strike Burst (~220M Damage)",
+      "name": "Execute Turn 2 Burst Attack (MC Double Strike + Celestial Dominion)",
       "waitForNetwork": "normal_attack_result.json"
     },
     {
@@ -165,13 +206,41 @@
       "timeoutMs": 8000
     },
     {
+      "code": "skill",
+      "name": "Character 4 Skill 2 (Yuel Crimson Dance: Yaku + Double Strike & Auto-Nuke)",
+      "character": 4,
+      "skill": 2,
+      "optional": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
       "code": "attack",
-      "name": "Execute Turn 3 Finisher Attack to Lock 4M Honors",
+      "name": "Execute Turn 3 Attack to Secure 4M Honors",
       "waitForNetwork": "normal_attack_result.json"
     },
     {
       "code": "reload",
       "name": "Reload F5 (Post-Turn 3 Animation Cancel)"
+    },
+    {
+      "code": "exit_if_score",
+      "name": "Exit Early if 4,000,000 Honors Reached",
+      "targetScore": 4000000
+    },
+    {
+      "code": "wait_element",
+      "name": "Wait for Turn 4 Finisher Ready",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "code": "attack",
+      "name": "Execute Turn 4 Finisher Attack to Lock 4M Honors",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "code": "reload",
+      "name": "Reload F5 (Post-Turn 4 Animation Cancel)"
     },
     {
       "code": "confirm_result",

@@ -117,9 +117,13 @@ export class CombatActionService implements ICombatActionService {
       await this.waitForCombatInputReady(timeoutMs);
 
       // Open character ability tray
-      const opened = await this.page.evaluate((charIdx: number) => {
-        const charBtns = Array.from(document.querySelectorAll('.btn-command-character, .prt-command-chara, .lis-character'));
-        const targetBtn = charBtns[charIdx - 1] as HTMLElement;
+      const opened = await this.page.evaluate((charNum: number) => {
+        const charIdx = charNum - 1;
+        const charDrawer = document.querySelector(`.prt-command-chara.chara${charNum}`) as HTMLElement;
+        if (charDrawer && charDrawer.offsetParent !== null && window.getComputedStyle(charDrawer).display !== 'none') {
+          return true;
+        }
+        const targetBtn = document.querySelector(`.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}`) as HTMLElement;
         if (targetBtn) {
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(targetBtn).trigger('tap');
@@ -135,18 +139,23 @@ export class CombatActionService implements ICombatActionService {
 
       await logNormalDelay(250, 0.15);
 
-      // Click skill icon
-      const clickedSkill = await this.page.evaluate((skillIdx: number) => {
-        const skillBtns = Array.from(document.querySelectorAll('.prt-command-chara:not([style*="display: none"]) .btn-ability-available, .prt-ability-list .btn-ability-available, .btn-ability-available'));
-        const targetSkill = skillBtns[skillIdx - 1] as HTMLElement;
-        if (targetSkill && targetSkill.offsetParent !== null) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(targetSkill).trigger('tap');
-          targetSkill.click();
-          return true;
+      // Click skill icon strictly for character & skill slot
+      const clickedSkill = await this.page.evaluate(({ charNum, skillIdx }: { charNum: number; skillIdx: number }) => {
+        const slotEl = (
+          document.querySelector(`.ability-character-num-${charNum}-${skillIdx}`) ||
+          document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability[pos="${skillIdx - 1}"]`) ||
+          document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability:nth-child(${skillIdx})`)
+        ) as HTMLElement | null;
+        if (!slotEl || slotEl.offsetParent === null) return false;
+        if (slotEl.classList.contains('btn-ability-unavailable') || slotEl.classList.contains('btn-ability-off') || slotEl.classList.contains('empty')) {
+          return false;
         }
-        return false;
-      }, skill);
+        const targetSkill = ((slotEl.classList.contains('btn-ability-available') ? slotEl : slotEl.querySelector('.btn-ability-available')) || slotEl) as HTMLElement;
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) $(targetSkill).trigger('tap');
+        targetSkill.click();
+        return true;
+      }, { charNum: character, skillIdx: skill });
 
       if (!clickedSkill) {
         await this.dismissCombatDrawersAndPopups();

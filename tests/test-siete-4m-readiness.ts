@@ -4,6 +4,7 @@ import path from 'path';
 import { DataCatalogService } from '../src/domain/data/index.js';
 import { SietePlayerRosterInput } from '../src/domain/siete/index.js';
 import { SieteReadinessCheckerService } from '../src/services/combat/siete-readiness-checker.service.js';
+import { SieteAutoSetupService } from '../src/services/combat/siete-auto-setup.service.js';
 import { TemplateParser } from '../src/templates/template-parser.js';
 import { resolveSearchRaid } from '../src/domain/assist/search-raid.catalog.js';
 
@@ -207,6 +208,68 @@ async function run() {
   const md = checker.formatMarkdownReport(optimalReport);
   const consoleOut = checker.formatConsoleReport(optimalReport);
   assert(md.includes('4,000,000 Honors') && consoleOut.includes('SEOFON (IMPOSSIBLE)'), 'Markdown and Console report formatters render cleanly');
+
+  // 8. Verify SieteAutoSetupService Deck Priority Resolution & Party Synthesis
+  console.log('\n[8/8] Verifying SieteAutoSetupService Ex A Party 3 resolution and party synthesis...');
+  const autoSetup = new SieteAutoSetupService(checker);
+  const exA3 = autoSetup.resolveDeckTarget('ex-a-3');
+  const exAParty3 = autoSetup.resolveDeckTarget('Ex A Party 3');
+  const setA1 = autoSetup.resolveDeckTarget('a-1');
+  const exB1 = autoSetup.resolveDeckTarget('ex-b-1');
+  assert(exA3.priority === 153 && exA3.maxWeaponSlots === 13, 'ex-a-3 resolves to Priority 153 (13 weapon slots)');
+  assert(exAParty3.priority === 153 && exAParty3.setType === 'Ex A', 'Ex A Party 3 resolves to Priority 153');
+  assert(setA1.priority === 11 && setA1.maxWeaponSlots === 10, 'a-1 resolves to Priority 11 (10 weapon slots)');
+  assert(exB1.priority === 221 && exB1.maxWeaponSlots === 13, 'ex-b-1 resolves to Priority 221 (13 weapon slots)');
+
+  const plan = autoSetup.synthesizeSetupPlan(
+    {
+      accountId: 'acc1',
+      scannedPriorities: [153],
+      jobs: [{ userJobId: 25501020, masterId: '130401', name: 'Manadiver' }],
+      subskills: [
+        { abilityId: '1600', name: 'Miserable Mist', defaultPos: 0 },
+        { abilityId: '201861', name: 'Secret Triad', defaultPos: 1 },
+        { abilityId: '201851', name: 'Wild Magica', defaultPos: 2 }
+      ],
+      npcs: [
+        { userNpcId: 230260240, masterId: '3040425000', name: 'Percival', attribute: 1, level: 80, evolution: 4 },
+        { userNpcId: 222924905, masterId: '3040499000', name: 'Zeta', attribute: 1, level: 80, evolution: 4 },
+        { userNpcId: 211476294, masterId: '3040381000', name: 'Wilnas', attribute: 1, level: 80, evolution: 4 },
+        { userNpcId: 165649545, masterId: '3040167000', name: 'Alanaan', attribute: 1, level: 100, evolution: 5 },
+        { userNpcId: 207240043, masterId: '3040440000', name: 'Michael', attribute: 1, level: 80, evolution: 4 }
+      ],
+      weapons: [
+        { userWeaponId: 4507609140, masterId: '1040118000', name: 'Exo Maitrah Karuna', attribute: 1, level: 150, arousalForm: 'Special Lv10' },
+        { userWeaponId: 4944730085, masterId: '1040218900', name: 'Overrider', attribute: 1, level: 150 },
+        { userWeaponId: 4589775971, masterId: '1040218900', name: 'Overrider', attribute: 1, level: 150 },
+        { userWeaponId: 4751343270, masterId: '1040023700', name: 'Lord of Flames', attribute: 1, level: 150 },
+        { userWeaponId: 4249528590, masterId: '1040315900', name: 'Crimson Scale', attribute: 1, level: 150 },
+        { userWeaponId: 2669544175, masterId: '1040310700', name: 'Scythe of Renunciation', attribute: 1, level: 210 },
+        { userWeaponId: 3342400304, masterId: '1040311800', name: 'Sol Remnant', attribute: 1, level: 200 },
+        { userWeaponId: 4952831377, masterId: '1040917100', name: 'Sennen Goji', attribute: 1, level: 150 },
+        { userWeaponId: 2342020086, masterId: '1040906400', name: 'Ixaba', attribute: 1, level: 150 },
+        { userWeaponId: 2794435317, masterId: '1040017200', name: 'Sword of Valorblaze', attribute: 1, level: 150 },
+        { userWeaponId: 4517975898, masterId: '1040912600', name: 'Heat of The Sun', attribute: 1, level: 200 },
+        { userWeaponId: 4412740004, masterId: '1040614300', name: 'Kiss of The Devil', attribute: 1, level: 150 },
+        { userWeaponId: 2584700284, masterId: '1040907600', name: 'Ultima Blade', attribute: 2, level: 200 }
+      ],
+      summons: [
+        { userSummonId: '1217829246', masterId: '2040408000', name: 'Beelzebub', attribute: 6, level: 150, evolution: 4 },
+        { userSummonId: '972344879', masterId: '2040321000', name: 'The Sun', attribute: 1, level: 200, evolution: 5 },
+        { userSummonId: '1055927429', masterId: '2040317000', name: 'The Devil', attribute: 1, level: 200, evolution: 5 },
+        { userSummonId: '1469350809', masterId: '2040425000', name: 'Triple Zero', attribute: 5, level: 150, evolution: 4 },
+        { userSummonId: '1326770183', masterId: '2040398000', name: 'Wilnas', attribute: 1, level: 150, evolution: 4 },
+        { userSummonId: '769520818', masterId: '2040306000', name: 'Michael', attribute: 1, level: 150, evolution: 4 },
+        { userSummonId: '933713546', masterId: '2040347000', name: 'Belial', attribute: 6, level: 150, evolution: 4 }
+      ]
+    },
+    { deckTarget: 'Ex A Party 3' }
+  );
+  assert(plan.mcJob.name === 'Manadiver' && plan.mcJob.subskills.length === 3, 'Synthesizes Manadiver with 3 subskills');
+  assert(plan.party.length === 5 && plan.party[0].name === 'Percival', 'Synthesizes 5 Fire party slots with Percival in Slot 1');
+  assert(plan.weapons.length === 13 && plan.sabreKatanaCount >= 4, `Synthesizes 13-weapon grid with >=4 Sabres/Katanas (got ${plan.sabreKatanaCount})`);
+  assert(plan.summons.length === 7 && plan.summons[0].name === 'Beelzebub', 'Synthesizes 7 passive-aura summons led by Beelzebub');
+  assert(plan.workflowSteps.length >= 18, 'Generates full Turn 1-3 Siete 4M combat workflow steps');
 
   console.log('\n🎉 ALL SEOFON (IMPOSSIBLE) 4M HONORS & READINESS TESTS PASSED!');
 }

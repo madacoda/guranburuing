@@ -603,47 +603,32 @@ export class CombatExecutionService {
     if (await this.deps.combatResolution.isBattleEnded()) return true;
 
     // 3. Ensure Character `char`'s ability drawer is open
-    let isDrawerOpen = await this.page.evaluate((cIdx: number, cNum: number, sNum: number) => {
+    let isDrawerOpen = await this.page.evaluate((cNum: number, sNum: number) => {
       const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
       if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
         return true;
       }
-      const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-      const hasBack = back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none';
-      if (!hasBack) return false;
-
-      const charPortrait = document.querySelector(`.prt-command-chara[pos="${cIdx}"], .lis-character${cIdx}, .prt-command-chara.chara${cNum}`);
-      if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active'))) {
+      const charDrawer = document.querySelector(`.prt-command-chara.chara${cNum}`) as HTMLElement;
+      if (charDrawer && charDrawer.offsetParent !== null && charDrawer.offsetWidth > 0 && window.getComputedStyle(charDrawer).display !== 'none') {
         return true;
       }
       return false;
-    }, charIdx, char, skill).catch(() => false);
+    }, char, skill).catch(() => false);
 
     if (!isDrawerOpen) {
-      // Strictly match character command portrait buttons only (never bare [pos="0..3"] which matches enemy targets/abilities)
-      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, .btn-command-character[pos="${charIdx}"]`;
+      // If another character's ability drawer or summon panel is currently open, close it first
+      // so the main character portrait strip (.lis-character0..3) becomes visible immediately.
+      await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+
+      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, .prt-command-top .btn-command-character[pos="${charIdx}"], .btn-command-character[pos="${charIdx}"]`;
       const maxOpenAttempts = step.ensureCast ? 5 : 3;
 
       for (let openAttempt = 1; openAttempt <= maxOpenAttempts; openAttempt++) {
-        // If another character's ability drawer or summon drawer is currently open, close it first so character portraits are visible
-        await this.page.evaluate((cNum: number, sNum: number) => {
-          const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-          if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
-            return;
-          }
-          const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-          if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(back).trigger('tap');
-            back.click();
-          }
-        }, char, skill).catch(() => null);
-
-        let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 1000 : 2500 }).catch(() => null);
+        let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 800 : 1800 }).catch(() => null);
         if (!charBtn) {
           await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-          await logNormalDelay(100, 0.1);
-          charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 1000 : 2500 }).catch(() => null);
+          await logNormalDelay(80, 0.1);
+          charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 800 : 1800 }).catch(() => null);
         }
 
         if (charBtn) {
@@ -662,27 +647,23 @@ export class CombatExecutionService {
           }, char, skill).catch(() => null);
 
           // Wait for ability drawer to open specifically for character `char`
-          isDrawerOpen = await this.page.waitForFunction((cIdx: number, cNum: number, sNum: number) => {
+          isDrawerOpen = await this.page.waitForFunction((cNum: number, sNum: number) => {
             const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
             if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
               return true;
             }
-            const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-            const hasBack = back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none';
-            if (hasBack) {
-              const charPortrait = document.querySelector(`.prt-command-chara[pos="${cIdx}"], .lis-character${cIdx}, .prt-command-chara.chara${cNum}`);
-              if (charPortrait && (charPortrait.classList.contains('selected') || charPortrait.classList.contains('active') || charPortrait.classList.contains('display-on'))) {
-                return true;
-              }
+            const charDrawer = document.querySelector(`.prt-command-chara.chara${cNum}`) as HTMLElement;
+            if (charDrawer && charDrawer.offsetParent !== null && charDrawer.offsetWidth > 0 && window.getComputedStyle(charDrawer).display !== 'none') {
+              return true;
             }
             return false;
-          }, { timeout: isTurbo ? 1500 : 3000 }, charIdx, char, skill).then(() => true).catch(() => false);
+          }, { timeout: isTurbo ? 1200 : 2500 }, char, skill).then(() => true).catch(() => false);
 
           if (isDrawerOpen) break;
         }
 
         await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-        await logNormalDelay(150, 0.1);
+        await logNormalDelay(120, 0.1);
       }
 
       if (!isDrawerOpen) {
@@ -697,7 +678,7 @@ export class CombatExecutionService {
       const domSkillCheck = await this.page.evaluate((cNum: number, sNum: number) => {
         const slotIdx = sNum - 1;
         const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-        const listEl = document.querySelector(`.prt-ability-list .lis-ability[pos="${slotIdx}"], .prt-ability-list .lis-ability:nth-child(${sNum})`) as HTMLElement;
+        const listEl = document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"], .prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`) as HTMLElement;
         const el = specificEl || listEl;
 
         if (!el || el.offsetParent === null) return { found: false, ready: false, onCooldown: false };
@@ -720,19 +701,16 @@ export class CombatExecutionService {
       }
     }
 
-    // 5. Locate skill button handle and dispatch click
+    // 5. Locate skill button handle and dispatch click (strictly scoped to character `char`)
     const skillSelectors = [
       `.ability-character-num-${char}-${skill} .btn-ability-available`,
       `.ability-character-num-${char}-${skill}`,
-      `[data-ability-index="${skill}"] .btn-ability-available`,
-      `[data-ability-index="${skill}"]`,
-      `.prt-ability-list .lis-ability[data-ability-index="${skill}"]`,
-      `.prt-ability-list .lis-ability[pos="${skill - 1}"] .btn-ability-available`,
-      `.prt-ability-list .lis-ability:nth-child(${skill}) .btn-ability-available`,
-      `.prt-ability-list .lis-ability[pos="${skill - 1}"] [ability-id]`,
-      `.prt-ability-list .lis-ability:nth-child(${skill}) [ability-id]`,
-      `.prt-ability-list .lis-ability[pos="${skill - 1}"]`,
-      `.prt-ability-list .lis-ability:nth-child(${skill})`
+      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"] .btn-ability-available`,
+      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability:nth-child(${skill}) .btn-ability-available`,
+      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"] [ability-id]`,
+      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability:nth-child(${skill}) [ability-id]`,
+      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"]`,
+      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability:nth-child(${skill})`
     ];
 
     const targetNet = step.waitForNetwork || 'ability_result.json';
@@ -867,8 +845,8 @@ export class CombatExecutionService {
             const isDefeated = gStatus?.win || pJsn?.is_clear || pJsn?.finish;
             const firstBoss = pJsn?.boss?.param?.[0];
             const bossDead = firstBoss && Number(firstBoss.hp) <= 0;
-            const isUnlocked = !gStatus || (!gStatus.lock && !gStatus.btn_lock && !gStatus.animation);
-            return isDefeated || bossDead || isUnlocked;
+            const inputUnlocked = !gStatus?.lock && !gStatus?.btn_lock && !gStatus?.animation;
+            return isDefeated || bossDead || inputUnlocked;
           }, { timeout: 1200 }).catch(() => null);
 
           await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1000);

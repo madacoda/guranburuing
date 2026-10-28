@@ -96,8 +96,193 @@ export class SieteReadinessCheckerService {
     this.logger?.info?.(`[SieteChecker] Auditing live in-game Fire party & grid for [${accountId}]...`);
 
     try {
+      // 1. Non-intrusive read-only AJAX scan across Fire party decks (/party/deck/{priority})
+      // Avoids page.goto() so active raid workflows are never interrupted and off-element active decks are bypassed.
+      const prioritiesToScan = [11, 12, 13, 14, 15, 16, 121, 136, 151, 152, 153, 154, 155, 156, 221];
+      const charMap = new Map<string, SietePlayerCharacterItem>();
+      const weaponMap = new Map<string, SietePlayerWeaponItem>();
+      const summonMap = new Map<string, SietePlayerSummonItem>();
+      const unlockedClasses = new Set<string>();
+      let bestFireClass = '';
+      let maxFireHp = 0;
+
+      for (const priority of prioritiesToScan) {
+        let deckData: any = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            deckData = await page.evaluate(async (p: number) => {
+              const g = (window as any).Game;
+              const version = g?.version;
+              const headers: Record<string, string> = {
+                Accept: 'application/json, text/javascript, */*; q=0.01',
+                'X-Requested-With': 'XMLHttpRequest'
+              };
+              if (version) headers['X-Version'] = String(version);
+              const res = await fetch(`https://game.granbluefantasy.jp/party/deck/${p}?_=${Date.now()}`, {
+                headers
+              });
+              if (res.status !== 200) return null;
+              const json = await res.json().catch(() => null);
+              return json?.deck || null;
+            }, priority);
+            break;
+          } catch {
+            await new Promise(r => setTimeout(r, 250));
+          }
+        }
+
+        if (!deckData || !deckData.pc) continue;
+        const pc = deckData.pc;
+        const jobName = pc.job?.master?.name ? String(pc.job.master.name) : '';
+        if (jobName) unlockedClasses.add(jobName);
+
+        const mhAttr = String(pc.weapons?.['1']?.master?.attribute || pc.param?.attribute || '');
+        if (mhAttr !== '1') continue;
+
+        const deckHp = Number(pc.damage_info?.hp || pc.param?.hp || 0);
+        if (deckHp > maxFireHp) maxFireHp = deckHp;
+        if (!bestFireClass && jobName) bestFireClass = jobName;
+        if (jobName === 'Manadiver' || jobName === 'Berserker' || jobName === 'Kengo') {
+          bestFireClass = jobName;
+        }
+
+        // Collect Fire characters (attribute === '1')
+        const slotOrder: Array<'frontline_1' | 'frontline_2' | 'frontline_3' | 'backline_1' | 'backline_2'> = [
+          'frontline_1',
+          'frontline_2',
+          'frontline_3',
+          'backline_1',
+          'backline_2'
+        ];
+        Object.values(deckData.npc || {}).forEach((npcObj: any, idx: number) => {
+          const master = npcObj?.master;
+          const param = npcObj?.param;
+          if (!master?.name) return;
+          const attr = String(master.attribute || param?.attribute || '');
+          if (attr !== '1') return;
+          const npcId = String(master.id || '');
+          const name = String(master.name);
+          const key = npcId || name;
+          const lvl = Number(param?.level || 80);
+          const evo = Number(param?.evolution || 4);
+          const existing = charMap.get(key);
+          if (!existing || (lvl > (existing.level || 0))) {
+            charMap.set(key, {
+              npcId: npcId || undefined,
+              name,
+              element: 'fire',
+              level: lvl,
+              uncapStars: evo,
+              hasFourthSkill: lvl >= 100 || evo >= 5,
+              slotPosition: existing?.slotPosition || slotOrder[idx] || 'inventory'
+            });
+          }
+        });
+
+        // Count weapons within this single Fire deck, then take max copies across decks
+        const deckWeaponCounts = new Map<string, { weaponId?: string; name: string; copies: number; level: number; isMainhand: boolean }>();
+        Object.entries(pc.weapons || {}).forEach(([slotKey, wpnObj]: [string, any]) => {
+          const master = wpnObj?.master;
+          const param = wpnObj?.param;
+          if (!master?.name) return;
+          const wAttr = String(master.attribute || '');
+          const wName = String(master.name);
+          if (wAttr !== '1' && !wName.toLowerCase().includes('ultima') && !wName.toLowerCase().includes('bahamut')) {
+            return;
+          }
+          const wId = String(master.id || '');
+          const key = wId || wName;
+          const lvl = Number(param?.level || 150);
+          const isMh = slotKey === '1' || slotKey === 'main';
+          const cur = deckWeaponCounts.get(key);
+          if (cur) {
+            cur.copies += 1;
+            if (isMh) cur.isMainhand = true;
+            if (lvl > cur.level) cur.level = lvl;
+          } else {
+            deckWeaponCounts.set(key, {
+              weaponId: wId || undefined,
+              name: wName,
+              copies: 1,
+              level: lvl,
+              isMainhand: isMh
+            });
+          }
+        });
+
+        for (const [key, wEntry] of deckWeaponCounts.entries()) {
+          const existing = weaponMap.get(key);
+          if (!existing) {
+            weaponMap.set(key, { ...wEntry });
+          } else {
+            existing.copies = Math.max(existing.copies || 1, wEntry.copies);
+            existing.level = Math.max(existing.level || 150, wEntry.level);
+            if (wEntry.isMainhand) existing.isMainhand = true;
+          }
+        }
+
+        // Collect summons from pc.summons & pc.sub_summons
+        Object.entries(pc.summons || {}).forEach(([slotKey, sumObj]: [string, any]) => {
+          const master = sumObj?.master;
+          const param = sumObj?.param;
+          if (!master?.name) return;
+          const sId = String(master.id || '');
+          const sName = String(master.name);
+          const key = sId || sName;
+          const lvl = Number(param?.level || 150);
+          const role: SietePlayerSummonItem['slotRole'] = slotKey === '1' ? 'main' : 'sub';
+          const existing = summonMap.get(key);
+          if (!existing || role === 'main' || lvl > (existing.level || 0)) {
+            summonMap.set(key, {
+              summonId: sId || undefined,
+              name: sName,
+              level: lvl,
+              slotRole: existing?.slotRole === 'main' ? 'main' : role
+            });
+          }
+        });
+
+        Object.values(pc.sub_summons || {}).forEach((sumObj: any) => {
+          const master = sumObj?.master;
+          const param = sumObj?.param;
+          if (!master?.name) return;
+          const sId = String(master.id || '');
+          const sName = String(master.name);
+          const key = sId || sName;
+          const lvl = Number(param?.level || 150);
+          if (!summonMap.has(key)) {
+            summonMap.set(key, {
+              summonId: sId || undefined,
+              name: sName,
+              level: lvl,
+              slotRole: 'sub_aura'
+            });
+          }
+        });
+      }
+
+      if (charMap.size > 0 || weaponMap.size > 0) {
+        const rosterInput: SietePlayerRosterInput = {
+          version: '2.0.0',
+          generatedAt: new Date().toISOString(),
+          description: `Live CDP scraped Fire party decks & roster for ${accountId}`,
+          accountId,
+          source: 'cdp_live',
+          activeMcClass: bestFireClass || 'Manadiver',
+          mcClassesUnlocked: Array.from(unlockedClasses),
+          estimatedPartyHp: maxFireHp > 0 ? maxFireHp : undefined,
+          characters: Array.from(charMap.values()),
+          weapons: Array.from(weaponMap.values()),
+          summons: Array.from(summonMap.values())
+        };
+        const report = this.evaluateRoster(rosterInput);
+        this.persistReportArtifacts(rosterInput, report);
+        return report;
+      }
+
+      // 2. Fallback: Direct #party/index DOM / Game.view inspection if AJAX scan returned empty
       const currentUrl = page.url();
-      if (!currentUrl.includes('#party/index')) {
+      if (!currentUrl.includes('#party/index') && !currentUrl.includes('#raid') && !currentUrl.includes('#battle')) {
         await page.goto('https://game.granbluefantasy.jp/#party/index/0/npc/0', {
           waitUntil: 'domcontentloaded',
           timeout: 15000
