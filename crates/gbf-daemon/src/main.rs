@@ -94,10 +94,13 @@ fn main() {
             let _ = catalog::load_catalog_dir("data");
             let orch = ProcessOrchestrator::new("logs/automation.log", 9222);
 
-            // Spawn Zero-Polling Peak-Hour JST Scheduler thread
+            // Spawn Zero-Polling Peak-Hour JST Scheduler thread (OFF by default unless AUTO_START_SCHEDULER=true)
+            let sched_enabled = env::var("AUTO_START_SCHEDULER")
+                .map(|v| v == "true" || v == "1")
+                .unwrap_or(false);
             let sched_orch = orch.clone();
             thread::spawn(move || {
-                let mut scheduler = PeakScheduler::new(true, "siete");
+                let mut scheduler = PeakScheduler::new(sched_enabled, "siete");
                 loop {
                     match scheduler.poll_or_next_sleep(now_utc_ms()) {
                         SchedulerAction::FireWarning { day_ymd } => {

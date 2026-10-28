@@ -61,21 +61,27 @@ export class DiscordCommandGatewayService {
     console.log(`Security Protocol:  Strict DM sender snowflake + Command Whitelist`);
     console.log('========================================================================\n');
 
-    // 1. Initial greeting to user DM & Start background scheduler daemon
-    if (!dailyResetScheduler.getIsRunning()) {
+    // 1. Keep background scheduler OFF by default on startup (unless AUTO_START_SCHEDULER=true is explicitly set)
+    if (process.env.AUTO_START_SCHEDULER === 'true' && !dailyResetScheduler.getIsRunning()) {
       try {
         dailyResetScheduler.startDaemon();
       } catch (err: any) {
         console.warn(`[CommandGateway] Could not auto-start daily scheduler: ${err.message}`);
       }
+    } else {
+      console.log('[CommandGateway] ⏸️ Daily Peak-Hour Scheduler is OFF by default (use /gbf scheduler:on to enable).');
     }
 
     try {
       const schedInfo = dailyResetScheduler.getScheduleInfo();
+      const isSchedActive = dailyResetScheduler.getIsRunning();
+      const schedStatusLine = isSchedActive
+        ? `🟢 ACTIVE (Next: \`${schedInfo.nextResetJstString}\` / \`${schedInfo.nextResetWibString}\` — **${schedInfo.formattedCountdown}**)`
+        : `⏸️ OFF BY DEFAULT (Send \`/gbf scheduler:on\` to enable 21:00 JST / 19:00 WIB Peak-Hour schedule)`;
       await discordDmRelay.sendMessage(
         '🛡️ **GBF Remote Cockpit Online**\n' +
         'Autonomous controller initialized and listening in secure private session.\n' +
-        `• **Daily Scheduler**: 🟢 ACTIVE (Next: \`${schedInfo.nextResetJstString}\` / \`${schedInfo.nextResetWibString}\` — **${schedInfo.formattedCountdown}**)\n` +
+        `• **Daily Scheduler**: ${schedStatusLine}\n` +
         '• **Quick Commands**:\n' +
         '  - `/gbf daily` — Launch daily Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Casino)\n' +
         '  - `/gbf daily:host` — Launch full 16-raid Daily Hosting suite (HL, Magna 3, Dragons)\n' +

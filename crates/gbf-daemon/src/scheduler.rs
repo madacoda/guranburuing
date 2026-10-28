@@ -24,7 +24,7 @@ pub struct PeakScheduler {
 impl Default for PeakScheduler {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             target_preset: "siete".to_string(),
             last_warn_day_ymd: 0,
             last_run_day_ymd: 0,

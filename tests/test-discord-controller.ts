@@ -158,11 +158,12 @@ async function runTests() {
     const { dailyResetScheduler } = await import('../src/services/scheduler/daily-reset.scheduler.js');
     const authUserId = config.DISCORD_USER_ID || '350293029825019915';
 
-    // Start daemon if not running
-    if (!dailyResetScheduler.getIsRunning()) {
-      dailyResetScheduler.startDaemon();
-    }
-    assert(dailyResetScheduler.getIsRunning(), 'Scheduler starts in running state');
+    // Verify scheduler is OFF by default
+    assert(!dailyResetScheduler.getIsRunning(), 'Scheduler is OFF by default on initial load');
+
+    // Start daemon to test toggling off
+    dailyResetScheduler.startDaemon();
+    assert(dailyResetScheduler.getIsRunning(), 'Scheduler enters running state when explicitly started');
 
     // Operator sends /gbf scheduler:off
     await discordCommandGatewayService.handleOperatorMessage({
