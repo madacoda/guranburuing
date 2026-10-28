@@ -546,9 +546,39 @@ export class ProcessRunnerService {
       const startedAt = new Date();
       const outputBuffer: string[] = [];
 
-      console.log(`[ProcessRunner] 🚀 Spawning process: bun ${finalArgs.join(' ')}`);
+      const daemonBin = path.resolve(
+        process.cwd(),
+        'target',
+        'release',
+        process.platform === 'win32' ? 'gbf-daemon.exe' : 'gbf-daemon'
+      );
+      const hasRustDaemon = fs.existsSync(daemonBin);
 
-      const child = spawn('bun', finalArgs, {
+      // Layer 3 OS CPU Governor hook on Linux
+      if (process.platform === 'linux' && hasRustDaemon) {
+        try {
+          const gov = spawn(daemonBin, ['--govern-cpu', '9222', '38'], {
+            cwd: process.cwd(),
+            stdio: 'ignore',
+            detached: true
+          });
+          gov.unref();
+        } catch {}
+      }
+
+      const useNativeRustCdp =
+        hasRustDaemon &&
+        preset.script === 'src/cli/run-workflow.ts' &&
+        (process.env.USE_RUST_CDP_ENGINE === 'true' || sanitizedCustomArgs.includes('--native'));
+
+      const spawnBin = useNativeRustCdp ? daemonBin : 'bun';
+      const spawnArgs = useNativeRustCdp
+        ? ['--run-native', ...(preset.defaultArgs || []), ...sanitizedCustomArgs.filter(a => a !== '--native')]
+        : finalArgs;
+
+      console.log(`[ProcessRunner] 🚀 Spawning process: ${useNativeRustCdp ? 'gbf-daemon' : 'bun'} ${spawnArgs.join(' ')}`);
+
+      const child = spawn(spawnBin, spawnArgs, {
         cwd: process.cwd(),
         env: { ...process.env, FORCE_COLOR: '0' },
         shell: false,

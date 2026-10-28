@@ -220,11 +220,20 @@ CHROME_ARGS+=("$TARGET_URL")
 echo "🚀 [Launcher] Starting $CHROME_BIN on port $PORT (Headless: $HEADLESS)..."
 echo "📁 [Launcher] Profile directory: $USER_DATA_DIR"
 
-# Launch in background detached (with optional xvfb wrapper)
+# Launch in background detached with nice +10 scheduler priority (and optional xvfb wrapper)
 if [[ ${#WRAPPER_CMD[@]} -gt 0 ]]; then
-  nohup "${WRAPPER_CMD[@]}" "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
+  nohup nice -n 10 "${WRAPPER_CMD[@]}" "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
 else
-  nohup "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
+  nohup nice -n 10 "$CHROME_BIN" "${CHROME_ARGS[@]}" > /dev/null 2>&1 &
+fi
+CHROME_PID=$!
+
+# Layer 3 Kernel cgroup v2 CPU Bandwidth Governor (default: 75000 100000 = 37.5% of 2 vCPUs)
+CHROME_CGROUP_QUOTA_US="${CHROME_CGROUP_QUOTA_US:-75000}"
+if [[ -f /sys/fs/cgroup/cgroup.controllers ]] && [[ -w /sys/fs/cgroup ]]; then
+  mkdir -p /sys/fs/cgroup/gbf-chrome 2>/dev/null || true
+  echo "${CHROME_CGROUP_QUOTA_US} 100000" > /sys/fs/cgroup/gbf-chrome/cpu.max 2>/dev/null || true
+  echo "$CHROME_PID" > /sys/fs/cgroup/gbf-chrome/cgroup.procs 2>/dev/null || true
 fi
 
 # Wait up to 10 seconds for the debugging port to open

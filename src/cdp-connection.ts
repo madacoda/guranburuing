@@ -517,7 +517,52 @@ export class CdpConnectionManager {
           document.addEventListener('DOMContentLoaded', injectCssDiet, { once: true });
         }
 
-        // 2. Decouple requestAnimationFrame from Chromium's 60Hz Viz DisplayScheduler (--type=gpu-process):
+        // 2. Layer 2 CreateJS Battle Sprite Sheet 1x1 Transparent GIF Interceptor:
+        // Replaces heavy battle animation sprite sheets (/cjs/, /effect/, /bg/, /motion/) with an in-memory
+        // 43-byte 1x1 transparent GIF so PreloadJS fires onload in <0.01ms with 0 libpng decompression CPU
+        // and 0 16MB RGBA bitmap allocations on F5 reloads, while keeping CAPTCHA and assist lobby icons intact.
+        if (!window.__gbfLayer2SpriteDietInstalled) {
+          window.__gbfLayer2SpriteDietInstalled = true;
+          const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+          const isHeavyBattleSprite = (url) => {
+            if (typeof url !== 'string' || url.length < 8 || url.startsWith('data:')) return false;
+            const lower = url.toLowerCase();
+            if (lower.includes('captcha') || lower.includes('challenge') || lower.includes('/lobby/')) return false;
+            return (
+              lower.includes('/cjs/') ||
+              lower.includes('/sp/cjs/') ||
+              lower.includes('/effect/') ||
+              lower.includes('/motion/') ||
+              lower.includes('/assets/battle/') ||
+              lower.includes('/quest/scene/') ||
+              (lower.includes('/bg/') && (lower.endsWith('.jpg') || lower.endsWith('.png')))
+            );
+          };
+          try {
+            const imgProto = window.HTMLImageElement && window.HTMLImageElement.prototype;
+            if (imgProto) {
+              const desc = Object.getOwnPropertyDescriptor(imgProto, 'src');
+              if (desc && desc.set && desc.get) {
+                Object.defineProperty(imgProto, 'src', {
+                  configurable: true,
+                  enumerable: true,
+                  get: function() {
+                    return this.__gbfOrigSrc || desc.get.call(this);
+                  },
+                  set: function(val) {
+                    this.__gbfOrigSrc = val;
+                    if (isHeavyBattleSprite(val)) {
+                      return desc.set.call(this, BLANK_GIF);
+                    }
+                    return desc.set.call(this, val);
+                  }
+                });
+              }
+            }
+          } catch (e) {}
+        }
+
+        // 3. Decouple requestAnimationFrame from Chromium's 60Hz Viz DisplayScheduler (--type=gpu-process):
         // Replacing native window.requestAnimationFrame with a 15 FPS (66ms) setTimeout timer prevents Blink
         // from setting NeedsBeginFrame=true at 60Hz in --type=gpu-process, cutting SwiftShader/Viz compositor CPU by ~85%
         // while passing performance.now() so CreateJS TweenJS/MovieClip animations advance at 100% real-time speed.
@@ -619,13 +664,17 @@ export class CdpConnectionManager {
         }).catch(() => null);
       }
 
-      // 4. Headless / Production CDP Audio Stream Diet on persistent Page session:
+      // 4. Headless / Production CDP Audio & Font Stream Diet on persistent Page session:
       if (config.HEADLESS || config.isProduction) {
         const persistentClient = typeof (page as any)._client === 'function' ? (page as any)._client() : null;
         if (persistentClient && typeof persistentClient.send === 'function') {
-          await persistentClient.send('Network.enable').catch(() => null);
+          await persistentClient.send('Network.enable', {
+            maxTotalBufferSize: 65536,
+            maxResourceBufferSize: 32768,
+            maxPostDataSize: 4096
+          }).catch(() => null);
           await persistentClient.send('Network.setBlockedURLs', {
-            urls: ['*.mp3', '*.ogg', '*.wav', '*.m4a', '*/assets/sound/*']
+            urls: ['*.mp3', '*.ogg', '*.wav', '*.m4a', '*/assets/sound/*', '*.woff2', '*.ttf']
           }).catch(() => null);
         }
       }
