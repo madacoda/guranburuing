@@ -52,6 +52,9 @@ async function runTests() {
     'leech:yggdrasil',
     'leech:luminiera',
     'leech:celeste',
+    'siete',
+    'seofon',
+    'agastia',
     'goldbar',
     'fate'
   ];

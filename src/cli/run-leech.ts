@@ -53,6 +53,12 @@ function resolveLeechTemplateName(input: string): string {
   if (clean === 'wilnas' || clean === 'wilnas-hl' || clean === 'raid-wilnas') {
     return 'raid-wilnas';
   }
+  if (clean === 'siete' || clean === 'siete-hl' || clean === 'seofon' || clean === 'seofon-hl' || clean === 'raid-seofon') {
+    return 'raid-seofon';
+  }
+  if (clean === 'agastia' || clean === 'agastia-hl' || clean === 'raid-agastia') {
+    return 'raid-agastia';
+  }
   if (clean === 'lindwurm' || clean === 'lindwurm-hl' || clean === 'empyreal-ascension' || clean === 'empyreal' || clean === 'emperial-ascension' || clean === 'emperial') {
     return 'raid-empyreal-ascension';
   }

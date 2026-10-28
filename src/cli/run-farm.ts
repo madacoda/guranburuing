@@ -41,6 +41,12 @@ export function resolveFarmTemplateName(input: string): string {
   if (clean === 'fediel' || clean === 'fediel-hl') {
     return 'raid-fediel';
   }
+  if (clean === 'siete' || clean === 'siete-hl' || clean === 'seofon' || clean === 'seofon-hl') {
+    return 'raid-seofon';
+  }
+  if (clean === 'agastia' || clean === 'agastia-hl') {
+    return 'raid-agastia';
+  }
   if (clean === 'theworld' || clean === 'world' || clean === 'the-world') {
     return 'raid-the-world';
   }

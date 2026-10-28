@@ -235,6 +235,70 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     defaultArgs: ['acc1', 'raid-fediel'],
     description: 'Fediel Impossible Raid Workflow'
   },
+  'siete': {
+    key: 'siete',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-seofon'],
+    description: 'Seofon (Impossible) / Siete HL 4M Honors Blue Chest Workflow'
+  },
+  'seofon': {
+    key: 'seofon',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-seofon'],
+    description: 'Seofon (Impossible) / Siete HL 4M Honors Blue Chest Workflow'
+  },
+  'raid-seofon': {
+    key: 'raid-seofon',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-seofon'],
+    description: 'Seofon (Impossible) / Siete HL 4M Honors Blue Chest Workflow'
+  },
+  'siete:check': {
+    key: 'siete:check',
+    script: 'src/cli/run-siete-check.ts',
+    description: 'Seofon (Impossible) Party & Grid Readiness Auditor'
+  },
+  'siete:setup': {
+    key: 'siete:setup',
+    script: 'src/cli/run-siete-setup.ts',
+    description: 'Seofon (Impossible) Party & Grid Auto-Assembler'
+  },
+  'agastia': {
+    key: 'agastia',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-agastia'],
+    description: 'Agastia (Impossible) / Agastia HL 4M Honors Blue Chest Workflow'
+  },
+  'raid-agastia': {
+    key: 'raid-agastia',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-agastia'],
+    description: 'Agastia (Impossible) / Agastia HL 4M Honors Blue Chest Workflow'
+  },
+  'theworld': {
+    key: 'theworld',
+    script: 'src/cli/run-workflow.ts',
+    defaultArgs: ['acc1', 'raid-the-world'],
+    description: 'The World (Impossible) Raid Workflow'
+  },
+  'leech:siete': {
+    key: 'leech:siete',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['seofon'],
+    description: 'Seofon (Impossible) Fast Assist'
+  },
+  'leech:seofon': {
+    key: 'leech:seofon',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['seofon'],
+    description: 'Seofon (Impossible) Fast Assist'
+  },
+  'leech:agastia': {
+    key: 'leech:agastia',
+    script: 'src/cli/run-leech.ts',
+    defaultArgs: ['agastia'],
+    description: 'Agastia (Impossible) Fast Assist'
+  },
   'db:3star': {
     key: 'db:3star',
     script: 'src/cli/run-workflow.ts',
@@ -402,26 +466,42 @@ export class ProcessRunnerService {
     const normalizedKey = commandKey.toLowerCase().trim();
     let preset = COMMAND_WHITELIST[normalizedKey];
 
-    // If not in static whitelist, check if it's an existing template in templates/
+    // If not in static whitelist, check if it's an existing template in templates/ (including raid- / farm- / leech- prefixed templates)
     if (!preset && /^[a-zA-Z0-9_\-.:]+$/.test(normalizedKey)) {
-      const templateFile = normalizedKey.endsWith('.json') ? normalizedKey : `${normalizedKey}.json`;
-      const templatePath = path.resolve(process.cwd(), 'templates', templateFile);
-      if (fs.existsSync(templatePath)) {
-        const baseName = templateFile.replace(/\.json$/i, '');
-        if (baseName.startsWith('leech-')) {
-          preset = {
-            key: baseName,
-            script: 'src/cli/run-leech.ts',
-            defaultArgs: [baseName],
-            description: `Auto-resolved leech workflow (${baseName})`
-          };
-        } else {
-          preset = {
-            key: baseName,
-            script: 'src/cli/run-workflow.ts',
-            defaultArgs: ['acc1', baseName],
-            description: `Auto-resolved template workflow (${baseName})`
-          };
+      const cleanName = normalizedKey.replace(/\.json$/i, '');
+      const candidateBases = [
+        cleanName,
+        `raid-${cleanName}`,
+        `farm-${cleanName}`,
+        `leech-${cleanName}`,
+        `arcarum-${cleanName}`
+      ];
+      for (const candidate of candidateBases) {
+        const templatePath = path.resolve(process.cwd(), 'templates', `${candidate}.json`);
+        if (fs.existsSync(templatePath)) {
+          if (candidate.startsWith('leech-')) {
+            preset = {
+              key: candidate,
+              script: 'src/cli/run-leech.ts',
+              defaultArgs: [candidate],
+              description: `Auto-resolved leech workflow (${candidate})`
+            };
+          } else if (candidate.startsWith('farm-')) {
+            preset = {
+              key: candidate,
+              script: 'src/cli/run-farm.ts',
+              defaultArgs: [candidate],
+              description: `Auto-resolved farm workflow (${candidate})`
+            };
+          } else {
+            preset = {
+              key: candidate,
+              script: 'src/cli/run-workflow.ts',
+              defaultArgs: ['acc1', candidate],
+              description: `Auto-resolved template workflow (${candidate})`
+            };
+          }
+          break;
         }
       }
     }

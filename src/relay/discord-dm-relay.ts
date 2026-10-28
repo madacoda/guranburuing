@@ -230,6 +230,7 @@ export class DiscordDmRelay {
 
     const channelId = await this.getDmChannelId();
     const url = `${this.baseUrl}/channels/${channelId}/messages`;
+    const safeContent = content.length > 1980 ? `${content.slice(0, 1960)}\n...(truncated)` : content;
 
     // Determine whether non-empty attachments exist
     const hasAttachments = (): boolean => {
@@ -244,7 +245,7 @@ export class DiscordDmRelay {
 
     if (attachments && hasAttachments()) {
       const formData = new FormData();
-      formData.append('content', content);
+      formData.append('content', safeContent);
 
       if (Array.isArray(attachments)) {
         attachments.forEach((att, idx) => {
@@ -274,7 +275,7 @@ export class DiscordDmRelay {
           Authorization: `Bot ${config.DISCORD_BOT_TOKEN}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: safeContent }),
       });
     }
 

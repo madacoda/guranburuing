@@ -90,8 +90,8 @@ export class DiscordCommandGatewayService {
         '  - `/gbf daily` — Launch daily Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Casino)\n' +
         '  - `/gbf daily:host` — Launch full 16-raid Daily Hosting suite (HL, Magna 3, Dragons)\n' +
         '  - `/gbf daily:hostgb` — Host Gold Bar daily raids only (PBHL, Akasha, GOHL, Lindwurm)\n' +
-        '  - `/gbf gb-akasha` — Akasha Blue Chest Gold Bar Farm\n' +
-        '  - `/gbf gb-pbhl` — PBHL Blue Chest Gold Bar Farm\n' +
+        '  - `/gbf gb-akasha` / `/gbf gb-pbhl` — Blue Chest Gold Bar Farm\n' +
+        '  - `/gbf siete` / `/gbf agastia` — Revans 4M Honors Blue Chest Farm\n' +
         '  - `/gbf scheduler:off` / `/gbf scheduler:on` — Pause/resume 21:00 JST (19:00 WIB) Peak-Hour scheduler\n' +
         '  - `/gbf status` — View active job, scheduler state, and terminal output\n' +
         '  - `/gbf stop` — Halt current active task\n' +
@@ -544,44 +544,36 @@ export class DiscordCommandGatewayService {
    * Handles `/help` command.
    */
   private async handleHelpCommand(): Promise<void> {
+    const presetKeys = Object.keys(COMMAND_WHITELIST).map(k => `\`${k}\``).join(', ');
     const lines = [
       '📖 **GBF Remote Cockpit Commands**',
       'All commands use the unified `/gbf` prefix:',
       '',
       '**Quick Routine & Farming Commands:**',
-      '• `/gbf daily` (or `/gbf run daily`) — Universal Pro Skips only (Favorites, Hard+, Omega, Halo, Gacha, Casino)',
+      '• `/gbf daily` — Universal Pro Skips (Favorites, Hard+, Omega, Halo, Gacha, Casino)',
       '• `/gbf daily:host` — Complete 16-Raid Daily Hosting Suite (HL, Magna 3, Dragons)',
       '• `/gbf daily:hostgb` — Daily Gold Bar Raids Hosting only (PBHL, Akasha, GOHL, Lindwurm)',
       '• `/gbf daily:routine` — Chained Daily Reset Routine (Pro Skips → 16 Hosts → Retry)',
-      '• `/gbf gb-akasha` — Akasha HL Blue Chest Gold Bar Farm',
-      '• `/gbf gb-pbhl` — Proto Bahamut HL Blue Chest Gold Bar Farm',
-      '• `/gbf gb-go` — Grand Order HL Blue Chest Gold Bar Farm',
-      '• `/gbf gb-farm` — Tri-Raid Blue Chest Gold Bar Rotation (PBHL → Akasha → GOHL)',
+      '• `/gbf gb-akasha` / `/gbf gb-pbhl` / `/gbf gb-go` / `/gbf gb-farm` — Gold Bar Blue Chest Farm',
+      '• `/gbf siete` (or `/gbf seofon`) — Seofon (Impossible) 4M Honors Blue Chest Farm',
+      '• `/gbf agastia` — Agastia (Impossible) 4M Honors Blue Chest Farm',
       '• `/gbf farm:human` — Human behavioral cadence farming (GB + leech + rest + audit)',
       '• `/gbf fate` — Autonomous Fate Episode Skip (10 episodes)',
       '• `/gbf inventory` — In-Game Inventory & Supply Audit (#item Gold Bars, Pots, Berries, Moons)',
       '• `/gbf goldbar` — Gold Bar drops & battle audit summary',
       '• `/gbf leech <raid>` — Fast leech raid (e.g. `/gbf leech colossus-ira`, `/gbf leech:tiamat`)',
-      '• `/gbf workflow <template>` — Run template (e.g. `/gbf workflow raid-wilnas`)',
+      '• `/gbf workflow <template>` — Run template (e.g. `/gbf workflow raid-seofon`)',
       '',
-      '**Available Preset Tasks (`/gbf <preset>`):**'
-    ];
-
-    for (const [key, preset] of Object.entries(COMMAND_WHITELIST)) {
-      lines.push(`• \`/gbf ${key}\` — ${preset.description}`);
-    }
-
-    lines.push(
+      `**Available Presets (\`/gbf <preset> [runs]\`):**\n${presetKeys}`,
       '',
       '**System & Scheduler Controls:**',
       '• `/gbf status` — View running job, PID, uptime, and terminal output',
       '• `/gbf stop` (or `/gbf halt`) — Gracefully terminate active running task',
-      '• `/gbf scheduler:off` — Pause autonomous 21:00 JST (19:00 WIB) peak scheduler',
-      '• `/gbf scheduler:on` — Resume autonomous 21:00 JST (19:00 WIB) peak scheduler',
+      '• `/gbf scheduler:off` / `/gbf scheduler:on` — Pause/resume 21:00 JST (19:00 WIB) scheduler',
       '• `/gbf reset` (or `/gbf next`) — View countdown to next 21:00 JST (19:00 WIB) scheduled run',
       '• `/gbf logs` — View last 15 lines of live terminal output',
       '• `/gbf help` — Display this manual'
-    );
+    ];
 
     await discordDmRelay.sendMessage(lines.join('\n'));
   }
