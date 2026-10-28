@@ -21,6 +21,8 @@ export class DiscordCommandGatewayService {
   private isGatewayHealthy = false;
   private lastGatewayEventAt = 0;
   private lastFallbackPollAt = 0;
+  private hasSeededHistory = false;
+  private startedAtMs = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private dmChannelId: string | null = null;
@@ -50,6 +52,8 @@ export class DiscordCommandGatewayService {
     }
 
     this.isRunning = true;
+    this.startedAtMs = Date.now();
+    this.hasSeededHistory = false;
     this.dmChannelId = await discordDmRelay.getDmChannelId();
 
     console.log('\n========================================================================');
@@ -242,9 +246,28 @@ export class DiscordCommandGatewayService {
       const messages = (await res.json()) as DiscordMessageResponse[];
       if (!Array.isArray(messages)) return;
 
-      // Process oldest to newest
+      // On first poll after startup, seed existing DM message IDs so historical commands are NEVER replayed
+      if (!this.hasSeededHistory) {
+        this.hasSeededHistory = true;
+        for (const m of messages) {
+          if (m?.id) this.processedMessageIds.add(m.id);
+        }
+        return;
+      }
+
+      // Process oldest to newest (only messages created after gateway startup)
       const validMessages = messages
-        .filter(m => m.author.id === config.DISCORD_USER_ID && !m.author.bot && !this.processedMessageIds.has(m.id))
+        .filter(m => {
+          if (m.author.id !== config.DISCORD_USER_ID || m.author.bot || this.processedMessageIds.has(m.id)) {
+            return false;
+          }
+          const msgTime = new Date(m.timestamp).getTime();
+          if (this.startedAtMs > 0 && !isNaN(msgTime) && msgTime < this.startedAtMs - 5000) {
+            this.processedMessageIds.add(m.id);
+            return false;
+          }
+          return true;
+        })
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
       for (const msg of validMessages) {
