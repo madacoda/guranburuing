@@ -10,6 +10,10 @@ async function runTests() {
   let passed = 0;
   let total = 0;
 
+  if (!config.DISCORD_USER_ID) {
+    config.DISCORD_USER_ID = '350293029825019915';
+  }
+
   // Global Mock for Discord DM Relay: Prevent sending live messages during test suite
   const { discordDmRelay } = await import('../src/relay/discord-dm-relay.js');
   const interceptedDmMessages: string[] = [];
