@@ -124,45 +124,36 @@ fn main() {
             let max_pct = args
                 .get(2)
                 .and_then(|s| s.parse::<u32>().ok())
-                .unwrap_or(38);
+                .unwrap_or(42);
             println!(
                 "[gbf-daemon] Starting Native Rust Layer 2 + Layer 3 Diet Keeper on port {port} (max {max_pct}% of 2 vCPUs)..."
             );
-            let dummy_tmpl = cdp_engine::load_workflow_template("templates", "siete")
-                .unwrap_or_else(|_| cdp_engine::FullWorkflowTemplate {
-                    name: "DietKeeper".to_string(),
-                    description: String::new(),
-                    quest_url: String::new(),
-                    mode: String::new(),
-                    target_enemy: String::new(),
-                    target_raid_quest_id: String::new(),
-                    raid_slot: None,
-                    raid_slots: vec![],
-                    target_score: None,
-                    supporter_priority: vec![],
-                    min_hp_pct: None,
-                    max_hp_pct: None,
-                    min_players: None,
-                    max_players: None,
-                    default_runs: None,
-                    auto_berry: None,
-                    auto_elixir: None,
-                    steps: vec![],
-                });
-            let mut active_runner: Option<NativeCdpWorkflowRunner> = None;
+            let mut active_ws: Option<gbf_core::cdp_ws::CdpWsClient> = None;
             loop {
                 let _ = cpu_governor::apply_linux_chrome_cpu_governor(port, max_pct, 2);
-                let needs_reconnect = match active_runner.as_mut() {
-                    Some(r) => r
-                        .ws
-                        .eval_js(cdp_engine::LAYER2_HEADLESS_CPU_DIET_JS, 2000)
-                        .is_err(),
+                let needs_reconnect = match active_ws.as_mut() {
+                    Some(ws) => ws.eval_js("1", 1500).is_err(),
                     None => true,
                 };
                 if needs_reconnect {
-                    active_runner = NativeCdpWorkflowRunner::connect_and_init(port, dummy_tmpl.clone()).ok();
+                    if let Ok((mut ws, target)) =
+                        gbf_core::cdp_ws::CdpWsClient::connect_to_gbf_page(port, 4000)
+                    {
+                        let _ = ws.call("Page.enable", serde_json::json!({}), 2000);
+                        let _ = ws.call(
+                            "Page.addScriptToEvaluateOnNewDocument",
+                            serde_json::json!({ "source": cdp_engine::LAYER2_HEADLESS_CPU_DIET_JS }),
+                            3000,
+                        );
+                        let _ = ws.eval_js(cdp_engine::LAYER2_HEADLESS_CPU_DIET_JS, 3000);
+                        println!(
+                            "[RustCDP] Persistent Layer 2 Diet attached to target '{}' ({})",
+                            target.id, target.url
+                        );
+                        active_ws = Some(ws);
+                    }
                 }
-                thread::sleep(Duration::from_secs(8));
+                thread::sleep(Duration::from_secs(12));
             }
         }
         "--run-native" => {
