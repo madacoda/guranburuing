@@ -182,6 +182,7 @@ CHROME_ARGS=(
 
 WRAPPER_CMD=()
 if [[ "$HEADLESS" == "true" ]]; then
+  TARGET_URL="about:blank"
   CHROME_ARGS+=(
     "--headless=new"
     "--ozone-platform=headless"

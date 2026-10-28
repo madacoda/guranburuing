@@ -302,6 +302,9 @@ export class CdpConnectionManager {
             if (targetPage) {
               console.log('[CDP] Waking from standby blank tab. Arming Session Immunity & navigating to https://game.granbluefantasy.jp/...');
               await installMobageSessionImmunity(targetPage);
+              if (config.isProduction || config.AUTO_MUTE_GAME || isHeadless) {
+                await this.optimizePageEnvironment(targetPage);
+              }
               await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
             }
           }
@@ -313,6 +316,9 @@ export class CdpConnectionManager {
           targetPage = await this.withTimeoutFallback(this.browser.newPage(), 5000, null);
           if (targetPage) {
             await installMobageSessionImmunity(targetPage);
+            if (config.isProduction || config.AUTO_MUTE_GAME || isHeadless) {
+              await this.optimizePageEnvironment(targetPage);
+            }
             await targetPage.goto('https://game.granbluefantasy.jp/', { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => null);
           }
         }
@@ -495,7 +501,7 @@ export class CdpConnectionManager {
           }
         } catch (e) {}
 
-        // Inject CSS animation/transition suppressor for headless CPU reduction
+        // 1. Inject CSS animation/transition suppressor for headless CPU reduction
         const injectCssDiet = () => {
           try {
             if (document.head && !document.getElementById('gbf-headless-cpu-diet')) {
@@ -511,46 +517,36 @@ export class CdpConnectionManager {
           document.addEventListener('DOMContentLoaded', injectCssDiet, { once: true });
         }
 
-        // Hook CreateJS Stage.prototype.draw to decouple TweenJS state ticks (100% speed)
-        // from expensive 2D Canvas software pixel blitting (throttled to 2 FPS in headless mode)
+        // 2. Canvas 2D Software Rasterizer & CreateJS Draw Diet:
+        // Only rasterize pixels onto <canvas> during a 35ms window once per 1000ms (~1 FPS canvas paint).
+        // Eliminates ~96.5% of CPU bitmap blitting and prevents Blink from dirtying the canvas layer on 29/30 frames
+        // (stopping --type=gpu-process SwiftShader from spinning), while keeping 100% of CreateJS TweenJS/Timeline
+        // ticks and game state transitions running at full speed.
         if (!window.__gbf_canvas_throttler_installed__) {
           window.__gbf_canvas_throttler_installed__ = true;
-          const hookCreateJs = () => {
-            try {
-              const cjs = window.createjs;
-              if (!cjs) return false;
-              if (cjs.Ticker) {
-                try {
-                  if (typeof cjs.Ticker.setFPS === 'function') cjs.Ticker.setFPS(15);
-                  else cjs.Ticker.framerate = 15;
-                } catch (e) {}
-              }
-              if (cjs.Stage && cjs.Stage.prototype && !cjs.Stage.prototype.__gbf_draw_throttled__) {
-                const origDraw = cjs.Stage.prototype.draw;
-                let lastDrawMs = 0;
-                cjs.Stage.prototype.draw = function(ctx, ignoreCache) {
-                  const now = Date.now();
-                  if (now - lastDrawMs < 500) {
-                    return true;
-                  }
-                  lastDrawMs = now;
-                  return origDraw.call(this, ctx, ignoreCache);
-                };
-                cjs.Stage.prototype.__gbf_draw_throttled__ = true;
-                return true;
-              }
-            } catch (e) {}
-            return false;
-          };
-          if (!hookCreateJs()) {
-            let attempts = 0;
-            const timer = setInterval(() => {
-              attempts++;
-              if (hookCreateJs() || attempts >= 25) {
-                clearInterval(timer);
-              }
-            }, 300);
-          }
+          try {
+            if (typeof CanvasRenderingContext2D !== 'undefined' && CanvasRenderingContext2D.prototype) {
+              const proto = CanvasRenderingContext2D.prototype;
+              const origDrawImage = proto.drawImage;
+              const origClearRect = proto.clearRect;
+              const origFillRect = proto.fillRect;
+
+              const shouldPaintCanvas = () => (Date.now() % 1000) < 35;
+
+              proto.drawImage = function() {
+                if (!shouldPaintCanvas()) return;
+                return origDrawImage.apply(this, arguments);
+              };
+              proto.clearRect = function() {
+                if (!shouldPaintCanvas()) return;
+                return origClearRect.apply(this, arguments);
+              };
+              proto.fillRect = function() {
+                if (!shouldPaintCanvas()) return;
+                return origFillRect.apply(this, arguments);
+              };
+            }
+          } catch (e) {}
         }
       })();
     `;
