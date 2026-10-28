@@ -116,6 +116,55 @@ fn main() {
                 "[gbf-daemon] Applied Layer 3 CPU Governor (max {max_pct}% of 2 vCPUs) to {count} Chrome PID(s) on port {port}."
             );
         }
+        "--keep-diet" => {
+            let port = args
+                .get(1)
+                .and_then(|s| s.parse::<u16>().ok())
+                .unwrap_or(9222);
+            let max_pct = args
+                .get(2)
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(38);
+            println!(
+                "[gbf-daemon] Starting Native Rust Layer 2 + Layer 3 Diet Keeper on port {port} (max {max_pct}% of 2 vCPUs)..."
+            );
+            let dummy_tmpl = cdp_engine::load_workflow_template("templates", "siete")
+                .unwrap_or_else(|_| cdp_engine::FullWorkflowTemplate {
+                    name: "DietKeeper".to_string(),
+                    description: String::new(),
+                    quest_url: String::new(),
+                    mode: String::new(),
+                    target_enemy: String::new(),
+                    target_raid_quest_id: String::new(),
+                    raid_slot: None,
+                    raid_slots: vec![],
+                    target_score: None,
+                    supporter_priority: vec![],
+                    min_hp_pct: None,
+                    max_hp_pct: None,
+                    min_players: None,
+                    max_players: None,
+                    default_runs: None,
+                    auto_berry: None,
+                    auto_elixir: None,
+                    steps: vec![],
+                });
+            let mut active_runner: Option<NativeCdpWorkflowRunner> = None;
+            loop {
+                let _ = cpu_governor::apply_linux_chrome_cpu_governor(port, max_pct, 2);
+                let needs_reconnect = match active_runner.as_mut() {
+                    Some(r) => r
+                        .ws
+                        .eval_js(cdp_engine::LAYER2_HEADLESS_CPU_DIET_JS, 2000)
+                        .is_err(),
+                    None => true,
+                };
+                if needs_reconnect {
+                    active_runner = NativeCdpWorkflowRunner::connect_and_init(port, dummy_tmpl.clone()).ok();
+                }
+                thread::sleep(Duration::from_secs(8));
+            }
+        }
         "--run-native" => {
             let _ = catalog::load_catalog_dir("data");
             let (port, tmpl_name, explicit_runs) = parse_native_run_args(&args[1..]);
