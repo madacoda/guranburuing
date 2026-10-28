@@ -12,6 +12,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const COMMAND_WHITELIST: &[&str] = &[
     "status",
     "siete",
+    "seofon",
+    "raid-seofon",
+    "agastia",
+    "raid-agastia",
+    "theworld",
+    "leech:siete",
+    "leech:seofon",
+    "leech:agastia",
     "ennead",
     "six_dragons",
     "revans",
@@ -223,13 +231,32 @@ impl ProcessOrchestrator {
         // Preemptively stop any active task first
         self.stop_current_task();
 
-        let mut cmd = Command::new("bun");
-        cmd.arg("run")
-            .arg("src/index.ts")
-            .arg(&clean_preset)
-            .args(&safe_args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        let use_native_rust = std::env::var("USE_RUST_CDP_ENGINE")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false)
+            || safe_args.iter().any(|a| a == "--native");
+
+        let mut cmd = if use_native_rust
+            && crate::cdp_engine::resolve_template_path("templates", &clean_preset).is_some()
+        {
+            let exe = std::env::current_exe().unwrap_or_else(|_| "gbf-daemon".into());
+            let mut c = Command::new(exe);
+            c.arg("--run-native")
+                .arg(&clean_preset)
+                .args(safe_args.iter().filter(|a| *a != "--native"))
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            c
+        } else {
+            let mut c = Command::new("bun");
+            c.arg("run")
+                .arg("src/index.ts")
+                .arg(&clean_preset)
+                .args(&safe_args)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            c
+        };
 
         let mut child = cmd
             .spawn()

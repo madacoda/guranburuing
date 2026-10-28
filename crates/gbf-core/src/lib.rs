@@ -1,5 +1,6 @@
 // crates/gbf-core/src/lib.rs
 pub mod catalog;
+pub mod cdp_ws;
 pub mod dsl;
 pub mod evaluator;
 pub mod jst;
