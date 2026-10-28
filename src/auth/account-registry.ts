@@ -27,17 +27,19 @@ export class AccountRegistry {
     if (!fs.existsSync(this.configPath)) {
       const defaultAccounts: AccountConfig[] = [
         {
-          id: 'main',
-          name: 'Main Account',
+          id: 'acc1',
+          name: 'acc1',
           enabled: true,
           service: 'mobage',
           cdpPort: 9222,
-          profileDir: path.resolve(process.env.USERPROFILE || process.env.HOME || '.', '.gbf-iron-profile'),
+          profileDir: path.resolve(process.env.USERPROFILE || process.env.HOME || '.', '.gbf-profiles', 'acc1'),
           credentials: { email: '', password: '' },
           proxy: null
         }
       ];
-      this.saveAccounts(defaultAccounts);
+      if (process.env.NODE_ENV !== 'test') {
+        this.saveAccounts(defaultAccounts);
+      }
       return defaultAccounts;
     }
 

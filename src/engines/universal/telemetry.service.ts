@@ -342,10 +342,10 @@ export class UniversalTelemetryService {
       found = true;
     }
 
-    if (!found && rustBridge.isNativeLoaded && typeof payload === 'object') {
+    if (!found && rustBridge.isActive() && typeof payload === 'object') {
       try {
-        const scanned = rustBridge.scanBattleTelemetry(JSON.stringify(payload));
-        if (scanned.hasBlueChest) {
+        const scanned = rustBridge.scanPayloadFlags(JSON.stringify(payload));
+        if (scanned?.hasBlueChest) {
           found = true;
         }
       } catch {}

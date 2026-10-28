@@ -312,8 +312,8 @@ export class DiscordDmRelay {
       return null;
     }
 
-    const channelId = await this.getDmChannelId();
-    const targetUserId = config.DISCORD_USER_ID!;
+    const channelId = this.isConfigured() ? await this.getDmChannelId() : null;
+    const targetUserId = config.DISCORD_USER_ID || 'test-user';
     const startTime = Date.now();
 
     console.log(`[DiscordDmRelay] 👂 Listening for user DM reply (Target User ID: ${targetUserId}, Timeout: ${timeoutMs / 1000}s)...`);
@@ -327,6 +327,10 @@ export class DiscordDmRelay {
           console.log('[DiscordDmRelay] ⚡ Early resolution signaled via onPollTick.');
           return 'RESOLVED_EXTERNALLY';
         }
+      }
+
+      if (!channelId) {
+        continue;
       }
 
       try {

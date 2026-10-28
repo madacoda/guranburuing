@@ -32,6 +32,8 @@ const mockPage = {
 
 let dispatchedDiscordMessage = '';
 const originalSendMessage = discordDmRelay.sendMessage;
+const originalIsConfigured = discordDmRelay.isConfigured;
+discordDmRelay.isConfigured = () => true;
 discordDmRelay.sendMessage = async (content: string) => {
   dispatchedDiscordMessage = content;
   return { id: 'mock_msg_id', channel_id: 'mock_chan', content } as any;
@@ -73,6 +75,7 @@ try {
 
 } finally {
   discordDmRelay.sendMessage = originalSendMessage;
+  discordDmRelay.isConfigured = originalIsConfigured;
 }
 
 // 2. Test ProcessRunner & Discord Gateway diagnostic stoppage reason formatting
@@ -146,6 +149,7 @@ try {
 
 } finally {
   discordDmRelay.sendMessage = originalSendMessage;
+  discordDmRelay.isConfigured = originalIsConfigured;
 }
 
 // 3. Test CDP Renderer Freeze Watchdog (Runtime.callFunctionOn timed out auto-recovery & forwarding)
