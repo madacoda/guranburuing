@@ -43,21 +43,12 @@ console.log(`  ✅ [PASS] Canonical template validated: raidSlot=1, mode=assist,
 // 2. Validate canonical pipeline sequence
 console.log('\n--- 2. Validating Canonical Pipeline Sequence ---');
 const expectedCanonicalSteps = [
-  { code: 'skill', character: 4, skill: 1 },
-  { code: 'skill', character: 3, skill: 2 },
-  { code: 'skill', character: 2, skill: 1 },
-  { code: 'attack' },
-  { code: 'reload' },
+  { code: 'wait_element' },
   { code: 'wait_random' },
-  { code: 'attack' },
-  { code: 'reload' },
-  { code: 'confirm_result' }
-];
-
-const expectedDslSteps = [
   { code: 'skill', character: 4, skill: 1 },
+  { code: 'quick_call' },
+  { code: 'reload' },
   { code: 'skill', character: 3, skill: 1 },
-  { code: 'skill', character: 3, skill: 2 },
   { code: 'skill', character: 2, skill: 1 },
   { code: 'attack' },
   { code: 'reload' },
@@ -67,15 +58,13 @@ const expectedDslSteps = [
   { code: 'confirm_result' }
 ];
 
-const activeExpectedSteps = tmpl.steps.length === 9 ? expectedCanonicalSteps : expectedDslSteps;
-
-if (tmpl.steps.length !== activeExpectedSteps.length) {
-  throw new Error(`Expected ${activeExpectedSteps.length} steps, got ${tmpl.steps.length}`);
+if (tmpl.steps.length !== expectedCanonicalSteps.length) {
+  throw new Error(`Expected ${expectedCanonicalSteps.length} steps, got ${tmpl.steps.length}`);
 }
 
-for (let i = 0; i < activeExpectedSteps.length; i++) {
+for (let i = 0; i < expectedCanonicalSteps.length; i++) {
   const step = tmpl.steps[i];
-  const exp = activeExpectedSteps[i];
+  const exp = expectedCanonicalSteps[i];
   const stepCode = step.code || step.action;
   if (stepCode !== exp.code) {
     throw new Error(`Step ${i + 1} code mismatch: expected "${exp.code}", got "${stepCode}"`);
@@ -116,32 +105,35 @@ Quest: https://game.granbluefantasy.jp/#quest/assist
 Mode: assist
 Raid Slot: 1
 
-c4s1
+wait element .btn-attack-start
+wait random 120 250
+c4s1 (make sure clicked or casted)
+quick_call
+reload
 c3s1
-c3s2
 c2s1
 attack
 reload
-random delay
+wait random 150 300
 attack
 reload
 rerun
 `.trim();
 
 const parsedFromDsl = TemplateParser.parseShorthandDsl(rawDsl, 'test-theworld-dsl');
-if (parsedFromDsl.steps.length !== 10) {
-  throw new Error(`Expected DSL to parse 10 steps, got ${parsedFromDsl.steps.length}`);
+if (parsedFromDsl.steps.length !== 13) {
+  throw new Error(`Expected DSL to parse 13 steps, got ${parsedFromDsl.steps.length}`);
 }
 
-for (let i = 0; i < expectedDslSteps.length; i++) {
+for (let i = 0; i < expectedCanonicalSteps.length; i++) {
   const step = parsedFromDsl.steps[i];
-  const exp = expectedDslSteps[i];
+  const exp = expectedCanonicalSteps[i];
   const stepCode = step.code || step.action;
   if (stepCode !== exp.code) {
     throw new Error(`DSL Step ${i + 1} code mismatch: expected "${exp.code}", got "${stepCode}"`);
   }
 }
-console.log('  ✅ [PASS] User DSL string parsed with 100% accuracy into identical 10-step pipeline');
+console.log('  ✅ [PASS] User DSL string parsed with 100% accuracy into identical 13-step pipeline');
 
 // 6. Test Bidirectional Round-Trip Serialization
 console.log('\n--- 6. Testing Bidirectional Round-Trip Serialization (DSL <-> Template) ---');

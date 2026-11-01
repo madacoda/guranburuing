@@ -223,7 +223,7 @@ const TEST_SUITES: TestSuite[] = [
   {
     name: 'Raid: The World (HL) Multi-Battle Template & DSL Tests',
     file: 'tests/test-raid-the-world-template.ts',
-    description: 'Verify The World (HL) multi-battle assist raid template, Finder Tab 1, 10-step burst, random delay, and DSL round-trip'
+    description: 'Verify The World (HL) multi-battle assist raid template, Finder Tab 1, Akasha-aligned 13-step burst, random delay, and DSL round-trip'
   },
   {
     name: 'Raid: Dark Rapture (Hard) Multi-Battle Template & DSL Tests',
@@ -294,6 +294,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Seofon (Impossible) / Siete HL 4M Honors & Readiness Auto-Checker Tests',
     file: 'tests/test-siete-4m-readiness.ts',
     description: 'Verify Siete 4M Honors party catalog, schema validation, 77.77M Emblema math, hard gates, substitute chains, and CLI/template integration'
+  },
+  {
+    name: 'Seofon (Impossible) / Siete HL 12% Cutoff & Early Exit Guard Tests',
+    file: 'tests/test-siete-hp-cutoff.ts',
+    description: 'Verify Siete 12%/10% HP trigger cutoff, exit_if_hp step handler, pre-attack exit checks, and honors guard suppression'
   },
   {
     name: 'Rust Native Core (`gbf-core`) & Zero-Copy FFI Bridge Tests',
