@@ -753,8 +753,31 @@ export class UniversalWorkflowEngine {
         }
       }
 
+      // Pre-Combat Action HP Cutoff Guard (e.g. Siete HL 10% trigger threshold where HP <= 12% means attacks yield no honors)
+      const raidExitHpThreshold = this.template.exitIfHpPct ?? (
+        (!this.isSoloQuest() && (this.template.targetEnemy === 'Seofon' || String(this.template.targetRaidQuestId) === '305411')) ? 12 : undefined
+      );
+
+      if (raidExitHpThreshold !== undefined && i > 0 && !skipEarlyExitCheck) {
+        const isCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'repeat' || stepAction === 'smart_full_auto';
+        if (isCombatAction) {
+          const enemy = await this.combatResolution.getAndLogEnemyHp();
+          if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
+            console.log(`[Run ${runNumber}] 🏁 Raid HP cutoff reached (${enemy.hpPct.toFixed(1)}% <= ${raidExitHpThreshold}%). Ineffective to attack further; exiting combat pipeline early to check another raid.`);
+            return true;
+          }
+        }
+      }
+
       if (stepAction === 'confirm_result') {
-        if (!this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore < this.template.targetScore) {
+        let hpCutoffReached = false;
+        if (raidExitHpThreshold !== undefined) {
+          const enemy = await this.combatResolution.getAndLogEnemyHp();
+          if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
+            hpCutoffReached = true;
+          }
+        }
+        if (!this.isSoloQuest() && !hpCutoffReached && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore < this.template.targetScore) {
           await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
         }
       }
@@ -792,7 +815,18 @@ export class UniversalWorkflowEngine {
       }
     }
 
-    if (!this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore) {
+    const finalRaidExitHp = this.template.exitIfHpPct ?? (
+      (!this.isSoloQuest() && (this.template.targetEnemy === 'Seofon' || String(this.template.targetRaidQuestId) === '305411')) ? 12 : undefined
+    );
+    let finalHpCutoffReached = false;
+    if (finalRaidExitHp !== undefined) {
+      const enemy = await this.combatResolution.getAndLogEnemyHp();
+      if (enemy && (enemy.isDefeated || enemy.hpPct <= finalRaidExitHp)) {
+        finalHpCutoffReached = true;
+      }
+    }
+
+    if (!this.isSoloQuest() && !finalHpCutoffReached && this.template.honorGuard !== false && this.template.targetScore) {
       await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
     }
 

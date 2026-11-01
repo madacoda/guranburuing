@@ -14,6 +14,7 @@ import {
 import {
   RepeatStepHandler,
   ExitIfScoreStepHandler,
+  ExitIfHpStepHandler,
   ConditionStepHandler
 } from '../handlers/control-flow/index.js';
 import { WaitStepHandler } from '../handlers/timing/index.js';
@@ -44,6 +45,7 @@ export function createDefaultStepHandlerRegistry(): StepHandlerRegistry {
   // Control Flow Handlers
   registry.register(new RepeatStepHandler());
   registry.register(new ExitIfScoreStepHandler());
+  registry.register(new ExitIfHpStepHandler());
   registry.register(new ConditionStepHandler());
 
   // Timing Handlers

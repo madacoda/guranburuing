@@ -1777,6 +1777,18 @@ export class CombatExecutionService {
       return true;
     }
 
+    // HP Cutoff Guard: Suppress attack immediately if boss HP <= exitHpPct (e.g. Siete 10% trigger threshold)
+    const exitHpCutoff = this.ctx.template?.exitIfHpPct ?? (
+      (!this.isSoloQuest() && (this.ctx.template?.targetEnemy === 'Seofon' || String(this.ctx.template?.targetRaidQuestId) === '305411')) ? 12 : undefined
+    );
+    if (exitHpCutoff !== undefined) {
+      const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+      if (enemy && (enemy.isDefeated || enemy.hpPct <= exitHpCutoff)) {
+        console.log(`[Combat] Boss HP is at or below cutoff (${enemy.hpPct.toFixed(1)}% <= ${exitHpCutoff}%). Honors will not count past 10% with current setup. Suppressing attack.`);
+        return true;
+      }
+    }
+
     const targetNet = step.waitForNetwork || 'normal_attack_result.json';
     const maxAttempts = 5;
     const initialTurn = this.ctx.state.currentTurn;
@@ -2225,6 +2237,18 @@ export class CombatExecutionService {
    */
   public async ensureMinimumHonors(minHonors = 1500000, maxExtraTurns = 25): Promise<void> {
     if (this.ctx.template.honorGuard === false || this.isSoloQuest()) return;
+
+    const exitHpCutoff = this.ctx.template?.exitIfHpPct ?? (
+      (!this.isSoloQuest() && (this.ctx.template?.targetEnemy === 'Seofon' || String(this.ctx.template?.targetRaidQuestId) === '305411')) ? 12 : undefined
+    );
+    if (exitHpCutoff !== undefined) {
+      const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+      if (enemy && (enemy.isDefeated || enemy.hpPct <= exitHpCutoff)) {
+        console.log(`[Honors Guard] Boss HP (${enemy.hpPct.toFixed(1)}%) already at or below cutoff threshold (${exitHpCutoff}%). Honors will not count past 10%; skipping extra attack turns.`);
+        return;
+      }
+    }
+
     await this.deps.combatResolution.syncCurrentHonors();
     if (this.ctx.state.currentScore >= minHonors) {
       console.log(`[Honors Guard] Minimum honor met (${this.ctx.state.currentScore.toLocaleString()} >= ${minHonors.toLocaleString()} pt).`);
@@ -2247,6 +2271,14 @@ export class CombatExecutionService {
       if (await this.deps.combatResolution.isBattleEnded()) {
         console.log('[Honors Guard] Battle concluded during extra turns.');
         break;
+      }
+
+      if (exitHpCutoff !== undefined) {
+        const enemy = await this.deps.combatResolution.getAndLogEnemyHp();
+        if (enemy && (enemy.isDefeated || enemy.hpPct <= exitHpCutoff)) {
+          console.log(`[Honors Guard] 🏁 Boss HP (${enemy.hpPct.toFixed(1)}%) reached cutoff threshold (${exitHpCutoff}%). Honors will not count past 10%; exiting guard loop to check another raid.`);
+          break;
+        }
       }
 
       await this.deps.combatResolution.syncCurrentHonors();

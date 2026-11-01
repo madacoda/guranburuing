@@ -31,6 +31,7 @@ const RX_META_SECTOR = /^sector\s*:\s*(.+)$/i;
 const RX_META_TARGET_ENEMY = /^(?:target_enemy|enemy|target_boss|boss)\s*:\s*(.+)$/i;
 const RX_META_MIN_HP = /^(?:min[\s_]?hp(?:[\s_]?pct)?|min[\s_]?health)\s*:\s*(\d+)%?$/i;
 const RX_META_MAX_HP = /^(?:max[\s_]?hp(?:[\s_]?pct)?|max[\s_]?health)\s*:\s*(\d+)%?$/i;
+const RX_META_EXIT_HP = /^(?:exit[\s_]?hp(?:[\s_]?pct)?|exit[\s_]?if[\s_]?hp)\s*:\s*(\d+)%?$/i;
 const RX_META_HP_RANGE = /^hp(?:[\s_]?pct)?\s*:\s*(\d+)\s*(?:-|to|\.\.)\s*(\d+)\s*%?$/i;
 const RX_META_MIN_PLAYERS = /^min[\s_]?players?\s*:\s*(\d+)$/i;
 const RX_META_MAX_PLAYERS = /^max[\s_]?players?\s*:\s*(\d+)$/i;
@@ -130,6 +131,7 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
   let maxBatchClaim: number | undefined;
   let minHpPct: number | undefined;
   let maxHpPct: number | undefined;
+  let exitIfHpPct: number | undefined;
   let minPlayers: number | undefined;
   let maxPlayers: number | undefined;
   let minRaidScore: number | undefined;
@@ -288,6 +290,10 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
     }
     if ((m = RX_META_MAX_HP.exec(line))) {
       maxHpPct = parseInt(m[1], 10);
+      continue;
+    }
+    if ((m = RX_META_EXIT_HP.exec(line))) {
+      exitIfHpPct = parseInt(m[1], 10);
       continue;
     }
     if ((m = RX_META_HP_RANGE.exec(line))) {
@@ -471,6 +477,7 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
     maxBatchClaim,
     minHpPct,
     maxHpPct,
+    exitIfHpPct,
     minPlayers,
     maxPlayers,
     evaluatorStrategy,

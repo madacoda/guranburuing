@@ -148,6 +148,7 @@ export function serializeToDsl(template: WorkflowTemplate): string {
   if (template.sector) lines.push(`Sector: ${template.sector}`);
   if (template.minHpPct !== undefined) lines.push(`Min HP: ${template.minHpPct}`);
   if (template.maxHpPct !== undefined) lines.push(`Max HP: ${template.maxHpPct}`);
+  if (template.exitIfHpPct !== undefined) lines.push(`Exit HP: ${template.exitIfHpPct}`);
   if (template.minPlayers !== undefined) lines.push(`Min Players: ${template.minPlayers}`);
   if (template.maxPlayers !== undefined) lines.push(`Max Players: ${template.maxPlayers}`);
   if (template.evaluatorStrategy) lines.push(`Strategy: ${template.evaluatorStrategy}`);

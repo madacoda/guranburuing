@@ -135,6 +135,7 @@ export interface WorkflowTemplate {
   batchClaimSize?: number;  // Fixed override for pending batch claim
   minHpPct?: number;        // Minimum boss HP% filter for raid join (e.g. 50 for honor, 1 for OTK burst)
   maxHpPct?: number;        // Maximum boss HP% filter for raid join (e.g. 20 for OTK burst)
+  exitIfHpPct?: number;     // Target boss HP% threshold during combat below which attacking stops and workflow exits early (e.g. 12 for Siete 10% trigger)
   minPlayers?: number;      // Minimum active players filter for raid join (e.g. 3 for OTK burst)
   maxPlayers?: number;      // Maximum players filter for raid join (e.g. 5 for honor, 29 for OTK burst)
   minRaidScore?: number;    // Minimum viability score (0-100) to join raid (default: 40)

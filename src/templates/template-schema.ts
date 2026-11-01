@@ -372,6 +372,7 @@ export const WorkflowTemplateSchema = z.object({
   batchClaimSize: z.number().int().min(1).max(5).optional(),
   minHpPct: z.number().min(0).max(100).optional(),
   maxHpPct: z.number().min(0).max(100).optional(),
+  exitIfHpPct: z.number().min(0).max(100).optional(),
   minPlayers: z.number().int().min(1).max(30).optional(),
   maxPlayers: z.number().int().min(1).max(30).optional(),
   minRaidScore: z.number().min(0).max(100).optional(),

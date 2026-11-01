@@ -1,6 +1,6 @@
 {
   "name": "Raid - Seofon (Impossible) 4M Honors",
-  "description": "Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer [Ex A Party 3 (Group 15, Priority 153): MC Manadiver + Percival + Zeta + Yuel (Backline: Michael + Alanaan)]. Respects Turn-1 99-turn summon lock (no Turn-1 quick_call), cancels 77,777,777 Emblema, and hits 4,000,000 honors in 2-3 turns.",
+  "description": "Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer [Ex A Party 3 (Group 15, Priority 153): MC Manadiver + Percival + Zeta + Yuel (Backline: Michael + Alanaan)]. Respects Turn-1 99-turn summon lock (no Turn-1 quick_call), cancels 77,777,777 Emblema, hits 4,000,000 honors in 2-3 turns, and exits early if HP <= 12% (10% trigger threshold where honors stop counting).",
   "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
   "mode": "assist",
   "targetEnemy": "Seofon",
@@ -9,14 +9,12 @@
   "raidSlot": 1,
   "targetScore": 4000000,
   "supporterPriority": [
-    "Agni",
-    "Colossus",
-    "Lucifer",
-    "Beelzebub"
+    "Agni"
   ],
   "evaluatorStrategy": "farm",
-  "minHpPct": 35,
+  "minHpPct": 45,
   "maxHpPct": 100,
+  "exitIfHpPct": 12,
   "minPlayers": 1,
   "maxPlayers": 5,
   "minRaidScore": 25,
@@ -40,6 +38,11 @@
     {
       "code": "reload",
       "name": "Reload F5 (Cancel Entry Summon-Lock Animation)"
+    },
+    {
+      "code": "exit_if_hp",
+      "name": "Exit Early if Seofon HP <= 12% on Entry (10% Trigger Threshold)",
+      "targetHpPct": 12
     },
     {
       "code": "skill",
@@ -148,6 +151,11 @@
       "timeoutMs": 8000
     },
     {
+      "code": "exit_if_hp",
+      "name": "Exit Early if Seofon HP <= 12% (10% Trigger Threshold)",
+      "targetHpPct": 12
+    },
+    {
       "code": "attack",
       "name": "Execute Turn 1 Attack (Cancels 77,777,777 Emblema & Triggers Celestial Dominion)",
       "waitForNetwork": "normal_attack_result.json"
@@ -186,6 +194,11 @@
       "timeoutMs": 8000
     },
     {
+      "code": "exit_if_hp",
+      "name": "Exit Early if Seofon HP <= 12% (10% Trigger Threshold)",
+      "targetHpPct": 12
+    },
+    {
       "code": "attack",
       "name": "Execute Turn 2 Burst Attack (MC Double Strike + Celestial Dominion)",
       "waitForNetwork": "normal_attack_result.json"
@@ -214,6 +227,11 @@
       "waitForNetwork": "ability_result.json"
     },
     {
+      "code": "exit_if_hp",
+      "name": "Exit Early if Seofon HP <= 12% (10% Trigger Threshold)",
+      "targetHpPct": 12
+    },
+    {
       "code": "attack",
       "name": "Execute Turn 3 Attack to Secure 4M Honors",
       "waitForNetwork": "normal_attack_result.json"
@@ -232,6 +250,11 @@
       "name": "Wait for Turn 4 Finisher Ready",
       "target": ".btn-attack-start",
       "timeoutMs": 8000
+    },
+    {
+      "code": "exit_if_hp",
+      "name": "Exit Early if Seofon HP <= 12% (10% Trigger Threshold)",
+      "targetHpPct": 12
     },
     {
       "code": "attack",

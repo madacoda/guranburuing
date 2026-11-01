@@ -765,6 +765,11 @@ export class SieteAutoSetupService {
       {
         code: 'reload',
         name: 'Reload F5 (Cancel Entry Summon-Lock Animation)'
+      },
+      {
+        code: 'exit_if_hp',
+        name: 'Exit Early if Seofon HP <= 12% on Entry (10% Trigger Threshold)',
+        targetHpPct: 12
       }
     ];
 
@@ -941,6 +946,11 @@ export class SieteAutoSetupService {
     // Turn 1 Attack -> Cancels 77,777,777 Emblema Omen & Triggers Versusia Celestial Dominion (5+ TAs)
     steps.push(
       {
+        code: 'exit_if_hp',
+        name: 'Exit Early if Seofon HP <= 12% (10% Trigger Threshold)',
+        targetHpPct: 12
+      },
+      {
         code: 'attack',
         name: 'Execute Turn 1 Attack (Cancels 77,777,777 Emblema & Triggers Celestial Dominion)',
         waitForNetwork: 'normal_attack_result.json'
@@ -983,6 +993,11 @@ export class SieteAutoSetupService {
         timeoutMs: 8000
       },
       {
+        code: 'exit_if_hp',
+        name: 'Exit Early if Seofon HP <= 12% (10% Trigger Threshold)',
+        targetHpPct: 12
+      },
+      {
         code: 'attack',
         name: 'Execute Turn 2 Burst Attack (MC Double Strike + Celestial Dominion)',
         waitForNetwork: 'normal_attack_result.json'
@@ -1017,6 +1032,11 @@ export class SieteAutoSetupService {
     }
     steps.push(
       {
+        code: 'exit_if_hp',
+        name: 'Exit Early if Seofon HP <= 12% (10% Trigger Threshold)',
+        targetHpPct: 12
+      },
+      {
         code: 'attack',
         name: 'Execute Turn 3 Attack to Secure 4M Honors',
         waitForNetwork: 'normal_attack_result.json'
@@ -1039,6 +1059,11 @@ export class SieteAutoSetupService {
         name: 'Wait for Turn 4 Finisher Ready',
         target: '.btn-attack-start',
         timeoutMs: 8000
+      },
+      {
+        code: 'exit_if_hp',
+        name: 'Exit Early if Seofon HP <= 12% (10% Trigger Threshold)',
+        targetHpPct: 12
       },
       {
         code: 'attack',
@@ -1083,7 +1108,7 @@ export class SieteAutoSetupService {
 
     const updated: WorkflowTemplate = {
       name: existing.name || 'Raid - Seofon (Impossible) 4M Honors',
-      description: `Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer [${plan.deckTarget.label}: MC ${plan.mcJob.name} + ${frontlineNames} (Backline: ${backlineNames})]. Respects Turn-1 99-turn summon lock (no Turn-1 quick_call), cancels 77,777,777 Emblema, and hits 4,000,000 honors in 2-3 turns.`,
+      description: `Seofon (Impossible) / Siete HL 4,000,000 Honors Blue Chest farmer [${plan.deckTarget.label}: MC ${plan.mcJob.name} + ${frontlineNames} (Backline: ${backlineNames})]. Respects Turn-1 99-turn summon lock (no Turn-1 quick_call), cancels 77,777,777 Emblema, hits 4,000,000 honors in 2-3 turns, and exits early if HP <= 12% (10% trigger threshold).`,
       questUrl: existing.questUrl || 'https://game.granbluefantasy.jp/#quest/assist',
       mode: existing.mode || 'assist',
       targetEnemy: existing.targetEnemy || 'Seofon',
@@ -1095,6 +1120,7 @@ export class SieteAutoSetupService {
       evaluatorStrategy: existing.evaluatorStrategy || 'farm',
       minHpPct: existing.minHpPct ?? 35,
       maxHpPct: existing.maxHpPct ?? 100,
+      exitIfHpPct: existing.exitIfHpPct ?? 12,
       minPlayers: existing.minPlayers ?? 1,
       maxPlayers: existing.maxPlayers ?? 5,
       minRaidScore: existing.minRaidScore ?? 25,

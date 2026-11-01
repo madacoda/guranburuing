@@ -186,6 +186,11 @@ async function run() {
   assert(tplBySiete.targetScore === 4000000, 'raid-seofon targetScore is 4,000,000');
   assert(tplBySiete.targetRaidQuestId === '305411', 'raid-seofon targetRaidQuestId is 305411');
   assert(tplBySiete.element === 'Fire', 'raid-seofon element is Fire');
+  assert(tplBySiete.exitIfHpPct === 12, 'raid-seofon exitIfHpPct is 12 (10% trigger threshold)');
+  assert(
+    tplBySiete.steps.some(s => (s.code || s.action) === 'exit_if_hp' && s.targetHpPct === 12),
+    'raid-seofon contains exit_if_hp steps with targetHpPct 12'
+  );
   assert(
     !tplBySiete.steps.some(s => (s.code || s.action) === 'quick_call'),
     'raid-seofon does not execute Turn-1 quick_call (respects 99T summon lock)'

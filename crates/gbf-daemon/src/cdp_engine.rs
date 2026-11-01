@@ -255,6 +255,8 @@ pub struct FullWorkflowTemplate {
     pub min_hp_pct: Option<f64>,
     #[serde(default, rename = "maxHpPct")]
     pub max_hp_pct: Option<f64>,
+    #[serde(default, rename = "exitIfHpPct")]
+    pub exit_if_hp_pct: Option<f64>,
     #[serde(default, rename = "minPlayers")]
     pub min_players: Option<u32>,
     #[serde(default, rename = "maxPlayers")]
