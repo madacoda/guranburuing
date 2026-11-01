@@ -76,13 +76,14 @@ async function runTests() {
     assert(yearMonth === '2026-10', `Returns correct JST year-month ("${yearMonth}")`);
 
     // State test
+    const currentJstMonth = monthlyShopRoutineService.constructor['getCurrentYearMonthJst']();
     monthlyShopRoutineService.saveState({
-      lastExecutedMonth: '2026-10',
+      lastExecutedMonth: currentJstMonth,
       lastExecutedAt: new Date().toISOString(),
       results: { casinoPotsExchanged: 100, casinoBerriesExchanged: 200, moonPotsExchanged: 0 }
     });
     const state = monthlyShopRoutineService.getState();
-    assert(state.lastExecutedMonth === '2026-10', 'Correctly saves and retrieves monthly execution state');
+    assert(state.lastExecutedMonth === currentJstMonth, 'Correctly saves and retrieves monthly execution state');
     assert(!monthlyShopRoutineService.isDue(false), 'Correctly flags as NOT due when already executed this month');
     assert(monthlyShopRoutineService.isDue(true), 'Force flag overrides isDue check');
   }

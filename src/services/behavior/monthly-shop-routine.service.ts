@@ -92,10 +92,10 @@ export class MonthlyShopRoutineService {
   /**
    * Checks whether the monthly routine is due for execution.
    */
-  public isDue(force = false): boolean {
+  public isDue(force = false, date: Date = new Date()): boolean {
     if (force) return true;
-    const currentMonth = MonthlyShopRoutineService.getCurrentYearMonthJst();
-    const isFirstDay = MonthlyShopRoutineService.isFirstDayOfMonthJst();
+    const currentMonth = MonthlyShopRoutineService.getCurrentYearMonthJst(date);
+    const isFirstDay = MonthlyShopRoutineService.isFirstDayOfMonthJst(date);
     const state = this.getState();
     return isFirstDay && state.lastExecutedMonth !== currentMonth;
   }
