@@ -1,7 +1,7 @@
 // src/services/behavior/human-cadence-orchestrator.service.ts
 import { Page } from 'puppeteer-core';
 import { SentinelWatchdog } from '../../sentinel-watchdog.js';
-import { logNormalDelay, sampleGaussian } from '../../human-motor.js';
+import { logNormalDelay, sampleGaussian, getFatigueLevel, resetFatigue } from '../../human-motor.js';
 import { FarmEngine, FarmSummary } from '../../engines/farm.engine.js';
 import { inventoryAuditorService, InventorySnapshot } from './inventory-auditor.service.js';
 import { monthlyShopRoutineService } from './monthly-shop-routine.service.js';
@@ -180,7 +180,8 @@ export class HumanCadenceOrchestrator {
       if (c < totalCycles && !this.stopRequested) {
         const restDurationMs = (Math.floor(Math.random() * (maxRestMin - minRestMin + 1)) + minRestMin) * 60 * 1000;
         const restMinStr = (restDurationMs / 60000).toFixed(1);
-        console.log(`\n[HumanCadence] ☕ Phase 4: Taking natural player break (${restMinStr} minutes)...`);
+        const preBreakFatigue = getFatigueLevel();
+        console.log(`\n[HumanCadence] ☕ Phase 4: Taking natural player break (${restMinStr} minutes, current motor fatigue=${preBreakFatigue.toFixed(2)})...`);
 
         discordPresence.updateStatus({
           status: 'Idle',
@@ -198,7 +199,8 @@ export class HumanCadenceOrchestrator {
           await new Promise(r => setTimeout(r, 2000));
         }
 
-        console.log('[HumanCadence] ⚡ Break complete! Resuming play with fresh motor baseline.');
+        resetFatigue(1.0);
+        console.log(`[HumanCadence] ⚡ Break complete! Motor fatigue cleared (${preBreakFatigue.toFixed(2)} -> ${getFatigueLevel().toFixed(2)}). Resuming play with fresh motor baseline.`);
       }
     }
 

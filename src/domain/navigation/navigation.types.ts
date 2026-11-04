@@ -25,6 +25,7 @@ export interface PendingBattleResolution {
   readonly unclaimedCount: number;
   readonly clearedCount: number;
   readonly goldBarDetected: boolean;
+  readonly eternitySandDetected?: boolean;
   readonly blueChestDetected: boolean;
   readonly message: string;
 }

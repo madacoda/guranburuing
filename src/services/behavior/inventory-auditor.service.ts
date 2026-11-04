@@ -9,6 +9,7 @@ export interface InventorySnapshot {
   timestamp: string;
   jstDate: string;
   goldBars: number;
+  eternitySands?: number;
   damascusIngots: number;
   damascusCrystals: number;
   halfElixirs: number;
@@ -107,6 +108,7 @@ export class InventoryAuditorService {
     return [
       title,
       `• 🌟 **Gold Bricks (ヒヒイロカネ)**: **\`${snapshot.goldBars.toLocaleString()}\`**`,
+      `• ⏳ **Eternity Sands (刻の流砂)**: **\`${(snapshot.eternitySands ?? 0).toLocaleString()}\`**`,
       `• 💎 **Damascus Ingots**: \`${snapshot.damascusIngots.toLocaleString()}\` | Crystals: \`${snapshot.damascusCrystals.toLocaleString()}\``,
       `• 🧪 **Half Elixirs**: \`${snapshot.halfElixirs.toLocaleString()}\` | 🫐 **Berries**: \`${snapshot.soulBerries.toLocaleString()}\``,
       `• 🌙 **Moons**: 🥇 \`${snapshot.goldMoons.toLocaleString()}\` | 🥈 \`${snapshot.silverMoons.toLocaleString()}\` | 🥉 \`${snapshot.bronzeMoons.toLocaleString()}\``,
@@ -127,6 +129,7 @@ export class InventoryAuditorService {
       '| Item | Japanese | Count |',
       '| :--- | :--- | :--- |',
       `| 🌟 **Gold Brick (Gold Bar)** | ヒヒイロカネ | **${snapshot.goldBars}** |`,
+      `| ⏳ **Eternity Sand** | 刻の流砂 | **${snapshot.eternitySands ?? 0}** |`,
       `| 💎 **Damascus Ingot** | ダマスカス鋼 | **${snapshot.damascusIngots}** |`,
       `| 🔮 **Damascus Crystal** | ダマスカス骸晶 | **${snapshot.damascusCrystals}** |`,
       '',
@@ -168,6 +171,7 @@ export class InventoryAuditorService {
       const parsedData = await page.evaluate(async () => {
         const supplies = {
           goldBars: 0,
+          eternitySands: 0,
           damascusIngots: 0,
           damascusCrystals: 0,
           halfElixirs: 0,
@@ -193,10 +197,14 @@ export class InventoryAuditorService {
           const nameEl = it.querySelector('.prt-item-name, .txt-item-name, .name') || it;
           const countEl = it.querySelector('.prt-item-num, .txt-item-num, .prt-number, .num');
           const nameText = (nameEl.textContent || '').trim();
+          const dataItemId = it.getAttribute('data-item-id') || '';
+          const dataKey = it.getAttribute('data-key') || '';
           const count = extractCount(countEl || it);
 
           if (nameText.includes('ヒヒイロカネ') || nameText.includes('Gold Brick') || nameText.includes('Gold Bar')) {
             supplies.goldBars = count;
+          } else if (nameText.includes('刻の流砂') || nameText.includes('Eternity Sand') || dataItemId === '215' || dataKey === '10_215') {
+            supplies.eternitySands = count;
           } else if (nameText.includes('ダマスカス鋼') || nameText.includes('Damascus Ingot')) {
             supplies.damascusIngots = count;
           } else if (nameText.includes('ダマスカス骸晶') || nameText.includes('Damascus Crystal')) {
@@ -223,6 +231,7 @@ export class InventoryAuditorService {
         timestamp,
         jstDate,
         goldBars: parsedData.goldBars || previous?.goldBars || 0,
+        eternitySands: parsedData.eternitySands || previous?.eternitySands || 0,
         damascusIngots: parsedData.damascusIngots || previous?.damascusIngots || 0,
         damascusCrystals: parsedData.damascusCrystals || previous?.damascusCrystals || 0,
         halfElixirs: parsedData.halfElixirs || previous?.halfElixirs || 0,
@@ -233,7 +242,7 @@ export class InventoryAuditorService {
       };
 
       this.saveSnapshot(snapshot);
-      console.log(`[InventoryAuditor] ✅ Inventory audit complete: ${snapshot.goldBars} Gold Bars | ${snapshot.halfElixirs} Half Elixirs`);
+      console.log(`[InventoryAuditor] ✅ Inventory audit complete: ${snapshot.goldBars} Gold Bars | ${snapshot.eternitySands ?? 0} Eternity Sands | ${snapshot.halfElixirs} Half Elixirs`);
 
       return {
         success: true,
@@ -247,6 +256,7 @@ export class InventoryAuditorService {
         timestamp,
         jstDate,
         goldBars: 0,
+        eternitySands: 0,
         damascusIngots: 0,
         damascusCrystals: 0,
         halfElixirs: 0,

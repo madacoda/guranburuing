@@ -136,6 +136,7 @@
           "items": { "type": "string" }
         },
         "goldBarItemId": { "type": "string" },
+        "eternitySandItemId": { "type": "string" },
         "blueChestSelectors": {
           "type": "array",
           "items": { "type": "string" }

@@ -81,6 +81,7 @@ export class UniversalWorkflowEngine {
     const state: UniversalWorkflowState = {
       stopRequested: false,
       totalGoldBarsAccumulated: 0,
+      totalEternitySandsAccumulated: 0,
       totalBlueChestsAccumulated: 0,
       totalHonorsAccumulated: 0,
       totalLootItemsAccumulated: 0,
@@ -94,6 +95,7 @@ export class UniversalWorkflowEngine {
       currentLogPath: 'logs/workflow.md',
       currentWorkflowLogPath: 'logs/workflow.md',
       currentBattleHadGoldBar: false,
+      currentBattleHadEternitySand: false,
       currentBattleHadBlueChest: false,
       totalCompletedRuns: 0,
       dailyCatalogCache: null,
@@ -194,6 +196,9 @@ export class UniversalWorkflowEngine {
   public get totalGoldBarsAccumulated(): number { return this.ctx.state.totalGoldBarsAccumulated; }
   public set totalGoldBarsAccumulated(v: number) { this.ctx.state.totalGoldBarsAccumulated = v; }
 
+  public get totalEternitySandsAccumulated(): number { return this.ctx.state.totalEternitySandsAccumulated || 0; }
+  public set totalEternitySandsAccumulated(v: number) { this.ctx.state.totalEternitySandsAccumulated = v; }
+
   public get totalBlueChestsAccumulated(): number { return this.ctx.state.totalBlueChestsAccumulated; }
   public set totalBlueChestsAccumulated(v: number) { this.ctx.state.totalBlueChestsAccumulated = v; }
 
@@ -285,16 +290,27 @@ export class UniversalWorkflowEngine {
     return this.telemetry.checkForGoldBarDrop(payload);
   }
 
+  public checkForEternitySandDrop(payload: any): boolean {
+    return this.telemetry.checkForEternitySandDrop(payload);
+  }
+
   public checkForBlueChestDrop(payload: any): boolean {
     return this.telemetry.checkForBlueChestDrop(payload);
   }
 
-  public async captureCleanLootProof(raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
-    return await this.telemetry.captureCleanLootProof(raidId);
+  public async captureCleanLootProof(
+    raidId?: string,
+    itemType: 'gold-bar' | 'eternity-sand' = 'gold-bar'
+  ): Promise<{ buffer?: Buffer; path: string }> {
+    return await this.telemetry.captureCleanLootProof(raidId, itemType);
   }
 
   public async broadcastGoldBarFound(overrideRaidId?: string): Promise<void> {
     return await this.telemetry.broadcastGoldBarFound(overrideRaidId);
+  }
+
+  public async broadcastEternitySandFound(overrideRaidId?: string): Promise<void> {
+    return await this.telemetry.broadcastEternitySandFound(overrideRaidId);
   }
 
   private calculateNextBatchThreshold(): number {
@@ -319,6 +335,7 @@ export class UniversalWorkflowEngine {
     let totalCompleted = 0;
     this.ctx.state.stopRequested = false;
     this.ctx.state.totalGoldBarsAccumulated = 0;
+    this.ctx.state.totalEternitySandsAccumulated = 0;
     this.ctx.state.totalHonorsAccumulated = 0;
     this.ctx.state.totalLootItemsAccumulated = 0;
     this.ctx.state.joinedInCurrentBatch = 0;
@@ -424,6 +441,7 @@ export class UniversalWorkflowEngine {
       this.ctx.state.currentScore = 0;
       this.ctx.state.currentTurn = 1;
       this.ctx.state.currentBattleHadGoldBar = false;
+      this.ctx.state.currentBattleHadEternitySand = false;
       this.ctx.state.currentBattleHadBlueChest = false;
       this.ctx.state.totalCompletedRuns = totalCompleted;
 
@@ -576,6 +594,7 @@ export class UniversalWorkflowEngine {
           honors: this.ctx.state.currentScore,
           targetMet: (!this.template.targetScore || this.ctx.state.currentScore >= this.template.targetScore),
           hasGoldBar: this.ctx.state.currentBattleHadGoldBar,
+          hasEternitySand: this.ctx.state.currentBattleHadEternitySand,
           hasBlueChest: this.ctx.state.currentBattleHadBlueChest
         });
       }

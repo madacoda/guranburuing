@@ -5,11 +5,13 @@ export interface LootItem {
   name: string;
   count: number;
   isGoldBar?: boolean;
+  isEternitySand?: boolean;
   isBlueChest?: boolean;
 }
 
 export interface RaidLootInspectionOutcome {
   hasGoldBar: boolean;
+  hasEternitySand?: boolean;
   hasBlueChest: boolean;
   raidId: string;
   lootItems: LootItem[];
@@ -19,6 +21,10 @@ export interface RaidLootInspectionOutcome {
 export interface ILootTrackerService {
   inspectRewardResponse(data: string | Uint8Array | any): RaidLootInspectionOutcome;
   inspectDomRewards(): Promise<RaidLootInspectionOutcome>;
-  captureCleanLootProof(page: any, raidId?: string): Promise<{ buffer?: Buffer; path: string }>;
+  captureCleanLootProof(
+    page: any,
+    raidId?: string,
+    itemType?: 'gold-bar' | 'eternity-sand'
+  ): Promise<{ buffer?: Buffer; path: string }>;
   recordLootOutcome(outcome: RaidLootInspectionOutcome, questName: string): void;
 }

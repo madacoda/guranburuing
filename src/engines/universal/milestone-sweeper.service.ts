@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { logNormalDelay, humanizedClick } from '../../human-motor.js';
 import { goldBarTracker } from '../../services/telemetry/gold-bar-tracker.service.js';
+import { eternitySandTracker } from '../../services/telemetry/eternity-sand-tracker.service.js';
 import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
 import { discordPresence } from '../../relay/discord-presence.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
@@ -86,6 +87,7 @@ export class MilestoneSweeperService {
     const prevScore = this.ctx.state.currentScore;
     const prevTurn = this.ctx.state.currentTurn;
     const prevHadGoldBar = this.ctx.state.currentBattleHadGoldBar;
+    const prevHadEternitySand = this.ctx.state.currentBattleHadEternitySand;
     const prevHadBlueChest = this.ctx.state.currentBattleHadBlueChest;
     this.ctx.state.isClaimingPending = true;
 
@@ -229,6 +231,12 @@ export class MilestoneSweeperService {
         const payloadHasGoldBar = LootTrackerService.hasGoldBarInPayload(this.ctx.state.latestRewardData);
         const dropDetected = domCheck.hasGoldBar || payloadHasGoldBar;
 
+        const sandDomCheck = await this.combatResolution.inspectDomForEternitySand();
+        const payloadHasEternitySand = LootTrackerService.hasEternitySandInPayload(
+          this.ctx.state.latestRewardData
+        );
+        const sandDetected = sandDomCheck.hasEternitySand || payloadHasEternitySand;
+
         const claimedHonors = await this.combatResolution.syncCurrentHonors();
         if (claimedHonors > 0) {
           console.log(`[Workflow] Claimed Battle #${claimedCount + 1} settled with ${claimedHonors.toLocaleString()} honors.`);
@@ -276,6 +284,59 @@ export class MilestoneSweeperService {
               dryStreakMode: stats.dryStreakMode,
               status: 'Claiming Pending'
             }, true);
+          }
+        }
+
+        if (sandDetected) {
+          const finalRaidId = sandDomCheck.raidId || activeClaimedRaidId || 'Pending Claim';
+          console.log(`\n========================================================================`);
+          console.log(
+            `  ⏳⏳⏳ [ETERNITY SAND CONFIRMED IN CLAIMED BATTLE!] Raid: ${finalRaidId} ⏳⏳⏳`
+          );
+          console.log(`========================================================================\n`);
+
+          const lootTracker = new LootTrackerService(this.page);
+          const proof = await lootTracker.captureCleanLootProof(
+            this.page,
+            finalRaidId,
+            'eternity-sand'
+          );
+          const shotBuf = proof.buffer;
+          const proofPath = proof.path;
+
+          const honorsStr =
+            this.ctx.state.currentScore > 0
+              ? this.ctx.state.currentScore.toLocaleString() + ' pt'
+              : '-';
+          await eternitySandTracker
+            .recordDrop({
+              raidId: finalRaidId,
+              questName: this.ctx.template.name,
+              honors: honorsStr,
+              turns: '-',
+              screenshotPath: shotBuf ? proofPath : undefined,
+              screenshotBuffer: shotBuf ? Buffer.from(shotBuf) : undefined,
+              source: 'pending_claim',
+              accountId: this.ctx.accountId,
+              skipAlert: Boolean(this.ctx.dropLogger)
+            })
+            .catch(() => null);
+
+          if (this.ctx.dropLogger) {
+            this.ctx.dropLogger.recordPendingEternitySand(
+              finalRaidId,
+              shotBuf ? proofPath : undefined
+            );
+            await this.ctx.dropLogger
+              .notifyEternitySandDrop({
+                raidId: finalRaidId,
+                honors: honorsStr,
+                turns: '-',
+                screenshotBuffer: shotBuf ? Buffer.from(shotBuf) : undefined,
+                screenshotPath: shotBuf ? proofPath : undefined,
+                accountId: this.ctx.accountId
+              })
+              .catch(() => null);
           }
         }
 
@@ -329,6 +390,7 @@ export class MilestoneSweeperService {
       this.ctx.state.currentScore = prevScore;
       this.ctx.state.currentTurn = prevTurn;
       this.ctx.state.currentBattleHadGoldBar = prevHadGoldBar;
+      this.ctx.state.currentBattleHadEternitySand = prevHadEternitySand;
       this.ctx.state.currentBattleHadBlueChest = prevHadBlueChest;
     }
 

@@ -14,6 +14,7 @@ export interface BattleRecord {
   targetMet: boolean;
   hasBlueChest: boolean;
   hasGoldBar: boolean;
+  hasEternitySand?: boolean;
   battlesWithoutGb: number;
   blueChestsWithoutGb: number;
   battleUrl?: string;
@@ -25,6 +26,7 @@ export type DryStreakMode = 'blue_chest' | 'min_honor' | 'all_battles';
 export interface DropStats {
   totalBattles: number;
   goldBars: number;
+  eternitySands: number;
   blueChests: number;
   blueChestRatePct: string;
   battlesWithoutGb: number;
@@ -37,6 +39,7 @@ export interface DropStats {
   dropRatePerBattlePct: string;
   dryStreakMode: DryStreakMode;
   goldBarsToday: number;
+  eternitySandsToday: number;
 }
 
 export interface DropLoggerOptions {
@@ -56,6 +59,7 @@ export interface RaidWorkflowResult {
   turns: number;
   durationMs: number;
   goldBarFound: boolean;
+  eternitySandFound?: boolean;
   blueChestFound?: boolean;
   hitPendingLimit?: boolean;
   raidEndedEarly?: boolean;
@@ -147,7 +151,16 @@ export class DropLogger {
             const raidMatch = rawRaidId.match(/\[?(\d{8,})\]?/);
             const raidId = raidMatch ? raidMatch[1] : rawRaidId.replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
             const hasBlueChest = cols[5].includes('Yes') || cols[5].includes('💎');
-            const hasGoldBar = cols[6].includes('YES') || cols[6].includes('🌟') || cols[6].includes('Gold Bar');
+            const hasGoldBar =
+              cols[6].includes('GOLD BAR') ||
+              cols[6].includes('🌟') ||
+              cols[6].includes('Gold Bar') ||
+              (cols[6].includes('YES') && !cols[6].includes('ETERNITY SAND'));
+            const hasEternitySand =
+              cols[6].includes('ETERNITY SAND') ||
+              cols[6].includes('⏳') ||
+              cols[6].includes('Eternity Sand') ||
+              cols[6].includes('215.jpg');
             const blueChestsWithoutGb = parseInt(cols[7], 10) || 0;
             const battlesWithoutGb = parseInt(cols[8], 10) || 0;
             const battleUrl = raidId && /^\d+$/.test(raidId)
@@ -163,6 +176,7 @@ export class DropLogger {
               targetMet: hasBlueChest,
               hasBlueChest,
               hasGoldBar,
+              hasEternitySand,
               battlesWithoutGb,
               blueChestsWithoutGb,
               battleUrl
@@ -282,6 +296,7 @@ export class DropLogger {
   public getStats(): DropStats {
     const totalBattles = this.records.length;
     const goldBars = this.records.filter(r => r.hasGoldBar).length;
+    const eternitySands = this.records.filter(r => r.hasEternitySand).length;
     const blueChests = this.records.filter(r => r.hasBlueChest).length;
     const battlesWithoutGb = totalBattles - goldBars;
     const blueChestsWithoutGb = blueChests - goldBars;
@@ -335,9 +350,14 @@ export class DropLogger {
       r.hasGoldBar && (r.timestamp.startsWith(todayDateStr) || r.timestamp.startsWith(localDateStr))
     ).length;
 
+    const eternitySandsToday = this.records.filter(r =>
+      r.hasEternitySand && (r.timestamp.startsWith(todayDateStr) || r.timestamp.startsWith(localDateStr))
+    ).length;
+
     return {
       totalBattles,
       goldBars,
+      eternitySands,
       blueChests,
       blueChestRatePct,
       battlesWithoutGb,
@@ -349,7 +369,8 @@ export class DropLogger {
       dropRatePerBlueChestPct,
       dropRatePerBattlePct,
       dryStreakMode: this.dryStreakMode,
-      goldBarsToday
+      goldBarsToday,
+      eternitySandsToday
     };
   }
 
@@ -363,6 +384,7 @@ export class DropLogger {
     targetMet: boolean;
     hasBlueChest?: boolean;
     hasGoldBar?: boolean;
+    hasEternitySand?: boolean;
     timestamp?: string;
     screenshotPath?: string;
   }): { record: BattleRecord; stats: DropStats } {
@@ -370,6 +392,7 @@ export class DropLogger {
     const runNumber = this.records.length + 1;
     const timestamp = data.timestamp || new Date().toISOString().replace('T', ' ').slice(0, 19);
     const hasGoldBar = !!data.hasGoldBar;
+    const hasEternitySand = !!data.hasEternitySand;
 
     const honorsNum = typeof data.honors === 'number'
       ? data.honors
@@ -377,7 +400,7 @@ export class DropLogger {
 
     const hasBlueChest = data.hasBlueChest !== undefined
       ? data.hasBlueChest
-      : (hasGoldBar || data.targetMet || honorsNum >= this.minBlueChestHonor);
+      : (hasGoldBar || hasEternitySand || data.targetMet || honorsNum >= this.minBlueChestHonor);
 
     // Calculate streaks without GB for this entry
     const lastRec = this.records[this.records.length - 1];
@@ -407,6 +430,7 @@ export class DropLogger {
       targetMet: data.targetMet,
       hasBlueChest,
       hasGoldBar,
+      hasEternitySand,
       battlesWithoutGb,
       blueChestsWithoutGb,
       battleUrl,
@@ -509,7 +533,59 @@ export class DropLogger {
     return this.getStats();
   }
 
+  /**
+   * Updates an existing raid or appends an Eternity Sand drop entry when discovered via pending battle claim.
+   */
+  public recordPendingEternitySand(raidId?: string, screenshotPath?: string): DropStats {
+    this.syncIfModifiedOnDisk();
+    let matched = false;
+
+    if (raidId && raidId !== 'PBHL' && raidId !== 'Akasha' && raidId !== 'GO') {
+      const cleanRaidId = raidId.replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+      for (let i = this.records.length - 1; i >= 0; i--) {
+        if (this.records[i].raidId === cleanRaidId) {
+          this.records[i].hasEternitySand = true;
+          this.records[i].hasBlueChest = true;
+          if (screenshotPath) this.records[i].screenshotPath = screenshotPath;
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    if (!matched) {
+      const cleanRaidId = (raidId || 'Pending Claim')
+        .replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '')
+        .trim();
+      const battleUrl = /^\d+$/.test(cleanRaidId)
+        ? `https://game.granbluefantasy.jp/#result_multi/${cleanRaidId}`
+        : undefined;
+
+      this.records.push({
+        runNumber: this.records.length + 1,
+        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        raidId: cleanRaidId,
+        turns: '-',
+        honors: '-',
+        targetMet: true,
+        hasBlueChest: true,
+        hasGoldBar: false,
+        hasEternitySand: true,
+        battlesWithoutGb: 1,
+        blueChestsWithoutGb: 1,
+        battleUrl,
+        screenshotPath
+      });
+    }
+
+    this.recalculateStreaks();
+    this.writeLogFile();
+    this.syncJsonlFile();
+    return this.getStats();
+  }
+
   private static notifiedRaidIds = new Set<string>();
+  private static notifiedSandRaidIds = new Set<string>();
 
   /**
    * Dispatches Discord DM notification with attached screenshot and battle log URL.
@@ -591,6 +667,89 @@ export class DropLogger {
   }
 
   /**
+   * Dispatches Discord DM notification for an Eternity Sand drop with attached screenshot and battle log URL.
+   */
+  public async notifyEternitySandDrop(details: {
+    raidId: string;
+    honors: string | number;
+    turns: string | number;
+    screenshotBuffer?: Buffer;
+    screenshotPath?: string;
+    accountId?: string;
+  }): Promise<void> {
+    const cleanRaidId = (details.raidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
+
+    if (cleanRaidId && /^\d+$/.test(cleanRaidId)) {
+      if (DropLogger.notifiedSandRaidIds.has(cleanRaidId)) {
+        console.log(
+          `[DropLogger] ⏭️ Raid ${cleanRaidId} Eternity Sand drop has already been notified. Skipping duplicate alert.`
+        );
+        return;
+      }
+      DropLogger.notifiedSandRaidIds.add(cleanRaidId);
+    }
+
+    const battleUrl =
+      cleanRaidId && /^\d+$/.test(cleanRaidId)
+        ? `https://game.granbluefantasy.jp/#result_multi/detail/${cleanRaidId}/1/0/0`
+        : 'https://game.granbluefantasy.jp/#quest/assist';
+
+    const timestamp =
+      new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Tokyo',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }) + ' (JST)';
+
+    const playerName = details.accountId || 'acc1';
+
+    const content = [
+      '⏳ **Eternity Sand (刻の流砂) Drop Confirmed** ⏳',
+      `• **Raid**: ${this.raidTitle}`,
+      cleanRaidId ? `• **Raid ID**: \`${cleanRaidId}\`` : '',
+      `• **Battle Log**: ${battleUrl}`,
+      `• **Timestamp**: ${timestamp}`,
+      `• **Account**: ${playerName}`
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    console.log(`\n========================================================================`);
+    console.log(`  ⏳⏳⏳ [ETERNITY SAND DROP CONFIRMED!] Raid: ${cleanRaidId} ⏳⏳⏳`);
+    console.log(`  🔗 Battle Log URL: ${battleUrl}`);
+    console.log(`========================================================================\n`);
+
+    process.stdout.write('\x07\x07\x07');
+
+    if (discordDmRelay.isConfigured()) {
+      try {
+        console.log('[DropLogger] 📤 Sending Eternity Sand screenshot and details to Discord DM...');
+        await discordDmRelay.sendMessage(
+          content,
+          details.screenshotBuffer,
+          `eternity-sand-${cleanRaidId || 'drop'}.png`,
+          undefined,
+          true
+        );
+        console.log('[DropLogger] ✅ Eternity Sand Discord DM alert delivered successfully!');
+      } catch (err: any) {
+        console.error('[DropLogger] Discord DM alert error:', err.message);
+      }
+    }
+
+    try {
+      const alertRelay = new AlertRelay();
+      await alertRelay.sendEmergencyAlert(
+        `⏳ ETERNITY SAND DROP CONFIRMED!\n• Raid: ${this.raidTitle}\n• Battle ID: ${cleanRaidId || 'N/A'}\n• Log URL: ${battleUrl}\n• Honors: ${details.honors}\n• Turns: ${details.turns}`,
+        details.screenshotBuffer
+      );
+    } catch {}
+  }
+
+  /**
    * Backfills records (e.g. for pre-existing runs executed prior to session logging).
    */
   public backfillRecords(newRecords: BattleRecord[]): void {
@@ -613,6 +772,7 @@ export class DropLogger {
     md += `> ### 📊 Cumulative Drop Rate & Farming Statistics\n`;
     md += `> - **Total Battles Fought:** \`${stats.totalBattles}\`\n`;
     md += `> - **Gold Bars Dropped:** \`${stats.goldBars}\`\n`;
+    md += `> - **Eternity Sands Dropped (刻の流砂):** \`${stats.eternitySands}\`\n`;
     md += `> - **Blue Chests Earned:** \`${stats.blueChests}\` (${stats.blueChestRatePct} of battles)\n`;
     md += `> - **Current Dry Streak (${this.dryStreakMode}):** \`${stats.currentDryStreak}\` ${this.dryStreakMode === 'blue_chest' ? 'blue chests' : 'battles'}\n`;
     md += `> - **Blue Chests Without Gold Bar:** \`${stats.blueChestsWithoutGb}\` (Current dry streak: \`${stats.currentDryStreakBlueChests}\`)\n`;
@@ -641,14 +801,39 @@ export class DropLogger {
       md += `\n`;
     }
 
+    const sandDrops = this.records.filter((r) => r.hasEternitySand);
+    if (sandDrops.length > 0) {
+      md += `> ### 🏆 ⏳ Eternity Sand Drops Hall of Fame ⏳\n`;
+      md += `> | Drop # | Timestamp | Battle Result URL | Honors | Turns | Proof Screenshot |\n`;
+      md += `> | :---: | :--- | :--- | :---: | :---: | :--- |\n`;
+      sandDrops.forEach((sd, idx) => {
+        const battleLink = sd.raidId && /^\d+$/.test(sd.raidId)
+          ? `[Battle #${sd.raidId}](https://game.granbluefantasy.jp/#result_multi/detail/${sd.raidId}/1/0/0)`
+          : (sd.battleUrl ? `[Battle Log](${sd.battleUrl})` : sd.raidId);
+        const proof = sd.screenshotPath
+          ? (sd.screenshotPath.startsWith('http') || sd.screenshotPath.includes('/') || sd.screenshotPath.includes('\\')
+              ? `[Screenshot](${sd.screenshotPath})`
+              : sd.screenshotPath)
+          : 'Confirmed In-Game';
+        md += `> | ${idx + 1} | ${sd.timestamp} | ${battleLink} | ${sd.honors} | ${sd.turns} | ${proof} |\n`;
+      });
+      md += `\n`;
+    }
+
     md += `---\n\n`;
     md += `| Run # | Timestamp | Raid ID | Turns | Honors | Blue Chest? | Gold Bar Found? | Blue Chest Dry Streak | Total Dry Streak |\n`;
     md += `| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n`;
 
     for (const r of this.records) {
-      const gbBadge = r.hasGoldBar
-        ? '<img class="img-thumb" src="https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/evolution/s/20004.jpg" width="18" height="18" style="vertical-align:middle;"> 🌟 **YES! GOLD BAR!** 🌟'
-        : '❌ No';
+      const gbIcon = '<img class="img-thumb" src="https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/evolution/s/20004.jpg" width="18" height="18" style="vertical-align:middle;"> 🌟 **YES! GOLD BAR!** 🌟';
+      const sandIcon = '<img class="img-thumb" src="https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/article/s/215.jpg" width="18" height="18" style="vertical-align:middle;"> ⏳ **YES! ETERNITY SAND!** ⏳';
+      const gbBadge = r.hasGoldBar && r.hasEternitySand
+        ? `${gbIcon} + ${sandIcon}`
+        : r.hasGoldBar
+          ? gbIcon
+          : r.hasEternitySand
+            ? sandIcon
+            : '❌ No';
       const blueBadge = r.hasBlueChest ? '💎 Yes' : '❌ No';
       const blueStreakStr = r.hasGoldBar ? '0 (Drop!)' : (r.blueChestsWithoutGb ?? 0).toString();
       const allStreakStr = r.hasGoldBar ? '0 (Drop!)' : r.battlesWithoutGb.toString();

@@ -54,6 +54,175 @@ export class LootTrackerService implements ILootTrackerService {
   }
 
   /**
+   * Authoritative check for whether an individual reward item object represents an Eternity Sand (ID 215, kind 10 / article).
+   */
+  public static isEternitySandItemObject(node: any, objectKey?: string): boolean {
+    if (!node || typeof node !== 'object') return false;
+    if (objectKey === '10_215') return true;
+
+    const rawId = String(node.item_id ?? node.id ?? '').trim();
+    const rawKey = String(node.key ?? node.item_key ?? '').trim();
+    const rawKind = String(node.item_kind ?? node.kind ?? node.type ?? '').trim();
+    const rawName = String(node.name ?? node.item_name ?? '').trim();
+    const rawImg = String(node.img ?? node.image ?? node.thumbnail ?? '').trim();
+
+    if (rawKey === '10_215' || rawId === '10_215') return true;
+
+    if (rawId === '215') {
+      // In GBF, Eternity Sand is a treasure/article item (item_kind 10).
+      // Reject if explicitly marked as another kind (e.g. 17=evolution, 1=weapon, 2=summon, 9=rupies).
+      if (rawKind === '10' || rawKind.toLowerCase() === 'article') {
+        return true;
+      }
+      if (
+        rawKind === '' &&
+        (node.item_id !== undefined ||
+          node.count !== undefined ||
+          node.num !== undefined ||
+          node.number !== undefined)
+      ) {
+        return true;
+      }
+    }
+
+    if (/\bEternity\s+Sand\b/i.test(rawName) || rawName.includes('刻の流砂')) {
+      return true;
+    }
+
+    if (/\/item\/article\/[a-z0-9_]+\/215\.(?:jpg|png)/i.test(rawImg)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Authoritative check for Eternity Sand markers inside decoded result HTML templates (payload.data).
+   * Never matches bare '215' substrings (which collide with Rupies, EXP, damage, honors, or timestamps).
+   */
+  public static hasEternitySandInHtml(html: string): boolean {
+    if (!html || typeof html !== 'string') return false;
+    const fastFlags = rustBridge.scanPayloadFlags(html);
+    if (fastFlags !== null && !fastFlags.hasEternitySand && !html.includes('%')) {
+      return false;
+    }
+    let decoded = html;
+    if (html.includes('%')) {
+      try {
+        decoded = decodeURIComponent(html);
+      } catch {
+        decoded = html;
+      }
+    }
+
+    // Strip bottom footer treasure tracker (.prt-treasure-wrapper) because Eternity Sand (article 215)
+    // can be pinned by players as a tracked treasure in the footer bar.
+    if (decoded.includes('prt-treasure-wrapper')) {
+      decoded = decoded.replace(
+        /<div[^>]*class=["'][^"']*prt-treasure-wrapper[^"']*["'][^>]*>[\s\S]*?<\/div>/gi,
+        ''
+      );
+    }
+
+    if (
+      /data-key=["']10_215["']/i.test(decoded) ||
+      /\/item\/article\/[a-z0-9_]+\/215\.(?:jpg|png)/i.test(decoded) ||
+      /\bEternity\s+Sand\b/i.test(decoded) ||
+      decoded.includes('刻の流砂')
+    ) {
+      return true;
+    }
+
+    // Match data-item-id="215" only on reward elements (not footer .prt-treasure-wrapper or non-article kinds)
+    const itemIdTagRegex = /<([a-z0-9]+)[^>]*\bdata-item-id=["']215["'][^>]*>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = itemIdTagRegex.exec(decoded)) !== null) {
+      const tagHtml = match[0];
+      const kindMatch = tagHtml.match(/\bdata-item-kind=["']([^"']+)["']/i);
+      const hasWrongKind =
+        kindMatch && kindMatch[1] !== '10' && kindMatch[1].toLowerCase() !== 'article';
+      if (!tagHtml.includes('prt-treasure-wrapper') && !hasWrongKind) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Authoritative check for Eternity Sand drops in a GBF battle result / reward JSON payload.
+   * Exclusively inspects reward item structures (reward_list / rewards) and result HTML (payload.data),
+   * preventing false positives from Rupies, EXP, honors, damage, or user IDs containing '215'.
+   */
+  public static hasEternitySandInPayload(payload: any): boolean {
+    if (!payload || typeof payload !== 'object') return false;
+    let found = false;
+
+    const traverseRewardNode = (node: any, key?: string): void => {
+      if (!node || found) return;
+      if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+          traverseRewardNode(node[i]);
+          if (found) return;
+        }
+        return;
+      }
+      if (typeof node === 'object') {
+        if (LootTrackerService.isEternitySandItemObject(node, key)) {
+          found = true;
+          return;
+        }
+        const keys = Object.keys(node);
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          // Skip article_list inventory summaries unless they are reward_list entries
+          if (k === 'article_list') continue;
+          traverseRewardNode(node[k], k);
+          if (found) return;
+        }
+      }
+    };
+
+    const rewardSources = [
+      payload.rewards?.reward_list,
+      payload.option?.result_data?.rewards?.reward_list,
+      payload.reward_list,
+      Array.isArray(payload.rewards) ? payload.rewards : undefined,
+      Array.isArray(payload.option?.result_data?.rewards)
+        ? payload.option.result_data.rewards
+        : undefined
+    ].filter(Boolean);
+
+    if (rewardSources.length > 0) {
+      for (const src of rewardSources) {
+        traverseRewardNode(src);
+        if (found) return true;
+      }
+    } else if (
+      payload.rewards &&
+      typeof payload.rewards === 'object' &&
+      !payload.rewards.reward_list
+    ) {
+      traverseRewardNode(payload.rewards);
+      if (found) return true;
+    } else if (
+      payload.item_id !== undefined ||
+      payload.item_name !== undefined ||
+      payload.key === '10_215'
+    ) {
+      if (LootTrackerService.isEternitySandItemObject(payload)) {
+        return true;
+      }
+    }
+
+    if (typeof payload.data === 'string' && LootTrackerService.hasEternitySandInHtml(payload.data)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Authoritative check for Gold Brick markers inside decoded result HTML templates (payload.data).
    * Never matches bare '20004' substrings (which collide with Rupies, EXP, damage, or timestamps).
    */
@@ -226,6 +395,7 @@ export class LootTrackerService implements ILootTrackerService {
   public inspectRewardResponse(data: string | Uint8Array | any): RaidLootInspectionOutcome {
     const outcome: RaidLootInspectionOutcome = {
       hasGoldBar: false,
+      hasEternitySand: false,
       hasBlueChest: false,
       raidId: '',
       lootItems: [],
@@ -243,6 +413,7 @@ export class LootTrackerService implements ILootTrackerService {
           const flags = rustBridge.scanPayloadFlags(data);
           if (flags) {
             outcome.hasGoldBar = flags.hasGoldBar;
+            outcome.hasEternitySand = flags.hasEternitySand;
             outcome.hasBlueChest = flags.hasBlueChest;
           }
         }
@@ -258,6 +429,8 @@ export class LootTrackerService implements ILootTrackerService {
       }
 
       outcome.hasGoldBar = outcome.hasGoldBar || LootTrackerService.hasGoldBarInPayload(parsed);
+      outcome.hasEternitySand =
+        outcome.hasEternitySand || LootTrackerService.hasEternitySandInPayload(parsed);
       outcome.hasBlueChest = outcome.hasBlueChest || LootTrackerService.hasBlueChestInPayload(parsed);
 
       if (parsed.raid_id) outcome.raidId = String(parsed.raid_id);
@@ -272,8 +445,10 @@ export class LootTrackerService implements ILootTrackerService {
           const count = Number(r.count || r.num || 1);
           const name = String(r.name || r.item_name || id);
           const isGoldBar = LootTrackerService.isGoldBarItemObject(r);
+          const isEternitySand = LootTrackerService.isEternitySandItemObject(r);
           if (isGoldBar) outcome.hasGoldBar = true;
-          outcome.lootItems.push({ id, name, count, isGoldBar });
+          if (isEternitySand) outcome.hasEternitySand = true;
+          outcome.lootItems.push({ id, name, count, isGoldBar, isEternitySand });
         }
       }
     } catch {
@@ -284,11 +459,18 @@ export class LootTrackerService implements ILootTrackerService {
   }
 
   /**
-   * Inspects current DOM for reward indicators (Gold Bar 20004, Blue Chest, etc.).
+   * Inspects current DOM for reward indicators (Gold Bar 20004, Eternity Sand 215, Blue Chest, etc.).
    */
   public async inspectDomRewards(): Promise<RaidLootInspectionOutcome> {
     if (!this.page) {
-      return { hasGoldBar: false, hasBlueChest: false, raidId: '', lootItems: [], pageText: '' };
+      return {
+        hasGoldBar: false,
+        hasEternitySand: false,
+        hasBlueChest: false,
+        raidId: '',
+        lootItems: [],
+        pageText: ''
+      };
     }
 
     try {
@@ -296,6 +478,7 @@ export class LootTrackerService implements ILootTrackerService {
         const resultRoot = document.querySelector('#cnt-result, .cnt-result, .prt-result-cnt, .pop-raid-result') as HTMLElement | null;
         const text = (resultRoot ? resultRoot.innerText : document.body?.innerText) || '';
         const hasTextGb = /\b(?:Gold\s+Bar|Gold\s+Brick)\b/i.test(text) || text.includes('ヒヒイロカネ');
+        const hasTextSand = /\bEternity\s+Sand\b/i.test(text) || text.includes('刻の流砂');
 
         const candidates = Array.from(document.querySelectorAll([
           '[data-key="17_20004"]',
@@ -313,6 +496,26 @@ export class LootTrackerService implements ILootTrackerService {
         const hasImgGb = candidates.some(el => {
           const htmlEl = el as HTMLElement;
           if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          return htmlEl.offsetParent !== null;
+        });
+
+        const sandCandidates = Array.from(document.querySelectorAll([
+          '[data-key="10_215"]',
+          'img[src*="/item/article/"][src*="/215."]',
+          '[data-item-name*="Eternity Sand"]',
+          '[data-item-name*="刻の流砂"]',
+          '.lis-treasure.btn-treasure-item[data-item-id="215"]',
+          '.prt-reward-item [data-item-id="215"]',
+          '.prt-item-list [data-item-id="215"]',
+          '#cnt-result [data-item-id="215"]:not(.prt-treasure-wrapper)',
+          '.cnt-result [data-item-id="215"]:not(.prt-treasure-wrapper)'
+        ].join(', ')));
+
+        const hasImgSand = sandCandidates.some(el => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          const itemKind = htmlEl.getAttribute('data-item-kind');
+          if (itemKind && itemKind !== '10' && itemKind.toLowerCase() !== 'article') return false;
           return htmlEl.offsetParent !== null;
         });
 
@@ -336,6 +539,7 @@ export class LootTrackerService implements ILootTrackerService {
 
         return {
           hasGoldBar: hasTextGb || hasImgGb,
+          hasEternitySand: hasTextSand || hasImgSand,
           hasBlueChest: hasBlueChestEl || hasTextBc,
           raidId,
           lootItems: [],
@@ -343,24 +547,39 @@ export class LootTrackerService implements ILootTrackerService {
         };
       });
     } catch {
-      return { hasGoldBar: false, hasBlueChest: false, raidId: '', lootItems: [], pageText: '' };
+      return {
+        hasGoldBar: false,
+        hasEternitySand: false,
+        hasBlueChest: false,
+        raidId: '',
+        lootItems: [],
+        pageText: ''
+      };
     }
   }
 
   /**
    * Captures clean screenshot proof of high-tier drops without obstruction.
    */
-  public async captureCleanLootProof(page: Page, raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
+  public async captureCleanLootProof(
+    page: Page,
+    raidId?: string,
+    itemType: 'gold-bar' | 'eternity-sand' = 'gold-bar'
+  ): Promise<{ buffer?: Buffer; path: string }> {
     const cleanRaidId = (raidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
     const capDir = path.resolve(process.cwd(), 'artifacts/captures');
     if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-    const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
-    const cleanProofPath = cleanRaidId ? path.resolve(capDir, `clean-gold-bar-${cleanRaidId}.png`) : undefined;
+    const filePrefix = itemType === 'eternity-sand' ? 'eternity-sand' : 'gold-bar';
+    const label = itemType === 'eternity-sand' ? 'Eternity Sand' : 'Gold Bar';
+    const proofPath = path.resolve(capDir, `${filePrefix}-${cleanRaidId || 'drop'}-${Date.now()}.png`);
+    const cleanProofPath = cleanRaidId
+      ? path.resolve(capDir, `clean-${filePrefix}-${cleanRaidId}.png`)
+      : undefined;
 
     let shotBuf: Buffer | undefined;
 
     try {
-      console.log(`[LootTracker] 📸 Initiating patient Gold Bar proof capture for Raid ID: ${cleanRaidId || 'N/A'}...`);
+      console.log(`[LootTracker] 📸 Initiating patient ${label} proof capture for Raid ID: ${cleanRaidId || 'N/A'}...`);
 
       // 1. Navigate to permanent battle result detail URL
       if (cleanRaidId && /^\d+$/.test(cleanRaidId)) {
@@ -469,7 +688,7 @@ export class LootTrackerService implements ILootTrackerService {
         } catch {}
       }
 
-      console.log(`[LootTracker] 📸 Pristine Gold Bar proof screenshot captured: ${proofPath}`);
+      console.log(`[LootTracker] 📸 Pristine ${label} proof screenshot captured: ${proofPath}`);
       return { buffer: shotBuf, path: proofPath };
     } catch {
       return { buffer: shotBuf, path: proofPath };
@@ -485,6 +704,12 @@ export class LootTrackerService implements ILootTrackerService {
       console.log('🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟');
       console.log(`🎉🎉🎉 GOLD BAR CONFIRMED IN "${questName}"! 🎉🎉🎉`);
       console.log('🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟\n');
+    }
+    if (outcome.hasEternitySand) {
+      console.log('\n\x07\x07\x07');
+      console.log('⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳');
+      console.log(`🎉🎉🎉 ETERNITY SAND (刻の流砂) CONFIRMED IN "${questName}"! 🎉🎉🎉`);
+      console.log('⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳⏳\n');
     }
   }
 }

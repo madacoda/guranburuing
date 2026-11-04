@@ -115,6 +115,7 @@
       "[data-location-href*=\"result\"]"
     ],
     "goldBarItemId": "20004",
+    "eternitySandItemId": "215",
     "blueChestSelectors": [
       ".prt-blue-chest",
       ".ico-blue-chest"

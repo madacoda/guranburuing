@@ -8,6 +8,7 @@ pub const FLAG_GOLD_BAR: u32 = 1 << 0;
 pub const FLAG_BLUE_CHEST: u32 = 1 << 1;
 pub const FLAG_CAPTCHA: u32 = 1 << 2;
 pub const FLAG_BATTLE_FINISH: u32 = 1 << 3;
+pub const FLAG_ETERNITY_SAND: u32 = 1 << 4;
 
 static FAST_BYTE_SCANNER: LazyLock<AhoCorasick> = LazyLock::new(|| {
     AhoCorasick::builder()
@@ -36,6 +37,12 @@ static FAST_BYTE_SCANNER: LazyLock<AhoCorasick> = LazyLock::new(|| {
             "\"is_clear\":true",    // 20: Battle clear
             "\"finish\":true",      // 21: Battle finish
             "pop-raid-result",      // 22: Result popup marker
+            "10_215",               // 23: Authoritative Eternity Sand key
+            "\"215\"",              // 24: Quoted JSON item_id "215" (ignores longer numbers like "121500")
+            "'215'",                // 25: Single-quoted HTML data-item-id='215'
+            "/215.",                // 26: Article image URL /215.jpg or /215.png
+            "eternity sand",        // 27: Eternity Sand EN name
+            "刻の流砂",               // 28: Eternity Sand JP name
         ])
         .expect("Failed to compile AhoCorasick byte scanner")
 });
@@ -110,6 +117,78 @@ pub fn is_gold_bar_item_object(node: &Value, object_key: Option<&str>) -> bool {
     false
 }
 
+/// Authoritative check on a `serde_json::Value` object node for Eternity Sand (ID 215, kind 10 / article).
+/// Mirrors `LootTrackerService.isEternitySandItemObject` with 100% behavioral parity.
+pub fn is_eternity_sand_item_object(node: &Value, object_key: Option<&str>) -> bool {
+    let Some(obj) = node.as_object() else {
+        return false;
+    };
+
+    if object_key == Some("10_215") {
+        return true;
+    }
+
+    let raw_id = obj
+        .get("item_id")
+        .or_else(|| obj.get("id"))
+        .map(value_to_trimmed_string)
+        .unwrap_or_default();
+    let raw_key = obj
+        .get("key")
+        .or_else(|| obj.get("item_key"))
+        .map(value_to_trimmed_string)
+        .unwrap_or_default();
+    let raw_kind = obj
+        .get("item_kind")
+        .or_else(|| obj.get("kind"))
+        .or_else(|| obj.get("type"))
+        .map(value_to_trimmed_string)
+        .unwrap_or_default();
+    let raw_name = obj
+        .get("name")
+        .or_else(|| obj.get("item_name"))
+        .map(value_to_trimmed_string)
+        .unwrap_or_default();
+    let raw_img = obj
+        .get("img")
+        .or_else(|| obj.get("image"))
+        .or_else(|| obj.get("thumbnail"))
+        .map(value_to_trimmed_string)
+        .unwrap_or_default();
+
+    if raw_key == "10_215" || raw_id == "10_215" {
+        return true;
+    }
+
+    if raw_id == "215" {
+        if raw_kind == "10" || raw_kind.eq_ignore_ascii_case("article") {
+            return true;
+        }
+        if raw_kind.is_empty()
+            && (obj.contains_key("item_id")
+                || obj.contains_key("count")
+                || obj.contains_key("num")
+                || obj.contains_key("number"))
+        {
+            return true;
+        }
+    }
+
+    let lower_name = raw_name.to_ascii_lowercase();
+    if lower_name.contains("eternity sand") || raw_name.contains("刻の流砂") {
+        return true;
+    }
+
+    let lower_img = raw_img.to_ascii_lowercase();
+    if lower_img.contains("/item/article/")
+        && (lower_img.contains("/215.jpg") || lower_img.contains("/215.png"))
+    {
+        return true;
+    }
+
+    false
+}
+
 #[inline]
 fn value_to_trimmed_string(v: &Value) -> String {
     match v {
@@ -150,6 +229,50 @@ pub fn has_gold_bar_in_html(html: &str) -> bool {
                 .unwrap_or(lower.len());
             let tag_slice = &lower[tag_start..tag_end];
             if !tag_slice.contains("prt-treasure-wrapper") {
+                return true;
+            }
+            search_from = abs_pos + marker.len();
+        }
+    }
+
+    false
+}
+
+/// Checks decoded HTML string for Eternity Sand markers (`data-key="10_215"`, `/item/article/.../215.jpg`,
+/// `data-item-id="215"` not on `.prt-treasure-wrapper`).
+pub fn has_eternity_sand_in_html(html: &str) -> bool {
+    if html.is_empty() {
+        return false;
+    }
+
+    let lower = html.to_ascii_lowercase();
+    if lower.contains("data-key=\"10_215\"")
+        || lower.contains("data-key='10_215'")
+        || lower.contains("data-key=%2210_215%22")
+        || (lower.contains("/item/article/")
+            && (lower.contains("/215.jpg") || lower.contains("/215.png")))
+        || lower.contains("eternity sand")
+        || html.contains("刻の流砂")
+    {
+        return true;
+    }
+
+    for marker in ["data-item-id=\"215\"", "data-item-id='215'"] {
+        let mut search_from = 0;
+        while let Some(pos) = lower[search_from..].find(marker) {
+            let abs_pos = search_from + pos;
+            let tag_start = lower[..abs_pos].rfind('<').unwrap_or(0);
+            let tag_end = lower[abs_pos..]
+                .find('>')
+                .map(|i| abs_pos + i)
+                .unwrap_or(lower.len());
+            let tag_slice = &lower[tag_start..tag_end];
+            let has_wrong_kind = tag_slice.contains("data-item-kind=")
+                && !tag_slice.contains("data-item-kind=\"10\"")
+                && !tag_slice.contains("data-item-kind='10'")
+                && !tag_slice.contains("data-item-kind=\"article\"")
+                && !tag_slice.contains("data-item-kind='article'");
+            if !tag_slice.contains("prt-treasure-wrapper") && !has_wrong_kind {
                 return true;
             }
             search_from = abs_pos + marker.len();
@@ -242,8 +365,93 @@ pub fn has_gold_bar_in_value(payload: &Value) -> bool {
     false
 }
 
+fn traverse_eternity_sand_node(node: &Value, key: Option<&str>) -> bool {
+    match node {
+        Value::Array(arr) => arr
+            .iter()
+            .any(|item| traverse_eternity_sand_node(item, None)),
+        Value::Object(map) => {
+            if is_eternity_sand_item_object(node, key) {
+                return true;
+            }
+            for (k, v) in map {
+                if k == "article_list" {
+                    continue;
+                }
+                if traverse_eternity_sand_node(v, Some(k.as_str())) {
+                    return true;
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+/// Authoritative structural check for Eternity Sand in a parsed JSON Value.
+pub fn has_eternity_sand_in_value(payload: &Value) -> bool {
+    let Some(obj) = payload.as_object() else {
+        return false;
+    };
+
+    let mut reward_sources: Vec<&Value> = Vec::with_capacity(4);
+
+    if let Some(rl) = obj.get("rewards").and_then(|r| r.get("reward_list")) {
+        reward_sources.push(rl);
+    }
+    if let Some(rl) = obj
+        .get("option")
+        .and_then(|o| o.get("result_data"))
+        .and_then(|rd| rd.get("rewards"))
+        .and_then(|r| r.get("reward_list"))
+    {
+        reward_sources.push(rl);
+    }
+    if let Some(rl) = obj.get("reward_list") {
+        reward_sources.push(rl);
+    }
+    if let Some(r) = obj.get("rewards").filter(|v| v.is_array()) {
+        reward_sources.push(r);
+    }
+    if let Some(r) = obj
+        .get("option")
+        .and_then(|o| o.get("result_data"))
+        .and_then(|rd| rd.get("rewards"))
+        .filter(|v| v.is_array())
+    {
+        reward_sources.push(r);
+    }
+
+    if !reward_sources.is_empty() {
+        for src in reward_sources {
+            if traverse_eternity_sand_node(src, None) {
+                return true;
+            }
+        }
+    } else if let Some(rewards) = obj.get("rewards").filter(|v| v.is_object()) {
+        if traverse_eternity_sand_node(rewards, None) {
+            return true;
+        }
+    } else if obj.contains_key("item_id")
+        || obj.contains_key("item_name")
+        || obj.get("key").and_then(|v| v.as_str()) == Some("10_215")
+    {
+        if is_eternity_sand_item_object(payload, None) {
+            return true;
+        }
+    }
+
+    if let Some(data_str) = obj.get("data").and_then(|d| d.as_str()) {
+        if has_eternity_sand_in_html(data_str) {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Scans raw HTTP response bytes in a single SIMD-accelerated pass (`< 15 µs` for 100 KB).
-/// Only invokes structural JSON verification when a bounded `"20004"` / Gold Brick pattern is present.
+/// Only invokes structural JSON verification when a bounded `"20004"` / Gold Brick or `"215"` / Eternity Sand pattern is present.
 pub fn scan_payload_flags(raw_bytes: &[u8]) -> u32 {
     if raw_bytes.is_empty() {
         return 0;
@@ -251,6 +459,7 @@ pub fn scan_payload_flags(raw_bytes: &[u8]) -> u32 {
 
     let mut flags: u32 = 0;
     let mut has_candidate_gold_bar = false;
+    let mut has_candidate_eternity_sand = false;
 
     for mat in FAST_BYTE_SCANNER.find_iter(raw_bytes) {
         match mat.pattern().as_usize() {
@@ -266,21 +475,30 @@ pub fn scan_payload_flags(raw_bytes: &[u8]) -> u32 {
             20..=22 => {
                 flags |= FLAG_BATTLE_FINISH;
             }
+            23..=28 => {
+                has_candidate_eternity_sand = true;
+            }
             _ => {}
         }
     }
 
-    if has_candidate_gold_bar {
+    if has_candidate_gold_bar || has_candidate_eternity_sand {
         if let Ok(parsed) = serde_json::from_slice::<Value>(raw_bytes) {
-            if has_gold_bar_in_value(&parsed) {
+            if has_candidate_gold_bar && has_gold_bar_in_value(&parsed) {
                 flags |= FLAG_GOLD_BAR;
+            }
+            if has_candidate_eternity_sand && has_eternity_sand_in_value(&parsed) {
+                flags |= FLAG_ETERNITY_SAND;
             }
             if (flags & FLAG_BLUE_CHEST) == 0 && has_blue_chest_in_value(&parsed) {
                 flags |= FLAG_BLUE_CHEST;
             }
         } else if let Ok(text) = std::str::from_utf8(raw_bytes) {
-            if has_gold_bar_in_html(text) {
+            if has_candidate_gold_bar && has_gold_bar_in_html(text) {
                 flags |= FLAG_GOLD_BAR;
+            }
+            if has_candidate_eternity_sand && has_eternity_sand_in_html(text) {
+                flags |= FLAG_ETERNITY_SAND;
             }
         }
     }
@@ -504,7 +722,7 @@ struct CombatPayloadLite<'a> {
 /// - `out_metrics[2]`: `turn` (or -1 if absent)
 /// - `out_metrics[3]`: `boss0_hp` (or -1 if absent)
 /// - `out_metrics[4]`: `boss0_max_hp` (or -1 if absent)
-/// - `out_metrics[5]`: `flags` (`FLAG_GOLD_BAR | FLAG_BLUE_CHEST | FLAG_CAPTCHA | FLAG_BATTLE_FINISH`)
+/// - `out_metrics[5]`: `flags` (`FLAG_GOLD_BAR | FLAG_BLUE_CHEST | FLAG_CAPTCHA | FLAG_BATTLE_FINISH | FLAG_ETERNITY_SAND`)
 pub fn extract_combat_metrics(raw_bytes: &[u8], out_metrics: &mut [f64]) -> bool {
     if out_metrics.len() < 6 {
         return false;
@@ -670,6 +888,44 @@ mod tests {
         let flags = scan_payload_flags(payload);
         assert_ne!(flags & FLAG_GOLD_BAR, 0);
         assert_ne!(flags & FLAG_BLUE_CHEST, 0);
+    }
+
+    #[test]
+    fn test_true_positive_eternity_sand_and_false_positives_rejected() {
+        let true_payload = br#"{
+            "special_reward": true,
+            "rewards": {
+                "reward_list": {
+                    "11": {
+                        "10_215": { "item_id": "215", "item_kind": "10", "name": "Eternity Sand", "count": "1" }
+                    }
+                }
+            }
+        }"#;
+        let flags = scan_payload_flags(true_payload);
+        assert_ne!(flags & FLAG_ETERNITY_SAND, 0);
+        assert_ne!(flags & FLAG_BLUE_CHEST, 0);
+        assert_eq!(flags & FLAG_GOLD_BAR, 0);
+
+        let false_payload = br#"{
+            "user_point": 215,
+            "gold": { "before_gold": "215", "after_gold": "1215000", "get_gold": 215 },
+            "rewards": {
+                "article_list": {
+                    "10_215": { "item_id": "215", "item_kind": "10", "count": "4" }
+                },
+                "reward_list": {
+                    "3": { "17_215": { "item_id": "215", "item_kind": "17", "name": "Other Item" } }
+                }
+            },
+            "data": "<div class=\"prt-treasure-wrapper\" data-item-id=\"215\"></div>"
+        }"#;
+        let false_flags = scan_payload_flags(false_payload);
+        assert_eq!(
+            false_flags & FLAG_ETERNITY_SAND,
+            0,
+            "Non-reward 215, article_list inventory 10_215, wrong item_kind 17_215, and prt-treasure-wrapper must be rejected"
+        );
     }
 
     #[test]

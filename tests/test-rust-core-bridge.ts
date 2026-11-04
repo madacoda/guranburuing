@@ -121,6 +121,33 @@ if (rustBridge.isActive()) {
   const gbFlags = rustBridge.scanPayloadFlags(genuineGbJson)!;
   assert(gbFlags.hasGoldBar && gbFlags.hasBlueChest, 'Confirmed genuine 17_20004 Gold Brick + Blue Chest');
 
+  const falsePositiveSandJson = JSON.stringify({
+    user_point: 4215000,
+    gold: { before_gold: '118521500', after_gold: '118522000' },
+    article_list: {
+      '10_215': { item_id: '215', item_kind: '10', name: 'Eternity Sand', count: '5' }
+    },
+    rewards: {
+      reward_list: {
+        '4': { '10_581': { item_id: '581', item_kind: '10', name: "Seofon's Distinction" } }
+      }
+    }
+  });
+  assert(!rustBridge.scanPayloadFlags(falsePositiveSandJson)!.hasEternitySand, 'Rejected Rupies "118521500" and article_list inventory "10_215" false-positive Eternity Sand payload');
+
+  const genuineSandJson = JSON.stringify({
+    special_reward: true,
+    rewards: {
+      reward_list: {
+        '11': {
+          '10_215': { item_id: '215', item_kind: '10', name: 'Eternity Sand', count: '1' }
+        }
+      }
+    }
+  });
+  const sandFlags = rustBridge.scanPayloadFlags(genuineSandJson)!;
+  assert(sandFlags.hasEternitySand && sandFlags.hasBlueChest, 'Confirmed genuine 10_215 Eternity Sand + Blue Chest in Rust SIMD scanner');
+
   const captchaPayload = '{"redirect":"/verification","sec_challenge":true}';
   assert(rustBridge.scanPayloadFlags(captchaPayload)!.hasCaptcha, 'Detected CAPTCHA / sec_challenge in raw bytes');
 

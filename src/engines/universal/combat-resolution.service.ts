@@ -6,6 +6,7 @@ import { config } from '../../config.js';
 import { isSoloWorkflowTemplate } from '../../types/workflow.types.js';
 import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
 import { goldBarTracker } from '../../services/telemetry/gold-bar-tracker.service.js';
+import { eternitySandTracker } from '../../services/telemetry/eternity-sand-tracker.service.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 
 /**
@@ -677,6 +678,49 @@ export class CombatResolutionService {
     }
   }
 
+  public async inspectDomForEternitySand(): Promise<{ hasEternitySand: boolean; raidId?: string }> {
+    if (this.isSoloQuest()) {
+      return { hasEternitySand: false };
+    }
+    try {
+      return await this.page.evaluate(() => {
+        const candidates = Array.from(
+          document.querySelectorAll(
+            [
+              '[data-key="10_215"]',
+              'img[src*="/item/article/"][src*="/215."]',
+              '.lis-treasure.btn-treasure-item[data-item-id="215"]',
+              '.prt-reward-item [data-item-id="215"]',
+              '.prt-item-list [data-item-id="215"]',
+              '#cnt-result [data-item-id="215"]:not(.prt-treasure-wrapper)',
+              '.cnt-result [data-item-id="215"]:not(.prt-treasure-wrapper)',
+              'img[title*="刻の流砂"]',
+              'img[alt*="刻の流砂"]',
+              'img[title*="Eternity Sand"]',
+              'img[alt*="Eternity Sand"]'
+            ].join(', ')
+          )
+        );
+
+        const hasSand = candidates.some(el => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          const itemKind = htmlEl.getAttribute('data-item-kind');
+          if (itemKind && itemKind !== '10' && itemKind.toLowerCase() !== 'article') return false;
+          return htmlEl.offsetParent !== null;
+        });
+
+        const hashMatch = window.location.hash.match(
+          /(?:result|result_multi|raid|raid_multi)\/(?:detail\/)?(\d+)/
+        );
+        const raidId = hashMatch ? hashMatch[1] : undefined;
+        return { hasEternitySand: hasSand, raidId };
+      });
+    } catch {
+      return { hasEternitySand: false };
+    }
+  }
+
   public async inspectDomForBlueChest(): Promise<boolean> {
     try {
       return await this.page.evaluate(() => {
@@ -750,6 +794,82 @@ export class CombatResolutionService {
       }
     } catch (err: any) {
       console.warn(`[GoldBarBroadcast] Failed to capture/dispatch Gold Bar alert: ${err.message}`);
+    }
+  }
+
+  public async broadcastEternitySandFound(raidId = this.ctx.state.currentRaidId): Promise<void> {
+    const accConfig = this.ctx.state.playerName || this.ctx.accountId;
+    console.log(`\n========================================================================`);
+    console.log(
+      `⏳ [ETERNITY SAND FOUND] Congratulations! Account [${accConfig}] looted an ETERNITY SAND (刻の流砂)!`
+    );
+    console.log(
+      `Raid ID: ${raidId} | Total Session Eternity Sands: ${this.ctx.state.totalEternitySandsAccumulated || 1}`
+    );
+    console.log(`========================================================================\n`);
+
+    try {
+      const lootTracker = new LootTrackerService(this.page);
+      const proof = await lootTracker.captureCleanLootProof(this.page, raidId, 'eternity-sand');
+      const shotBuffer = proof.buffer;
+      const proofPath = proof.path;
+
+      const honorsStr =
+        this.ctx.state.currentScore > 0
+          ? this.ctx.state.currentScore.toLocaleString() + ' pt'
+          : '-';
+      const turnsStr = this.ctx.state.currentTurn ? String(this.ctx.state.currentTurn) : '-';
+
+      await eternitySandTracker
+        .recordDrop({
+          raidId: raidId || 'Raid',
+          questName: this.ctx.template.name,
+          honors: honorsStr,
+          turns: turnsStr,
+          screenshotPath: proofPath,
+          screenshotBuffer: shotBuffer,
+          source: 'live_combat',
+          accountId: this.ctx.accountId,
+          skipAlert: true
+        })
+        .catch(() => null);
+
+      if (this.ctx.dropLogger) {
+        await this.ctx.dropLogger.notifyEternitySandDrop({
+          raidId: raidId || 'Raid',
+          honors: honorsStr,
+          turns: turnsStr,
+          screenshotBuffer: shotBuffer,
+          screenshotPath: proofPath,
+          accountId: this.ctx.accountId
+        });
+      } else {
+        const battleUrl = raidId
+          ? `https://game.granbluefantasy.jp/#result_multi/detail/${raidId}/1/0/0`
+          : this.page.url().includes('result')
+            ? this.page.url()
+            : 'https://game.granbluefantasy.jp/#quest/assist';
+
+        await this.ctx.alertRelay.sendEmergencyAlert(
+          `⏳ [ETERNITY SAND FOUND] Account [${accConfig}] looted an ETERNITY SAND! Raid: ${this.ctx.template.name} | Raid ID: ${raidId}\n• Battle Log: ${battleUrl}\n• Honors: ${honorsStr}`,
+          shotBuffer
+        );
+
+        if (discordDmRelay.isConfigured()) {
+          try {
+            await discordDmRelay.sendMessage(
+              `⏳ **Eternity Sand (刻の流砂) Drop Confirmed** ⏳\n• **Raid**: ${this.ctx.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${accConfig}\n• **Honors**: ${honorsStr}\n• **Total Sands**: ${this.ctx.state.totalEternitySandsAccumulated || 1}`,
+              shotBuffer
+            );
+          } catch (err: any) {
+            console.warn(`[DiscordDM] Failed to dispatch Eternity Sand DM: ${err.message}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(
+        `[EternitySandBroadcast] Failed to capture/dispatch Eternity Sand alert: ${err.message}`
+      );
     }
   }
 
@@ -902,6 +1022,16 @@ export class CombatResolutionService {
       this.ctx.state.totalGoldBarsAccumulated++;
       this.ctx.state.totalBlueChestsAccumulated++;
       await this.broadcastGoldBarFound(domCheck.raidId || this.ctx.state.currentRaidId);
+    }
+
+    const sandDomCheck = await this.inspectDomForEternitySand();
+    if (sandDomCheck.hasEternitySand && !this.ctx.state.currentBattleHadEternitySand) {
+      this.ctx.state.currentBattleHadEternitySand = true;
+      this.ctx.state.currentBattleHadBlueChest = true;
+      this.ctx.state.totalEternitySandsAccumulated =
+        (this.ctx.state.totalEternitySandsAccumulated || 0) + 1;
+      this.ctx.state.totalBlueChestsAccumulated++;
+      await this.broadcastEternitySandFound(sandDomCheck.raidId || this.ctx.state.currentRaidId);
     }
 
     if (!this.ctx.state.currentBattleHadBlueChest) {

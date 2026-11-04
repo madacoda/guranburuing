@@ -351,6 +351,16 @@ export const COMMAND_WHITELIST: Record<string, CommandPreset> = {
     script: 'src/cli/report-gold-bars.ts',
     description: 'Gold Bar Drops and Battle Log Audit Summary'
   },
+  'eternitysand': {
+    key: 'eternitysand',
+    script: 'src/cli/report-eternity-sands.ts',
+    description: 'Eternity Sand (刻の流砂) Drops and Battle Log Audit Summary'
+  },
+  'sand': {
+    key: 'sand',
+    script: 'src/cli/report-eternity-sands.ts',
+    description: 'Eternity Sand (刻の流砂) Drops and Battle Log Audit Summary'
+  },
   'fate': {
     key: 'fate',
     script: 'src/cli/run-fate.ts',

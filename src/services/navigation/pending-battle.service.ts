@@ -59,6 +59,7 @@ export class PendingBattleService implements IPendingBattleService {
         unclaimedCount: 0,
         clearedCount: 0,
         goldBarDetected: false,
+        eternitySandDetected: false,
         blueChestDetected: false,
         message: 'No pending battle limit modal present.'
       };
@@ -113,6 +114,7 @@ export class PendingBattleService implements IPendingBattleService {
 
     let clearedCount = 0;
     let goldBarDetected = false;
+    let eternitySandDetected = false;
     let blueChestDetected = false;
 
     // Loop through claiming cards
@@ -158,12 +160,24 @@ export class PendingBattleService implements IPendingBattleService {
           if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
           return htmlEl.offsetParent !== null;
         });
+        const sandCandidates = Array.from(document.querySelectorAll(
+          '[data-key="10_215"], img[src*="/item/article/"][src*="/215."], .lis-treasure.btn-treasure-item[data-item-id="215"], #cnt-result [data-item-id="215"]:not(.prt-treasure-wrapper), .cnt-result [data-item-id="215"]:not(.prt-treasure-wrapper)'
+        ));
+        const hasDomSand = sandCandidates.some(el => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.closest('#submenu, .cnt-treasure-footer, .prt-treasure-wrapper')) return false;
+          const itemKind = htmlEl.getAttribute('data-item-kind');
+          if (itemKind && itemKind !== '10' && itemKind.toLowerCase() !== 'article') return false;
+          return htmlEl.offsetParent !== null;
+        });
         const hasGoldBar = /\b(?:Gold\s+Brick|Gold\s+Bar)\b/i.test(text) || text.includes('ヒヒイロカネ') || hasDomGoldBar;
+        const hasEternitySand = /\bEternity\s+Sand\b/i.test(text) || text.includes('刻の流砂') || hasDomSand;
         const hasBlueChest = !!document.querySelector('.prt-blue-chest, .ico-blue-chest, .ico-treasure-11-mini, [data-box-type="11"]');
-        return { hasGoldBar, hasBlueChest };
-      }).catch(() => ({ hasGoldBar: false, hasBlueChest: false }));
+        return { hasGoldBar, hasEternitySand, hasBlueChest };
+      }).catch(() => ({ hasGoldBar: false, hasEternitySand: false, hasBlueChest: false }));
 
       if (resultData.hasGoldBar) goldBarDetected = true;
+      if (resultData.hasEternitySand) eternitySandDetected = true;
       if (resultData.hasBlueChest) blueChestDetected = true;
 
       clearedCount++;
@@ -208,6 +222,7 @@ export class PendingBattleService implements IPendingBattleService {
       unclaimedCount: clearedCount,
       clearedCount,
       goldBarDetected,
+      eternitySandDetected,
       blueChestDetected,
       message: clearedCount > 0 ? `Successfully cleared ${clearedCount} pending battle(s).` : 'No pending battles found.'
     };
