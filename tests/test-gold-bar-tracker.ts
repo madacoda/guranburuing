@@ -282,6 +282,120 @@ try {
 
   console.log('   ✅ Strict Gold Bar payload validator rejected Rupies/EXP/wrong-kind false positives and confirmed genuine 17_20004 drops');
 
+  console.log('\n12. Testing Eternity Sand (刻の流砂, Item 215, Kind 10) payload, HTML, DropLogger, and EternitySandTrackerService...');
+  const { EternitySandTrackerService } = await import('../src/services/telemetry/eternity-sand-tracker.service.js');
+
+  // False positive vector #1: Rupies/EXP/honors containing "215" and article_list inventory summary containing 10_215
+  const sandFalsePositivePayload = {
+    user_point: 4215000,
+    gold: { before_gold: '118521500', after_gold: '118522000' },
+    exp: { before_exp: '99215000', after_exp: '99216000' },
+    article_list: {
+      '10_215': { item_id: '215', item_kind: '10', name: 'Eternity Sand', count: '5' }
+    },
+    rewards: {
+      article_list: {
+        '10_215': { item_id: '215', item_kind: '10', name: '刻の流砂', count: '5' }
+      },
+      reward_list: {
+        '4': {
+          '10_581': { item_id: '581', item_kind: '10', name: "Seofon's Distinction", count: '3' }
+        }
+      }
+    }
+  };
+  if (LootTrackerService.hasEternitySandInPayload(sandFalsePositivePayload)) {
+    throw new Error('False positive! Payload with 215 in Rupies/EXP/honors or article_list inventory must NOT trigger Eternity Sand detection');
+  }
+
+  // False positive vector #2: Wrong item_kind (17 instead of 10) for item_id 215
+  const sandWrongKindPayload = {
+    rewards: {
+      reward_list: {
+        '3': {
+          '17_215': { item_id: '215', item_kind: '17', name: 'Some Other Item', count: '1' }
+        }
+      }
+    }
+  };
+  if (LootTrackerService.hasEternitySandInPayload(sandWrongKindPayload)) {
+    throw new Error('False positive! item_kind "17" with id "215" must NOT trigger Eternity Sand detection');
+  }
+
+  // False positive vector #3: HTML with 215.jpg inside .prt-treasure-wrapper footer
+  const sandFooterHtml = '<div class="prt-treasure-wrapper"><img src="https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/article/s/215.jpg" /><span>5</span></div>';
+  if (LootTrackerService.hasEternitySandInHtml(sandFooterHtml)) {
+    throw new Error('False positive! .prt-treasure-wrapper footer containing 215.jpg must NOT trigger Eternity Sand detection');
+  }
+
+  // True positive vector #1: Genuine Eternity Sand in Blue Chest (key 10_215)
+  const genuineSandPayload = {
+    rewards: {
+      reward_list: {
+        '11': {
+          '10_215': { item_id: '215', item_kind: '10', name: 'Eternity Sand', count: '1' }
+        }
+      }
+    }
+  };
+  if (!LootTrackerService.hasEternitySandInPayload(genuineSandPayload)) {
+    throw new Error('True positive missed! Genuine 10_215 Eternity Sand in reward_list must return true');
+  }
+
+  // True positive vector #2: Genuine Eternity Sand in HTML reward container
+  const genuineSandHtml = '<div class="prt-item-list"><div class="lis-treasure" data-key="10_215"><img class="img-item" src="https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/article/s/215.jpg" /></div></div>';
+  if (!LootTrackerService.hasEternitySandInHtml(genuineSandHtml)) {
+    throw new Error('True positive missed! Genuine 10_215 Eternity Sand in .prt-item-list HTML must return true');
+  }
+
+  // Verify DropLogger Eternity Sand logging & Hall of Fame
+  const sandLogFile = path.resolve(tempLogDir, 'test-eternity-sand-log.md');
+  if (fs.existsSync(sandLogFile)) fs.unlinkSync(sandLogFile);
+  const sandJsonl = sandLogFile.replace(/\.md$/, '.jsonl');
+  if (fs.existsSync(sandJsonl)) fs.unlinkSync(sandJsonl);
+
+  const sandDropLogger = new DropLogger(sandLogFile, 'Seofon (Impossible)');
+  sandDropLogger.logBattle({
+    raidId: '47099887766',
+    turns: 5,
+    honors: '4,120,000 pt',
+    targetMet: true,
+    hasBlueChest: true,
+    hasGoldBar: false,
+    hasEternitySand: true,
+    screenshotPath: dummyScreenshot,
+  });
+
+  const sandStats = sandDropLogger.getStats();
+  if (sandStats.eternitySands !== 1) {
+    throw new Error(`Expected 1 Eternity Sand in DropLogger stats, got ${sandStats.eternitySands}`);
+  }
+  const sandMd = fs.readFileSync(sandLogFile, 'utf-8');
+  if (!sandMd.includes('Eternity Sand Drops Hall of Fame') || !sandMd.includes('item/article/s/215.jpg')) {
+    throw new Error('Expected DropLogger markdown to include Eternity Sand Drops Hall of Fame and item/article/s/215.jpg icon');
+  }
+
+  // Verify EternitySandTrackerService isolated ledger
+  const sandLedgerDir = path.resolve(tempLogDir, 'sand-ledger');
+  const sandTracker = new EternitySandTrackerService(sandLedgerDir);
+  const recordedSand = sandTracker.recordDrop({
+    raidId: '47099887766',
+    questName: 'Seofon (Impossible)',
+    honors: '4,120,000 pt',
+    turns: 5,
+    source: 'Blue Chest',
+    accountName: 'TestDanchou',
+    sendDiscord: false
+  });
+  if (!recordedSand || sandTracker.getLifetimeStats().totalEternitySands !== 1) {
+    throw new Error('Expected EternitySandTrackerService to record 1 Eternity Sand drop');
+  }
+  const sandReadme = fs.readFileSync(path.join(sandLedgerDir, 'README.md'), 'utf-8');
+  if (!sandReadme.includes('item/article/s/215.jpg') || !sandReadme.includes('47099887766')) {
+    throw new Error('Expected EternitySandTrackerService README.md to contain 215.jpg icon and raid ID');
+  }
+  console.log('   ✅ Eternity Sand (10_215 / 刻の流砂 / 215.jpg) payload, HTML, DropLogger, and EternitySandTrackerService verified');
+
   console.log('\n========================================================================');
   console.log('  🎉 ALL GOLD BAR TRACKER & URL INTEGRATION TESTS PASSED 100%!         ');
   console.log('========================================================================\n');
@@ -303,7 +417,7 @@ try {
     if (fs.existsSync(legacyFile)) fs.unlinkSync(legacyFile);
     const dummyPng = path.resolve(tempLogDir, 'proof-46933003333.png');
     if (fs.existsSync(dummyPng)) fs.unlinkSync(dummyPng);
-    if (fs.existsSync(tempLogDir)) fs.rmdirSync(tempLogDir);
+    if (fs.existsSync(tempLogDir)) fs.rmSync(tempLogDir, { recursive: true, force: true });
   } catch {}
 }
 

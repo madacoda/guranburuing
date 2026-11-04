@@ -66,6 +66,38 @@ if (!outcomeObj.hasGoldBar || !outcomeObj.hasBlueChest) {
 }
 console.log('✅ Object backwards compatibility passed.');
 
+// Test 4: Eternity Sand (10_215 / 刻の流砂) string, binary, and object fast-path
+console.log('\n5. Testing Eternity Sand (10_215) across string, binary, and object fast paths...');
+const rawSandPayload = JSON.stringify({
+  raid_id: '47099887766',
+  rewards: {
+    reward_list: {
+      '11': {
+        '10_215': { item_id: '215', item_kind: '10', name: 'Eternity Sand', count: 1 }
+      }
+    }
+  }
+});
+const sandStrOutcome = tracker.inspectRewardResponse(rawSandPayload);
+const sandBinOutcome = tracker.inspectRewardResponse(encoder.encode(rawSandPayload));
+const sandObjOutcome = tracker.inspectRewardResponse(JSON.parse(rawSandPayload));
+
+if (
+  !sandStrOutcome.hasEternitySand ||
+  !sandStrOutcome.hasBlueChest ||
+  !sandBinOutcome.hasEternitySand ||
+  !sandObjOutcome.hasEternitySand ||
+  !sandObjOutcome.lootItems.some(i => i.isEternitySand)
+) {
+  console.error('❌ Failed Eternity Sand fast-path inspection test', {
+    sandStrOutcome,
+    sandBinOutcome,
+    sandObjOutcome
+  });
+  process.exit(1);
+}
+console.log('✅ Eternity Sand fast-path inspection passed.');
+
 console.log('\n========================================================================');
 console.log('  🎉 ALL LOOT TRACKER RUST FAST-PATH TESTS PASSED CLEANLY!              ');
 console.log('========================================================================\n');

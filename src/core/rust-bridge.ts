@@ -6,10 +6,12 @@ export const RUST_FLAG_GOLD_BAR = 1 << 0;
 export const RUST_FLAG_BLUE_CHEST = 1 << 1;
 export const RUST_FLAG_CAPTCHA = 1 << 2;
 export const RUST_FLAG_BATTLE_FINISH = 1 << 3;
+export const RUST_FLAG_ETERNITY_SAND = 1 << 4;
 
 export interface RustPayloadFlags {
   rawMask: number;
   hasGoldBar: boolean;
+  hasEternitySand: boolean;
   hasBlueChest: boolean;
   hasCaptcha: boolean;
   isBattleFinished: boolean;
@@ -339,6 +341,7 @@ export function decodePayloadFlags(mask: number): RustPayloadFlags {
   return {
     rawMask: mask,
     hasGoldBar: (mask & RUST_FLAG_GOLD_BAR) !== 0,
+    hasEternitySand: (mask & RUST_FLAG_ETERNITY_SAND) !== 0,
     hasBlueChest: (mask & RUST_FLAG_BLUE_CHEST) !== 0,
     hasCaptcha: (mask & RUST_FLAG_CAPTCHA) !== 0,
     isBattleFinished: (mask & RUST_FLAG_BATTLE_FINISH) !== 0

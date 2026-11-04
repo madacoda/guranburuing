@@ -5,6 +5,7 @@ import path from 'path';
 import { UniversalContext } from './types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
 import { goldBarTracker } from '../../services/telemetry/gold-bar-tracker.service.js';
+import { eternitySandTracker } from '../../services/telemetry/eternity-sand-tracker.service.js';
 import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
 import { rustBridge } from '../../core/rust-bridge.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
@@ -300,6 +301,7 @@ export class UniversalTelemetryService {
 
             if (!this.ctx.state.isClaimingPending) {
               this.checkForGoldBarDrop(json);
+              this.checkForEternitySandDrop(json);
               this.checkForBlueChestDrop(json);
             }
           }
@@ -329,6 +331,28 @@ export class UniversalTelemetryService {
       this.ctx.state.currentBattleHadGoldBar = true;
       this.ctx.state.totalGoldBarsAccumulated++;
       this.broadcastGoldBarFound();
+    }
+
+    return found;
+  }
+
+  /**
+   * Authoritative Eternity Sand (刻の流砂, ID 215, kind 10) detection scoped strictly to reward structures.
+   */
+  public checkForEternitySandDrop(payload: any): boolean {
+    if (!payload || this.callbacks.isSoloQuest()) return false;
+
+    const found = LootTrackerService.hasEternitySandInPayload(payload);
+
+    if (
+      found &&
+      !this.ctx.state.currentBattleHadEternitySand &&
+      !this.ctx.state.isClaimingPending
+    ) {
+      this.ctx.state.currentBattleHadEternitySand = true;
+      this.ctx.state.totalEternitySandsAccumulated =
+        (this.ctx.state.totalEternitySandsAccumulated || 0) + 1;
+      this.broadcastEternitySandFound();
     }
 
     return found;
@@ -391,17 +415,24 @@ export class UniversalTelemetryService {
     return found;
   }
 
-  public async captureCleanLootProof(raidId?: string): Promise<{ buffer?: Buffer; path: string }> {
+  public async captureCleanLootProof(
+    raidId?: string,
+    itemType: 'gold-bar' | 'eternity-sand' = 'gold-bar'
+  ): Promise<{ buffer?: Buffer; path: string }> {
     const cleanRaidId = (raidId || this.ctx.state.currentRaidId || '').replace(/\[|\]|\(https?:\/\/[^\)]+\)/g, '').trim();
     const capDir = path.resolve(process.cwd(), 'artifacts/captures');
     if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
-    const proofPath = path.resolve(capDir, `gold-bar-${cleanRaidId || 'drop'}-${Date.now()}.png`);
-    const cleanProofPath = cleanRaidId ? path.resolve(capDir, `clean-gold-bar-${cleanRaidId}.png`) : undefined;
+    const filePrefix = itemType === 'eternity-sand' ? 'eternity-sand' : 'gold-bar';
+    const label = itemType === 'eternity-sand' ? 'Eternity Sand' : 'Gold Bar';
+    const proofPath = path.resolve(capDir, `${filePrefix}-${cleanRaidId || 'drop'}-${Date.now()}.png`);
+    const cleanProofPath = cleanRaidId
+      ? path.resolve(capDir, `clean-${filePrefix}-${cleanRaidId}.png`)
+      : undefined;
 
     let shotBuf: Buffer | undefined;
 
     try {
-      console.log(`[Workflow] 📸 Initiating patient, high-fidelity Gold Bar proof capture for Raid ID: ${cleanRaidId || 'N/A'}...`);
+      console.log(`[Workflow] 📸 Initiating patient, high-fidelity ${label} proof capture for Raid ID: ${cleanRaidId || 'N/A'}...`);
 
       // 1. Permanent detail view is the authoritative proof destination for every GBF raid
       if (cleanRaidId && /^\d+$/.test(cleanRaidId)) {
@@ -538,7 +569,7 @@ export class UniversalTelemetryService {
         } catch {}
       }
 
-      console.log(`[Workflow] 📸 Pristine Gold Bar proof screenshot captured: ${proofPath}`);
+      console.log(`[Workflow] 📸 Pristine ${label} proof screenshot captured: ${proofPath}`);
     } catch (shotErr: any) {
       console.warn(`[Workflow] Proof capture error: ${shotErr.message}`);
     }
@@ -605,6 +636,83 @@ export class UniversalTelemetryService {
       }
     } catch (err: any) {
       console.error(`[Workflow] Error broadcasting Gold Bar:`, err.message);
+    }
+  }
+
+  public async broadcastEternitySandFound(overrideRaidId?: string): Promise<void> {
+    const raidId = overrideRaidId || this.ctx.state.currentRaidId || '';
+    console.log(`\n========================================================================`);
+    console.log(
+      `  ⏳⏳⏳ [ETERNITY SAND FOUND!] Account: [${this.ctx.accountId}] Raid: ${raidId || 'Active'} ⏳⏳⏳`
+    );
+    console.log(`========================================================================\n`);
+
+    process.stdout.write('\x07\x07\x07');
+
+    const battleUrl = raidId
+      ? `https://game.granbluefantasy.jp/#result_multi/detail/${raidId}/1/0/0`
+      : this.page.url().includes('result')
+        ? this.page.url()
+        : 'https://game.granbluefantasy.jp/#quest/assist';
+
+    try {
+      const { buffer: shotBuffer, path: proofPath } = await this.captureCleanLootProof(
+        raidId,
+        'eternity-sand'
+      );
+
+      await eternitySandTracker
+        .recordDrop({
+          raidId: raidId || 'Raid',
+          questName: this.ctx.template.name,
+          honors:
+            this.ctx.state.currentScore > 0
+              ? this.ctx.state.currentScore.toLocaleString() + ' pt'
+              : '-',
+          turns: this.ctx.state.currentTurn || '-',
+          screenshotPath: proofPath,
+          screenshotBuffer: shotBuffer,
+          source: 'live_combat',
+          accountId: this.ctx.accountId,
+          skipAlert: true
+        })
+        .catch(() => null);
+
+      if (this.ctx.dropLogger) {
+        await this.ctx.dropLogger.notifyEternitySandDrop({
+          raidId: raidId || 'Raid',
+          honors:
+            this.ctx.state.currentScore > 0
+              ? this.ctx.state.currentScore.toLocaleString() + ' pt'
+              : '-',
+          turns: this.ctx.state.currentTurn || '-',
+          screenshotBuffer: shotBuffer,
+          screenshotPath: proofPath,
+          accountId: this.ctx.accountId
+        });
+      } else {
+        const playerName = this.ctx.accountId || 'acc1';
+        await this.ctx.alertRelay.sendEmergencyAlert(
+          `⏳ ETERNITY SAND DROP CONFIRMED for ${playerName}!\n• Raid: ${this.ctx.template.name}\n• Battle Log: ${battleUrl}\n• Honors: ${this.ctx.state.currentScore.toLocaleString()} pt\n• Total Sands: ${this.ctx.state.totalEternitySandsAccumulated || 1}`,
+          shotBuffer
+        );
+
+        if (discordDmRelay.isConfigured()) {
+          try {
+            await discordDmRelay.sendMessage(
+              `⏳ **Eternity Sand (刻の流砂) Drop Confirmed** ⏳\n• **Raid**: ${this.ctx.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${playerName}\n• **Honors**: ${this.ctx.state.currentScore.toLocaleString()} pt\n• **Total Sands**: ${this.ctx.state.totalEternitySandsAccumulated || 1}`,
+              shotBuffer,
+              `eternity-sand-${raidId || 'drop'}.png`,
+              undefined,
+              true
+            );
+          } catch (dmErr: any) {
+            console.error('[Workflow] Direct Discord DM dispatch error:', dmErr.message);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(`[Workflow] Error broadcasting Eternity Sand:`, err.message);
     }
   }
 

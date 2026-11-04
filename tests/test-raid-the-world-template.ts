@@ -30,8 +30,8 @@ if (tmpl.mode !== 'assist') {
   throw new Error(`Expected mode to be assist, got: ${tmpl.mode}`);
 }
 
-if (tmpl.minHpPct !== 1 || tmpl.maxHpPct !== 100) {
-  throw new Error(`Expected minHpPct=1, maxHpPct=100, got: min=${tmpl.minHpPct}, max=${tmpl.maxHpPct}`);
+if (tmpl.minHpPct !== 10 || tmpl.maxHpPct !== 90) {
+  throw new Error(`Expected minHpPct=10, maxHpPct=90, got: min=${tmpl.minHpPct}, max=${tmpl.maxHpPct}`);
 }
 
 if (tmpl.evaluatorStrategy !== 'leech') {

@@ -7,7 +7,7 @@
       "overview": "Special reward chest awarded based on individual player contribution (honors). In high-level raids, honors scale the probability of earning a Blue Chest from 0% up to 100% (guaranteed). Once a Blue Chest is obtained, the item inside is rolled independently from fixed probability tables.",
       "probabilityFormula": "min(1.0, playerHonors / guaranteedThresholdHonors)",
       "goldBrickChests": ["pbhl", "akasha", "gohl"],
-      "eternitySandChests": ["magna3", "revans", "subhl", "hexachromatic", "dark_rapture_zero", "world"]
+      "eternitySandChests": ["ennead", "six_dragons", "magna3", "revans", "subhl", "hexachromatic", "dark_rapture_zero", "world"]
     },
     "goldBrick": {
       "pbhl": {
@@ -43,6 +43,23 @@
       }
     },
     "eternitySand": {
+      "itemId": "215",
+      "itemKind": "10",
+      "dataKey": "10_215",
+      "nameEn": "Eternity Sand",
+      "nameJp": "刻の流砂",
+      "iconUrl": "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/article/s/215.jpg",
+      "iconMediumUrl": "https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img/sp/assets/item/article/m/215.jpg",
+      "ennead": {
+        "chestType": "Blue Chest",
+        "dropRate": 0.001,
+        "thresholdHonors": 300000
+      },
+      "sixDragons": {
+        "chestType": "Blue Chest",
+        "dropRate": 0.002,
+        "thresholdHonors": 600000
+      },
       "magna3": {
         "chestType": "Blue Chest",
         "dropRate": 0.005,
@@ -53,9 +70,22 @@
         "dropRate": 0.01,
         "thresholdHonors": 4000000
       },
+      "theWorld": {
+        "chestType": "Blue Chest",
+        "dropRate": 0.005,
+        "thresholdHonors": 1500000
+      },
       "subhl": {
         "chestType": "Blue Chest / Host Chest",
         "dropRate": 0.015
+      },
+      "hexachromatic": {
+        "chestType": "Blue Chest / Gold Chest",
+        "dropRate": 0.02
+      },
+      "darkRaptureZero": {
+        "chestType": "Blue Chest / Gold Chest",
+        "dropRate": 0.02
       }
     }
   }

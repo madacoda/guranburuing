@@ -88,6 +88,29 @@
           "type": "object",
           "required": ["magna3", "revans", "subhl"],
           "properties": {
+            "itemId": { "type": "string" },
+            "itemKind": { "type": "string" },
+            "dataKey": { "type": "string" },
+            "nameEn": { "type": "string" },
+            "nameJp": { "type": "string" },
+            "iconUrl": { "type": "string" },
+            "iconMediumUrl": { "type": "string" },
+            "ennead": {
+              "type": "object",
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" },
+                "thresholdHonors": { "type": "number" }
+              }
+            },
+            "sixDragons": {
+              "type": "object",
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" },
+                "thresholdHonors": { "type": "number" }
+              }
+            },
             "magna3": {
               "type": "object",
               "required": ["chestType", "dropRate", "thresholdHonors"],
@@ -106,9 +129,31 @@
                 "thresholdHonors": { "type": "number" }
               }
             },
+            "theWorld": {
+              "type": "object",
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" },
+                "thresholdHonors": { "type": "number" }
+              }
+            },
             "subhl": {
               "type": "object",
               "required": ["chestType", "dropRate"],
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" }
+              }
+            },
+            "hexachromatic": {
+              "type": "object",
+              "properties": {
+                "chestType": { "type": "string" },
+                "dropRate": { "type": "number" }
+              }
+            },
+            "darkRaptureZero": {
+              "type": "object",
               "properties": {
                 "chestType": { "type": "string" },
                 "dropRate": { "type": "number" }

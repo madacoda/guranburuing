@@ -1232,10 +1232,10 @@ mod tests {
             .expect("Should parse templates/raid-seofon.json");
         assert_eq!(tmpl.target_raid_quest_id, "305411");
         assert_eq!(tmpl.target_score, Some(4_000_000));
-        assert_eq!(tmpl.steps.len(), 35);
+        assert_eq!(tmpl.steps.len(), 40);
         assert_eq!(tmpl.steps[0].effective_op(), "wait_element");
         assert_eq!(tmpl.steps[1].effective_op(), "reload");
-        assert_eq!(tmpl.steps[2].effective_op(), "skill");
+        assert_eq!(tmpl.steps[2].effective_op(), "exit_if_hp");
     }
 
     #[test]
@@ -1385,6 +1385,7 @@ mod tests {
             supporter_priority: vec!["Agni".to_string()],
             min_hp_pct: Some(35.0),
             max_hp_pct: Some(100.0),
+            exit_if_hp_pct: None,
             min_players: Some(1),
             max_players: Some(6),
             default_runs: Some(1),

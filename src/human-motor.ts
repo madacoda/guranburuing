@@ -17,6 +17,150 @@ export interface BoundingBox {
 
 export type SpeedProfile = 'stealth' | 'fast' | 'turbo';
 
+export interface HumanFatigueState {
+  /** Normalized fatigue level in [0.0, 1.0]. 0.0 = fresh/flow state, 1.0 = max subtle drift cap */
+  fatigueLevel: number;
+  /** Number of consecutive runs completed without a break or idle recovery */
+  continuousRunsWithoutBreak: number;
+  /** Total motor actions (clicks/delays) recorded since last full recovery */
+  continuousActions: number;
+  /** Run threshold at which the next natural micro-break will trigger (randomized 22–38 runs) */
+  nextMicroBreakThresholdRuns: number;
+  /** Timestamp (ms) of the last motor action */
+  lastActionTimestampMs: number;
+  /** Total simulated micro-breaks taken during this process session */
+  totalMicroBreaksTaken: number;
+}
+
+function rollNextMicroBreakThreshold(): number {
+  return 22 + Math.floor(Math.random() * 17); // 22 to 38 continuous runs
+}
+
+const fatigueState: HumanFatigueState = {
+  fatigueLevel: 0,
+  continuousRunsWithoutBreak: 0,
+  continuousActions: 0,
+  nextMicroBreakThresholdRuns: rollNextMicroBreakThreshold(),
+  lastActionTimestampMs: Date.now(),
+  totalMicroBreaksTaken: 0,
+};
+
+/**
+ * Passively decays fatigue when no motor actions have occurred for >= 45 seconds
+ * (simulating natural recovery while waiting for raids, reading menus, or taking a break).
+ */
+export function applyPassiveIdleRecovery(nowMs = Date.now()): void {
+  const elapsedMs = Math.max(0, nowMs - fatigueState.lastActionTimestampMs);
+  const idleSec = elapsedMs / 1000;
+  if (idleSec < 45) return;
+
+  // Recover proportionally to idle time (~85% recovery per 4 minutes of idle)
+  const recovery = Math.min(fatigueState.fatigueLevel, (idleSec / 240) * 0.85);
+  fatigueState.fatigueLevel = Math.max(0, Number((fatigueState.fatigueLevel - recovery).toFixed(4)));
+
+  if (idleSec >= 90) {
+    fatigueState.continuousRunsWithoutBreak = 0;
+    fatigueState.nextMicroBreakThresholdRuns = rollNextMicroBreakThreshold();
+  }
+  if (fatigueState.fatigueLevel === 0) {
+    fatigueState.continuousActions = 0;
+  }
+}
+
+/**
+ * Returns a read-only snapshot of the current human neuromuscular fatigue state.
+ */
+export function getFatigueState(): Readonly<HumanFatigueState> {
+  applyPassiveIdleRecovery();
+  return { ...fatigueState };
+}
+
+/**
+ * Returns the current normalized fatigue level in [0.0, 1.0].
+ */
+export function getFatigueLevel(): number {
+  applyPassiveIdleRecovery();
+  return fatigueState.fatigueLevel;
+}
+
+/**
+ * Explicitly overrides the fatigue level (clamped to [0.0, 1.0]). Useful for testing or orchestration.
+ */
+export function setFatigueLevel(level: number): void {
+  fatigueState.fatigueLevel = Math.max(0, Math.min(1, Number(level.toFixed(4))));
+  fatigueState.lastActionTimestampMs = Date.now();
+}
+
+/**
+ * Clears a fraction (default 1.0 = 100%) of accumulated fatigue and resets continuous run counters,
+ * simulating a player returning refreshed from a break.
+ */
+export function resetFatigue(fractionToClear = 1.0): void {
+  const clamped = Math.max(0, Math.min(1, fractionToClear));
+  fatigueState.fatigueLevel = Math.max(
+    0,
+    Number((fatigueState.fatigueLevel * (1 - clamped)).toFixed(4))
+  );
+  fatigueState.continuousRunsWithoutBreak = 0;
+  if (clamped >= 0.9 || fatigueState.fatigueLevel < 0.05) {
+    fatigueState.continuousActions = 0;
+  }
+  fatigueState.nextMicroBreakThresholdRuns = rollNextMicroBreakThreshold();
+  fatigueState.lastActionTimestampMs = Date.now();
+}
+
+/**
+ * Records a single motor action (click / reaction) and applies very subtle long-session fatigue drift.
+ */
+export function recordMotorAction(nowMs = Date.now()): number {
+  applyPassiveIdleRecovery(nowMs);
+  fatigueState.lastActionTimestampMs = nowMs;
+  fatigueState.continuousActions++;
+
+  // During initial flow state (<10 runs and <120 actions), fatigue accumulation is negligible
+  const inFlowState =
+    fatigueState.continuousRunsWithoutBreak < 10 && fatigueState.continuousActions < 120;
+  const delta = inFlowState ? 0.00008 : 0.0003;
+  fatigueState.fatigueLevel = Math.min(1, Number((fatigueState.fatigueLevel + delta).toFixed(4)));
+  return fatigueState.fatigueLevel;
+}
+
+/**
+ * Records a completed workflow run and advances the long-run fatigue curve.
+ * Evaluates whether a natural micro-break should be triggered.
+ */
+export function recordRunCompletedForFatigue(nowMs = Date.now()): {
+  shouldTakeMicroBreak: boolean;
+  fatigueLevel: number;
+  continuousRuns: number;
+} {
+  applyPassiveIdleRecovery(nowMs);
+  fatigueState.lastActionTimestampMs = nowMs;
+  fatigueState.continuousRunsWithoutBreak++;
+
+  // Runs 1..10: Flow State (+0.004/run -> ~0.04 after 10 runs)
+  // Runs 11+: Long continuous session without break (+0.020/run -> ~0.44 after 30 runs)
+  const runDelta =
+    fatigueState.continuousRunsWithoutBreak <= 10
+      ? 0.004
+      : 0.020 + Math.random() * 0.005;
+
+  fatigueState.fatigueLevel = Math.min(
+    1,
+    Number((fatigueState.fatigueLevel + runDelta).toFixed(4))
+  );
+
+  const shouldTakeMicroBreak =
+    fatigueState.continuousRunsWithoutBreak >= fatigueState.nextMicroBreakThresholdRuns ||
+    fatigueState.fatigueLevel >= 0.65;
+
+  return {
+    shouldTakeMicroBreak,
+    fatigueLevel: fatigueState.fatigueLevel,
+    continuousRuns: fatigueState.continuousRunsWithoutBreak,
+  };
+}
+
 let currentSpeedProfile: SpeedProfile = (config.SPEED_PROFILE as SpeedProfile) || 'fast';
 
 export function setSpeedProfile(profile: SpeedProfile): void {
@@ -80,9 +224,16 @@ export function sampleGaussian(mean = 0, stdDev = 1): number {
  * @param shape The shape parameter sigma (typically 0.20 - 0.35).
  */
 export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<void> {
+  const fatigue = recordMotorAction();
+  // Very subtle combat cap: max +10% median drift and +12% shape variance at 100% fatigue
+  const fatigueMedianMult = currentSpeedProfile === 'turbo' ? 1.0 : 1.0 + fatigue * 0.10;
+  const fatigueShapeMult = currentSpeedProfile === 'turbo' ? 1.0 : 1.0 + fatigue * 0.12;
+  const adjustedMedianMs = medianMs * fatigueMedianMult;
+  const adjustedShape = shape * fatigueShapeMult;
+
   const nativeDuration = rustBridge.sampleLogNormalDelay(
-    medianMs,
-    shape,
+    adjustedMedianMs,
+    adjustedShape,
     currentSpeedProfile,
     Boolean(config.isProduction)
   );
@@ -91,26 +242,26 @@ export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<vo
     return;
   }
 
-  let effectiveMedian = medianMs;
+  let effectiveMedian = adjustedMedianMs;
   let allowHesitation = false;
 
   if (config.isProduction) {
     // Production VPS: trimmed delays to capitalize on low-latency Tokyo ping
-    effectiveMedian = Math.max(10, medianMs * 0.20);
+    effectiveMedian = Math.max(10, adjustedMedianMs * 0.20);
     allowHesitation = false;
   } else if (currentSpeedProfile === 'turbo') {
-    effectiveMedian = Math.max(15, medianMs * 0.25);
+    effectiveMedian = Math.max(15, adjustedMedianMs * 0.25);
   } else if (currentSpeedProfile === 'fast') {
-    // Fast human racer: maintain ~75% of human baseline
-    effectiveMedian = Math.max(35, medianMs * 0.75);
-    allowHesitation = Math.random() < 0.03;
+    // Fast human racer: maintain ~75% of human baseline, slight hesitation bump when fatigued
+    effectiveMedian = Math.max(35, adjustedMedianMs * 0.75);
+    allowHesitation = Math.random() < 0.03 + fatigue * 0.015;
   } else {
-    // Stealth profile: retain full delay and 5% hesitation probability
-    allowHesitation = Math.random() < 0.05;
+    // Stealth profile: retain full delay and 5%–7.5% hesitation probability
+    allowHesitation = Math.random() < 0.05 + fatigue * 0.025;
   }
 
   const mu = Math.log(effectiveMedian);
-  let duration = Math.exp(sampleGaussian(mu, shape));
+  let duration = Math.exp(sampleGaussian(mu, adjustedShape));
 
   // Occasional natural human hesitation (mimics a player checking raid HP/chat/art)
   if (allowHesitation) {
@@ -125,11 +276,14 @@ export interface InterRunDelayOptions {
   speedProfile?: SpeedProfile;
   customDelayMs?: number | [number, number];
   humanMotor?: boolean;
+  /** Whether to allow automatic micro-breaks after many continuous runs (default: true outside test env) */
+  allowMicroBreak?: boolean;
 }
 
 /**
  * Computes and executes an organic, biomechanically randomized pause between workflow runs.
- * Applies Gaussian log-normal jitter and occasional natural human hesitation to mirror authentic player pacing.
+ * Applies Gaussian log-normal jitter, subtle long-run fatigue drift, and occasional natural
+ * micro-breaks after many continuous runs (clearing a majority of accumulated fatigue).
  * Returns the exact millisecond duration waited.
  */
 export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Promise<number> {
@@ -142,6 +296,42 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
     return minDelay;
   }
 
+  const { shouldTakeMicroBreak, fatigueLevel: fatigue, continuousRuns } = recordRunCompletedForFatigue();
+  const isTestEnv = process.env.NODE_ENV === 'test';
+  const allowMicroBreak = options.allowMicroBreak ?? !isTestEnv;
+
+  // 0. Simulated Micro-Break after a long continuous streak of runs without a break
+  if (shouldTakeMicroBreak && allowMicroBreak) {
+    const prevFatigue = fatigueState.fatigueLevel;
+    const runsBeforeBreak = continuousRuns;
+    let breakMedian = profile === 'turbo' ? 2800 : (profile === 'fast' ? 7200 : 12000);
+    let breakMin = profile === 'turbo' ? 1800 : (profile === 'fast' ? 4500 : 7500);
+    let breakMax = profile === 'turbo' ? 4500 : (profile === 'fast' ? 13500 : 22000);
+
+    if (config.isProduction) {
+      breakMedian = Math.max(1500, breakMedian * 0.35);
+      breakMin = Math.max(1000, breakMin * 0.35);
+      breakMax = Math.max(2500, breakMax * 0.35);
+    }
+
+    const rawBreak = Math.exp(sampleGaussian(Math.log(breakMedian), 0.25));
+    const breakDuration = Math.round(Math.max(breakMin, Math.min(breakMax, rawBreak)));
+
+    // Clear 60%–80% of accumulated fatigue after taking the micro-break
+    const clearRatio = 0.60 + Math.random() * 0.20;
+    resetFatigue(clearRatio);
+    fatigueState.totalMicroBreaksTaken++;
+
+    console.log(
+      `[HumanMotor] ☕ Simulated micro-break after ${runsBeforeBreak} continuous runs: ${breakDuration}ms (fatigue ${prevFatigue.toFixed(2)} -> ${fatigueState.fatigueLevel.toFixed(2)})...`
+    );
+    await new Promise(r => setTimeout(r, breakDuration));
+    return breakDuration;
+  }
+
+  // Subtle inter-run fatigue multiplier (up to +20% on long continuous streaks)
+  const interRunFatigueMult = 1.0 + fatigue * 0.20;
+
   // 1. Explicit custom override: [min, max] range or number
   if (options.customDelayMs !== undefined) {
     if (Array.isArray(options.customDelayMs)) {
@@ -149,35 +339,36 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
       const low = Math.min(minMs, maxMs);
       const high = Math.max(minMs, maxMs);
       const span = high - low;
-      const jittered = Math.max(low, Math.min(high, low + span * 0.5 + sampleGaussian(0, span * 0.18)));
+      const center = low + span * (0.5 + fatigue * 0.08);
+      const jittered = Math.max(low, Math.min(high, center + sampleGaussian(0, span * 0.18)));
       const duration = Math.round(jittered);
-      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${duration}ms (explicit range [${low}, ${high}]ms)...`);
+      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${duration}ms (explicit range [${low}, ${high}]ms, fatigue=${fatigue.toFixed(2)})...`);
       await new Promise(r => setTimeout(r, duration));
       return duration;
     } else if (typeof options.customDelayMs === 'number' && options.customDelayMs > 0) {
-      const base = options.customDelayMs;
-      const jittered = Math.max(Math.round(base * 0.5), Math.round(base + sampleGaussian(0, base * 0.12)));
-      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${jittered}ms (target ${base}ms with Gaussian jitter)...`);
+      const base = options.customDelayMs * (1.0 + fatigue * 0.10);
+      const jittered = Math.max(Math.round(options.customDelayMs * 0.5), Math.round(base + sampleGaussian(0, base * 0.12)));
+      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${jittered}ms (target ${options.customDelayMs}ms, fatigue=${fatigue.toFixed(2)})...`);
       await new Promise(r => setTimeout(r, jittered));
       return jittered;
     }
   }
 
-  // 2. Default profile-tuned Gaussian log-normal distribution
-  let baselineMedian = 1600;
-  let shape = 0.24;
-  let hesitationChance = 0.035;
+  // 2. Default profile-tuned Gaussian log-normal distribution with subtle fatigue drift
+  let baselineMedian = 1600 * interRunFatigueMult;
+  let shape = 0.24 * (1.0 + fatigue * 0.10);
+  let hesitationChance = 0.035 + fatigue * 0.025;
   let hesitationMedian = 1400;
 
   if (profile === 'turbo') {
-    baselineMedian = 750;
+    baselineMedian = 750 * (1.0 + fatigue * 0.08);
     shape = 0.20;
     hesitationChance = 0.01;
     hesitationMedian = 500;
   } else if (profile === 'stealth') {
-    baselineMedian = 3200;
-    shape = 0.30;
-    hesitationChance = 0.07;
+    baselineMedian = 3200 * interRunFatigueMult;
+    shape = 0.30 * (1.0 + fatigue * 0.10);
+    hesitationChance = 0.07 + fatigue * 0.035;
     hesitationMedian = 2500;
   }
 
@@ -195,10 +386,10 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
   }
 
   const minFloor = profile === 'turbo' ? 400 : (profile === 'fast' ? 950 : 1800);
-  const maxCeil = profile === 'turbo' ? 1400 : (profile === 'fast' ? 3800 : 8000);
+  const maxCeil = profile === 'turbo' ? 1400 : (profile === 'fast' ? 4200 : 8800);
   const finalDuration = Math.round(Math.max(minFloor, Math.min(maxCeil, duration)));
 
-  console.log(`[HumanMotor] 🎲 Natural inter-run pause: ${finalDuration}ms (${profile.toUpperCase()} profile, Gaussian jitter)...`);
+  console.log(`[HumanMotor] 🎲 Natural inter-run pause: ${finalDuration}ms (${profile.toUpperCase()} profile, fatigue=${fatigue.toFixed(2)})...`);
   await new Promise(r => setTimeout(r, finalDuration));
   return finalDuration;
 }
@@ -345,12 +536,17 @@ export async function humanReactionDelay(baseMs = 320, shape = 0.22): Promise<vo
  * Samples a natural click coordinate within the inner portion of an element using a 2D Gaussian.
  */
 export function sampleTargetCoordinate(box: BoundingBox): Point {
-  const nativePt = rustBridge.sampleTargetCoordinate(box);
-  if (nativePt !== null) {
-    return nativePt;
+  const fatigue = fatigueState.fatigueLevel;
+  if (fatigue < 0.05) {
+    const nativePt = rustBridge.sampleTargetCoordinate(box);
+    if (nativePt !== null) {
+      return nativePt;
+    }
   }
-  const sigmaX = box.width / 5.5;
-  const sigmaY = box.height / 5.5;
+  // Subtle spatial dispersion increase when fatigued (up to +14% spread, still strictly clamped inside 3px margin)
+  const spreadMult = 1.0 + fatigue * 0.14;
+  const sigmaX = (box.width / 5.5) * spreadMult;
+  const sigmaY = (box.height / 5.5) * spreadMult;
 
   const rawX = box.x + box.width / 2 + sampleGaussian(0, sigmaX);
   const rawY = box.y + box.height / 2 + sampleGaussian(0, sigmaY);

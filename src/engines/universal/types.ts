@@ -8,6 +8,7 @@ import { DropLogger } from '../drop-logger.js';
 export interface UniversalWorkflowState {
   stopRequested: boolean;
   totalGoldBarsAccumulated: number;
+  totalEternitySandsAccumulated?: number;
   totalBlueChestsAccumulated: number;
   totalHonorsAccumulated: number;
   totalLootItemsAccumulated: number;
@@ -22,6 +23,7 @@ export interface UniversalWorkflowState {
   currentDropLogPath?: string;
   currentWorkflowLogPath: string;
   currentBattleHadGoldBar: boolean;
+  currentBattleHadEternitySand?: boolean;
   currentBattleHadBlueChest: boolean;
   totalCompletedRuns: number;
   dailyCatalogCache: any[] | null;

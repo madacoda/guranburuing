@@ -6,11 +6,7 @@
   "targetEnemy": "The World",
   "raidSlot": 1,
   "supporterPriority": [
-    "Bahamut",
-    "Hades",
-    "Zeus",
-    "Lucifer",
-    "Kaguya"
+    "Hades"
   ],
   "speedProfile": "fast",
   "defaultRuns": 500,
@@ -20,8 +16,8 @@
   "minBatchClaim": 3,
   "maxBatchClaim": 5,
   "evaluatorStrategy": "leech",
-  "minHpPct": 1,
-  "maxHpPct": 100,
+  "minHpPct": 10,
+  "maxHpPct": 90,
   "minPlayers": 1,
   "maxPlayers": 29,
   "minRaidScore": 0,
