@@ -795,6 +795,8 @@ export class UniversalWorkflowEngine {
         const isCombatSkillOrSummon = step.code === 'skill' || step.action === 'skill' ||
                                       step.code === 'summon' || step.action === 'summon' ||
                                       step.code === 'quick_call' || step.action === 'quick_call';
+        const isWaitWaveStep = step.code === 'wait_wave' || step.action === 'wait_wave' || step.code === 'wait_for_wave';
+        const hasSubsequentSkill = this.template.steps.slice(i + 1).some(s => s.code === 'skill' || s.action === 'skill');
         const hasSubsequentBurst = this.template.steps.slice(i + 1).some(s =>
           s.code === 'attack' || s.action === 'attack' ||
           s.code === 'tap_ready' || s.action === 'tap_ready' ||
@@ -802,8 +804,13 @@ export class UniversalWorkflowEngine {
           s.code === 'smart_full_auto' || s.action === 'smart_full_auto'
         );
 
-        if (isCombatSkillOrSummon && hasSubsequentBurst && (this.template.mode === 'assist' || this.template.mode === 'combat' || !this.template.mode)) {
+        if ((isCombatSkillOrSummon && hasSubsequentBurst) && (this.template.mode === 'assist' || this.template.mode === 'combat' || !this.template.mode)) {
           console.warn(`[Run ${runNumber}] ⚠️ Non-fatal combat action failure: Step ${i + 1} (${step.code || step.action}) unacknowledged, but subsequent attack/burst steps exist. Continuing combat pipeline to secure honors.`);
+          continue;
+        }
+
+        if (isWaitWaveStep && hasSubsequentSkill) {
+          console.warn(`[Run ${runNumber}] ⚠️ Step ${i + 1} (${step.code || step.action}) timed out, but subsequent skill step exists. Continuing combat pipeline to attempt casting.`);
           continue;
         }
 
@@ -980,11 +987,22 @@ export class UniversalWorkflowEngine {
         {
           console.log('[Combat] 🔙 Executing Back Button navigation...');
           const clicked = await this.page.evaluate(() => {
-            const footerBack = document.querySelector('.btn-treasure-footer-back') as HTMLElement;
+            const footerBack = document.querySelector('.btn-treasure-footer-back, .btn-footer-back') as HTMLElement;
             if (footerBack) {
               const $ = (window as any).$ || (window as any).Zepto;
-              if ($) $(footerBack).trigger('tap');
-              footerBack.click();
+              if ($) {
+                $(footerBack).trigger('touchstart');
+                $(footerBack).trigger('touchend');
+                $(footerBack).trigger('tap');
+              }
+              footerBack.dispatchEvent(new CustomEvent('tap', { bubbles: true, cancelable: true }));
+              footerBack.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+              if (typeof footerBack.click === 'function') footerBack.click();
+
+              const locHref = footerBack.getAttribute('data-location-href');
+              if (locHref) {
+                location.hash = locHref.startsWith('#') ? locHref : `#${locHref}`;
+              }
               return 'footer_back (.btn-treasure-footer-back)';
             }
 

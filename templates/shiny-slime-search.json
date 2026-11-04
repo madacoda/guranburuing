@@ -30,7 +30,8 @@
       "code": "wait_wave",
       "name": "Wait for Wave 2 & All Characters Full Load",
       "wave": 2,
-      "timeoutMs": 10000
+      "timeoutMs": 10000,
+      "optional": true
     },
     {
       "code": "skill",

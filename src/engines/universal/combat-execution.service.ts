@@ -282,8 +282,8 @@ export class CombatExecutionService {
       }).catch(() => false);
       if (isDefeated) return true;
 
-      // Dismiss any "TAP READY" or ready overlay
-      await this.page.evaluate(() => {
+      // Dismiss any "TAP READY" or ready overlay, and re-trigger footer back if waiting for wave transition
+      await this.page.evaluate((elapsed: number) => {
         const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start, .btn-attack-ready, .prt-canvas-mask') as HTMLElement;
         if (readyEl && readyEl.offsetParent !== null) {
           const $ = (window as any).$ || (window as any).Zepto;
@@ -295,7 +295,23 @@ export class CombatExecutionService {
           }
           readyEl.click();
         }
-      }).catch(() => null);
+
+        // Re-dispatch footer back if client was locked during initial attempt
+        if (elapsed > 1200 && elapsed % 1200 < 150) {
+          const footerBack = document.querySelector('.btn-treasure-footer-back, .btn-footer-back') as HTMLElement;
+          if (footerBack) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) {
+              $(footerBack).trigger('touchstart');
+              $(footerBack).trigger('touchend');
+              $(footerBack).trigger('tap');
+            }
+            footerBack.dispatchEvent(new CustomEvent('tap', { bubbles: true, cancelable: true }));
+            footerBack.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            if (typeof footerBack.click === 'function') footerBack.click();
+          }
+        }
+      }, Date.now() - start).catch(() => null);
 
       const waveState = await this.page.evaluate((tgt: number) => {
         const stage = (window as any).stage;
