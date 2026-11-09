@@ -35,6 +35,7 @@
     "rust:run-native": "cargo run --release --package gbf-daemon -- --run-native",
     "rust:govern-cpu": "cargo run --release --package gbf-daemon -- --govern-cpu",
     "rust:bench": "bun scripts/bench-rust-core.ts",
+    "bench:vps": "bun scripts/bench-vps.ts",
     "start": "bun dist/index.js",
     "gateway": "bun src/index.ts",
     "test": "bun tests/run-all.ts",

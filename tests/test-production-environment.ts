@@ -1,5 +1,5 @@
 // tests/test-production-environment.ts
-import { config } from '../src/config.js';
+import { config, resolveHardwareProfile } from '../src/config.js';
 import { logNormalDelay, getSpeedProfile } from '../src/human-motor.js';
 
 console.log('========================================================================');
@@ -49,6 +49,22 @@ console.log(`   ✅ 100ms baseline delay evaluated to: ${elapsed}ms (Production 
 // 6. Verify Auto-Mute Setting
 console.log('\n6. Validating Game Audio Auto-Mute...');
 console.log(`   ✅ AUTO_MUTE_GAME: ${config.AUTO_MUTE_GAME} (Prevents WebAudio CPU audio decoding in browser)`);
+
+// 7. Verify Low-Resource VPS Hardware Tier Resolution (1C/1GB, 2C/1GB, 2C/2GB)
+console.log('\n7. Validating Low-Resource VPS Tier Scaling (1C/1GB & 2C/1GB vs 2C/2GB)...');
+const tier1c1gb = resolveHardwareProfile(1024, 1, true);
+if (tier1c1gb.tier !== '1c-1gb' || tier1c1gb.v8MaxOldSpaceMb !== 384 || tier1c1gb.diskCacheBytes !== 104857600 || tier1c1gb.cpuQuotaPct !== 38) {
+  throw new Error(`Unexpected 1C/1GB profile: ${JSON.stringify(tier1c1gb)}`);
+}
+const tier2c1gb = resolveHardwareProfile(1024, 2, true);
+if (tier2c1gb.tier !== '2c-1gb' || tier2c1gb.v8MaxOldSpaceMb !== 384 || tier2c1gb.cpuQuotaPct !== 65) {
+  throw new Error(`Unexpected 2C/1GB profile: ${JSON.stringify(tier2c1gb)}`);
+}
+const tier2c2gb = resolveHardwareProfile(2048, 2, true);
+if (tier2c2gb.tier !== '2c-2gb+' || tier2c2gb.v8MaxOldSpaceMb !== 1024 || tier2c2gb.diskCacheBytes !== 536870912) {
+  throw new Error(`Unexpected 2C/2GB profile: ${JSON.stringify(tier2c2gb)}`);
+}
+console.log('   ✅ 1C/1GB (384MB Heap, 38% CPU), 2C/1GB (384MB Heap, 65% CPU), and 2C/2GB (1024MB Heap) verified');
 
 console.log('\n========================================================================');
 console.log('🎉 ALL PRODUCTION ENVIRONMENT & HARDWARE CONFIG TESTS PASSED (100%)');

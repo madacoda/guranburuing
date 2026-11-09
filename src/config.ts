@@ -1,8 +1,55 @@
 // src/config.ts
 import dotenv from 'dotenv';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { z } from 'zod';
+
+export interface HardwareProfile {
+  tier: '1c-1gb' | '2c-1gb' | '2c-2gb+' | 'local';
+  totalRamMb: number;
+  cpuCores: number;
+  v8MaxOldSpaceMb: number;
+  diskCacheBytes: number;
+  cpuQuotaPct: number;
+  recommendedSwapMb: number;
+}
+
+/**
+ * Resolves hardware-aware Chromium & Bun resource limits for low-resource VPS tiers
+ * (1 vCPU / 1 GB RAM, 2 vCPU / 1 GB RAM, 2+ vCPU / 2+ GB RAM, and Local Dev).
+ */
+export function resolveHardwareProfile(
+  totalRamMb = Number(process.env.SIMULATED_VPS_RAM_MB) || Math.round(os.totalmem() / (1024 * 1024)),
+  cpuCores = Number(process.env.SIMULATED_VPS_CORES) || Math.max(1, os.cpus()?.length || 1),
+  isProd = false
+): HardwareProfile {
+  const isLowRamVps = totalRamMb < 1800;
+  const tier: HardwareProfile['tier'] = isLowRamVps
+    ? (cpuCores <= 1 ? '1c-1gb' : '2c-1gb')
+    : (isProd ? '2c-2gb+' : 'local');
+
+  const v8MaxOldSpaceMb = isLowRamVps
+    ? 384
+    : (isProd ? 1024 : 2048);
+
+  const diskCacheBytes = isLowRamVps
+    ? 104857600 // 100 MB on 1 GB RAM VPS
+    : (isProd ? 536870912 : 104857600); // 512 MB on 2 GB+ prod VPS, 100 MB local
+
+  const cpuQuotaPct = cpuCores <= 1 ? 38 : (cpuCores === 2 ? 65 : 85);
+  const recommendedSwapMb = isLowRamVps ? 2048 : 1024;
+
+  return {
+    tier,
+    totalRamMb,
+    cpuCores,
+    v8MaxOldSpaceMb,
+    diskCacheBytes,
+    cpuQuotaPct,
+    recommendedSwapMb,
+  };
+}
 
 // Detect initial environment before cascading secondary .env files
 const rawEnv = (process.env.APP_ENV || process.env.NODE_ENV || '').toLowerCase();
@@ -24,6 +71,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const isProdEnv = (process.env.APP_ENV || initialAppEnv) === 'production';
+const detectedHardware = resolveHardwareProfile(undefined, undefined, isProdEnv);
 
 const ConfigSchema = z.object({
   APP_ENV: z.enum(['local', 'production', 'test']).default(initialAppEnv),
@@ -53,8 +101,8 @@ const ConfigSchema = z.object({
   AUTO_MUTE_GAME: z.preprocess((val) => val === undefined ? isProdEnv : (val === 'true' || val === true || val === '1'), z.boolean()).default(isProdEnv),
   VIEWPORT_WIDTH: z.coerce.number().default(isProdEnv ? 360 : 480),
   VIEWPORT_HEIGHT: z.coerce.number().default(isProdEnv ? 720 : 960),
-  V8_MAX_OLD_SPACE: z.coerce.number().default(isProdEnv ? 1024 : 2048),
-  DISK_CACHE_SIZE: z.coerce.number().default(isProdEnv ? 536870912 : 104857600),
+  V8_MAX_OLD_SPACE: z.coerce.number().default(detectedHardware.v8MaxOldSpaceMb),
+  DISK_CACHE_SIZE: z.coerce.number().default(detectedHardware.diskCacheBytes),
 });
 
 export type BaseAppConfig = z.infer<typeof ConfigSchema>;
