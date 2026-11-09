@@ -55,7 +55,7 @@ const bezierBuf = new Float64Array(48); // Up to 16 steps * 3 (x, y, delayMs)
 const metricsBuf = new Float64Array(6);
 const dslTokenBuf = new Int32Array(5);
 const catalogOutBuf = new Uint32Array(3);
-const scratchBytes = new Uint8Array(512 * 1024); // 512 KB reusable zero-alloc UTF-8 buffer
+const scratchBytes = new Uint8Array(1024 * 1024); // 1 MB reusable zero-alloc UTF-8 buffer
 const dstScratchBytes = new Uint8Array(4096);
 const dpapiOutBuf = new Uint8Array(4096);
 const textEncoder = new TextEncoder();
@@ -328,10 +328,11 @@ function encodeToBytes(input: string | Uint8Array): { buf: Uint8Array; len: numb
   if (input instanceof Uint8Array) {
     return { buf: input, len: input.byteLength };
   }
-  // If string cannot possibly exceed scratchBytes (UTF-8 max 3 bytes per BMP code unit)
-  if (input.length * 3 <= scratchBytes.byteLength) {
-    const { written } = textEncoder.encodeInto(input, scratchBytes);
-    return { buf: scratchBytes, len: written };
+  if (input.length <= scratchBytes.byteLength) {
+    const { read, written } = textEncoder.encodeInto(input, scratchBytes);
+    if (read === input.length) {
+      return { buf: scratchBytes, len: written };
+    }
   }
   const encoded = textEncoder.encode(input);
   return { buf: encoded, len: encoded.byteLength };

@@ -1,4 +1,5 @@
 // scripts/bench-vps.ts
+import os from 'node:os';
 import { performance, monitorEventLoopDelay } from 'node:perf_hooks';
 import { config, resolveHardwareProfile } from '../src/config.js';
 import { rustBridge } from '../src/core/rust-bridge.js';
@@ -11,9 +12,23 @@ interface VpsSimulationTarget {
   cpuThrottleFactor: number;
   activeChromiumEstMb: number;
   standbyChromiumEstMb: number;
+  isProd: boolean;
 }
 
+const hostCores = Math.max(1, os.cpus()?.length || 1);
+const hostRamMb = Math.round(os.totalmem() / (1024 * 1024));
+const hostCpuModel = os.cpus()?.[0]?.model?.trim() || 'Local CPU';
+
 const VPS_TARGETS: VpsSimulationTarget[] = [
+  {
+    label: `Local Host Baseline (${hostCores} Threads / ${(hostRamMb / 1024).toFixed(1)} GB RAM — ${hostCpuModel})`,
+    cores: hostCores,
+    ramMb: hostRamMb,
+    cpuThrottleFactor: 1.0, // Unthrottled native local execution
+    activeChromiumEstMb: 560,
+    standbyChromiumEstMb: 90,
+    isProd: false,
+  },
   {
     label: '1 vCPU / 1 GB RAM (Ultra-Low-Spec VPS)',
     cores: 1,
@@ -21,6 +36,7 @@ const VPS_TARGETS: VpsSimulationTarget[] = [
     cpuThrottleFactor: 4.0, // Simulates single-core SwiftShader + OS scheduler contention
     activeChromiumEstMb: 410, // Headless 360x720 + --max-old-space-size=384 + Skia 2D diet
     standbyChromiumEstMb: 85, // Standby about:blank mode (renderer tab closed)
+    isProd: true,
   },
   {
     label: '2 vCPU / 1 GB RAM (Entry Cloud VPS)',
@@ -29,6 +45,7 @@ const VPS_TARGETS: VpsSimulationTarget[] = [
     cpuThrottleFactor: 2.0, // Dual-core splits Bun + Chromium renderer across 2 vCPUs
     activeChromiumEstMb: 410,
     standbyChromiumEstMb: 85,
+    isProd: true,
   },
   {
     label: '2 vCPU / 2 GB RAM (Standard Production VPS)',
@@ -37,6 +54,7 @@ const VPS_TARGETS: VpsSimulationTarget[] = [
     cpuThrottleFactor: 1.5,
     activeChromiumEstMb: 560, // --max-old-space-size=1024
     standbyChromiumEstMb: 90,
+    isProd: true,
   },
 ];
 
@@ -92,7 +110,7 @@ function burnCpuMicroseconds(us: number): void {
 }
 
 async function runProfileSimulation(target: VpsSimulationTarget) {
-  const hw = resolveHardwareProfile(target.ramMb, target.cores, true);
+  const hw = resolveHardwareProfile(target.ramMb, target.cores, target.isProd);
   const loopHistogram = monitorEventLoopDelay({ resolution: 10 });
   loopHistogram.enable();
 
@@ -136,13 +154,12 @@ async function runProfileSimulation(target: VpsSimulationTarget) {
     }
     totalComputeUs += (performance.now() - cStart) * 1000;
 
-    if (i % 10 === 0) {
-      await new Promise<void>((r) => setImmediate(r));
-      if (i % 100 === 0) {
-        const mem = process.memoryUsage();
-        peakBunRssMb = Math.max(peakBunRssMb, mem.rss / (1024 * 1024));
-        peakHeapUsedMb = Math.max(peakHeapUsedMb, mem.heapUsed / (1024 * 1024));
-      }
+    // Yield per turn (matches real 1-turn-per-network-packet event-loop execution)
+    await new Promise<void>((r) => setImmediate(r));
+    if (i % 100 === 0) {
+      const mem = process.memoryUsage();
+      peakBunRssMb = Math.max(peakBunRssMb, mem.rss / (1024 * 1024));
+      peakHeapUsedMb = Math.max(peakHeapUsedMb, mem.heapUsed / (1024 * 1024));
     }
   }
 
