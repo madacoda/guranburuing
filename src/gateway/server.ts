@@ -37,6 +37,18 @@ export class GatewayServer {
     this.raidEngine = new RaidEngine(page, sentinel);
   }
 
+  /**
+   * Rebinds the active Puppeteer page across the Gateway, Screencast session, and sub-engines after CDP reconnect.
+   */
+  public updatePage(newPage: Page): void {
+    this.page = newPage;
+    this.proSkipEngine.updatePage(newPage);
+    this.raidEngine.updatePage(newPage);
+    this.screencast.updatePage(newPage).catch((err: any) => {
+      console.warn('[Gateway] Screencast page update warning:', err.message);
+    });
+  }
+
   public async start(): Promise<void> {
     await this.screencast.initialize();
 
@@ -192,7 +204,11 @@ export class GatewayServer {
     cookies: any[],
     accountId: string = 'acc1'
   ): Promise<{ sanitizedCount: number; profile: VerifiedPlayerProfile | null }> {
-    console.log(`[Gateway] Injecting ${cookies.length} cookies into browser session for account [${accountId}]...`);
+    const safeAccountId = (accountId || 'acc1').trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(safeAccountId)) {
+      throw new Error('Invalid accountId format: only alphanumeric characters, hyphens, and underscores are allowed');
+    }
+    console.log(`[Gateway] Injecting ${cookies.length} cookies into browser session for account [${safeAccountId}]...`);
 
     const sanitizedCookies = AccountAuthManager.sanitizeCookiesForCDP(cookies);
 
@@ -212,11 +228,11 @@ export class GatewayServer {
       const dataDir = path.resolve(process.cwd(), 'data');
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
       fs.writeFileSync(
-        path.join(dataDir, `${accountId}-cookies.json`),
+        path.join(dataDir, `${safeAccountId}-cookies.json`),
         JSON.stringify(sanitizedCookies, null, 2),
         'utf-8'
       );
-      console.log(`[Gateway] Cached cookies to data/${accountId}-cookies.json`);
+      console.log(`[Gateway] Cached cookies to data/${safeAccountId}-cookies.json`);
     } catch (saveErr: any) {
       console.warn('[Gateway] Notice saving cookie cache:', saveErr.message);
     }

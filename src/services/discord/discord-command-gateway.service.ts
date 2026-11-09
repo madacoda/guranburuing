@@ -324,6 +324,42 @@ export class DiscordCommandGatewayService {
   }
 
   /**
+   * Checks whether an interactive verification prompt is currently awaiting an operator reply,
+   * either in-process via DiscordDmRelay or in the active spawned worker process.
+   */
+  private isVerificationAwaitingReply(): boolean {
+    if (discordDmRelay.isCaptchaPromptActive()) {
+      return true;
+    }
+
+    const activeJob = processRunnerService.getActiveJob();
+    if (!activeJob || !Array.isArray(activeJob.outputBuffer)) {
+      return false;
+    }
+
+    for (let i = activeJob.outputBuffer.length - 1; i >= 0; i--) {
+      const line = activeJob.outputBuffer[i] || '';
+      if (
+        line.includes('CAPTCHA verified and dismissed') ||
+        line.includes('CAPTCHA Cleared') ||
+        line.includes('Timed out waiting for DM reply') ||
+        line.includes('Early resolution signaled')
+      ) {
+        return false;
+      }
+      if (
+        line.includes('Listening for user DM reply') ||
+        line.includes('CAPTCHA challenge sent to user DM') ||
+        line.includes('CRITICAL: GBF CAPTCHA')
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Evaluates and routes an operator command.
    */
   public async handleOperatorMessage(msg: DiscordMessageResponse): Promise<void> {
@@ -368,6 +404,24 @@ export class DiscordCommandGatewayService {
     const parts = commandBody.split(/\s+/).filter(p => p.length > 0);
     const action = parts[0]?.toLowerCase() || 'status';
     const extraArgs = parts.slice(1);
+
+    // 1b. Defer explicit verification replies (or active CAPTCHA prompt replies) to DiscordDmRelay.waitForReply
+    if (
+      action === 'captcha' ||
+      action === 'verify' ||
+      action === 'code' ||
+      action === 'solve' ||
+      action === 'answer' ||
+      action === 'reply'
+    ) {
+      console.log(`[CommandGateway] 🔐 Deferring explicit verification reply "${raw}" to CAPTCHA relay listener.`);
+      return;
+    }
+
+    if (this.isVerificationAwaitingReply() && discordDmRelay.parseCaptchaReply(raw) !== null) {
+      console.log(`[CommandGateway] 🔐 Deferring "${raw}" to active CAPTCHA relay listener.`);
+      return;
+    }
 
     // 2. Dispatch to command handlers
     if (action === 'scheduler:off' || (action === 'scheduler' && extraArgs[0]?.toLowerCase() === 'off')) {

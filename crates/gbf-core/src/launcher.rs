@@ -202,7 +202,13 @@ pub fn put_port_on_standby_http(port: u16, preserve_verification: bool) -> i32 {
     if preserve_verification {
         let has_captcha = pages.iter().any(|t| {
             let u = t.url.to_ascii_lowercase();
-            u.contains("recaptcha") || u.contains("challenge") || u.contains("captcha")
+            u.contains("verification")
+                || u.contains("sec_challenge")
+                || u.contains("recaptcha")
+                || u.contains("challenge")
+                || u.contains("captcha")
+                || u.contains("turnstile")
+                || u.contains("hcaptcha")
         });
         if has_captcha {
             return 0;
@@ -223,13 +229,22 @@ pub fn put_port_on_standby_http(port: u16, preserve_verification: bool) -> i32 {
         return 0;
     }
 
-    let has_blank = pages.iter().any(|t| t.url == "about:blank");
+    let has_blank = pages
+        .iter()
+        .any(|t| t.url == "about:blank" || t.url.is_empty() || t.url == "chrome://newtab/");
     if !has_blank && pages.len() <= gbf_pages.len() {
         let put_ok = cdp_http_request(port, "PUT", "/json/new?about:blank", 400)
             .map(|(code, _)| (200..300).contains(&code))
             .unwrap_or(false);
-        if !put_ok {
-            let _ = cdp_http_request(port, "GET", "/json/new?about:blank", 400);
+        let get_ok = if !put_ok {
+            cdp_http_request(port, "GET", "/json/new?about:blank", 400)
+                .map(|(code, _)| (200..300).contains(&code))
+                .unwrap_or(false)
+        } else {
+            true
+        };
+        if !get_ok {
+            return -1;
         }
     }
 
@@ -410,6 +425,75 @@ mod tests {
         assert_eq!(hash_frame_bytes(&f1), hash_frame_bytes(&f2));
         f2[2048] = 0xcd;
         assert_ne!(hash_frame_bytes(&f1), hash_frame_bytes(&f2));
+    }
+
+    #[test]
+    fn test_put_port_on_standby_preserves_verification_and_closes_gbf_tabs() {
+        use std::net::TcpListener;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use std::thread;
+
+        // 1. When #quest/verification tab is open, put_port_on_standby_http(port, true) must return 0 and not close it
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let handle = thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf);
+                let body = r#"[{"id":"T1","type":"page","url":"https://game.granbluefantasy.jp/#quest/verification"}]"#;
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            }
+        });
+        assert_eq!(put_port_on_standby_http(port, true), 0);
+        handle.join().unwrap();
+
+        // 2. Normal GBF tab with no blank tab -> opens about:blank and closes GBF tab
+        let listener2 = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port2 = listener2.local_addr().unwrap().port();
+        let close_hits = Arc::new(AtomicUsize::new(0));
+        let close_hits_clone = Arc::clone(&close_hits);
+        let handle2 = thread::spawn(move || {
+            for _ in 0..3 {
+                if let Ok((mut stream, _)) = listener2.accept() {
+                    let mut buf = [0u8; 1024];
+                    let n = stream.read(&mut buf).unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    if req.contains("/json/list") {
+                        let body = r#"[{"id":"GBF_TAB_1","type":"page","url":"https://game.granbluefantasy.jp/#mypage"}]"#;
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = stream.write_all(resp.as_bytes());
+                    } else if req.contains("/json/new?about:blank") {
+                        let body = r#"{"id":"BLANK_1"}"#;
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = stream.write_all(resp.as_bytes());
+                    } else if req.contains("/json/close/GBF_TAB_1") {
+                        close_hits_clone.fetch_add(1, Ordering::SeqCst);
+                        let body = "Target is closing";
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = stream.write_all(resp.as_bytes());
+                    }
+                }
+            }
+        });
+        assert_eq!(put_port_on_standby_http(port2, true), 1);
+        assert_eq!(close_hits.load(Ordering::SeqCst), 1);
+        handle2.join().unwrap();
     }
 
     #[cfg(windows)]

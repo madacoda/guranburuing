@@ -304,6 +304,16 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Rust Native Core (`gbf-core`) & Zero-Copy FFI Bridge Tests',
     file: 'tests/test-rust-core-bridge.ts',
     description: 'Verify gbf-core ABI v1.0.0 FFI bridge, Ziggurat kinematics, SIMD Aho-Corasick byte scanner, RaidVelocityTracker FxHashMap, and JST math'
+  },
+  {
+    name: 'LootTracker Zero-Copy Rust Fast-Path & Blue Chest Tests',
+    file: 'tests/test-loot-tracker-rust-fast-path.ts',
+    description: 'Verify zero-serialization Blue Chest detection, Uint8Array SIMD scanning, and false-positive rejection'
+  },
+  {
+    name: 'Revans Series All-Element Readiness & Substitute Engine Tests',
+    file: 'tests/test-revans-readiness.ts',
+    description: 'Verify 6-raid Revans catalog, hard gates, substitute penalty scoring, and raid-by-raid CLI evaluation'
   }
 ];
 

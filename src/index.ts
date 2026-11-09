@@ -41,6 +41,10 @@ export async function bootstrap() {
 
   // 3. Start Gateway Server & Viewport Screencast
   const gateway = new GatewayServer(page, sentinel);
+  cdpManager.onReconnect(async (newPage) => {
+    sentinel.updatePage(newPage);
+    gateway.updatePage(newPage);
+  });
   await gateway.start();
 
   console.log(`[Bootstrap] Daemon is fully operational.`);

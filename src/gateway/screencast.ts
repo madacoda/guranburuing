@@ -30,6 +30,17 @@ export class ScreencastManager {
     });
   }
 
+  public async updatePage(newPage: Page): Promise<void> {
+    const hadClients = this.clients.size > 0;
+    await this.stop();
+    this.page = newPage;
+    await this.initialize();
+    if (hadClients) {
+      await this.startStreaming();
+      await this.sendImmediateSnapshot().catch(() => {});
+    }
+  }
+
   public registerClient(ws: WebSocket): void {
     this.clients.add(ws);
 

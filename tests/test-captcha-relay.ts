@@ -175,6 +175,73 @@ console.log('  ✅ [PASS] Discord DM receives single high-resolution captcha-cha
 // Restore
 (discordDmRelay as any).sendMessage = originalSendMessage;
 
+// -----------------------------------------------------------------------------
+// Test 6: Strict /gbf Prefix & Input Format Filtering in waitForReply
+// -----------------------------------------------------------------------------
+console.log('\n[Test 6] Testing Strict /gbf Prefix & Input Validation in CAPTCHA Reply Listener...');
+{
+  // Rejects casual chat without /gbf prefix or invalid multi-word input
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('gold bar dropped'), null, 'Must ignore casual chat without /gbf prefix');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('8392'), null, 'Must ignore bare code without /gbf prefix');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('halt'), null, 'Must ignore bare halt without /gbf prefix');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf gold bar dropped'), null, 'Must ignore invalid multi-word prose even with /gbf prefix');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf status'), null, 'Must ignore /gbf status controller command');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf daily'), null, 'Must ignore /gbf daily controller command');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf gb-akasha'), null, 'Must ignore /gbf gb-akasha preset command');
+
+  // Accepts valid /gbf prefixed player inputs
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf g4h65f'), 'g4h65f', 'Must extract valid alphanumeric code');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf 8392'), '8392', 'Must extract valid numeric code');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf 1 3'), '1 3', 'Must extract valid tile grid indices');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf captcha g4h65f'), 'g4h65f', 'Must extract code from explicit /gbf captcha subcommand');
+  assert.strictEqual(discordDmRelay.parseCaptchaReply('/gbf halt'), 'HALT_REQUESTED', 'Must recognize /gbf halt as HALT_REQUESTED');
+
+  // Simulate polling DM messages where "gold bar dropped" and "/gbf status" precede "/gbf g4h65f"
+  const origFetch = globalThis.fetch;
+  const origIsConfigured = discordDmRelay.isConfigured.bind(discordDmRelay);
+  const origGetDmChannelId = discordDmRelay.getDmChannelId.bind(discordDmRelay);
+  const targetUserId = (await import('../src/config.js')).config.DISCORD_USER_ID || 'test-user';
+
+  (discordDmRelay as any).isConfigured = () => true;
+  (discordDmRelay as any).getDmChannelId = async () => 'mock_dm_chan';
+
+  try {
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify([
+          {
+            id: '100000000000000001',
+            content: 'gold bar dropped',
+            author: { id: targetUserId, username: 'Player', bot: false },
+            timestamp: '2026-11-09T10:00:01.000Z'
+          },
+          {
+            id: '100000000000000002',
+            content: '/gbf status',
+            author: { id: targetUserId, username: 'Player', bot: false },
+            timestamp: '2026-11-09T10:00:02.000Z'
+          },
+          {
+            id: '100000000000000003',
+            content: '/gbf g4h65f',
+            author: { id: targetUserId, username: 'Player', bot: false },
+            timestamp: '2026-11-09T10:00:03.000Z'
+          }
+        ]),
+        { status: 200 }
+      );
+    }) as any;
+
+    const reply = await discordDmRelay.waitForReply('123456789012345678', 500, 10);
+    assert.strictEqual(reply, 'g4h65f', 'waitForReply must skip "gold bar dropped" and "/gbf status" and resolve to "g4h65f"');
+    console.log('  ✅ [PASS] waitForReply ignores "gold bar dropped" & controller commands, listening strictly to valid /gbf player input');
+  } finally {
+    globalThis.fetch = origFetch;
+    (discordDmRelay as any).isConfigured = origIsConfigured;
+    (discordDmRelay as any).getDmChannelId = origGetDmChannelId;
+  }
+}
+
 console.log('\n========================================================================');
 console.log('🎉 ALL CAPTCHA RELAY & RESOLUTION TESTS PASSED (100%)');
 console.log('========================================================================\n');

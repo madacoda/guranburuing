@@ -23,6 +23,11 @@ export class ProSkipEngine {
     this.hybrid = new HybridApiClient(page, sentinel);
   }
 
+  public updatePage(newPage: Page): void {
+    this.page = newPage;
+    this.hybrid = new HybridApiClient(newPage, this.sentinel);
+  }
+
   /**
    * Orchestrates the execution of a specified Pro Skip category or all categories sequentially.
    */

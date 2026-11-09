@@ -73,10 +73,34 @@ pub fn build_cpu_throttle_cdp_command(rpc_id: u32, phase: AutomationPhase) -> Va
     })
 }
 
+/// Extracts `--user-data-dir=...` from a `/proc/<pid>/cmdline` string (null- or space-delimited).
+fn extract_user_data_dir_arg(cmdline: &str) -> Option<String> {
+    for token in cmdline.split(['\0', ' ']) {
+        if let Some(dir) = token.strip_prefix("--user-data-dir=") {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                return Some(format!("--user-data-dir={trimmed}"));
+            }
+        }
+    }
+    None
+}
+
+/// Reads `PPid:` from `/proc/<pid>/status`.
+fn read_proc_ppid(proc_path: &Path) -> Option<u32> {
+    let status = fs::read_to_string(proc_path.join("status")).ok()?;
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("PPid:") {
+            return rest.trim().parse::<u32>().ok();
+        }
+    }
+    None
+}
+
 /// Applies split OS-level CPU governance on Linux for the Chromium process tree on `cdp_port`:
-/// 1. Places `--type=gpu-process` into `/sys/fs/cgroup/gbf-chrome-gpu` with a strict `5–8%` VPS CPU cap
+/// 1. Places `--type=gpu-process` into `/sys/fs/cgroup/gbf-chrome-gpu-{cdp_port}` with a strict `5–8%` VPS CPU cap
 ///    (`renice +19`) so software shader threads never starve V8.
-/// 2. Places `--type=renderer`, browser, and network processes into `/sys/fs/cgroup/gbf-chrome`
+/// 2. Places `--type=renderer`, browser, and network processes into `/sys/fs/cgroup/gbf-chrome-{cdp_port}`
 ///    with the remaining budget (`renice +5`), ensuring snappy `<200ms` skill execution.
 pub fn apply_linux_chrome_cpu_governor(
     cdp_port: u16,
@@ -88,8 +112,9 @@ pub fn apply_linux_chrome_cpu_governor(
     }
 
     let port_flag = format!("--remote-debugging-port={cdp_port}");
-    let mut renderer_pids: Vec<u32> = Vec::new();
-    let mut gpu_pids: Vec<u32> = Vec::new();
+    let mut browser_pids: Vec<u32> = Vec::new();
+    let mut user_data_flags: Vec<String> = Vec::new();
+    let mut candidates: Vec<(u32, std::path::PathBuf, String)> = Vec::new();
 
     if let Ok(entries) = fs::read_dir("/proc") {
         for entry in entries.flatten() {
@@ -100,23 +125,49 @@ pub fn apply_linux_chrome_cpu_governor(
             let Ok(pid) = pid_str.parse::<u32>() else {
                 continue;
             };
-            let cmdline_path = entry.path().join("cmdline");
+            let proc_path = entry.path();
+            let cmdline_path = proc_path.join("cmdline");
             if let Ok(raw) = fs::read(&cmdline_path) {
-                let cmdline = String::from_utf8_lossy(&raw);
+                let cmdline = String::from_utf8_lossy(&raw).into_owned();
                 if !cmdline.contains("chrome") || cmdline.contains("chrome_crashpad") {
                     continue;
                 }
-                if cmdline.contains("--type=gpu-process") {
-                    gpu_pids.push(pid);
-                } else if cmdline.contains(&port_flag)
-                    || cmdline.contains("--type=renderer")
-                    || cmdline.contains("--type=utility")
-                    || cmdline.contains("/data/accounts/")
-                    || cmdline.contains("gbf-chrome-profile")
-                {
-                    renderer_pids.push(pid);
+                if cmdline.contains(&port_flag) {
+                    browser_pids.push(pid);
+                    if let Some(udf) = extract_user_data_dir_arg(&cmdline) {
+                        if !user_data_flags.contains(&udf) {
+                            user_data_flags.push(udf);
+                        }
+                    }
                 }
+                candidates.push((pid, proc_path, cmdline));
             }
+        }
+    }
+
+    if browser_pids.is_empty() {
+        return 0;
+    }
+
+    let mut renderer_pids: Vec<u32> = Vec::new();
+    let mut gpu_pids: Vec<u32> = Vec::new();
+
+    for (pid, proc_path, cmdline) in candidates {
+        let belongs_to_instance = browser_pids.contains(&pid)
+            || cmdline.contains(&port_flag)
+            || user_data_flags.iter().any(|udf| cmdline.contains(udf))
+            || read_proc_ppid(&proc_path)
+                .map(|ppid| browser_pids.contains(&ppid))
+                .unwrap_or(false);
+
+        if !belongs_to_instance {
+            continue;
+        }
+
+        if cmdline.contains("--type=gpu-process") {
+            gpu_pids.push(pid);
+        } else {
+            renderer_pids.push(pid);
         }
     }
 
@@ -137,12 +188,13 @@ pub fn apply_linux_chrome_cpu_governor(
             .output();
     }
 
-    // 2. Apply split cgroup v2 bandwidth caps so gpu-process can never starve renderer V8
+    // 2. Apply split cgroup v2 bandwidth caps namespaced by cdp_port
     if Path::new("/sys/fs/cgroup/cgroup.controllers").exists() {
         let (renderer_max, gpu_max) =
             format_split_chrome_cgroup_quotas(max_vps_cpu_pct, num_vcpus);
 
-        let renderer_cg = Path::new("/sys/fs/cgroup/gbf-chrome");
+        let renderer_cg_path = format!("/sys/fs/cgroup/gbf-chrome-{cdp_port}");
+        let renderer_cg = Path::new(&renderer_cg_path);
         let _ = fs::create_dir_all(renderer_cg);
         if fs::write(renderer_cg.join("cpu.max"), format!("{renderer_max}\n")).is_ok() {
             for &pid in &renderer_pids {
@@ -150,7 +202,8 @@ pub fn apply_linux_chrome_cpu_governor(
             }
         }
 
-        let gpu_cg = Path::new("/sys/fs/cgroup/gbf-chrome-gpu");
+        let gpu_cg_path = format!("/sys/fs/cgroup/gbf-chrome-gpu-{cdp_port}");
+        let gpu_cg = Path::new(&gpu_cg_path);
         let _ = fs::create_dir_all(gpu_cg);
         if fs::write(gpu_cg.join("cpu.max"), format!("{gpu_max}\n")).is_ok() {
             for &pid in &gpu_pids {

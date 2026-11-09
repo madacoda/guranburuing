@@ -98,40 +98,48 @@ console.log(`   ✅ State:   "${gbfData.state}"`);
 
 // 6. Test Persistence & Mode Switching on DiscordPresenceManager
 console.log('\n6. Testing DiscordPresenceManager mode switching & persistence...');
-discordPresence.setMode('work', { project: 'Every Hero' }, false);
-if (discordPresence.getMode() !== 'work') {
-  throw new Error(`Expected mode 'work', got '${discordPresence.getMode()}'`);
-}
+const presenceFilePath = path.resolve(process.cwd(), 'data', 'presence-mode.json');
+const origPresenceRaw = fs.existsSync(presenceFilePath) ? fs.readFileSync(presenceFilePath, 'utf8') : null;
+try {
+  discordPresence.setMode('work', { project: 'Every Hero' }, false);
+  if (discordPresence.getMode() !== 'work') {
+    throw new Error(`Expected mode 'work', got '${discordPresence.getMode()}'`);
+  }
 
-const managerWork = discordPresence.formatActivityData({});
-if (managerWork.name !== 'Working on Every Hero') {
-  throw new Error(`Expected 'Working on Every Hero', got '${managerWork.name}'`);
-}
-console.log(`   ✅ Manager Work Presence: "${managerWork.name}" | "${managerWork.details}"`);
+  const managerWork = discordPresence.formatActivityData({});
+  if (managerWork.name !== 'Working on Every Hero') {
+    throw new Error(`Expected 'Working on Every Hero', got '${managerWork.name}'`);
+  }
+  console.log(`   ✅ Manager Work Presence: "${managerWork.name}" | "${managerWork.details}"`);
 
-discordPresence.setMode('trade', { quote: 'Plan your trade and trade your plan.' }, false);
-if (discordPresence.getMode() !== 'trade') {
-  throw new Error(`Expected mode 'trade', got '${discordPresence.getMode()}'`);
-}
-const managerTrade = discordPresence.formatActivityData({});
-if (!managerTrade.state.includes('Plan your trade')) {
-  throw new Error(`Expected quote in state, got '${managerTrade.state}'`);
-}
-console.log(`   ✅ Manager Trade Presence: "${managerTrade.name}" | "${managerTrade.state}"`);
+  discordPresence.setMode('trade', { quote: 'Plan your trade and trade your plan.' }, false);
+  if (discordPresence.getMode() !== 'trade') {
+    throw new Error(`Expected mode 'trade', got '${discordPresence.getMode()}'`);
+  }
+  const managerTrade = discordPresence.formatActivityData({});
+  if (!managerTrade.state.includes('Plan your trade')) {
+    throw new Error(`Expected quote in state, got '${managerTrade.state}'`);
+  }
+  console.log(`   ✅ Manager Trade Presence: "${managerTrade.name}" | "${managerTrade.state}"`);
 
-discordPresence.setMode('gbf', {}, false);
-if (discordPresence.getMode() !== 'gbf') {
-  throw new Error(`Expected mode 'gbf', got '${discordPresence.getMode()}'`);
+  discordPresence.setMode('gbf', {}, false);
+  if (discordPresence.getMode() !== 'gbf') {
+    throw new Error(`Expected mode 'gbf', got '${discordPresence.getMode()}'`);
+  }
+  const managerGbf = discordPresence.formatActivityData({
+    raidName: 'PBHL',
+    runNumber: 10,
+    goldBars: 1
+  });
+  if (managerGbf.name !== 'Raid PBHL 10 - 1 GB Drop') {
+    throw new Error(`Expected 'Raid PBHL 10 - 1 GB Drop', got '${managerGbf.name}'`);
+  }
+  console.log(`   ✅ Manager GBF Presence: "${managerGbf.name}"`);
+} finally {
+  if (origPresenceRaw !== null) {
+    fs.writeFileSync(presenceFilePath, origPresenceRaw, 'utf8');
+  }
 }
-const managerGbf = discordPresence.formatActivityData({
-  raidName: 'PBHL',
-  runNumber: 10,
-  goldBars: 1
-});
-if (managerGbf.name !== 'Raid PBHL 10 - 1 GB Drop') {
-  throw new Error(`Expected 'Raid PBHL 10 - 1 GB Drop', got '${managerGbf.name}'`);
-}
-console.log(`   ✅ Manager GBF Presence: "${managerGbf.name}"`);
 
 console.log('\n========================================================================');
 console.log('  🎉 ALL DISCORD PRESENCE TEMPLATE TESTS PASSED 100%!                   ');

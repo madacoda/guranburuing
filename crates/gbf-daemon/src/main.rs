@@ -244,7 +244,12 @@ fn main() {
                 }
             });
 
-            let bind_addr = format!("0.0.0.0:{gateway_port}");
+            let host = std::env::var("HOST")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "127.0.0.1".to_string());
+            let bind_addr = format!("{host}:{gateway_port}");
             println!("[gbf-daemon] Listening on http://{bind_addr} ...");
             if let Err(err) = gateway_web::serve_gateway_blocking(&bind_addr, orch) {
                 eprintln!("[gbf-daemon] Gateway server error: {err}");

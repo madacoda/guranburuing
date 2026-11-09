@@ -367,6 +367,32 @@ async function runTests() {
     await (discordCommandGatewayService as any).notifyJobCompletion(preemptedJob, 0, 30000);
     assert(!messageSent, 'notifyJobCompletion suppresses redundant exit DM when preemptedBy is present');
 
+    // D. Verify CAPTCHA replies with /gbf prefix do not trigger "Unknown Command" or kill active job
+    let dmErrorDispatched = false;
+    discordDmRelay.sendMessage = async (content: string) => {
+      if (content.includes('Unknown Command')) dmErrorDispatched = true;
+      return { id: 'mock', content, author: { id: 'b', username: 'b' }, timestamp: '' };
+    };
+    const authUserId = config.DISCORD_USER_ID || '350293029825019915';
+    (discordDmRelay as any).activeCaptchaPrompt = true;
+    try {
+      await discordCommandGatewayService.handleOperatorMessage({
+        id: '555555555555555591',
+        content: '/gbf g4h65f',
+        author: { id: authUserId, username: 'Operator', bot: false },
+        timestamp: new Date().toISOString()
+      });
+      await discordCommandGatewayService.handleOperatorMessage({
+        id: '555555555555555592',
+        content: '/gbf 1 3',
+        author: { id: authUserId, username: 'Operator', bot: false },
+        timestamp: new Date().toISOString()
+      });
+      assert(!dmErrorDispatched, 'CommandGateway defers /gbf CAPTCHA replies without sending Unknown Command error');
+    } finally {
+      (discordDmRelay as any).activeCaptchaPrompt = false;
+    }
+
     // Clean up mocks
     discordDmRelay.sendMessage = realRelaySendMessage;
     processRunnerService.stopActiveProcess = realStopActiveProcess;

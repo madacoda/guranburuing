@@ -120,6 +120,117 @@ export class DiscordDmRelay {
 
   private notifiedKeys = new Map<string, number>();
   private activeCaptchaPrompt = false;
+  private static activePromptFile = path.resolve(process.cwd(), 'data', '.active-captcha-prompt.json');
+
+  private static readonly RESERVED_CONTROLLER_COMMANDS = new Set([
+    'status', 'stop', 'reset', 'next', 'logs', 'log', 'inventory', 'supplies',
+    'human', 'farm:human', 'help', 'daily', 'daily:skips', 'daily:routine',
+    'daily:host', 'daily:hostgb', 'daily:host:gb', 'hostgb', 'gb-pbhl',
+    'gb-akasha', 'gb-go', 'gb-farm', 'farm', 'leech', 'workflow', 'faahl',
+    'belial', 'bubz', 'lindwurm', 'empyreal', 'wilnas', 'fediel', 'siete',
+    'seofon', 'raid-seofon', 'siete:check', 'siete:setup', 'agastia',
+    'raid-agastia', 'theworld', 'db3', 'goldbar', 'eternitysand', 'sand',
+    'fate', 'slime', 'shiny-slime', 'shiny-slime-search', 'scheduler',
+    'scheduler:on', 'scheduler:off', 'run'
+  ]);
+
+  private setCaptchaPromptState(active: boolean, timeoutMs = 300000): void {
+    this.activeCaptchaPrompt = active;
+    try {
+      if (active) {
+        const dir = path.dirname(DiscordDmRelay.activePromptFile);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+          DiscordDmRelay.activePromptFile,
+          JSON.stringify({ pid: process.pid, expiresAt: Date.now() + timeoutMs })
+        );
+      } else if (fs.existsSync(DiscordDmRelay.activePromptFile)) {
+        fs.unlinkSync(DiscordDmRelay.activePromptFile);
+      }
+    } catch {}
+  }
+
+  /**
+   * Returns true while an interactive CAPTCHA DM prompt is actively awaiting an operator reply
+   * (either in the current process or in a child automation process).
+   */
+  public isCaptchaPromptActive(): boolean {
+    if (this.activeCaptchaPrompt) return true;
+    try {
+      if (fs.existsSync(DiscordDmRelay.activePromptFile)) {
+        const raw = JSON.parse(fs.readFileSync(DiscordDmRelay.activePromptFile, 'utf8'));
+        if (typeof raw?.expiresAt === 'number' && raw.expiresAt > Date.now()) {
+          return true;
+        }
+        fs.unlinkSync(DiscordDmRelay.activePromptFile);
+      }
+    } catch {}
+    return false;
+  }
+
+  private isTemplateCommandName(tokenLower: string): boolean {
+    if (!/^[a-z0-9_.-]+$/.test(tokenLower)) return false;
+    const clean = tokenLower.replace(/\.json$/i, '');
+    const candidates = [clean, `raid-${clean}`, `farm-${clean}`, `leech-${clean}`, `arcarum-${clean}`];
+    for (const c of candidates) {
+      if (fs.existsSync(path.resolve(process.cwd(), 'templates', `${c}.json`))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Validates and extracts a player CAPTCHA reply from a raw Discord DM message.
+   * Requires the `/gbf` prefix (e.g. `/gbf 8392`, `/gbf 1 3`, `/gbf captcha g4h65f`, `/gbf halt`)
+   * and rejects casual chat (e.g. "gold bar dropped"), multi-word prose, and controller commands.
+   */
+  public parseCaptchaReply(rawContent: string): string | null {
+    const trimmed = rawContent.trim().replace(/^`+|`+$/g, '').trim();
+    if (!trimmed) return null;
+
+    // Require explicit /gbf prefix with arguments
+    const prefixMatch = trimmed.match(/^\/gbf[\s:]+(.+)$/i);
+    if (!prefixMatch || !prefixMatch[1]) {
+      return null;
+    }
+
+    let body = prefixMatch[1].trim().replace(/^`+|`+$/g, '').trim();
+    if (!body) return null;
+
+    // Strip optional explicit verification subcommand keyword (e.g. "/gbf captcha 8392")
+    body = body.replace(/^(?:captcha|verify|code|solve|answer|reply)[\s:]+/i, '').trim().replace(/^`+|`+$/g, '').trim();
+    if (!body) return null;
+
+    // 1. Check for manual browser halt keywords (e.g. "/gbf halt", "/gbf pause")
+    if (/^(halt|pause|manual|freeze)$/i.test(body)) {
+      return 'HALT_REQUESTED';
+    }
+
+    // 2. Reject known controller commands or preset/template names
+    const parts = body.split(/\s+/);
+    const firstTokenLower = parts[0].toLowerCase();
+    if (
+      DiscordDmRelay.RESERVED_CONTROLLER_COMMANDS.has(firstTokenLower) ||
+      firstTokenLower.includes(':') ||
+      /^(?:gb|raid|leech|farm|daily|arcarum|shiny)-/i.test(firstTokenLower) ||
+      this.isTemplateCommandName(firstTokenLower)
+    ) {
+      return null;
+    }
+
+    // 3. Accept valid tile grid indices (1 to 9 digits 1-9 separated by spaces/commas/hyphens, e.g. "1 3")
+    if (/^[1-9](?:[\s,–#-]+[1-9]){0,8}$/.test(body)) {
+      return body;
+    }
+
+    // 4. Accept single-token verification code (2-12 alphanumeric or Japanese characters, no spaces)
+    if (parts.length === 1 && /^[a-zA-Z0-9\u3040-\u30ff\uFF00-\uFFEF]{2,12}$/.test(body)) {
+      return body;
+    }
+
+    return null;
+  }
 
   /**
    * Checks if an alert with this key or content has recently been dispatched.
@@ -284,7 +395,7 @@ export class DiscordDmRelay {
         const rateLimitData = await res.json();
         const retryAfterMs = Math.ceil((rateLimitData.retry_after || 1) * 1000) + 100;
         await new Promise(r => setTimeout(r, retryAfterMs));
-        return await this.sendMessage(content, attachments, dedupeKey);
+        return await this.sendMessage(content, attachments, defaultFilename, dedupeKey, force);
       } catch {}
     }
 
@@ -315,8 +426,10 @@ export class DiscordDmRelay {
     const channelId = this.isConfigured() ? await this.getDmChannelId() : null;
     const targetUserId = config.DISCORD_USER_ID || 'test-user';
     const startTime = Date.now();
+    const ignoredMessageIds = new Set<string>();
+    let cursorMessageId = promptMessageId;
 
-    console.log(`[DiscordDmRelay] 👂 Listening for user DM reply (Target User ID: ${targetUserId}, Timeout: ${timeoutMs / 1000}s)...`);
+    console.log(`[DiscordDmRelay] 👂 Listening for user DM reply with /gbf prefix (Target User ID: ${targetUserId}, Timeout: ${timeoutMs / 1000}s)...`);
 
     while (Date.now() - startTime < timeoutMs) {
       await new Promise((r) => setTimeout(r, pollIntervalMs));
@@ -334,7 +447,7 @@ export class DiscordDmRelay {
       }
 
       try {
-        const url = `${this.baseUrl}/channels/${channelId}/messages?after=${promptMessageId}&limit=10`;
+        const url = `${this.baseUrl}/channels/${channelId}/messages?after=${cursorMessageId}&limit=25`;
         const res = await fetch(url, {
           headers: {
             Authorization: `Bot ${config.DISCORD_BOT_TOKEN}`,
@@ -349,21 +462,32 @@ export class DiscordDmRelay {
 
         const messages = (await res.json()) as DiscordMessageResponse[];
         if (Array.isArray(messages) && messages.length > 0) {
-          // Sort chronologically ascending (oldest first after prompt)
-          const validReplies = messages
-            .filter((m) => m.author.id === targetUserId && !m.author.bot && m.content.trim().length > 0)
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          // Sort chronologically ascending (oldest first after cursor)
+          const sortedMessages = [...messages].sort(
+            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
 
-          if (validReplies.length > 0) {
-            const userMsg = validReplies[0];
-            const responseText = userMsg.content.trim();
-            console.log(`[DiscordDmRelay] 📩 Received user DM reply: "${responseText}" (Message ID: ${userMsg.id})`);
+          for (const msg of sortedMessages) {
+            if (msg.author.id === targetUserId && !msg.author.bot && msg.content.trim().length > 0) {
+              const parsedReply = this.parseCaptchaReply(msg.content);
+              if (parsedReply) {
+                console.log(
+                  `[DiscordDmRelay] 📩 Received valid /gbf CAPTCHA reply: "${parsedReply}" (Raw: "${msg.content.trim()}", Message ID: ${msg.id})`
+                );
+                return parsedReply;
+              }
 
-            // Detect manual halt request from operator
-            if (/^(halt|stop|manual|pause|freeze)$/i.test(responseText)) {
-              return 'HALT_REQUESTED';
+              if (!ignoredMessageIds.has(msg.id)) {
+                ignoredMessageIds.add(msg.id);
+                console.log(
+                  `[DiscordDmRelay] ⏭️ Ignoring non-CAPTCHA DM message (ID: ${msg.id}): "${msg.content.trim()}" (requires "/gbf <code|tiles|halt>")`
+                );
+              }
             }
-            return responseText;
+
+            if (msg?.id && /^\d{17,20}$/.test(msg.id)) {
+              cursorMessageId = msg.id;
+            }
           }
         }
       } catch (err: any) {
@@ -406,14 +530,14 @@ export class DiscordDmRelay {
     lines.push('');
     if (!isRetry) {
       lines.push(
-        '👉 Reply with **code** (e.g. `8392`) or **tiles** (e.g. `1 3`).',
-        '👉 Or reply **`halt`** to pause and solve in browser.'
+        '👉 Reply with **`/gbf <code>`** (e.g. `/gbf 8392`) or **`/gbf <tiles>`** (e.g. `/gbf 1 3`).',
+        '👉 Or reply **`/gbf halt`** to pause and solve in browser.'
       );
     } else {
       lines.push(
         'Popup still present (new puzzle capture attached above).',
-        '👉 Reply with new **code** or **tiles**.',
-        '👉 Or reply **`halt`** to pause and solve in browser.'
+        '👉 Reply with new **`/gbf <code>`** or **`/gbf <tiles>`**.',
+        '👉 Or reply **`/gbf halt`** to pause and solve in browser.'
       );
     }
 
@@ -450,11 +574,11 @@ export class DiscordDmRelay {
     }
 
     // Set activeCaptchaPrompt = true ONLY during reply polling window so secondary spam is throttled
-    this.activeCaptchaPrompt = true;
+    this.setCaptchaPromptState(true, timeoutMs);
     try {
       return await this.waitForReply(promptMessage.id, timeoutMs, 2500, onPollTick);
     } finally {
-      this.activeCaptchaPrompt = false;
+      this.setCaptchaPromptState(false);
     }
   }
 

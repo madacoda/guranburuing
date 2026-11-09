@@ -785,7 +785,10 @@ export class CombatResolutionService {
           try {
             await discordDmRelay.sendMessage(
               `🌟 **Gold Brick Drop Confirmed** 🌟\n• **Raid**: ${this.ctx.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${accConfig}\n• **Honors**: ${honorsStr}\n• **Total GB**: ${this.ctx.state.totalGoldBarsAccumulated}`,
-              shotBuffer
+              shotBuffer,
+              `gold-bar-${raidId || 'drop'}.png`,
+              undefined,
+              true
             );
           } catch (err: any) {
             console.warn(`[DiscordDM] Failed to dispatch Gold Bar DM: ${err.message}`);
@@ -859,7 +862,10 @@ export class CombatResolutionService {
           try {
             await discordDmRelay.sendMessage(
               `⏳ **Eternity Sand (刻の流砂) Drop Confirmed** ⏳\n• **Raid**: ${this.ctx.template.name}\n• **Raid ID**: \`${raidId || 'N/A'}\`\n• **Battle Log**: ${battleUrl}\n• **Account**: ${accConfig}\n• **Honors**: ${honorsStr}\n• **Total Sands**: ${this.ctx.state.totalEternitySandsAccumulated || 1}`,
-              shotBuffer
+              shotBuffer,
+              `eternity-sand-${raidId || 'drop'}.png`,
+              undefined,
+              true
             );
           } catch (err: any) {
             console.warn(`[DiscordDM] Failed to dispatch Eternity Sand DM: ${err.message}`);

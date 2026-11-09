@@ -88,6 +88,42 @@ async function runTests() {
     assert(typeof info.formattedCountdown === 'string', 'Formatted countdown is string');
   }
 
+  // 7. Regression: 10s tick landing 8s AFTER scheduled target time still triggers reliably
+  {
+    const targetUtcMs = Date.parse('2026-10-08T12:00:15.000Z'); // 21:00:15 JST
+    (dailyResetScheduler as any).scheduledTargetUtcMs = targetUtcMs;
+    (dailyResetScheduler as any).lastExecutedGbfDay = null;
+    (dailyResetScheduler as any).hasSentAdvanceNotice = false;
+
+    let triggeredCount = 0;
+    const origTriggerNow = dailyResetScheduler.triggerNow;
+    (dailyResetScheduler as any).triggerNow = async () => {
+      triggeredCount++;
+      return { success: true } as any;
+    };
+
+    const dummyAccount = { id: 'acc1', name: 'Test Account', cdpPort: 9222, profileDir: './tmp' };
+    // Simulate a 10s interval tick landing 8 seconds after 21:00:15 JST (at 21:00:23 JST)
+    const fired = await dailyResetScheduler.evaluateScheduledTick(
+      targetUtcMs + 8000,
+      dummyAccount,
+      { bufferSeconds: 15, targetHourJst: 21 }
+    );
+    assert(fired === true && triggeredCount === 1, 'Triggers reliably when 10s tick lands 8s past target');
+
+    // Second tick on same GBF day must not double-fire
+    const firedAgain = await dailyResetScheduler.evaluateScheduledTick(
+      targetUtcMs + 18000,
+      dummyAccount,
+      { bufferSeconds: 15, targetHourJst: 21 }
+    );
+    assert(firedAgain === false && triggeredCount === 1, 'Does not double-trigger on same GBF day');
+
+    (dailyResetScheduler as any).triggerNow = origTriggerNow;
+    (dailyResetScheduler as any).scheduledTargetUtcMs = null;
+    (dailyResetScheduler as any).lastExecutedGbfDay = null;
+  }
+
   console.log(`\nDaily Peak-Hour Scheduler Tests: ${passed}/${total} passed.\n`);
   if (passed !== total) {
     throw new Error(`Daily Peak-Hour Scheduler tests failed: ${passed}/${total}`);

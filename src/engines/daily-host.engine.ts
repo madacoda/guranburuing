@@ -133,6 +133,13 @@ export class DailyHostEngine {
   }
 
   /**
+   * Detaches background telemetry listeners registered by the internal companion workflow engine.
+   */
+  public detachListeners(): void {
+    this.workflow.telemetry.detachResponseListener();
+  }
+
+  /**
    * Signals graceful cancellation of the daily host routine.
    */
   public requestStop(): void {

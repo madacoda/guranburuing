@@ -34,12 +34,13 @@ accounts*.json
 data/*-cookies.json
 *-cookies.json
 data/.test-*
+data/.active-captcha-prompt.json
 .test-*
 
 
 
 # Local Chromium & Isolated Browser Profiles
-.gbf-*-profile/
+.gbf-*-profile*/
 .gbf-profiles/
 data/accounts/*
 !data/accounts/.gitkeep

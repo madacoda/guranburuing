@@ -4,6 +4,7 @@ import { AccountConfig } from '../../types/account.types.js';
 import { dailyRoutineOrchestrator, DailyRoutineResult } from './daily-routine.orchestrator.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 import { GoldBarTrackerService } from '../telemetry/gold-bar-tracker.service.js';
+import { processRunnerService } from '../discord/process-runner.service.js';
 import { rustBridge } from '../../core/rust-bridge.js';
 
 export const DEFAULT_SCHEDULER_HOUR_JST = 21; // 21:00 JST (19:00 WIB) — GBF Peak Golden Time & Strike Time
@@ -101,6 +102,7 @@ export class DailyResetScheduler {
   private checkTimer: ReturnType<typeof setInterval> | null = null;
   private hasSentAdvanceNotice = false;
   private lastExecutedGbfDay: string | null = null;
+  private scheduledTargetUtcMs: number | null = null;
   private targetHourJst = DEFAULT_SCHEDULER_HOUR_JST;
   private bufferSeconds = DEFAULT_SCHEDULER_BUFFER_SECONDS;
 
@@ -168,6 +170,7 @@ export class DailyResetScheduler {
     }
 
     const info = this.getScheduleInfo(bufferSec, targetHourJst);
+    this.scheduledTargetUtcMs = info.nextResetDate.getTime();
     const hhJst = targetHourJst.toString().padStart(2, '0');
     const hhWib = wibHour.toString().padStart(2, '0');
     const ssStr = bufferSec.toString().padStart(2, '0');
@@ -183,50 +186,86 @@ export class DailyResetScheduler {
     console.log(`Execution Plan:    Universal Pro Skips -> Daily Raid Hosting & Diagnostic Retry`);
     console.log('========================================================================\n');
 
-    // Anti-drift tick loop: checks every 10 seconds
+    // Anti-drift tick loop: checks every 10 seconds against pinned scheduledTargetUtcMs
     this.checkTimer = setInterval(async () => {
       if (!this.isRunning) return;
-
-      const currentInfo = this.getScheduleInfo(bufferSec, targetHourJst);
-      const currentGbfDay = GoldBarTrackerService.getGbfDay();
-
-      // 1. Advance notification (e.g. 5 minutes before scheduled peak execution)
-      const notifyMsThreshold = notifyMin * 60 * 1000;
-      if (currentInfo.msRemaining <= notifyMsThreshold && currentInfo.msRemaining > notifyMsThreshold - 30000 && !this.hasSentAdvanceNotice) {
-        this.hasSentAdvanceNotice = true;
-        console.log(`[DailyResetScheduler] 🔔 Advance notice: ${notifyMin} minutes until GBF Peak-Hour Daily Routine!`);
-        if (discordDmRelay.isConfigured()) {
-          try {
-            await discordDmRelay.sendMessage(
-              `⏰ **GBF Peak-Hour Daily Routine in ${notifyMin} Minutes!**\n` +
-              `• **Target Time**: \`${currentInfo.nextResetJstString}\` (\`${currentInfo.nextResetWibString}\`)\n` +
-              `• **Account**: **${account.name}** (\`${account.id}\`)\n` +
-              `Autonomous Pro Skips and 16-Raid Daily Hosting will initiate at peak Golden Time for maximum backup clear speed.`
-            );
-          } catch (err: any) {
-            console.warn(`[DailyResetScheduler] Failed to send advance Discord alert: ${err.message}`);
-          }
-        }
-      }
-
-      // 2. Trigger check: msRemaining <= 2000 and not yet executed for this GBF day
-      if (currentInfo.msRemaining <= 2000 && this.lastExecutedGbfDay !== currentGbfDay) {
-        console.log(`\n[DailyResetScheduler] 🎯 Scheduled peak time reached (${currentInfo.nextResetJstString} / ${currentInfo.nextResetWibString})!`);
-        console.log(`[DailyResetScheduler] 🚀 Triggering autonomous daily routine for GBF day ${currentGbfDay}...`);
-
-        this.lastExecutedGbfDay = currentGbfDay;
-        this.hasSentAdvanceNotice = false;
-
-        try {
-          await this.triggerNow(account, options);
-        } catch (err: any) {
-          console.error(`[DailyResetScheduler] ❌ Error executing scheduled routine:`, err.message);
-        }
-
-        const nextInfo = this.getScheduleInfo(bufferSec, targetHourJst);
-        console.log(`\n[DailyResetScheduler] ⏳ Next daily routine scheduled for: ${nextInfo.nextResetJstString} / ${nextInfo.nextResetWibString} (${nextInfo.formattedCountdown})`);
-      }
+      await this.evaluateScheduledTick(Date.now(), account, options);
     }, 10000);
+  }
+
+  /**
+   * Evaluates a single scheduler tick against the pinned target timestamp so a 10s interval
+   * never misses the trigger window even if `getNextDailyResetJst()` has already rolled to +24h.
+   */
+  public async evaluateScheduledTick(
+    nowMs: number,
+    account: AccountConfig,
+    options: SchedulerOptions = {}
+  ): Promise<boolean> {
+    const bufferSec = options.bufferSeconds ?? this.bufferSeconds;
+    const targetHourJst = options.targetHourJst ?? this.targetHourJst;
+    const notifyMin = options.notifyBeforeMinutes ?? 5;
+
+    if (this.scheduledTargetUtcMs === null) {
+      this.scheduledTargetUtcMs = getNextDailyResetJst(
+        bufferSec,
+        new Date(nowMs),
+        targetHourJst
+      ).nextResetDate.getTime();
+    }
+
+    const msUntilTarget = this.scheduledTargetUtcMs - nowMs;
+    const currentInfo = this.getScheduleInfo(bufferSec, targetHourJst);
+    const currentGbfDay = GoldBarTrackerService.getGbfDay(new Date(nowMs));
+
+    // 1. Advance notification (e.g. 5 minutes before scheduled peak execution)
+    const notifyMsThreshold = notifyMin * 60 * 1000;
+    if (
+      msUntilTarget <= notifyMsThreshold &&
+      msUntilTarget > 2000 &&
+      !this.hasSentAdvanceNotice
+    ) {
+      this.hasSentAdvanceNotice = true;
+      console.log(`[DailyResetScheduler] 🔔 Advance notice: ${notifyMin} minutes until GBF Peak-Hour Daily Routine!`);
+      if (discordDmRelay.isConfigured()) {
+        try {
+          await discordDmRelay.sendMessage(
+            `⏰ **GBF Peak-Hour Daily Routine in ${notifyMin} Minutes!**\n` +
+            `• **Target Time**: \`${currentInfo.nextResetJstString}\` (\`${currentInfo.nextResetWibString}\`)\n` +
+            `• **Account**: **${account.name}** (\`${account.id}\`)\n` +
+            `Autonomous Pro Skips and 16-Raid Daily Hosting will initiate at peak Golden Time for maximum backup clear speed.`
+          );
+        } catch (err: any) {
+          console.warn(`[DailyResetScheduler] Failed to send advance Discord alert: ${err.message}`);
+        }
+      }
+    }
+
+    // 2. Trigger check: within 2s of scheduledTargetUtcMs (or past it) and not yet executed for this GBF day
+    if (msUntilTarget <= 2000 && this.lastExecutedGbfDay !== currentGbfDay) {
+      console.log(`\n[DailyResetScheduler] 🎯 Scheduled peak time reached (${currentInfo.nextResetJstString} / ${currentInfo.nextResetWibString})!`);
+      console.log(`[DailyResetScheduler] 🚀 Triggering autonomous daily routine for GBF day ${currentGbfDay}...`);
+
+      this.lastExecutedGbfDay = currentGbfDay;
+      this.hasSentAdvanceNotice = false;
+      this.scheduledTargetUtcMs = getNextDailyResetJst(
+        bufferSec,
+        new Date(Math.max(nowMs, this.scheduledTargetUtcMs) + 5000),
+        targetHourJst
+      ).nextResetDate.getTime();
+
+      try {
+        await this.triggerNow(account, options);
+      } catch (err: any) {
+        console.error(`[DailyResetScheduler] ❌ Error executing scheduled routine:`, err.message);
+      }
+
+      const nextInfo = this.getScheduleInfo(bufferSec, targetHourJst);
+      console.log(`\n[DailyResetScheduler] ⏳ Next daily routine scheduled for: ${nextInfo.nextResetJstString} / ${nextInfo.nextResetWibString} (${nextInfo.formattedCountdown})`);
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -239,6 +278,12 @@ export class DailyResetScheduler {
     const targetAccount = account || AccountRegistry.getAccount(options.accountId || 'acc1');
     if (!targetAccount) {
       throw new Error(`[DailyResetScheduler] Account "${options.accountId || 'acc1'}" not found.`);
+    }
+
+    if (processRunnerService.getStatus().isBusy) {
+      console.log('[DailyResetScheduler] 🔄 Preempting active background job to free CDP port before daily routine...');
+      await processRunnerService.stopActiveProcess();
+      await new Promise(r => setTimeout(r, 400));
     }
 
     console.log(`[DailyResetScheduler] ⚡ Executing routine now for [${targetAccount.name}]...`);
@@ -258,6 +303,7 @@ export class DailyResetScheduler {
       this.checkTimer = null;
     }
     this.isRunning = false;
+    this.scheduledTargetUtcMs = null;
     console.log('[DailyResetScheduler] 🛑 Scheduler daemon stopped.');
   }
 

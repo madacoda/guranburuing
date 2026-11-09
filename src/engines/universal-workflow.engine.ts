@@ -24,10 +24,7 @@ import {
   WorkflowSummary
 } from '../types/workflow.types.js';
 import { AccountRegistry } from '../auth/account-registry.js';
-import { RecoveryModalService, PendingBattleService, SupporterSelectionService, FinderSlotConfiguratorService } from '../services/navigation/index.js';
-import { CombatActionService } from '../services/combat/index.js';
-import { LootTrackerService } from '../services/telemetry/index.js';
-import { StepHandlerRegistry, createDefaultStepHandlerRegistry, WorkflowExecutionContext } from '../workflows/index.js';
+import { FinderSlotConfiguratorService } from '../services/navigation/index.js';
 
 // Modular Universal Sub-Services
 import {
@@ -60,14 +57,6 @@ export class UniversalWorkflowEngine {
   public routineExecution: RoutineExecutionService;
   public telemetry: UniversalTelemetryService;
   public finderSlotConfigurator: FinderSlotConfiguratorService;
-
-  // Legacy services retained for backward compatibility
-  private recoveryModalService: RecoveryModalService;
-  private pendingBattleService: PendingBattleService;
-  private supporterSelectionService: SupporterSelectionService;
-  private combatActionService: CombatActionService;
-  private lootTrackerService: LootTrackerService;
-  private stepRegistry: StepHandlerRegistry;
 
   constructor(
     private _page: Page,
@@ -133,7 +122,7 @@ export class UniversalWorkflowEngine {
       getReplicardStageHash: () => this.combatResolution.getReplicardStageHash(),
       waitForAndDismissReplicardStagePopups: (timeoutMs) => this.combatResolution.waitForAndDismissReplicardStagePopups(timeoutMs)
     });
-    this.milestoneSweeper = new MilestoneSweeperService(this.ctx, undefined, undefined, {
+    this.milestoneSweeper = new MilestoneSweeperService(this.ctx, this.combatResolution, undefined, {
       claimPendingBattles: (logPath, currentRuns, returnUrl) => this.claimPendingBattles(logPath, currentRuns, returnUrl),
       resolveLingeringRaidLimit: (logPath, currentRuns) => this.resolveLingeringRaidLimit(logPath, currentRuns)
     });
@@ -160,13 +149,6 @@ export class UniversalWorkflowEngine {
     this.telemetry = new UniversalTelemetryService(this.ctx, {
       isSoloQuest: () => this.isSoloQuest()
     });
-
-    this.recoveryModalService = new RecoveryModalService(this._page);
-    this.pendingBattleService = new PendingBattleService(this._page);
-    this.supporterSelectionService = new SupporterSelectionService(this._page);
-    this.combatActionService = new CombatActionService(this._page);
-    this.lootTrackerService = new LootTrackerService(this._page);
-    this.stepRegistry = createDefaultStepHandlerRegistry();
 
     setSpeedProfile(template.speedProfile || 'fast');
     this.ctx.state.currentBatchThreshold = this.calculateNextBatchThreshold();
@@ -247,11 +229,6 @@ export class UniversalWorkflowEngine {
     this.telemetry.detachResponseListener();
     this.ctx.updatePage(newPage);
     this.screenDiagnostic.updatePage(newPage);
-    this.recoveryModalService = new RecoveryModalService(newPage);
-    this.pendingBattleService = new PendingBattleService(newPage);
-    this.supporterSelectionService = new SupporterSelectionService(newPage);
-    this.combatActionService = new CombatActionService(newPage);
-    this.lootTrackerService = new LootTrackerService(newPage);
     this.telemetry.setupResponseListener();
   }
 
@@ -887,49 +864,6 @@ export class UniversalWorkflowEngine {
     if (mode === 'assist') return false;
 
     return this.template.isSolo === true;
-  }
-
-  private createExecutionContext(): WorkflowExecutionContext {
-    return {
-      page: this.page,
-      template: this.template,
-      accountId: this.accountId,
-      playerName: this.ctx.state.playerName,
-      services: {
-        combat: this.combatActionService,
-        recovery: this.recoveryModalService,
-        pending: this.pendingBattleService,
-        supporter: this.supporterSelectionService,
-        loot: this.lootTrackerService,
-        sentinel: this.sentinel,
-        alertRelay: this.ctx.alertRelay,
-        dropLogger: this.ctx.dropLogger
-      },
-      state: {
-        currentScore: this.ctx.state.currentScore,
-        currentTurn: this.ctx.state.currentTurn,
-        currentRaidId: this.ctx.state.currentRaidId,
-        isCombatActive: true,
-        totalGoldBarsAccumulated: this.ctx.state.totalGoldBarsAccumulated,
-        totalBlueChestsAccumulated: this.ctx.state.totalBlueChestsAccumulated,
-        totalHonorsAccumulated: this.ctx.state.totalHonorsAccumulated,
-        totalCompletedRuns: this.ctx.state.totalCompletedRuns,
-        lastAttackLockoutExpires: this.ctx.state.lastAttackLockoutExpires,
-        stopRequested: this.ctx.state.stopRequested,
-        myUserId: this.ctx.state.myUserId
-      },
-      executeSubSteps: async (steps, runNum) => {
-        for (let i = 0; i < steps.length; i++) {
-          const ok = await this.executeSingleStep(steps[i], i + 1, runNum);
-          if (!ok && !steps[i].optional) return false;
-        }
-        return true;
-      },
-      executeStep: async (s, num, runNum) => this.executeSingleStep(s, num, runNum),
-      log: (msg) => console.log(msg),
-      warn: (msg) => console.warn(msg),
-      error: (msg, err) => console.error(msg, err)
-    };
   }
 
   public async executeSingleStep(step: WorkflowStep, stepNum: number, runNumber: number): Promise<boolean> {

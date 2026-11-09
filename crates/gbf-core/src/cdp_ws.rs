@@ -402,14 +402,21 @@ impl CdpWsClient {
         self.last_telemetry_flags |= flags;
         let mut metrics = [0.0_f64; 6];
         if telemetry::extract_combat_metrics(raw, &mut metrics) {
-            if metrics[0] >= 0.0 && metrics[0] <= 100.0 {
-                self.last_boss_hp_pct = metrics[0];
+            if metrics[3] >= 0.0 && metrics[4] > 0.0 {
+                self.last_boss_hp_pct = ((metrics[3] / metrics[4]) * 100.0).clamp(0.0, 100.0);
             }
-            if metrics[3] > self.last_honors {
-                self.last_honors = metrics[3];
+            let honors = if metrics[1] >= 0.0 {
+                metrics[1]
+            } else if metrics[0] > 0.0 {
+                (metrics[0] / 100.0).floor()
+            } else {
+                -1.0
+            };
+            if honors > self.last_honors {
+                self.last_honors = honors;
             }
-            if metrics[4] >= 1.0 {
-                self.last_turn = metrics[4];
+            if metrics[2] >= 1.0 {
+                self.last_turn = metrics[2];
             }
         }
     }

@@ -162,6 +162,67 @@ if (prevLimit !== undefined) {
 }
 console.log('  ✅ [PASS] Test-mode anti-spam single message limit (max 1 dispatch) verified');
 
+// 7. HTTP 429 Rate Limit Retry Argument Preservation
+{
+  const relay = new DiscordDmRelay();
+  (relay as any).isConfigured = () => true;
+  (relay as any).getDmChannelId = async () => 'mock_channel_123';
+
+  const origFetch = globalThis.fetch;
+  let fetchAttempts = 0;
+  let secondAttemptFilename = '';
+
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevTestMode = process.env.GBF_TEST_MODE;
+  process.env.NODE_ENV = 'development';
+  delete process.env.GBF_TEST_MODE;
+
+  try {
+    globalThis.fetch = (async (_url: any, init: any) => {
+      fetchAttempts++;
+      if (fetchAttempts === 1) {
+        return new Response(JSON.stringify({ retry_after: 0.01 }), { status: 429 });
+      }
+      const fd = init?.body as FormData;
+      const file = fd?.get('files[0]') as File | null;
+      if (file && typeof file.name === 'string') {
+        secondAttemptFilename = file.name;
+      }
+      return new Response(
+        JSON.stringify({
+          id: '987654321012345678',
+          content: 'ok',
+          author: { id: 'b', username: 'b' },
+          timestamp: ''
+        }),
+        { status: 200 }
+      );
+    }) as any;
+
+    // Pre-mark dedupeKey as already sent so retry only succeeds if `force = true` is preserved!
+    relay.recordAlertDispatched('Rate-limited drop alert', 'gb_retry_key');
+    const retryRes = await relay.sendMessage(
+      'Rate-limited drop alert',
+      Buffer.from('PNG_BYTES'),
+      'gold-bar-42337095880.png',
+      'gb_retry_key',
+      true
+    );
+
+    if (fetchAttempts !== 2 || retryRes.id !== '987654321012345678') {
+      throw new Error(`Expected HTTP 429 retry to succeed with force=true, got attempts=${fetchAttempts}, id=${retryRes.id}`);
+    }
+    if (secondAttemptFilename !== 'gold-bar-42337095880.png') {
+      throw new Error(`Expected defaultFilename 'gold-bar-42337095880.png' to be preserved on 429 retry, got '${secondAttemptFilename}'`);
+    }
+    console.log('  ✅ [PASS] HTTP 429 rate-limit retry preserves defaultFilename, dedupeKey, and force flag');
+  } finally {
+    globalThis.fetch = origFetch;
+    process.env.NODE_ENV = prevNodeEnv;
+    if (prevTestMode !== undefined) process.env.GBF_TEST_MODE = prevTestMode;
+  }
+}
+
 console.log('🎉 All Notification Deduplication tests passed!\n');
 process.exit(0);
 

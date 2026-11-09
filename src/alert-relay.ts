@@ -40,12 +40,13 @@ export class AlertRelay {
       promises.push(this.sendDiscordWebhook(message, screenshotBuffer));
     }
 
-    // Dedicated Discord DM: only send for non-CAPTCHA and non-GoldBar emergency events,
-    // as CAPTCHA challenges and Gold Bar drops are handled by their own dedicated, interactive DM relays.
+    // Dedicated Discord DM: only send for non-CAPTCHA and non-high-tier-drop emergency events,
+    // as CAPTCHA challenges, Gold Bar drops, and Eternity Sand drops are handled by their own dedicated DM relays.
     const isCaptcha = message.includes('CAPTCHA') || message.includes('Verification CAPTCHA') || message.includes('VERIFICATION CHALLENGE');
     const isGoldBar = message.includes('Gold Brick') || message.includes('GOLD BAR') || message.includes('ヒヒイロカネ');
+    const isEternitySand = message.includes('Eternity Sand') || message.includes('ETERNITY SAND') || message.includes('刻の流砂');
 
-    if (discordDmRelay.isConfigured() && !isCaptcha && !isGoldBar) {
+    if (discordDmRelay.isConfigured() && !isCaptcha && !isGoldBar && !isEternitySand) {
       promises.push(
         discordDmRelay.sendMessage(message, screenshotBuffer, 'alert.png').then(() => {}).catch((err: any) => {
           console.error('[AlertRelay] Discord DM dispatch error:', err.message);
@@ -92,10 +93,22 @@ export class AlertRelay {
 
   private async sendDiscordWebhook(content: string, imageBuffer?: Buffer): Promise<void> {
     try {
+      const isDropAlert =
+        content.includes('Gold Brick') ||
+        content.includes('GOLD BAR') ||
+        content.includes('ヒヒイロカネ') ||
+        content.includes('Eternity Sand') ||
+        content.includes('ETERNITY SAND') ||
+        content.includes('刻の流砂');
+      const formattedContent = isDropAlert
+        ? content
+        : `🚨 **URGENT: Granblue Fantasy Verification Triggered!**\n${content}`;
+      const filename = isDropAlert ? 'loot-proof.png' : 'captcha.png';
+
       if (imageBuffer) {
         const formData = new FormData();
-        formData.append('content', `🚨 **URGENT: Granblue Fantasy Verification Triggered!**\n${content}`);
-        formData.append('file', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'captcha.png');
+        formData.append('content', formattedContent);
+        formData.append('file', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), filename);
 
         const res = await fetch(config.DISCORD_WEBHOOK_URL!, { method: 'POST', body: formData });
         if (!res.ok) {
@@ -107,7 +120,7 @@ export class AlertRelay {
         const res = await fetch(config.DISCORD_WEBHOOK_URL!, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: `🚨 **URGENT: Granblue Fantasy Verification Triggered!**\n${content}` })
+          body: JSON.stringify({ content: formattedContent })
         });
         if (!res.ok) {
           console.error(`[AlertRelay] Discord webhook failed with status: ${res.status}`);

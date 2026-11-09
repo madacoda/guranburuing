@@ -144,6 +144,37 @@ if (isTokenValid(SECRET, 'wrong_token')) throw new Error('Unauthorized token per
 
 console.log('  ✅ [PASS] Authentication header & query string validation verified compliant');
 
+// -----------------------------------------------------------------------------
+// Test 5: Gateway Cookie Path Traversal Rejection
+// -----------------------------------------------------------------------------
+console.log('\n[Test 5] Testing Gateway Cookie Path Traversal Rejection...');
+const { GatewayServer } = await import('../src/gateway/server.js');
+const dummyPage: any = {
+  target: () => ({
+    createCDPSession: async () => ({
+      send: async () => {},
+      detach: async () => {}
+    })
+  }),
+  goto: async () => {},
+  evaluate: async () => ''
+};
+const dummySentinel: any = { isArmed: true };
+const gateway = new GatewayServer(dummyPage, dummySentinel);
+
+let traversalBlocked = false;
+try {
+  await gateway.applyAndVerifyCookies(mockCookies, '../../etc/pwn');
+} catch (err: any) {
+  if (err.message.includes('Invalid accountId format')) {
+    traversalBlocked = true;
+  }
+}
+if (!traversalBlocked) {
+  throw new Error('Expected applyAndVerifyCookies to reject path traversal accountId');
+}
+console.log('  ✅ [PASS] Path traversal accountId rejected by GatewayServer.applyAndVerifyCookies');
+
 console.log('\n========================================================================');
 console.log('🎉 ALL SESSION & COOKIE SYNC TESTS PASSED (100%)');
 console.log('========================================================================\n');

@@ -508,7 +508,7 @@ export class SentinelWatchdog {
     if (this.sessionContext.questName) console.error(` ⚔️ Quest/Raid:  ${this.sessionContext.questName}`);
     if (this.sessionContext.raidId)    console.error(` 🆔 Raid ID:     ${this.sessionContext.raidId}`);
     if (this.sessionContext.runNumber !== undefined) console.error(` 🔄 Run:         #${this.sessionContext.runNumber}`);
-    console.error(' 👉 Solve in browser or reply via Discord DM (reply "halt" to pause).');
+    console.error(' 👉 Solve in browser or reply via Discord DM with "/gbf <code>" (or "/gbf halt" to pause).');
     console.error('============================================================\n');
 
     const enableDiscord = this.options.enableTwoWayDiscord !== false && discordDmRelay.isConfigured();

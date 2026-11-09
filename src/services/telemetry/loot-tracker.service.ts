@@ -381,9 +381,16 @@ export class LootTrackerService implements ILootTrackerService {
     if (!found && typeof data.data === 'string') {
       const fastFlags = rustBridge.scanPayloadFlags(data.data);
       if (fastFlags !== null) {
-        return fastFlags.hasBlueChest;
+        return fastFlags.hasBlueChest || data.data.includes('ico-treasure-11-mini');
       }
-      return data.data.includes('reward_box_11') || data.data.includes('special_reward') || data.data.includes('特別報酬');
+      return (
+        data.data.includes('reward_box_11') ||
+        data.data.includes('box_type="11"') ||
+        data.data.includes('box_type=\\"11\\"') ||
+        data.data.includes('special_reward') ||
+        data.data.includes('特別報酬') ||
+        data.data.includes('ico-treasure-11-mini')
+      );
     }
     return found;
   }
@@ -437,19 +444,37 @@ export class LootTrackerService implements ILootTrackerService {
       else if (parsed.Point?.raid_id) outcome.raidId = String(parsed.Point.raid_id);
       else if (parsed.option?.result_data?.Point?.raid_id) outcome.raidId = String(parsed.option.result_data.Point.raid_id);
 
-      // Extract rewards array
-      const rewards = parsed.rewards?.reward_list || parsed.rewards || parsed.reward_list || [];
-      if (Array.isArray(rewards)) {
-        for (const r of rewards) {
-          const id = String(r.item_id || r.id || '');
+      // Extract rewards (supports both flat arrays and GBF chest-keyed reward_list objects)
+      const rewards = parsed.rewards?.reward_list || parsed.rewards || parsed.reward_list;
+      const pushRewardItem = (r: any, parentKey?: string): void => {
+        if (!r || typeof r !== 'object') return;
+        if (Array.isArray(r)) {
+          for (const entry of r) pushRewardItem(entry, parentKey);
+          return;
+        }
+        const hasItemFields =
+          r.item_id !== undefined ||
+          r.id !== undefined ||
+          r.name !== undefined ||
+          r.item_name !== undefined;
+        if (hasItemFields) {
+          const id = String(r.item_id || r.id || parentKey || '');
           const count = Number(r.count || r.num || 1);
           const name = String(r.name || r.item_name || id);
-          const isGoldBar = LootTrackerService.isGoldBarItemObject(r);
-          const isEternitySand = LootTrackerService.isEternitySandItemObject(r);
+          const isGoldBar = LootTrackerService.isGoldBarItemObject(r, parentKey);
+          const isEternitySand = LootTrackerService.isEternitySandItemObject(r, parentKey);
           if (isGoldBar) outcome.hasGoldBar = true;
           if (isEternitySand) outcome.hasEternitySand = true;
           outcome.lootItems.push({ id, name, count, isGoldBar, isEternitySand });
+          return;
         }
+        for (const [k, v] of Object.entries(r)) {
+          if (k === 'article_list') continue;
+          pushRewardItem(v, k);
+        }
+      };
+      if (rewards) {
+        pushRewardItem(rewards);
       }
     } catch {
       // Ignore serialization issues

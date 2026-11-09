@@ -282,9 +282,53 @@ pub fn serve_gateway_blocking(
         let _ = stream.set_write_timeout(Some(Duration::from_millis(1500)));
         let orch = orchestrator.clone();
         let bcast = Arc::clone(&broadcaster);
-        handle_client_stream(stream, &orch, &bcast);
+        std::thread::spawn(move || {
+            handle_client_stream(stream, &orch, &bcast);
+        });
     }
     Ok(())
+}
+
+/// Verifies whether an HTTP or WebSocket request satisfies `AUTH_TOKEN` when configured.
+/// Public routes (`/api/health` and static files) are allowed without a token so browser UI can load.
+pub fn is_request_authorized(
+    expected_token: Option<&str>,
+    path: &str,
+    query: &str,
+    auth_header: Option<&str>,
+    token_header: Option<&str>,
+    is_ws: bool,
+) -> bool {
+    let Some(expected) = expected_token.map(str::trim).filter(|s| !s.is_empty()) else {
+        return true;
+    };
+    let requires_auth = is_ws || (path.starts_with("/api/") && path != "/api/health");
+    if !requires_auth {
+        return true;
+    }
+    if let Some(hdr) = auth_header {
+        let token = hdr
+            .strip_prefix("Bearer ")
+            .or_else(|| hdr.strip_prefix("bearer "))
+            .unwrap_or(hdr)
+            .trim();
+        if token == expected {
+            return true;
+        }
+    }
+    if let Some(hdr) = token_header {
+        if hdr.trim() == expected {
+            return true;
+        }
+    }
+    for pair in query.split('&') {
+        if let Some((k, v)) = pair.split_once('=') {
+            if k == "token" && v == expected {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn handle_client_stream(
@@ -306,16 +350,45 @@ fn handle_client_stream(
     };
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or("GET");
-    let path = parts.next().unwrap_or("/");
+    let raw_target = parts.next().unwrap_or("/");
+    let (path, query) = raw_target.split_once('?').unwrap_or((raw_target, ""));
 
-    // Check for WebSocket upgrade header
+    // Check for WebSocket upgrade and auth headers
     let mut ws_key: Option<String> = None;
+    let mut auth_header: Option<String> = None;
+    let mut token_header: Option<String> = None;
     for line in lines {
         if let Some((k, v)) = line.split_once(':') {
-            if k.trim().eq_ignore_ascii_case("Sec-WebSocket-Key") {
+            let key_trimmed = k.trim();
+            if key_trimmed.eq_ignore_ascii_case("Sec-WebSocket-Key") {
                 ws_key = Some(v.trim().to_string());
+            } else if key_trimmed.eq_ignore_ascii_case("Authorization") {
+                auth_header = Some(v.trim().to_string());
+            } else if key_trimmed.eq_ignore_ascii_case("x-auth-token") {
+                token_header = Some(v.trim().to_string());
             }
         }
+    }
+
+    let expected_token = std::env::var("AUTH_TOKEN").ok();
+    if !is_request_authorized(
+        expected_token.as_deref(),
+        path,
+        query,
+        auth_header.as_deref(),
+        token_header.as_deref(),
+        ws_key.is_some(),
+    ) {
+        let body = json!({ "ok": false, "error": "Unauthorized" })
+            .to_string()
+            .into_bytes();
+        let header = format!(
+            "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(header.as_bytes());
+        let _ = stream.write_all(&body);
+        return;
     }
 
     if let Some(key) = ws_key {
@@ -371,5 +444,38 @@ mod tests {
         assert_eq!(code, 200);
         assert_eq!(ctype, "application/json");
         assert!(String::from_utf8_lossy(&body).contains("\"gbf-daemon\""));
+
+        assert!(!is_request_authorized(
+            Some("secret123"),
+            "/api/run/pbhl",
+            "",
+            None,
+            None,
+            false
+        ));
+        assert!(is_request_authorized(
+            Some("secret123"),
+            "/api/run/pbhl",
+            "",
+            Some("Bearer secret123"),
+            None,
+            false
+        ));
+        assert!(is_request_authorized(
+            Some("secret123"),
+            "/ws",
+            "token=secret123",
+            None,
+            None,
+            true
+        ));
+        assert!(is_request_authorized(
+            Some("secret123"),
+            "/api/health",
+            "",
+            None,
+            None,
+            false
+        ));
     }
 }

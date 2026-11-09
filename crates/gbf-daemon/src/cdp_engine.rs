@@ -86,8 +86,10 @@ pub const LAYER2_HEADLESS_CPU_DIET_JS: &str = r#"
     } catch (_) {}
   }
 
-  if (!window.__gbfRafThrottled15Fps) {
+  if (!window.__gbfRafThrottled15Fps && !window.__gbf_raf_throttler_installed__) {
     window.__gbfRafThrottled15Fps = true;
+    window.__gbf_raf_throttler_installed__ = true;
+    window.__gbf_canvas_throttler_installed__ = true;
     window.requestAnimationFrame = function(cb) {
       return window.setTimeout(function() {
         try {

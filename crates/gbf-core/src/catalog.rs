@@ -208,6 +208,12 @@ fn deserialize_archive(bytes: &[u8], expected_fingerprint: u64) -> Option<Catalo
         if !common_lower.is_empty() {
             raid_by_exact_key.insert(common_lower.clone(), idx);
         }
+        if !jp_lower.is_empty() {
+            raid_by_exact_key.insert(jp_lower.clone(), idx);
+        }
+        if !nick_lower.is_empty() {
+            raid_by_exact_key.insert(nick_lower.clone(), idx);
+        }
 
         raids.push(CompactRaidRecord {
             id_lower,
@@ -308,6 +314,12 @@ pub fn load_catalog_dir(data_dir: &str) -> u32 {
                     index
                         .raid_by_exact_key
                         .insert(rec.common_lower.clone(), idx);
+                }
+                if !rec.jp_lower.is_empty() {
+                    index.raid_by_exact_key.insert(rec.jp_lower.clone(), idx);
+                }
+                if !rec.nick_lower.is_empty() {
+                    index.raid_by_exact_key.insert(rec.nick_lower.clone(), idx);
                 }
                 index.raids.push(rec);
             }

@@ -25,6 +25,10 @@ export class RaidEngine {
     private sentinel: SentinelWatchdog
   ) {}
 
+  public updatePage(newPage: Page): void {
+    this.page = newPage;
+  }
+
   /**
    * Joins a raid by code, selects supporter summon, and engages Full Auto.
    */

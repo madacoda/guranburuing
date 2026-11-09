@@ -54,6 +54,7 @@ RUN bun install --frozen-lockfile
 COPY --from=rust-builder /build/target/release/libgbf_core.so ./target/release/libgbf_core.so
 COPY --from=rust-builder /build/target/release/gbf-daemon ./target/release/gbf-daemon
 COPY src ./src
+COPY scripts ./scripts
 COPY templates ./templates
 COPY public ./public
 COPY data ./data

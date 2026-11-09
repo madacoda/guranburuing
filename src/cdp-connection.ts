@@ -1,5 +1,5 @@
 import puppeteer, { Browser, Page } from 'puppeteer-core';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { config } from './config.js';
@@ -412,8 +412,16 @@ export class CdpConnectionManager {
     }
   }
 
-  public onReconnect(fn: (page: Page, browser: Browser) => void): void {
+  public onReconnect(fn: (page: Page, browser: Browser) => void): () => void {
     this.reconnectListeners.push(fn);
+    return () => this.offReconnect(fn);
+  }
+
+  public offReconnect(fn: (page: Page, browser: Browser) => void): void {
+    const idx = this.reconnectListeners.indexOf(fn);
+    if (idx !== -1) {
+      this.reconnectListeners.splice(idx, 1);
+    }
   }
 
   public getPage(): Page {
@@ -448,24 +456,26 @@ export class CdpConnectionManager {
     const isWin = process.platform === 'win32';
     if (isWin) {
       const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.ps1');
-      let cmd = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
-      if (isHeadless) cmd += ' -Headless';
-      else cmd += ' -Windowed';
-      if (port) cmd += ` -Port ${port}`;
-      if (profileDir) cmd += ` -CustomUserDataDir "${profileDir}"`;
-      if (proxy) cmd += ` -Proxy "${proxy}"`;
-      if (forceRestart) cmd += ' -Force';
-      execSync(cmd, { stdio: 'inherit' });
+      const args: string[] = [
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        scriptPath,
+        isHeadless ? '-Headless' : '-Windowed'
+      ];
+      if (port) args.push('-Port', String(port));
+      if (profileDir) args.push('-CustomUserDataDir', profileDir);
+      if (proxy) args.push('-Proxy', proxy);
+      if (forceRestart) args.push('-Force');
+      execFileSync('powershell', args, { stdio: 'inherit' });
     } else {
       const scriptPath = path.resolve(process.cwd(), 'scripts', 'launch-gbf-chrome.sh');
-      let cmd = `bash "${scriptPath}"`;
-      if (isHeadless) cmd += ' --headless';
-      else cmd += ' --windowed';
-      if (port) cmd += ` --port ${port}`;
-      if (profileDir) cmd += ` --user-data-dir "${profileDir}"`;
-      if (proxy) cmd += ` --proxy "${proxy}"`;
-      if (forceRestart) cmd += ' --force';
-      execSync(cmd, {
+      const args: string[] = [scriptPath, isHeadless ? '--headless' : '--windowed'];
+      if (port) args.push('--port', String(port));
+      if (profileDir) args.push('--user-data-dir', profileDir);
+      if (proxy) args.push('--proxy', proxy);
+      if (forceRestart) args.push('--force');
+      execFileSync('bash', args, {
         stdio: 'inherit',
         env: {
           ...process.env,
@@ -566,8 +576,9 @@ export class CdpConnectionManager {
         // Replacing native window.requestAnimationFrame with a 15 FPS (66ms) setTimeout timer prevents Blink
         // from setting NeedsBeginFrame=true at 60Hz in --type=gpu-process, cutting SwiftShader/Viz compositor CPU by ~85%
         // while passing performance.now() so CreateJS TweenJS/MovieClip animations advance at 100% real-time speed.
-        if (!window.__gbf_raf_throttler_installed__) {
+        if (!window.__gbf_raf_throttler_installed__ && !window.__gbfRafThrottled15Fps) {
           window.__gbf_raf_throttler_installed__ = true;
+          window.__gbfRafThrottled15Fps = true;
           try {
             let lastRafMs = 0;
             window.requestAnimationFrame = function(cb) {
@@ -593,8 +604,9 @@ export class CdpConnectionManager {
           const shouldPaintCanvas = () => (Date.now() % 1000) < 35;
 
           try {
-            if (typeof CanvasRenderingContext2D !== 'undefined' && CanvasRenderingContext2D.prototype) {
+            if (typeof CanvasRenderingContext2D !== 'undefined' && CanvasRenderingContext2D.prototype && !CanvasRenderingContext2D.prototype.__gbfDrawGated) {
               const proto = CanvasRenderingContext2D.prototype;
+              proto.__gbfDrawGated = true;
               const origDrawImage = proto.drawImage;
               const origClearRect = proto.clearRect;
               const origFillRect = proto.fillRect;
@@ -616,8 +628,9 @@ export class CdpConnectionManager {
 
           try {
             for (const GL of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
-              if (GL && GL.prototype) {
+              if (GL && GL.prototype && !GL.prototype.__gbfGlGated) {
                 const glProto = GL.prototype;
+                glProto.__gbfGlGated = true;
                 const origDrawArrays = glProto.drawArrays;
                 const origDrawElements = glProto.drawElements;
                 const origClear = glProto.clear;

@@ -102,11 +102,13 @@ export class DailyRoutineOrchestrator {
         console.log('------------------------------------------------------------------------');
         const p1Start = Date.now();
 
+        let workflowEngine: UniversalWorkflowEngine | null = null;
+        let offPhase1Reconnect: (() => void) | null = null;
         try {
           const dailyTemplate = TemplateParser.loadTemplate('daily-universal');
-          const workflowEngine = new UniversalWorkflowEngine(activePage, sentinel, dailyTemplate, account.id);
+          workflowEngine = new UniversalWorkflowEngine(activePage, sentinel, dailyTemplate, account.id);
 
-          cdp.onReconnect((p) => workflowEngine.updatePage(p));
+          offPhase1Reconnect = cdp.onReconnect((p) => workflowEngine?.updatePage(p));
 
           const skipSummary = await workflowEngine.runLoop({
             runs: 1,
@@ -121,6 +123,9 @@ export class DailyRoutineOrchestrator {
         } catch (skipErr: any) {
           console.warn(`[DailyRoutine] ⚠️ Phase 1 warning (Pro Skips): ${skipErr.message}. Continuing to Phase 2...`);
           proSkipsDurationMs = Date.now() - p1Start;
+        } finally {
+          if (offPhase1Reconnect) offPhase1Reconnect();
+          workflowEngine?.telemetry.detachResponseListener();
         }
       }
 
@@ -133,20 +138,25 @@ export class DailyRoutineOrchestrator {
         console.log('------------------------------------------------------------------------');
 
         const hostEngine = new DailyHostEngine(activePage, sentinel, account.id);
-        cdp.onReconnect((p) => hostEngine.updatePage(p));
+        const offPhase2Reconnect = cdp.onReconnect((p) => hostEngine.updatePage(p));
 
-        const hostOpts: DailyHostExecutionOptions = {
-          categoryFilter: 'all',
-          autoReplenishAp: true,
-          maxTurnsPerRaid: 35,
-          enableAssistInterleaving: true,
-          autoRetryFailures: true,
-          maxFailureRetries: 2,
-          ...options.hostOptions
-        };
+        try {
+          const hostOpts: DailyHostExecutionOptions = {
+            categoryFilter: 'all',
+            autoReplenishAp: true,
+            maxTurnsPerRaid: 35,
+            enableAssistInterleaving: true,
+            autoRetryFailures: true,
+            maxFailureRetries: 2,
+            ...options.hostOptions
+          };
 
-        hostSummary = await hostEngine.runDailyHost(hostOpts);
-        console.log(`[DailyRoutine] ✅ Phase 2: Daily Raid Hosting completed!\n`);
+          hostSummary = await hostEngine.runDailyHost(hostOpts);
+          console.log(`[DailyRoutine] ✅ Phase 2: Daily Raid Hosting completed!\n`);
+        } finally {
+          offPhase2Reconnect();
+          hostEngine.detachListeners();
+        }
       }
 
       const completedAt = new Date().toISOString();

@@ -249,12 +249,17 @@ impl ProcessOrchestrator {
             c
         } else {
             let mut c = Command::new("bun");
-            c.arg("run")
-                .arg("src/index.ts")
-                .arg(&clean_preset)
-                .args(&safe_args)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped());
+            if clean_preset == "daily" {
+                c.arg("run")
+                    .arg("src/cli/run-daily.ts")
+                    .args(&safe_args);
+            } else {
+                c.arg("run")
+                    .arg("src/cli/run-workflow.ts")
+                    .arg(&clean_preset)
+                    .args(&safe_args);
+            }
+            c.stdout(Stdio::piped()).stderr(Stdio::piped());
             c
         };
 

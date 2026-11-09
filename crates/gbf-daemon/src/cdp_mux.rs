@@ -305,7 +305,20 @@ pub fn inspect_cdp_combat_payload(payload: &[u8]) -> (u32, Option<(f64, f64, f64
     let mut metrics = [0.0_f64; 6];
     let has_metrics = telemetry::extract_combat_metrics(payload, &mut metrics);
     if has_metrics {
-        (flags, Some((metrics[0], metrics[3], metrics[4])))
+        let hp_pct = if metrics[3] >= 0.0 && metrics[4] > 0.0 {
+            ((metrics[3] / metrics[4]) * 100.0).clamp(0.0, 100.0)
+        } else {
+            -1.0
+        };
+        let honors = if metrics[1] >= 0.0 {
+            metrics[1]
+        } else if metrics[0] > 0.0 {
+            (metrics[0] / 100.0).floor()
+        } else {
+            -1.0
+        };
+        let turn = metrics[2];
+        (flags, Some((hp_pct, honors, turn)))
     } else {
         (flags, None)
     }
@@ -418,5 +431,12 @@ mod tests {
                 "CDP:Page.reload".to_string(),
             ])
         );
+
+        let sample_payload = br#"{"turn":4,"user_point":4250000,"boss":{"param":[{"hp":"150000000","hpmax":"600000000"}]}}"#;
+        let (_flags, metrics) = inspect_cdp_combat_payload(sample_payload);
+        let (hp_pct, honors, turn) = metrics.expect("combat metrics should be extracted");
+        assert!((hp_pct - 25.0).abs() < 0.001);
+        assert_eq!(honors, 4_250_000.0);
+        assert_eq!(turn, 4.0);
     }
 }
