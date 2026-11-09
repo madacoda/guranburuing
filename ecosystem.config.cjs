@@ -24,6 +24,7 @@ module.exports = {
         APP_ENV: 'production',
         HEADLESS: 'true',
         AUTO_LAUNCH_CHROME: 'true',
+        USE_RUST_CDP_ENGINE: 'true',
       },
       error_file: './logs/pm2-error.log',
       out_file: './logs/pm2-out.log',

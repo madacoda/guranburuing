@@ -579,7 +579,10 @@ export class ProcessRunnerService {
       const useNativeRustCdp =
         hasRustDaemon &&
         preset.script === 'src/cli/run-workflow.ts' &&
-        (process.env.USE_RUST_CDP_ENGINE === 'true' || sanitizedCustomArgs.includes('--native'));
+        process.env.USE_RUST_CDP_ENGINE !== 'false' &&
+        process.env.USE_RUST_CDP_ENGINE !== '0' &&
+        !sanitizedCustomArgs.includes('--ts') &&
+        !sanitizedCustomArgs.includes('--js');
 
       const spawnBin = useNativeRustCdp ? daemonBin : 'bun';
       const spawnArgs = useNativeRustCdp

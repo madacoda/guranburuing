@@ -39,6 +39,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     CHROME_PATH=/usr/bin/chromium \
     NODE_ENV=production \
     HEADLESS=true \
+    USE_RUST_CDP_ENGINE=true \
     PORT=3000 \
     HOST=0.0.0.0
 

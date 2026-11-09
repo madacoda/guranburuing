@@ -103,6 +103,7 @@ const ConfigSchema = z.object({
   VIEWPORT_HEIGHT: z.coerce.number().default(isProdEnv ? 720 : 960),
   V8_MAX_OLD_SPACE: z.coerce.number().default(detectedHardware.v8MaxOldSpaceMb),
   DISK_CACHE_SIZE: z.coerce.number().default(detectedHardware.diskCacheBytes),
+  USE_RUST_CDP_ENGINE: z.preprocess((val) => val === undefined ? true : (val === 'true' || val === true || val === '1'), z.boolean()).default(true),
 });
 
 export type BaseAppConfig = z.infer<typeof ConfigSchema>;
@@ -140,6 +141,7 @@ const rawParsed = ConfigSchema.parse({
   VIEWPORT_HEIGHT: process.env.VIEWPORT_HEIGHT,
   V8_MAX_OLD_SPACE: process.env.V8_MAX_OLD_SPACE,
   DISK_CACHE_SIZE: process.env.DISK_CACHE_SIZE,
+  USE_RUST_CDP_ENGINE: process.env.USE_RUST_CDP_ENGINE,
 });
 
 export const config: AppConfig = {
