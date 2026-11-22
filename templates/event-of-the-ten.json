@@ -1,0 +1,102 @@
+{
+  "name": "Event of the Ten",
+  "description": "Event of the Ten (Tales of the Eternals) solo burst rotation: C4S1 -> C4S3 on C1 -> Quick Call -> Reload -> C2S1 -> C3S1 -> Attack -> Reload -> Attack -> Reload -> Confirm Result",
+  "mode": "combat",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/981021/3",
+  "questId": "981021",
+  "isSolo": true,
+  "supporterPriority": [
+    "Hades"
+  ],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "id": "step_1",
+      "name": "Character 4 Skill 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_2",
+      "name": "Character 4 Skill 3 on Character 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 3,
+      "targetCharacter": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_3",
+      "name": "Quick Summon Call",
+      "code": "quick_call",
+      "action": "quick_call",
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "id": "step_4",
+      "name": "Reload F5 (Post-Summon Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_5",
+      "name": "Character 2 Skill 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_6",
+      "name": "Character 3 Skill 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 3,
+      "skill": 1,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_7",
+      "name": "Execute Attack",
+      "code": "attack",
+      "action": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_8",
+      "name": "Reload F5 (Post-Attack Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_9",
+      "name": "Execute Attack Again",
+      "code": "attack",
+      "action": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_10",
+      "name": "Reload F5 (Post-Attack Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_11",
+      "name": "Confirm Battle Result & Rerun",
+      "code": "confirm_result",
+      "action": "confirm_result"
+    }
+  ]
+}

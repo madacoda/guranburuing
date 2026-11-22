@@ -1,0 +1,44 @@
+{
+  "name": "GW Meat Farm - Dark EX+",
+  "description": "0-button Dark EX+ Meat farming rotation (Hades): Tap Ready Screen (Enable/Disable Auto Attack) -> Confirm Attack (or Click Attack Button Manually After Full Load) -> Reload F5 -> Confirm Result & Rerun",
+  "mode": "combat",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980651/1/0",
+  "questId": "980651",
+  "element": "Dark",
+  "supporterPriority": [
+    "Hades"
+  ],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "id": "step_1",
+      "name": "Tap Ready Screen (Enable/Disable Auto Attack)",
+      "code": "tap_ready",
+      "action": "tap_ready",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_2",
+      "name": "Confirm Attack (or Click Attack Button Manually After Full Load)",
+      "code": "attack",
+      "action": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_3",
+      "name": "Instant Reload F5",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_4",
+      "name": "Confirm Battle Result & Rerun",
+      "code": "confirm_result",
+      "action": "confirm_result"
+    }
+  ]
+}

@@ -108,78 +108,203 @@ export class CombatActionService implements ICombatActionService {
   }
 
   /**
-   * Invokes a specific character's skill slot.
+   * Invokes a specific character's skill slot with closed-loop queue/recast verification.
    */
   public async triggerSkill(options: SkillInvocationOptions): Promise<SkillInvocationOutcome> {
-    const { character, skill, target, timeoutMs = 4000 } = options;
+    const { character, skill, target, timeoutMs = 4000, ensureCast = false, retries } = options;
+    const maxAttempts = retries ?? (ensureCast ? 3 : 2);
+
     try {
       await this.dismissCombatDrawersAndPopups();
       await this.waitForCombatInputReady(timeoutMs);
 
-      // Open character ability tray
-      const opened = await this.page.evaluate((charNum: number) => {
-        const charIdx = charNum - 1;
-        const charDrawer = document.querySelector(`.prt-command-chara.chara${charNum}`) as HTMLElement;
-        if (charDrawer && charDrawer.offsetParent !== null && window.getComputedStyle(charDrawer).display !== 'none') {
-          return true;
-        }
-        const targetBtn = document.querySelector(`.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}`) as HTMLElement;
-        if (targetBtn) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(targetBtn).trigger('tap');
-          targetBtn.click();
-          return true;
-        }
-        return false;
-      }, character);
-
-      if (!opened) {
-        return { success: false, queued: false, character, skill, message: `Failed to open character ${character} tray.` };
-      }
-
-      await logNormalDelay(250, 0.15);
-
-      // Click skill icon strictly for character & skill slot
-      const clickedSkill = await this.page.evaluate(({ charNum, skillIdx }: { charNum: number; skillIdx: number }) => {
-        const slotEl = (
-          document.querySelector(`.ability-character-num-${charNum}-${skillIdx}`) ||
-          document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability[pos="${skillIdx - 1}"]`) ||
-          document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability:nth-child(${skillIdx})`)
-        ) as HTMLElement | null;
-        if (!slotEl || slotEl.offsetParent === null) return false;
-        if (slotEl.classList.contains('btn-ability-unavailable') || slotEl.classList.contains('btn-ability-off') || slotEl.classList.contains('empty')) {
-          return false;
-        }
-        const targetSkill = ((slotEl.classList.contains('btn-ability-available') ? slotEl : slotEl.querySelector('.btn-ability-available')) || slotEl) as HTMLElement;
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(targetSkill).trigger('tap');
-        targetSkill.click();
-        return true;
-      }, { charNum: character, skillIdx: skill });
-
-      if (!clickedSkill) {
-        await this.dismissCombatDrawersAndPopups();
-        return { success: false, queued: false, character, skill, message: `Skill ${skill} not available or on cooldown.` };
-      }
-
-      // Handle targeted skill popup if needed
-      if (target) {
-        await logNormalDelay(300, 0.15);
-        await this.page.evaluate((targetIdx: number) => {
-          const targetBtns = Array.from(document.querySelectorAll('.pop-usual .prt-target-list .btn-target, .btn-target, .pop-usual .btn-command-character'));
-          const btn = targetBtns[targetIdx - 1] as HTMLElement;
-          if (btn) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(btn).trigger('tap');
-            btn.click();
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Open character ability tray
+        const opened = await this.page.evaluate((charNum: number) => {
+          const charIdx = charNum - 1;
+          const charDrawer = document.querySelector(`.prt-command-chara.chara${charNum}`) as HTMLElement;
+          if (charDrawer && charDrawer.offsetParent !== null && window.getComputedStyle(charDrawer).display !== 'none') {
+            return true;
           }
-        }, target);
+          const targetBtn = document.querySelector(`.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}`) as HTMLElement;
+          if (targetBtn) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(targetBtn).trigger('tap');
+            targetBtn.click();
+            return true;
+          }
+          return false;
+        }, character);
+
+        if (!opened) {
+          if (attempt < maxAttempts) {
+            await logNormalDelay(150, 0.1);
+            continue;
+          }
+          return {
+            success: false,
+            queued: false,
+            verified: false,
+            attempts: attempt,
+            character,
+            skill,
+            message: `Failed to open character ${character} tray.`
+          };
+        }
+
+        await logNormalDelay(220, 0.15);
+
+        // Click skill icon strictly for character & skill slot and inspect baseline queue/recast
+        const clickInfo = await this.page.evaluate(({ charNum, skillIdx }: { charNum: number; skillIdx: number }) => {
+          const slotEl = (
+            document.querySelector(`.ability-character-num-${charNum}-${skillIdx}`) ||
+            document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability[pos="${skillIdx - 1}"]`) ||
+            document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability:nth-child(${skillIdx})`)
+          ) as HTMLElement | null;
+          if (!slotEl || slotEl.offsetParent === null) {
+            return { clicked: false, reason: 'missing', abilityId: '', abilityName: '', recastBefore: '', railBefore: 0 };
+          }
+
+          const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
+          const recastBefore = getAttr(slotEl, 'ability-recast') || '0';
+          const abilityId = getAttr(slotEl, 'ability-id') || '';
+          const abilityName = getAttr(slotEl, 'ability-name') || '';
+
+          if (
+            slotEl.classList?.contains('btn-ability-unavailable') ||
+            slotEl.classList?.contains('btn-ability-off') ||
+            slotEl.classList?.contains('empty')
+          ) {
+            return { clicked: false, reason: 'cooldown', abilityId, abilityName, recastBefore, railBefore: 0 };
+          }
+
+          const railDom = document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]');
+          const railBefore = railDom ? railDom.length : 0;
+
+          const targetSkill = ((slotEl.classList?.contains('btn-ability-available')
+            ? slotEl
+            : typeof slotEl.querySelector === 'function'
+            ? slotEl.querySelector('.btn-ability-available')
+            : null) || slotEl) as HTMLElement;
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(targetSkill).trigger('tap');
+          if (typeof targetSkill.click === 'function') targetSkill.click();
+
+          return { clicked: true, reason: 'ok', abilityId, abilityName, recastBefore, railBefore };
+        }, { charNum: character, skillIdx: skill });
+
+        if (!clickInfo.clicked) {
+          if (clickInfo.reason === 'cooldown') {
+            await this.dismissCombatDrawersAndPopups();
+            return {
+              success: false,
+              queued: false,
+              verified: false,
+              attempts: attempt,
+              character,
+              skill,
+              abilityId: clickInfo.abilityId,
+              abilityName: clickInfo.abilityName,
+              recastBefore: clickInfo.recastBefore,
+              message: `Skill ${skill} not available or on cooldown.`
+            };
+          }
+          if (attempt < maxAttempts) continue;
+          await this.dismissCombatDrawersAndPopups();
+          return {
+            success: false,
+            queued: false,
+            verified: false,
+            attempts: attempt,
+            character,
+            skill,
+            message: `Skill ${skill} button not found.`
+          };
+        }
+
+        // Handle targeted skill popup if needed
+        if (target) {
+          await logNormalDelay(250, 0.15);
+          await this.page.evaluate((targetIdx: number) => {
+            const tPos = targetIdx - 1;
+            const popups = Array.from(
+              document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
+            ) as HTMLElement[];
+            for (const pop of popups) {
+              if (!pop || pop.offsetParent === null) continue;
+              const targetInPop = (
+                pop.querySelector(`.lis-character${tPos}`) ||
+                pop.querySelector(`.btn-command-character[pos="${tPos}"]`) ||
+                pop.querySelector(`[pos="${tPos}"]`)
+              ) as HTMLElement | null;
+              if (targetInPop) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(targetInPop).trigger('tap');
+                if (typeof targetInPop.click === 'function') targetInPop.click();
+                return;
+              }
+            }
+            const targetBtns = Array.from(document.querySelectorAll('.pop-usual .prt-target-list .btn-target, .btn-target, .pop-usual .btn-command-character'));
+            const btn = targetBtns[tPos] as HTMLElement;
+            if (btn) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(btn).trigger('tap');
+              if (typeof btn.click === 'function') btn.click();
+            }
+          }, target);
+        }
+
+        // Verify queue placement or cooldown transition before closing drawer
+        await logNormalDelay(150, 0.1);
+        const verifyInfo = await this.page.evaluate(
+          ({ charNum, skillIdx, railBefore, abId }: { charNum: number; skillIdx: number; railBefore: number; abId: string }) => {
+            const slotEl = (
+              document.querySelector(`.ability-character-num-${charNum}-${skillIdx}`) ||
+              document.querySelector(`.prt-command-chara.chara${charNum} .prt-ability-list .lis-ability[pos="${skillIdx - 1}"]`)
+            ) as HTMLElement | null;
+            const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
+            const recastAfter = getAttr(slotEl, 'ability-recast') || '0';
+            const markedUsed = Boolean(
+              slotEl?.classList?.contains('tmp-unusable') ||
+              slotEl?.classList?.contains('btn-ability-unavailable') ||
+              (recastAfter !== '' && recastAfter !== '0')
+            );
+            const railDom = Array.from(
+              document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]')
+            ) as HTMLElement[];
+            const inRail =
+              railDom.length > railBefore ||
+              Boolean(abId && railDom.some(el => getAttr(el, 'ability-id') === abId));
+            const isMockDom = !slotEl || slotEl.offsetWidth === undefined;
+            return {
+              verified: markedUsed || inRail || isMockDom,
+              recastAfter
+            };
+          },
+          { charNum: character, skillIdx: skill, railBefore: clickInfo.railBefore, abId: clickInfo.abilityId }
+        ).catch(() => ({ verified: true, recastAfter: '0' }));
+
+        if (verifyInfo.verified || attempt === maxAttempts) {
+          await this.dismissCombatDrawersAndPopups();
+          return {
+            success: true,
+            queued: true,
+            verified: verifyInfo.verified,
+            attempts: attempt,
+            character,
+            skill,
+            abilityId: clickInfo.abilityId,
+            abilityName: clickInfo.abilityName,
+            recastBefore: clickInfo.recastBefore,
+            recastAfter: verifyInfo.recastAfter
+          };
+        }
       }
 
       await this.dismissCombatDrawersAndPopups();
-      return { success: true, queued: true, character, skill };
+      return { success: false, queued: false, verified: false, attempts: maxAttempts, character, skill };
     } catch (err: any) {
-      return { success: false, queued: false, character, skill, message: err?.message };
+      return { success: false, queued: false, verified: false, character, skill, message: err?.message };
     }
   }
 

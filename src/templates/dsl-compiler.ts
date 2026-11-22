@@ -9,17 +9,19 @@ import { rustBridge } from '../core/rust-bridge.js';
 const RX_QUOTE_TRIM = /^["'`]+|["'`]+$/g;
 const RX_TRAILING_PAREN = /\s*\([^)]*\)$/;
 const RX_ENSURE_COMMENT = /\b(make\s*sure|ensure|clicked\s*or\s*casted|required?)\b/i;
+const RX_WAIT_ATTACK_COMMENT = /\b(its\s*attacking|it'?s\s*attacking|attacking,?\s*wait|wait\s*a\s*moment)\b/i;
 
 // Header Metadata Directives
 const RX_META_NAME = /^name\s*:\s*(.+)$/i;
 const RX_META_MODE = /^mode\s*:\s*(.+)$/i;
 const RX_META_DESC = /^desc(?:ription)?\s*:\s*(.+)$/i;
-const RX_META_QUEST_PREFIX = /^(?:start|quest|url)\s*:\s*(.+)$/i;
+const RX_META_QUEST_PREFIX = /^(?:start|quest|url)(?:\s*:|\s+)(.+)$/i;
 const RX_META_STAGE_PREFIX = /^(?:stage_?url|stage)\s*:\s*(.+)$/i;
 const RX_URL_EXTRACT = /https?:\/\/[^\s]+|#[^\s]+/;
 const RX_META_SPEED = /^speed(?:\s*profile)?\s*:\s*(.+)$/i;
 const RX_META_RUNS = /^runs?\s*:\s*(\d+)$/i;
-const RX_META_SUPPORTERS = /^supporters?\s*:\s*(.+)$/i;
+const RX_META_SUPPORTERS = /^(?:(?:support(?:er)?[\s_]*)?summons?|supporters?)\s*:\s*(.+)$/i;
+const RX_META_PICK_SUPPORTER = /^pick\s+(.+?)(?:\s+only)?$/i;
 const RX_META_SLOTS = /^slots?\s*:\s*([\d\s,]+)$/i;
 const RX_META_TARGET_SCORE = /^target_?score\s*:\s*(\d+)$/i;
 const RX_META_ELIXIR = /^(?:auto_?)?elixir\s*:\s*(true|false)$/i;
@@ -55,12 +57,13 @@ const RX_ACT_SKIP_STORY = /^skip[\s_]*(?:story[\s_]*scene|story|scene)/i;
 const RX_ACT_PRO_SKIP = /^(?:pro[\s_]*skip(?:[\s_]*favorites)?|daily[\s_]*(?:favorites|pro))/i;
 const RX_ACT_DISMISS = /^dismiss[\s_]*(?:popups?|modals?|all)/i;
 const RX_ACT_DO_UNTIL = /^(?:do_until_finish|loop_until_finish|until_finish|run_daily_target|run_daily|daily_target)\s+(.+)/i;
-const RX_ACT_READY = /(?:tab|tap)(?:[\s_]+the)?[\s_]*ready|^ready(?:\s*:\s*click)?/i;
+const RX_ACT_READY = /(?:tab|tap)(?:[\s_]+(?:to[\s_]+)?the)?[\s_]*(?:ready|screen)|^ready(?:\s*:\s*click)?/i;
 const RX_ACT_HAS_ATTACK = /(?:attack|atk)/i;
 const RX_ACT_RELOAD = /^f5|^reload|^refresh/i;
+const RX_ACT_CONFIRM_ATTACK = /^confirm[\s_]+(?:the[\s_]+)?(?:attack|atk)\b/i;
 const RX_ACT_ATTACK = /^(?:attack|atk)(?:[\s_]+again)?(?:[\s_]+(?:wait[\s_]+)?(\d+)(?:ms)?)?/i;
 const RX_ACT_QUICK_CALL = /^quick[\s_]*(?:call|summon)|^qs\b/i;
-const RX_ACT_CONFIRM = /^(?:confirm|loot|dismiss|result|done|finish|rerun|next)(?:[\s_]+a[\s_]+bit)?/i;
+const RX_ACT_CONFIRM = /^(?:confirm(?!\s+(?:the\s+)?(?:attack|atk)\b)|loot|dismiss|result|done|finish|rerun|next)(?:[\s_]+a[\s_]+bit)?/i;
 const RX_ACT_LOG_HP_1 = /^(?:log|check|print)[\s_]*(?:enemy[\s_]*)?hp\b/i;
 const RX_ACT_LOG_HP_2 = /^enemy[\s_]*hp\b/i;
 const RX_ACT_EXIT_DEAD = /^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?dead\b/i;
@@ -177,7 +180,7 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
     }
 
     // Separators
-    if (line.startsWith('---') || line.startsWith('===')) {
+    if (line.startsWith('---') || line.startsWith('===') || /^steps?:?$/i.test(line)) {
       continue;
     }
 
@@ -204,7 +207,9 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
     }
     if (RX_META_QUEST_PREFIX.test(line)) {
       const urlMatch = RX_URL_EXTRACT.exec(line);
-      if (urlMatch) questUrl = urlMatch[0];
+      if (urlMatch) {
+        questUrl = urlMatch[0].replace(/(#quest\/supporter\/\d+\/\d+)[a-zA-Z]+$/, '$1');
+      }
       continue;
     }
     if (RX_META_STAGE_PREFIX.test(line)) {
@@ -221,8 +226,19 @@ export function parseShorthandDsl(content: string, defaultName: string): Workflo
       defaultRuns = parseInt(m[1], 10);
       continue;
     }
-    if ((m = RX_META_SUPPORTERS.exec(line))) {
-      supporterPriority = m[1].split(',').map(s => s.trim()).filter(Boolean);
+    if ((m = RX_META_SUPPORTERS.exec(line)) && (steps.length === 0 || /^supporters?\s*:/i.test(line) || /\bonly$/i.test(m[1].trim()))) {
+      const rawSupporters = m[1].replace(/\s+only$/i, '');
+      supporterPriority = rawSupporters.split(',').map(s => {
+        const trimmed = s.trim();
+        return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : '';
+      }).filter(Boolean);
+      continue;
+    }
+    if ((m = RX_META_PICK_SUPPORTER.exec(line))) {
+      supporterPriority = m[1].split(',').map(s => {
+        const trimmed = s.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+      }).filter(Boolean);
       continue;
     }
     if ((m = RX_META_SLOTS.exec(line))) {
@@ -502,6 +518,7 @@ export function parseSingleDslAction(
   const line = rawLine.replace(RX_QUOTE_TRIM, '').trim();
 
   // Zero-regex single-pass Rust byte scanner fast path for common combat opcodes
+  const hasWaitAttack = RX_WAIT_ATTACK_COMMENT.test(line);
   const fastToken = rustBridge.parseDslLineFast(line);
   if (fastToken !== null) {
     if (fastToken.opcode === 0) {
@@ -513,13 +530,14 @@ export function parseSingleDslAction(
       const hasEnsure = fastToken.arg3 === 1;
       return {
         id: `step_${stepIndex}`,
-        name: `Character ${charNum} Skill ${skillNum}${hasEnsure ? ' (Ensured)' : ''}`,
+        name: `Character ${charNum} Skill ${skillNum}${hasEnsure ? ' (Ensured)' : ''}${hasWaitAttack ? ' (Attacking - Wait a Moment)' : ''}`,
         code: 'skill',
         action: 'skill',
         character: charNum,
         skill: skillNum,
         waitForNetwork: 'ability_result.json',
-        ...(hasEnsure ? { ensureCast: true } : {})
+        ...(hasEnsure ? { ensureCast: true } : {}),
+        ...(hasWaitAttack ? { delayAfterMs: 1500 } : {})
       };
     }
     if (fastToken.opcode === 2) {
@@ -529,14 +547,15 @@ export function parseSingleDslAction(
       const hasEnsure = fastToken.arg4 === 1;
       return {
         id: `step_${stepIndex}`,
-        name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsure ? ' (Ensured)' : ''}`,
+        name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsure ? ' (Ensured)' : ''}${hasWaitAttack ? ' (Attacking - Wait a Moment)' : ''}`,
         code: 'skill',
         action: 'skill',
         character: charNum,
         skill: skillNum,
         targetCharacter: targetChar,
         waitForNetwork: 'ability_result.json',
-        ...(hasEnsure ? { ensureCast: true } : {})
+        ...(hasEnsure ? { ensureCast: true } : {}),
+        ...(hasWaitAttack ? { delayAfterMs: 1500 } : {})
       };
     }
     if (fastToken.opcode === 3) {
@@ -882,12 +901,13 @@ export function parseSingleDslAction(
     };
   }
 
-  // 1. Ready screen tap: "tap ready", "tap the ready", "ready: click"
+  // 1. Ready screen tap: "tap ready", "tap the ready", "ready: click", "click on screen tap to the screen to enable/disable auto attack"
   if (RX_ACT_READY.test(line)) {
     const occurrence = getReadyOccurrence ? getReadyOccurrence() : 1;
     const hasPrior = hasPriorCombatActions ? hasPriorCombatActions() : false;
+    const hasAttackHint = RX_ACT_HAS_ATTACK.test(line);
     // Turn 0 quick call only if it is the very first combat action of the raid and not explicitly attack
-    if (occurrence === 1 && !hasPrior && !RX_ACT_HAS_ATTACK.test(line)) {
+    if (occurrence === 1 && !hasPrior && !hasAttackHint) {
       return {
         id: `step_${stepIndex}`,
         name: 'Tap Ready Screen (Quick Call)',
@@ -898,9 +918,10 @@ export function parseSingleDslAction(
     }
     return {
       id: `step_${stepIndex}`,
-      name: 'Tap Ready Screen (Full Auto / Turn Action)',
+      name: hasAttackHint ? 'Tap Ready Screen (Enable/Disable Auto Attack)' : 'Tap Ready Screen (Full Auto / Turn Action)',
       code: 'tap_ready',
-      action: 'tap_ready'
+      action: 'tap_ready',
+      ...(hasAttackHint ? { waitForNetwork: 'normal_attack_result.json' } : {})
     };
   }
 
@@ -914,7 +935,16 @@ export function parseSingleDslAction(
     };
   }
 
-  // 3. Attack / Atk (supports optional delay: "attack 350", "attack wait 350ms")
+  // 3. Confirm Attack (or manual fallback after full load) / Attack / Atk
+  if (RX_ACT_CONFIRM_ATTACK.test(line)) {
+    return {
+      id: `step_${stepIndex}`,
+      name: 'Confirm Attack (or Click Attack Button Manually After Full Load)',
+      code: 'attack',
+      action: 'attack',
+      waitForNetwork: 'normal_attack_result.json'
+    };
+  }
   if ((m = RX_ACT_ATTACK.exec(line))) {
     const delay = m[1] ? parseInt(m[1], 10) : undefined;
     return {
@@ -1024,14 +1054,15 @@ export function parseSingleDslAction(
     const targetChar = parseInt(m[4], 10);
     return {
       id: `step_${stepIndex}`,
-      name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsureComment ? ' (Ensured)' : ''}`,
+      name: `Character ${charNum} Skill ${skillNum} on Character ${targetChar}${hasEnsureComment ? ' (Ensured)' : ''}${hasWaitAttack ? ' (Attacking - Wait a Moment)' : ''}`,
       code: 'skill',
       action: 'skill',
       character: charNum,
       skill: skillNum,
       targetCharacter: targetChar,
       waitForNetwork: 'ability_result.json',
-      ...(hasEnsureComment ? { ensureCast: true } : {})
+      ...(hasEnsureComment ? { ensureCast: true } : {}),
+      ...(hasWaitAttack ? { delayAfterMs: 1500 } : {})
     };
   }
 
@@ -1041,13 +1072,14 @@ export function parseSingleDslAction(
     const skillNum = parseInt(m[4], 10);
     return {
       id: `step_${stepIndex}`,
-      name: `Character ${charNum} Skill ${skillNum}${hasEnsureComment ? ' (Ensured)' : ''}`,
+      name: `Character ${charNum} Skill ${skillNum}${hasEnsureComment ? ' (Ensured)' : ''}${hasWaitAttack ? ' (Attacking - Wait a Moment)' : ''}`,
       code: 'skill',
       action: 'skill',
       character: charNum,
       skill: skillNum,
       waitForNetwork: 'ability_result.json',
-      ...(hasEnsureComment ? { ensureCast: true } : {})
+      ...(hasEnsureComment ? { ensureCast: true } : {}),
+      ...(hasWaitAttack ? { delayAfterMs: 1500 } : {})
     };
   }
 

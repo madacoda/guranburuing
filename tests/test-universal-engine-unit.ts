@@ -422,6 +422,64 @@ if (turboDuration < 300 || turboDuration > 1500) {
 }
 console.log(`  ✅ [PASS] turbo speed profile inter-run pause randomized (${turboDuration}ms)`);
 
+// --- Testing Ability Queue & Dynamic Skill Unlock (Exo Diablo C2S1->C1 & C1S2x3) ---
+console.log('\n--- Testing Ability Queue Integrity, Targeted C2S1->C1 & Dynamic C1S2x3 Unlock ---');
+(globalThis as any).window.stage = {
+  gGameStatus: { lock: true, btn_lock: false, attacking: false, ability_queue: [{ id: '1' }] },
+  pJsnData: { turn: 1 }
+};
+await engine.combatResolution.dismissCombatDrawersAndPopups();
+if ((globalThis as any).window.stage.gGameStatus.lock !== true) {
+  throw new Error('dismissCombatDrawersAndPopups must NOT forcibly overwrite stage.gGameStatus.lock = false while animations/queue are active');
+}
+console.log('  ✅ [PASS] dismissCombatDrawersAndPopups preserves stage.gGameStatus.lock for GBF Ability Queue (.prt-ability-rail)');
+
+// Simulate C1S2 (Blitz Raid) temporarily unavailable while C1S1 (Engage) finishes animating, then unlocking after 80ms
+let c1s2Unlocked = false;
+setTimeout(() => {
+  c1s2Unlocked = true;
+  (globalThis as any).window.stage.gGameStatus.lock = false;
+  (globalThis as any).window.stage.gGameStatus.ability_queue = [];
+}, 80);
+
+const origQS = (globalThis as any).document.querySelector;
+(globalThis as any).document.querySelector = (sel: string) => {
+  if (sel.includes('.ability-character-num-1-2')) {
+    return {
+      offsetParent: {},
+      offsetWidth: 60,
+      classList: {
+        contains: (cls: string) => {
+          if (cls === 'btn-ability-available') return c1s2Unlocked;
+          if (cls === 'btn-ability-unavailable' || cls === 'tmp-unusable') return !c1s2Unlocked;
+          return false;
+        }
+      },
+      getAttribute: (attr: string) => (attr === 'ability-recast' ? '0' : 'Blitz Raid'),
+      click: () => {
+        setTimeout(() => {
+          mockPage.emitResponse('ability_result.json', { status: { turn: 1 }, scenario: [{ cmd: 'attack' }] });
+        }, 20);
+      }
+    };
+  }
+  return origQS(sel);
+};
+
+const blitzOk = await (engine as any).handleSkill({
+  code: 'skill',
+  character: 1,
+  skill: 2,
+  ensureCast: true,
+  waitForNetwork: 'ability_result.json'
+});
+(globalThis as any).document.querySelector = origQS;
+
+if (!blitzOk) {
+  throw new Error('handleSkill prematurely skipped or failed dynamically unlocked C1S2 Blitz Raid');
+}
+console.log('  ✅ [PASS] Dynamically unlocked 0-turn skill (C1S2 Blitz Raid) waited for animation unlock, queued, and confirmed ability_result.json');
+
 console.log('\n========================================================================');
 console.log('     🎉 ALL UNIVERSAL ENGINE UNIT & MOCK TESTS PASSED (100%)            ');
 console.log('========================================================================\n');

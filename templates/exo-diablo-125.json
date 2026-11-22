@@ -1,0 +1,179 @@
+{
+  "name": "Exo Diablo Crucible - Lvl 125",
+  "description": "Exo Diablo Lvl 125 1-turn Relic Buster + Florence + Nehan burst: Wait Full Load -> Summon 1 -> Summon 2 -> C4S1,S2,S3 -> C3S2 -> C2S1(C1) -> C1S4,S3,S1 -> C1S2x3 (Wait Attack) -> Attack -> Reload -> Rerun",
+  "mode": "combat",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/919221/3",
+  "questId": "919221",
+  "targetEnemy": "Exo Diablo",
+  "element": "Light",
+  "isSolo": true,
+  "chargeAttack": "off",
+  "supporterPriority": [
+    "Zeus"
+  ],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 500,
+  "speedProfile": "fast",
+  "steps": [
+    {
+      "id": "step_1",
+      "name": "Wait for Combat Loading & Buttons Interactable",
+      "code": "wait_element",
+      "action": "wait_element",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "id": "step_2",
+      "name": "Invoke Summon Slot 1",
+      "code": "summon",
+      "action": "summon",
+      "slot": 1,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "id": "step_3",
+      "name": "Invoke Summon Slot 2",
+      "code": "summon",
+      "action": "summon",
+      "slot": 2,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "id": "step_4",
+      "name": "Character 4 Skill 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_5",
+      "name": "Character 4 Skill 2",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_6",
+      "name": "Character 4 Skill 3",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 3,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_7",
+      "name": "Character 3 Skill 2",
+      "code": "skill",
+      "action": "skill",
+      "character": 3,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_8",
+      "name": "Character 2 Skill 1 on Character 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 1,
+      "targetCharacter": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_9",
+      "name": "Character 1 Skill 4",
+      "code": "skill",
+      "action": "skill",
+      "character": 1,
+      "skill": 4,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_10",
+      "name": "Character 1 Skill 3",
+      "code": "skill",
+      "action": "skill",
+      "character": 1,
+      "skill": 3,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_11",
+      "name": "Character 1 Skill 1",
+      "code": "skill",
+      "action": "skill",
+      "character": 1,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_12",
+      "name": "Character 1 Skill 2 (Attacking - Wait a Moment)",
+      "code": "skill",
+      "action": "skill",
+      "character": 1,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json",
+      "delayAfterMs": 1500
+    },
+    {
+      "id": "step_13",
+      "name": "Character 1 Skill 2 (Attacking - Wait a Moment)",
+      "code": "skill",
+      "action": "skill",
+      "character": 1,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json",
+      "delayAfterMs": 1500
+    },
+    {
+      "id": "step_14",
+      "name": "Character 1 Skill 2 (Attacking - Wait a Moment)",
+      "code": "skill",
+      "action": "skill",
+      "character": 1,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json",
+      "delayAfterMs": 1500
+    },
+    {
+      "id": "step_15",
+      "name": "Execute Normal Attack",
+      "code": "attack",
+      "action": "attack",
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_16",
+      "name": "Instant Reload F5",
+      "code": "reload",
+      "action": "reload",
+      "delayAfterMs": 1000
+    },
+    {
+      "id": "step_17",
+      "name": "Confirm Battle Result & Rerun",
+      "code": "confirm_result",
+      "action": "confirm_result"
+    }
+  ]
+}

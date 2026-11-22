@@ -373,20 +373,90 @@ export class QuestNavigationService {
 
       // 3. Supporter card selection
       const cardClicked = await this.page.evaluate((priorities: string[]) => {
-        const cards = Array.from(document.querySelectorAll(
-          '.prt-supporter-attribute.selected .lis-supporter, .prt-supporter-attribute .lis-supporter, .lis-supporter, .btn-supporter, .prt-supporter-detail'
-        )) as HTMLElement[];
-        const visibleCards = cards.filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 0);
+        const summonAliases: Record<string, string[]> = {
+          zeus: ['zeus', 'ゼウス'],
+          hades: ['hades', 'ハデス'],
+          bahamut: ['bahamut', 'バハムート'],
+          lucifer: ['lucifer', 'ルシフェル'],
+          kaguya: ['kaguya', 'カグヤ'],
+          celeste: ['celeste', 'セレスト'],
+          luminiera: ['luminiera', 'シュヴァリエ'],
+          colossus: ['colossus', 'コロッサス'],
+          leviathan: ['leviathan', 'リヴァイアサン'],
+          tiamat: ['tiamat', 'ティアマト'],
+          yggdrasil: ['yggdrasil', 'ユグドラシル'],
+          agni: ['agni', 'アグニ'],
+          varuna: ['varuna', 'ヴァルナ'],
+          titan: ['titan', 'ティターン'],
+          zephyrus: ['zephyrus', 'ゼピュロス']
+        };
 
-        for (const p of priorities) {
-          const match = visibleCards.find(c => (c.innerText || c.textContent || '').toLowerCase().includes(p.toLowerCase()));
-          if (match) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(match).trigger('tap');
-            match.click();
-            return true;
+        const getVisibleCards = () => {
+          const cards = Array.from(document.querySelectorAll(
+            '.prt-supporter-attribute.selected .lis-supporter, .prt-supporter-attribute .lis-supporter, .lis-supporter, .btn-supporter, .prt-supporter-detail'
+          )) as HTMLElement[];
+          return cards.filter(c => c.offsetParent !== null && c.getBoundingClientRect().height > 0);
+        };
+
+        let visibleCards = getVisibleCards();
+
+        const findPriorityMatch = (cardList: HTMLElement[]) => {
+          const extractLevel = (el: HTMLElement): number => {
+            const text = el.innerText || el.textContent || '';
+            const lvMatch = text.match(/(?:lvl?|lv|level)\s*(\d+)/i) || text.match(/\b(2[0-5]\d|1\d\d)\b/);
+            return lvMatch ? parseInt(lvMatch[1], 10) : 0;
+          };
+
+          for (const p of priorities) {
+            const key = p.toLowerCase().trim();
+            const terms = summonAliases[key] || [key];
+            const matches = cardList.filter(c => {
+              const text = (c.innerText || c.textContent || '').toLowerCase();
+              return terms.some(t => text.includes(t));
+            });
+            if (matches.length > 0) {
+              matches.sort((a, b) => extractLevel(b) - extractLevel(a));
+              return matches[0];
+            }
+          }
+          return null;
+        };
+
+        let matchedCard = findPriorityMatch(visibleCards);
+
+        // If priority summon is not found in current tab, switch to the corresponding element attribute tab
+        if (!matchedCard) {
+          const lowerPriorities = priorities.map(p => p.toLowerCase().trim());
+          let targetAttr: string | null = null;
+          if (lowerPriorities.some(p => ['hades', 'celeste', 'bahamut'].includes(p))) targetAttr = '6';
+          else if (lowerPriorities.some(p => ['zeus', 'luminiera', 'lucifer'].includes(p))) targetAttr = '5';
+          else if (lowerPriorities.some(p => ['zephyrus', 'tiamat'].includes(p))) targetAttr = '4';
+          else if (lowerPriorities.some(p => ['titan', 'yggdrasil'].includes(p))) targetAttr = '3';
+          else if (lowerPriorities.some(p => ['varuna', 'leviathan'].includes(p))) targetAttr = '2';
+          else if (lowerPriorities.some(p => ['agni', 'colossus'].includes(p))) targetAttr = '1';
+          else if (lowerPriorities.some(p => ['kaguya', 'huanglong', 'qilin', 'nobiyo'].includes(p))) targetAttr = '0';
+
+          if (targetAttr) {
+            const attrTab = document.querySelector(
+              `.btn-attribute[data-attribute="${targetAttr}"]:not(.selected), .btn-type[data-type="${targetAttr}"]:not(.selected), .icon-supporter-type-${targetAttr}:not(.selected)`
+            ) as HTMLElement;
+            if (attrTab && attrTab.offsetParent !== null) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(attrTab).trigger('tap');
+              attrTab.click();
+              visibleCards = getVisibleCards();
+              matchedCard = findPriorityMatch(visibleCards);
+            }
           }
         }
+
+        if (matchedCard) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(matchedCard).trigger('tap');
+          matchedCard.click();
+          return true;
+        }
+
         if (visibleCards.length > 0) {
           const first = visibleCards[0];
           const $ = (window as any).$ || (window as any).Zepto;

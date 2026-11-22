@@ -36,7 +36,8 @@ import {
   MilestoneSweeperService,
   QuestNavigationService,
   RoutineExecutionService,
-  UniversalTelemetryService
+  UniversalTelemetryService,
+  StepExecutionMonitorService
 } from './universal/index.js';
 
 export interface WorkflowLoopOptions {
@@ -56,6 +57,7 @@ export class UniversalWorkflowEngine {
   public questNavigation: QuestNavigationService;
   public routineExecution: RoutineExecutionService;
   public telemetry: UniversalTelemetryService;
+  public stepMonitor: StepExecutionMonitorService;
   public finderSlotConfigurator: FinderSlotConfiguratorService;
 
   constructor(
@@ -140,8 +142,11 @@ export class UniversalWorkflowEngine {
       executeSingleStep: (s, num, runNum) => this.executeSingleStep(s, num, runNum)
     });
 
+    this.stepMonitor = new StepExecutionMonitorService(this.ctx);
+
     this.combatExecution = new CombatExecutionService(this.ctx, {
       combatResolution: this.combatResolution,
+      stepMonitor: this.stepMonitor,
       executeSingleStep: (s, num, runNum) => this.executeSingleStep(s, num, runNum),
       isManualWorkflow: () => this.isManualWorkflow()
     });
@@ -554,6 +559,7 @@ export class UniversalWorkflowEngine {
       }
 
       const runDuration = Date.now() - runStart;
+      const runAudit = this.ctx.state.lastRunAuditReport || undefined;
 
       const result: WorkflowRunResult = {
         runNumber,
@@ -561,7 +567,9 @@ export class UniversalWorkflowEngine {
         status: pipelineSuccess ? 'SUCCESS' : 'FAILED',
         supporterName: 'N/A',
         honors: this.ctx.state.currentScore,
-        message: `Cleared in ${(runDuration / 1000).toFixed(1)}s. Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`
+        message: `Cleared in ${(runDuration / 1000).toFixed(1)}s. Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`,
+        perfectExecution: runAudit ? runAudit.perfectExecution : pipelineSuccess,
+        stepAudit: runAudit
       };
 
       if (this.ctx.dropLogger) {
@@ -580,7 +588,7 @@ export class UniversalWorkflowEngine {
       if (onProgress) onProgress(result);
 
       // Phase 4: 5-Battle Milestone Unclaimed Sweep (runs AFTER logging the completed battle so turns/honors aren't overwritten)
-      if (this.template.mode !== 'routine') {
+      if (this.template.mode !== 'routine' && !this.isSoloQuest()) {
         await this.milestoneSweeper.checkFiveBattleMilestone(activeLogPath, totalCompleted);
       }
 
@@ -641,7 +649,10 @@ export class UniversalWorkflowEngine {
       totalRunsCompleted: totalCompleted,
       totalDurationMs,
       averageDurationSec: totalCompleted > 0 ? (totalDurationMs / totalCompleted) / 1000 : 0,
-      logPath: this.ctx.state.currentLogPath
+      logPath: this.ctx.state.currentLogPath,
+      totalPerfectRuns: this.ctx.state.totalPerfectRuns || 0,
+      totalStepRetries: this.ctx.state.totalStepRetries || 0,
+      totalFailedSteps: this.ctx.state.totalFailedSteps || 0
     };
   }
 
@@ -649,191 +660,227 @@ export class UniversalWorkflowEngine {
     this.ctx.state.currentScore = 0;
     this.ctx.state.currentTurn = 1;
     (this.ctx.state as any).confirmResultExecuted = false;
+    (this.ctx.state as any).lastTapReadyAttackConfirmedAt = 0;
+    this.stepMonitor.beginRun(runNumber);
 
-    if (this.template.mode !== 'routine') {
-      await this.combatResolution.ensureInitialCombatReady();
-    }
-
-    for (let i = 0; i < this.template.steps.length; i++) {
-      const step = this.template.steps[i];
-      if (this.ctx.state.stopRequested) return false;
-
-      if (this.template.stopOnCaptcha !== false) {
-        await this.sentinel.assertSafe();
+    try {
+      const firstStepAction = this.template.steps[0]?.code || this.template.steps[0]?.action;
+      if (this.template.mode !== 'routine' && firstStepAction !== 'tap_ready') {
+        await this.combatResolution.ensureInitialCombatReady();
       }
 
-      if (!this.isManualWorkflow() && !this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
-        console.log(`[Run ${runNumber}] Target score reached (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Terminating combat pipeline early.`);
-        return true;
-      }
+      for (let i = 0; i < this.template.steps.length; i++) {
+        const step = this.template.steps[i];
+        this.ctx.state.activeStepNum = i + 1;
+        if (this.ctx.state.stopRequested) return false;
 
-      if (step.code === 'exit_if_score' || step.action === 'exit_if_score') {
-        if (this.isSoloQuest()) {
+        if (this.template.stopOnCaptcha !== false) {
+          await this.sentinel.assertSafe();
+        }
+
+        if (!this.isManualWorkflow() && !this.isSoloQuest() && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
+          console.log(`[Run ${runNumber}] Target score reached (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Terminating combat pipeline early.`);
+          return true;
+        }
+
+        if (step.code === 'exit_if_score' || step.action === 'exit_if_score') {
+          if (this.isSoloQuest()) {
+            const enemy = await this.combatResolution.getAndLogEnemyHp();
+            if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
+              console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated (evaluated at exit_if_score). Exiting combat pipeline early.`);
+              return true;
+            }
+            console.log(`[Run ${runNumber}] Solo Boss still active (${enemy ? `${enemy.hpPct}% HP` : 'unknown'}). Continuing pipeline...`);
+            continue;
+          }
+          await this.combatResolution.syncCurrentHonors();
+          const threshold = step.targetScore || this.template.targetScore || 1500000;
+          if (this.ctx.state.currentScore >= threshold) {
+            console.log(`[Run ${runNumber}] Honor threshold met (${this.ctx.state.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat pipeline early.`);
+            return true;
+          }
+          console.log(`[Run ${runNumber}] Current honors (${this.ctx.state.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing pipeline...`);
+          continue;
+        }
+
+        if (step.code === 'exit_if_dead' || step.action === 'exit_if_dead') {
           const enemy = await this.combatResolution.getAndLogEnemyHp();
           if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
-            console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated (evaluated at exit_if_score). Exiting combat pipeline early.`);
+            console.log(`[Run ${runNumber}] 🏁 Enemy defeated. Exiting combat pipeline early.`);
             return true;
           }
-          console.log(`[Run ${runNumber}] Solo Boss still active (${enemy ? `${enemy.hpPct}% HP` : 'unknown'}). Continuing pipeline...`);
+          console.log(`[Run ${runNumber}] Enemy still active (${enemy ? `${enemy.hpPct}% HP` : 'unknown'}). Continuing pipeline...`);
           continue;
         }
-        await this.combatResolution.syncCurrentHonors();
-        const threshold = step.targetScore || this.template.targetScore || 1500000;
-        if (this.ctx.state.currentScore >= threshold) {
-          console.log(`[Run ${runNumber}] Honor threshold met (${this.ctx.state.currentScore.toLocaleString()} >= ${threshold.toLocaleString()} pt). Exiting combat pipeline early.`);
-          return true;
-        }
-        console.log(`[Run ${runNumber}] Current honors (${this.ctx.state.currentScore.toLocaleString()} pt) below threshold (${threshold.toLocaleString()} pt). Continuing pipeline...`);
-        continue;
-      }
 
-      if (step.code === 'exit_if_dead' || step.action === 'exit_if_dead') {
-        const enemy = await this.combatResolution.getAndLogEnemyHp();
-        if (enemy?.isDefeated || enemy?.currentHp === 0 || (await this.combatResolution.isBattleEnded())) {
-          console.log(`[Run ${runNumber}] 🏁 Enemy defeated. Exiting combat pipeline early.`);
-          return true;
-        }
-        console.log(`[Run ${runNumber}] Enemy still active (${enemy ? `${enemy.hpPct}% HP` : 'unknown'}). Continuing pipeline...`);
-        continue;
-      }
-
-      if (step.code === 'exit_if_hp' || step.action === 'exit_if_hp') {
-        const enemy = await this.combatResolution.getAndLogEnemyHp();
-        const threshold = step.targetHpPct ?? step.targetHp ?? 0;
-        if (enemy && (enemy.isDefeated || enemy.hpPct <= threshold)) {
-          console.log(`[Run ${runNumber}] 🏁 Enemy HP threshold met (${enemy.hpPct}% <= ${threshold}%). Exiting combat pipeline early.`);
-          return true;
-        }
-        console.log(`[Run ${runNumber}] Enemy HP (${enemy ? `${enemy.hpPct}%` : 'unknown'}) above threshold (${threshold}%). Continuing pipeline...`);
-        continue;
-      }
-
-      const stepAction = step.code || step.action;
-      const prevStep = i > 0 ? this.template.steps[i - 1] : null;
-      const prevAction = prevStep ? (prevStep.code || prevStep.action) : null;
-      const isWait = stepAction === 'wait' || stepAction === 'wait_random' || stepAction === 'wait_randomize';
-      const isWaitWave = stepAction === 'wait_wave' || stepAction === 'wait_for_wave' || stepAction === 'wait_full_load';
-      const isBack = stepAction === 'back';
-      const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
-      const hasWaveGating = (step.waitForWave && step.waitForWave > 1) || ((step as any).wave && (step as any).wave > 1);
-
-      // Do NOT prematurely abort combat pipeline if:
-      // 1. Current step is a wait step (waiting for animation or stage transition)
-      // 2. Current step is 'back' or previous step was 'back' (client is actively transitioning stage 1 -> stage 2)
-      // 3. Current step explicitly targets a future wave (e.g. Wave 2)
-      const skipEarlyExitCheck = isWait || isWaitWave || isBack || (prevAction === 'back') || hasWaveGating;
-
-      if (this.template.mode !== 'routine' && i > 0 && !skipEarlyExitCheck) {
-        if (await this.combatResolution.isBattleEnded()) {
-          if (!isPostBattleCleanup) {
-            await this.combatResolution.syncCurrentHonors();
-            console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
+        if (step.code === 'exit_if_hp' || step.action === 'exit_if_hp') {
+          const enemy = await this.combatResolution.getAndLogEnemyHp();
+          const threshold = step.targetHpPct ?? step.targetHp ?? 0;
+          if (enemy && (enemy.isDefeated || enemy.hpPct <= threshold)) {
+            console.log(`[Run ${runNumber}] 🏁 Enemy HP threshold met (${enemy.hpPct}% <= ${threshold}%). Exiting combat pipeline early.`);
             return true;
           }
+          console.log(`[Run ${runNumber}] Enemy HP (${enemy ? `${enemy.hpPct}%` : 'unknown'}) above threshold (${threshold}%). Continuing pipeline...`);
+          continue;
         }
-      }
 
-      if (this.isSoloQuest() && i > 0 && !skipEarlyExitCheck) {
-        if (!isPostBattleCleanup && (await this.combatResolution.isBattleEnded())) {
-          console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
-          return true;
-        }
-      }
-
-      if (this.template.mode !== 'routine' && i > 0 && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
         const stepAction = step.code || step.action;
-        const isDamagingOrCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'skill' || stepAction === 'summon' || stepAction === 'quick_call' || stepAction === 'smart_full_auto' || stepAction === 'repeat';
-        if (isDamagingOrCombatAction) {
-          console.log(`[Run ${runNumber}] Target score satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Skipping combat Step ${i + 1} (${stepAction}).`);
-          continue;
+        const prevStep = i > 0 ? this.template.steps[i - 1] : null;
+        const prevAction = prevStep ? (prevStep.code || prevStep.action) : null;
+        const isWait = stepAction === 'wait' || stepAction === 'wait_random' || stepAction === 'wait_randomize';
+        const isWaitWave = stepAction === 'wait_wave' || stepAction === 'wait_for_wave' || stepAction === 'wait_full_load';
+        const isBack = stepAction === 'back';
+        const isPostBattleCleanup = stepAction === 'reload' || stepAction === 'f5' || stepAction === 'confirm_result' || stepAction === 'dismiss_popups';
+        const hasWaveGating = (step.waitForWave && step.waitForWave > 1) || ((step as any).wave && (step as any).wave > 1);
+        const isConfirmedTapReadyAttack =
+          stepAction === 'attack' &&
+          prevAction === 'tap_ready' &&
+          Number((this.ctx.state as any).lastTapReadyAttackConfirmedAt || 0) > 0;
+
+        // Do NOT prematurely abort combat pipeline if:
+        // 1. Current step is a wait step (waiting for animation or stage transition)
+        // 2. Current step is 'back' or previous step was 'back' (client is actively transitioning stage 1 -> stage 2)
+        // 3. Current step explicitly targets a future wave (e.g. Wave 2)
+        // 4. Current step is a post-tap_ready attack confirmation step where tap_ready already confirmed the attack
+        const skipEarlyExitCheck = isWait || isWaitWave || isBack || (prevAction === 'back') || hasWaveGating || isConfirmedTapReadyAttack;
+
+        if (this.template.mode !== 'routine' && i > 0 && !skipEarlyExitCheck) {
+          if (await this.combatResolution.isBattleEnded()) {
+            if (!isPostBattleCleanup) {
+              await this.combatResolution.syncCurrentHonors();
+              console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
+              return true;
+            }
+          }
         }
-      }
 
-      // Pre-Combat Action HP Cutoff Guard (e.g. Siete HL 10% trigger threshold where HP <= 12% means attacks yield no honors)
-      const raidExitHpThreshold = this.template.exitIfHpPct ?? (
-        (!this.isSoloQuest() && (this.template.targetEnemy === 'Seofon' || String(this.template.targetRaidQuestId) === '305411')) ? 12 : undefined
-      );
-
-      if (raidExitHpThreshold !== undefined && i > 0 && !skipEarlyExitCheck) {
-        const isCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'repeat' || stepAction === 'smart_full_auto';
-        if (isCombatAction) {
-          const enemy = await this.combatResolution.getAndLogEnemyHp();
-          if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
-            console.log(`[Run ${runNumber}] 🏁 Raid HP cutoff reached (${enemy.hpPct.toFixed(1)}% <= ${raidExitHpThreshold}%). Ineffective to attack further; exiting combat pipeline early to check another raid.`);
+        if (this.isSoloQuest() && i > 0 && !skipEarlyExitCheck) {
+          if (!isPostBattleCleanup && (await this.combatResolution.isBattleEnded())) {
+            console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
             return true;
           }
         }
-      }
 
-      if (stepAction === 'confirm_result') {
-        let hpCutoffReached = false;
-        if (raidExitHpThreshold !== undefined) {
-          const enemy = await this.combatResolution.getAndLogEnemyHp();
-          if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
-            hpCutoffReached = true;
+        if (this.template.mode !== 'routine' && i > 0 && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore >= this.template.targetScore) {
+          const stepAction = step.code || step.action;
+          const isDamagingOrCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'skill' || stepAction === 'summon' || stepAction === 'quick_call' || stepAction === 'smart_full_auto' || stepAction === 'repeat';
+          if (isDamagingOrCombatAction) {
+            console.log(`[Run ${runNumber}] Target score satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Skipping combat Step ${i + 1} (${stepAction}).`);
+            continue;
           }
         }
-        if (!this.isSoloQuest() && !hpCutoffReached && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore < this.template.targetScore) {
-          await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
-        }
-      }
 
-      console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
-
-      const success = await this.executeSingleStep(step, i + 1, runNumber);
-      if (!success && !step.optional) {
-        console.warn(`[Run ${runNumber}] Step ${i + 1} (${step.code || step.action}) failed all attempts.`);
-        if (await this.combatResolution.isBattleEnded()) {
-          console.log(`[Run ${runNumber}] Battle already concluded. Proceeding to result resolution.`);
-          return true;
-        }
-
-        const isCombatSkillOrSummon = step.code === 'skill' || step.action === 'skill' ||
-                                      step.code === 'summon' || step.action === 'summon' ||
-                                      step.code === 'quick_call' || step.action === 'quick_call';
-        const isWaitWaveStep = step.code === 'wait_wave' || step.action === 'wait_wave' || step.code === 'wait_for_wave';
-        const hasSubsequentSkill = this.template.steps.slice(i + 1).some(s => s.code === 'skill' || s.action === 'skill');
-        const hasSubsequentBurst = this.template.steps.slice(i + 1).some(s =>
-          s.code === 'attack' || s.action === 'attack' ||
-          s.code === 'tap_ready' || s.action === 'tap_ready' ||
-          s.code === 'repeat' || s.action === 'repeat' ||
-          s.code === 'smart_full_auto' || s.action === 'smart_full_auto'
+        // Pre-Combat Action HP Cutoff Guard (e.g. Siete HL 10% trigger threshold where HP <= 12% means attacks yield no honors)
+        const raidExitHpThreshold = this.template.exitIfHpPct ?? (
+          (!this.isSoloQuest() && (this.template.targetEnemy === 'Seofon' || String(this.template.targetRaidQuestId) === '305411')) ? 12 : undefined
         );
 
-        if ((isCombatSkillOrSummon && hasSubsequentBurst) && (this.template.mode === 'assist' || this.template.mode === 'combat' || !this.template.mode)) {
-          console.warn(`[Run ${runNumber}] ⚠️ Non-fatal combat action failure: Step ${i + 1} (${step.code || step.action}) unacknowledged, but subsequent attack/burst steps exist. Continuing combat pipeline to secure honors.`);
-          continue;
+        if (raidExitHpThreshold !== undefined && i > 0 && !skipEarlyExitCheck) {
+          const isCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'repeat' || stepAction === 'smart_full_auto';
+          if (isCombatAction) {
+            const enemy = await this.combatResolution.getAndLogEnemyHp();
+            if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
+              console.log(`[Run ${runNumber}] 🏁 Raid HP cutoff reached (${enemy.hpPct.toFixed(1)}% <= ${raidExitHpThreshold}%). Ineffective to attack further; exiting combat pipeline early to check another raid.`);
+              return true;
+            }
+          }
         }
 
-        if (isWaitWaveStep && hasSubsequentSkill) {
-          console.warn(`[Run ${runNumber}] ⚠️ Step ${i + 1} (${step.code || step.action}) timed out, but subsequent skill step exists. Continuing combat pipeline to attempt casting.`);
-          continue;
+        if (stepAction === 'confirm_result') {
+          let hpCutoffReached = false;
+          if (raidExitHpThreshold !== undefined) {
+            const enemy = await this.combatResolution.getAndLogEnemyHp();
+            if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
+              hpCutoffReached = true;
+            }
+          }
+          if (!this.isSoloQuest() && !hpCutoffReached && this.template.honorGuard !== false && this.template.targetScore && this.ctx.state.currentScore < this.template.targetScore) {
+            await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
+          }
         }
 
-        return false;
+        console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
+
+        let success = await this.executeSingleStep(step, i + 1, runNumber);
+
+        // Pipeline-Level Enforcer: If a step with ensureCast or retries failed while battle is active,
+        // perform an outer self-healing popup/lockout clearance and re-execute the step.
+        if (!success && !step.optional && !this.ctx.state.stopRequested && (step.ensureCast || (step.retries && step.retries > 1))) {
+          if (!(await this.combatResolution.isBattleEnded())) {
+            console.log(`[Enforcer] 🛡️ Step ${i + 1} (${stepAction}) requires enforced recovery; clearing popups/locks and re-executing...`);
+            await this.combatResolution.checkAndDismissProcessingTurnPopup();
+            await this.combatResolution.dismissCombatDrawersAndPopups();
+            await this.combatResolution.waitForCombatInputReady(800);
+            if (this.ctx.state.currentRunStepReceipts && this.ctx.state.currentRunStepReceipts.length > 0) {
+              const lastR = this.ctx.state.currentRunStepReceipts[this.ctx.state.currentRunStepReceipts.length - 1];
+              if (lastR.stepNumber === i + 1 && !lastR.verified) {
+                this.ctx.state.currentRunStepReceipts.pop();
+              }
+            }
+            success = await this.executeSingleStep(step, i + 1, runNumber);
+          }
+        }
+
+        if (!success && !step.optional) {
+          console.warn(`[Run ${runNumber}] Step ${i + 1} (${step.code || step.action}) failed all attempts.`);
+          if (await this.combatResolution.isBattleEnded()) {
+            console.log(`[Run ${runNumber}] Battle already concluded. Proceeding to result resolution.`);
+            return true;
+          }
+
+          const isCombatSkillOrSummon = step.code === 'skill' || step.action === 'skill' ||
+                                        step.code === 'summon' || step.action === 'summon' ||
+                                        step.code === 'quick_call' || step.action === 'quick_call';
+          const isWaitWaveStep = step.code === 'wait_wave' || step.action === 'wait_wave' || step.code === 'wait_for_wave';
+          const hasSubsequentSkill = this.template.steps.slice(i + 1).some(s => s.code === 'skill' || s.action === 'skill');
+          const hasSubsequentBurst = this.template.steps.slice(i + 1).some(s =>
+            s.code === 'attack' || s.action === 'attack' ||
+            s.code === 'tap_ready' || s.action === 'tap_ready' ||
+            s.code === 'repeat' || s.action === 'repeat' ||
+            s.code === 'smart_full_auto' || s.action === 'smart_full_auto'
+          );
+
+          if ((isCombatSkillOrSummon && hasSubsequentBurst) && (this.template.mode === 'assist' || this.template.mode === 'combat' || !this.template.mode)) {
+            if (this.ctx.state.lastStepReceipt && this.ctx.state.lastStepReceipt.stepNumber === i + 1) {
+              this.ctx.state.lastStepReceipt.status = 'UNACKNOWLEDGED_CONTINUED';
+              this.ctx.state.lastStepReceipt.verified = false;
+            }
+            console.warn(`[Run ${runNumber}] ⚠️ Non-fatal combat action failure: Step ${i + 1} (${step.code || step.action}) unacknowledged, but subsequent attack/burst steps exist. Continuing combat pipeline to secure honors.`);
+            continue;
+          }
+
+          if (isWaitWaveStep && hasSubsequentSkill) {
+            console.warn(`[Run ${runNumber}] ⚠️ Step ${i + 1} (${step.code || step.action}) timed out, but subsequent skill step exists. Continuing combat pipeline to attempt casting.`);
+            continue;
+          }
+
+          return false;
+        }
+
+        if (step.delayAfterMs) {
+          await new Promise(r => setTimeout(r, step.delayAfterMs));
+        }
       }
 
-      if (step.delayAfterMs) {
-        await new Promise(r => setTimeout(r, step.delayAfterMs));
+      const finalRaidExitHp = this.template.exitIfHpPct ?? (
+        (!this.isSoloQuest() && (this.template.targetEnemy === 'Seofon' || String(this.template.targetRaidQuestId) === '305411')) ? 12 : undefined
+      );
+      let finalHpCutoffReached = false;
+      if (finalRaidExitHp !== undefined) {
+        const enemy = await this.combatResolution.getAndLogEnemyHp();
+        if (enemy && (enemy.isDefeated || enemy.hpPct <= finalRaidExitHp)) {
+          finalHpCutoffReached = true;
+        }
       }
-    }
 
-    const finalRaidExitHp = this.template.exitIfHpPct ?? (
-      (!this.isSoloQuest() && (this.template.targetEnemy === 'Seofon' || String(this.template.targetRaidQuestId) === '305411')) ? 12 : undefined
-    );
-    let finalHpCutoffReached = false;
-    if (finalRaidExitHp !== undefined) {
-      const enemy = await this.combatResolution.getAndLogEnemyHp();
-      if (enemy && (enemy.isDefeated || enemy.hpPct <= finalRaidExitHp)) {
-        finalHpCutoffReached = true;
+      if (!this.isSoloQuest() && !finalHpCutoffReached && this.template.honorGuard !== false && this.template.targetScore) {
+        await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
       }
-    }
 
-    if (!this.isSoloQuest() && !finalHpCutoffReached && this.template.honorGuard !== false && this.template.targetScore) {
-      await this.combatExecution.ensureMinimumHonors(this.template.targetScore);
+      return true;
+    } finally {
+      this.stepMonitor.finalizeRun(runNumber, this.template.steps.length);
     }
-
-    return true;
   }
 
   public isSoloQuest(): boolean {
@@ -867,6 +914,49 @@ export class UniversalWorkflowEngine {
   }
 
   public async executeSingleStep(step: WorkflowStep, stepNum: number, runNumber: number): Promise<boolean> {
+    this.ctx.state.activeStepNum = stepNum;
+    const stepStart = Date.now();
+    const beforeCount = this.ctx.state.currentRunStepReceipts?.length || 0;
+    const actionCode = step.code || step.action;
+    const isContainerStep =
+      actionCode === 'repeat' ||
+      actionCode === 'loop_while' ||
+      actionCode === 'loop_until' ||
+      actionCode === 'do_until_finish';
+
+    const ok = await this.executeSingleStepInternal(step, stepNum, runNumber);
+
+    const afterCount = this.ctx.state.currentRunStepReceipts?.length || 0;
+    if (!isContainerStep && afterCount === beforeCount) {
+      const isUtilityStep =
+        actionCode === 'wait' ||
+        actionCode === 'wait_random' ||
+        actionCode === 'wait_randomize' ||
+        actionCode === 'reload' ||
+        actionCode === 'f5' ||
+        actionCode === 'log_enemy_hp';
+      this.stepMonitor.recordStepReceipt({
+        runNumber,
+        stepNumber: stepNum,
+        step,
+        status: ok
+          ? 'CONFIRMED_DIRECT'
+          : step.optional
+          ? 'SKIPPED_OPTIONAL'
+          : 'FAILED_TIMEOUT',
+        verified: ok || Boolean(step.optional),
+        attempts: 1,
+        durationMs: Date.now() - stepStart,
+        networkConfirmed: false,
+        stateMutated: ok,
+        silent: isUtilityStep && ok
+      });
+    }
+
+    return ok;
+  }
+
+  private async executeSingleStepInternal(step: WorkflowStep, stepNum: number, runNumber: number): Promise<boolean> {
     const actionCode = step.code || step.action;
 
     switch (actionCode) {

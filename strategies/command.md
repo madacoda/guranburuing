@@ -1,891 +1,216 @@
-# GBF Remote Controller & Automation CLI Reference (`--help`)
+# GBF CLI Reference (`/caveman` Edition)
 
-Fast, categorized terminal reference for all operational commands, workflows, daemons, and developer utilities.
-
----
-
-## Quick Navigation
-
-- [0. Global CLI Syntax & Common Flags](#0-global-cli-syntax--common-flags)
-- [1. Account Authentication & Session Management](#1-account-authentication--session-management)
-- [2. Browser Control, CDP Host & Developer Dev Servers](#2-browser-control-cdp-host--developer-dev-servers)
-- [3. Daily Maintenance & Pro Skips](#3-daily-maintenance--pro-skips)
-- [4. Daily Raid Hosting Suite](#4-daily-raid-hosting-suite)
-- [5. Autonomous Peak-Hour Scheduler (21:00 JST / 19:00 WIB)](#5-autonomous-peak-hour-scheduler-2100-jst--1900-wib)
-- [6. Human Behavioral Cadence & In-Game Inventory Audit](#6-human-behavioral-cadence--in-game-inventory-audit)
-- [7. Replicard Sandbox: Zone Mundus (Stage 10) Militis Bosses & Defenders](#7-replicard-sandbox-zone-mundus-stage-10-militis-bosses--defenders)
-- [8. Replicard Sandbox: Stage 3 (Zone Goliath) Bosses & Defenders](#8-replicard-sandbox-stage-3-zone-goliath-bosses--defenders)
-- [9. Replicard Sandbox: Stage 7 (Zone Faym & Joculator) Bosses & Defenders](#9-replicard-sandbox-stage-7-zone-faym--joculator-bosses--defenders)
-- [10. Replicard Sandbox: Zone Eletio, Zone Kalendae & The World](#10-replicard-sandbox-zone-eletio-zone-kalendae--the-world)
-- [11. Gold Bar (GB) Hunting & High-Difficulty Raids](#11-gold-bar-gb-hunting--high-difficulty-raids)
-- [12. Magna 3 (Omega Rebirth) Fast Leeching & OTK Burst](#12-magna-3-omega-rebirth-fast-leeching--otk-burst)
-- [13. Endgame 6-Man & Six Dragons Assist Raids](#13-endgame-6-man--six-dragons-assist-raids)
-- [13b. Revans Series: Seofon (Siete HL) 4M Honors Blue Chest & Readiness Auto-Checker](#13b-revans-series-seofon-siete-hl-4m-honors-blue-chest--readiness-auto-checker)
-- [13c. Revans Series: Agastia (Impossible) 4M Honors Blue Chest & 6-Ougi Loop](#13c-revans-series-agastia-impossible-4m-honors-blue-chest--6-ougi-loop)
-- [14. Autonomous Finder Slot & Raid Auto-Setting (`autoSetRaid`)](#14-autonomous-finder-slot--raid-auto-setting-autosetraid)
-- [15. Guild Wars (Unite & Fight)](#15-guild-wars-unite--fight)
-- [15b. Dread Barrage (Valiant Battles)](#15b-dread-barrage-valiant-battles)
-- [16. Story, Scenario & Collaboration Events](#16-story-scenario--collaboration-events)
-- [17. Fate Episodes Auto-Farmer](#17-fate-episodes-auto-farmer)
-- [18. Rise of the Beasts (ROTB)](#18-rise-of-the-beasts-rotb)
-- [18b. Special & Extra Quests: Shiny Slime Search (Very Hard)](#18b-special--extra-quests-shiny-slime-search-very-hard)
-- [19. Interactive Selector & Generic Workflow Runner](#19-interactive-selector--generic-workflow-runner)
-- [20. Complete Synced Workflow Templates Master Catalog (88 Templates)](#20-complete-synced-workflow-templates-master-catalog-88-templates)
-- [21. Gateway Server, Web Cockpit & Mobile PWA](#21-gateway-server-web-cockpit--mobile-pwa)
-- [22. Discord Remote Controller & Two-Way CAPTCHA Relay](#22-discord-remote-controller--two-way-captcha-relay)
-- [23. Discord Rich Presence (RPC)](#23-discord-rich-presence-rpc)
-- [24. Quality Assurance, Testing & Pre-Flight Verification](#24-quality-assurance-testing--pre-flight-verification)
+Append `:windowed` or `-w` to any workflow command for visible browser. Default: headless (`acc1`).
 
 ---
 
-## 0. Global CLI Syntax & Common Flags
-
-Most combat and farming workflows accept standard flags and positional arguments:
+## 0. Global Syntax & Flags
 
 ```bash
-bun src/cli/run-workflow.ts [account] <template_name> [runs] [flags]
+bun src/cli/run-workflow.ts [acc] <template> [runs] [flags]
 ```
 
-### Common Flags
-
-| Flag | Short | Default | Description |
+| Flag | Short | Default | Effect |
 | :--- | :---: | :---: | :--- |
-| `--windowed` | `-w` | `false` | Disables headless mode; renders visible browser window for visual debugging |
-| `--headless` | `-h` | `true` | Forces silent Chromium background execution (`--headless=new`) |
-| `--account <id>` | `-a` | `acc1` | Specifies target account ID configured in `accounts.config.json` |
-| `--runs <count>` | `-r` | `1` / template | Overrides loop iteration limit |
-| `--speed <mode>` | `-s` | `fast` | Speed profile: `stealth` (860ms), `fast` (150ms), or `turbo` (75ms) |
-| `--all-accounts` | — | `false` | Executes workflow sequentially across all enabled accounts |
+| `--windowed` | `-w` | `false` | Show browser GUI |
+| `--headless` | `-h` | `true` | Silent background (`--headless=new`) |
+| `--account <id>` | `-a` | `acc1` | Target account (`accounts.config.json`) |
+| `--runs <n>` | `-r` | template | Loop count override |
+| `--speed <m>` | `-s` | `fast` | `stealth` (860ms) \| `fast` (150ms) \| `turbo` (75ms) |
+| `--all-accounts` | — | `false` | Run sequentially across all accounts |
 
 ---
 
-## 1. Account Authentication & Session Management
+## 1. Auth & Session
 
-Zero-cold-login session initialization, full cookie jar export/import across desktop and VPS.
-
-| Command | Arguments / Flags | Description |
-| :--- | :--- | :--- |
-| `bun run account:setup` | `[account]` (default: `acc1`) | Opens windowed browser on port 9222 for 1-time manual login |
-| `bun run account:setup acc1 --headless` | `--headless` | Launches remote web cockpit on port 3000 to log in via phone/browser |
-| `bun run account:login` | `[account]` | Alias for `account:setup` |
-| `bun run session:copy-local` | — | PowerShell script to clone local Chrome session into bot user data directory |
-| `bun run session:export` | `[account]` (default: `acc1`) | Dumps full 30+ cookie platform jar to `data/<acc>-cookies.json` |
-| `bun run session:import` | `[account]` (default: `acc1`) | Injects full cookie jar via CDP and verifies player profile |
-| `bun run import` | `[account]` | Alias for `session:import` |
-| `bun run import:clipboard` | `[account]` | Imports cookies directly from clipboard JSON |
-| `bun run import:midship` | `[account]` | Quick-imports single `midship` cookie value |
-| `bun run session:sync` | `[account]` | Verifies cookie freshness and syncs IndexedDB stores |
-| `bun run sync` | `[account]` | Alias for `session:sync` |
-| `bun run vps:login` | — | Secure SSH tunnel to remote VPS Chrome mirror on port 9222 |
-| `bun run vps:browser` | — | Launches remote VPS browser window mirror |
-
-> [!TIP]
-> **Session Immunity Shield**: All session setups, daily runs, and workflow runners automatically mount the Mobage session immunity shield ([src/auth/session-immunity.ts](file:///c:/laragon/www/guranburuing/src/auth/session-immunity.ts)), preventing client-side kickouts from `session_state_change_response`. For the complete technical post-mortem on auth failures and solutions, see [Root Cause Analysis: Authentication Failures vs. Success Blueprint](file:///c:/laragon/www/guranburuing/strategies/AUTH_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md) and [Principle 13](file:///c:/laragon/www/guranburuing/strategies/principles/13_authentication_and_session_immunity.md).
+| Command | Effect |
+| :--- | :--- |
+| `bun run account:setup [acc]` / `account:login` | Windowed login (port 9222). Add `--headless` for web cockpit (port 3000) |
+| `bun run session:copy-local` | Clone local Chrome profile into bot dir |
+| `bun run session:export [acc]` | Dump cookies $\rightarrow$ `data/<acc>-cookies.json` |
+| `bun run session:import [acc]` / `import` | Inject cookie jar + verify profile |
+| `bun run import:clipboard` / `import:midship` | Import cookies from clipboard JSON or `midship` value |
+| `bun run session:sync [acc]` / `sync` | Verify cookies + sync local $\rightarrow$ VPS |
+| `bun run vps:login` / `vps:browser` | SSH tunnel to remote VPS Chrome mirror (port 9222) |
 
 ---
 
-## 2. Browser Control, CDP Host & Developer Dev Servers
-
-Manual Chromium / SRWare Iron launch helpers (optional if `AUTO_LAUNCH_CHROME=true`) and development watchers.
-
-| Command | Mode | Description |
-| :--- | :---: | :--- |
-| `bun run launch:chrome` | Windowed | Launches browser on port 9222 with visible GUI window |
-| `bun run launch:chrome:headless` | Headless | Launches browser in silent background mode (`--headless=new`) |
-| `bun run dev` | Watcher | Starts gateway server with file watcher (`bun --watch src/index.ts`) |
-| `bun run dev:node` | Node/TSX | Starts gateway server using Node.js + tsx watcher (`tsx watch src/index.ts`) |
-| `bun run build` | Compiler | Compiles entire TypeScript codebase (`tsc`) to `dist/` |
-| `bun run start` | Production | Boots compiled production bundle (`bun dist/index.js`) |
-| `bun run gateway` | Bun | Direct boot of gateway without watcher (`bun src/index.ts`) |
-
----
-
-## 3. Daily Maintenance & Pro Skips
-
-Executes 12 Pro Skips (`#quest/extra`), 100-Draw Free Rupie Gacha (`#gacha/normal`), Skyscope missions, and Casino pots.
-
-| Command | Mode | Description |
-| :--- | :---: | :--- |
-| `bun run daily` | Headless | Full daily maintenance cycle on active account (`acc1`) |
-| `bun run daily:acc1` | Headless | Runs daily maintenance explicitly on Account 1 |
-| `bun run daily:acc2` | Headless | Runs daily maintenance explicitly on Account 2 |
-| `bun run daily:all` | Swarm | Sequential multi-account daily maintenance across all accounts |
-| `bun run daily:windowed` | Windowed | Runs daily maintenance with visible browser window |
-| `bun run daily:favorites` | Headless | Quick-clears Pro Skips pinned to in-game Favorites list (`#quest`) |
-
----
-
-## 4. Daily Raid Hosting Suite
-
-Autonomous daily raid hosting with transient DOM sanitization and material deficit recognition across 16 critical daily raids.
-
-| Command | Scope | Description |
-| :--- | :---: | :--- |
-| `bun run daily:host` | All 16 Raids | Hosts complete daily 16-raid rotation (HL, M3, Six Dragons) |
-| `bun run daily:host:hl` / `daily:hostgb` | HL Raids | Hosts High Level daily raids (PBHL, Akasha, GOHL, Lindwurm) |
-| `bun run daily:host:m3` | Magna 3 | Hosts all 6 Magna 3 (Omega Rebirth) raids |
-| `bun run daily:host:dragons` | Six Dragons | Hosts all 6 Six Dragons daily raids (Wilnas, Ewiyar, etc.) |
-| `bun run daily:host:acc1` | Acc 1 | Runs daily raid hosting explicitly on Account 1 |
-| `bun run daily:host:acc2` | Acc 2 | Runs daily raid hosting explicitly on Account 2 |
-| `bun run daily:host:all` | All Accounts | Runs daily raid hosting across all registered accounts |
-| `bun run daily:host:windowed` | Windowed | Visible browser execution for inspecting host transitions |
-
----
-
-## 5. Autonomous Peak-Hour Scheduler (21:00 JST / 19:00 WIB)
-
-24/7 background scheduler aligned to Granblue Fantasy peak player Golden Time & Strike Time (21:00:15 JST / 19:00:15 WIB / 12:00:15 UTC) for maximum Raid Finder backup join speed and fastest clears.
-
-| Command | Mode | Description |
-| :--- | :---: | :--- |
-| `bun run daily:scheduler` | Daemon | Starts background daemon that triggers routine at 21:00:15 JST (19:00:15 WIB) |
-| `bun run daily:routine` | Immediate | Executes complete 2-phase pipeline right now (Pro Skips $\rightarrow$ Raids) |
-| `bun run daily:routine --windowed` | Windowed | Runs on-demand daily pipeline in visible browser window |
-| `bun run daily:routine --no-hosts` | Skips Only | Runs universal Pro Skips only, skipping hosted raids |
-| `bun run daily:routine --no-skips` | Raids Only | Runs raid hosting suite only, skipping Pro Skips |
-
----
-
-## 6. Human Behavioral Cadence & In-Game Inventory Audit
-
-Simulates realistic human farming rhythms with fatigue-mimicking rest intervals, interleaving dying Magna 3 leeches, inventory auditing, and monthly shop resets.
-
-| Command | Arguments / Flags | Description |
-| :--- | :--- | :--- |
-| `bun run farm:human` | `[acc] [--cycles=3] [--gb=18] [--rest=5] [-w]` | Runs realistic human cadence: GB burst $\rightarrow$ Leech $\rightarrow$ Rest $\rightarrow$ Audit |
-| `bun run inventory` | `[acc] [--windowed]` | Scrapes live inventory: Half Elixirs, Soul Berries, Gold Bars, Crystals, AAP |
-| `bun run inventory:cached` | `[acc] [--offline]` | Displays latest on-disk cached inventory snapshot without launching Chrome |
-
-### Human Cadence Syntax Options
-```bash
-# Run 5 cycles on acc1 with 25 GB raids per cycle and 8-min rest breaks (visible window):
-bun src/cli/run-human-cadence.ts acc1 --cycles=5 --gb=25 --rest=8 --windowed
-
-# Quick check on account 1's elixir and crystal inventory:
-bun run inventory acc1
-```
-
----
-
-## 7. Replicard Sandbox: Zone Mundus (Stage 10) Militis Bosses & Defenders
-
-Optimized Smart Full Auto and Burst workflows for all major Zone Mundus encounters.
-
-### 🚀 Unified Arcarum Zone Mundus CLI Controller
-```bash
-bun run arcarum                                     # Interactive Target Selection Menu
-bun run arcarum:help                                # Print Complete Target Catalog & Syntax
-bun src/cli/run-arcarum.ts acc1 ca-ong 100          # Run 100 battles of Ca Ong Militis
-bun src/cli/run-arcarum.ts acc1 steve 200            # Farm 200 runs of Parasite Steve (spawns Ca Ong)
-bun src/cli/run-arcarum.ts acc1 theworld 50 -w       # Run 50 battles of The World (Windowed)
-bun src/cli/run-arcarum.ts acc1 stage10 500          # Universal Stage 10 Map Scanner
-```
-
-### ⚔️ Militis Defenders & Core Bosses (30 AAP)
-| Target | Element | Div | Quest ID | Quick CLI Shortcut | Windowed Shortcut | Drops |
-| :--- | :---: | :---: | :---: | :--- | :--- | :--- |
-| **Ca Ong Militis** | Water | 10 | `819151` | `bun run ca-ong:smart` / `ca-ong` / `arcarum:ca-ong` / `arcarum:ca-ong:smart` | `bun run ca-ong:windowed` / `ca-ong:smart:windowed` | Glacial Rapier Militis, Water Luster, Pillar of Sea |
-| **Prometheus Militis** | Fire | 3 | `819141` | `bun run prometheus:smart` / `prometheus` / `arcarum:prometheus` / `arcarum:prometheus:smart` | `bun run prometheus:windowed` / `prometheus:smart:windowed` | Prominence Militis, Fire Luster, Pillar of Sun |
-| **Gilgamesh Militis** | Earth | 7 | `819161` | `bun run gilgamesh:smart` / `gilgamesh` / `arcarum:gilgamesh` / `arcarum:gilgamesh:smart` | `bun run gilgamesh:windowed` / `gilgamesh:smart:windowed` | Heavy Cane Militis, Earth Luster, Pillar of Land |
-| **Morrigna Militis** | Wind | 15 | `819171` | `bun run morrigna:smart` / `morrigna` / `arcarum:morrigna` / `arcarum:morrigna:smart` | `bun run morrigna:windowed` / `morrigna:smart:windowed` | Tempest Militis, Wind Luster, Pillar of Sky |
-| **The World** | All | 16 | `819131` | `bun run theworld:smart` / `theworld` / `arcarum-theworld` | `bun run arcarum-theworld:windowed` / `theworld-smart:windowed` | World Idean, Mundus Lusters, New World Quartz |
-| **The World (Bespoke)**| All | 16 | `819131` | `bun run theworld:bespoke` | `bun run theworld:bespoke --windowed` | Dedicated standalone script runner for The World |
-| **Zone Mundus Map** | All | 10 | — | `bun run stage10` / `arcarum:stage10` / `arcarum:mundus` | `bun run stage10:windowed` | Universal Map Scanner & Auto-Defender Target |
-
-### 🌾 Primary 5-Gauge Farming Targets (20 AAP — Builds Sephira Boxes & Defender Gauges)
-| Target | Element | Div | Quest ID | Quick CLI Shortcut | Direct Template Script | Purpose |
-| :--- | :---: | :---: | :---: | :--- | :--- | :--- |
-| **Parasite Steve** | Water | 9 | `819071` | `bun run arcarum:steve` | `bun run arcarum-mundus-parasite-steve-smart` | Primary Water farm, builds Ca Ong gauge |
-| **Tide Caller** | Water | 10 | `819081` | `bun run arcarum:tide-caller` | `bun run arcarum-mundus-tide-caller-smart` | Water Sephira Box, Ca Ong gauge |
-| **Earth-Shattering Fire Demon** | Fire | 3 | `819021` | `bun run arcarum:fire-demon` | `bun run arcarum-mundus-fire-demon-smart` | Primary Fire farm, builds Prometheus gauge |
-| **Elephant Stomping Ground** | Earth | 7 | `819051` | `bun run arcarum:elephant` | `bun run arcarum-mundus-elephant-smart` | Primary Earth farm, builds Gilgamesh gauge |
-| **Princess of the Horde** | Earth | 6 | `819041` | `bun run arcarum:princess` | `bun run arcarum-mundus-princess-horde-smart` | Earth Sephira Box, Gilgamesh gauge |
-| **Dragon in Glittering Green** | Wind | 14 | `819111` | `bun run arcarum:dragon-green` | `bun run arcarum-mundus-dragon-green-smart` | Primary Wind farm, builds Morrigna gauge |
-| **Dragon Princess** | All | — | — | `bun run arcarum-mundus-dragon-princess-smart` | `bun run arcarum-mundus-dragon-princess-smart` | Mundus Dragon Princess smart burst |
-| **Wild Hunt** | All | — | — | `bun run arcarum-mundus-wild-hunt-smart` | `bun run arcarum-mundus-wild-hunt-smart` | Mundus Wild Hunt smart burst |
-| **Voltage Rock** | Earth | — | — | `bun run arcarum-mundus-voltage-rock-smart` | `bun run arcarum-mundus-voltage-rock-smart` | Mundus Voltage Rock smart burst |
-| **Love Meeeee** | Dark | — | — | `bun run arcarum-mundus-love-meeeee-smart` | `bun run arcarum-mundus-love-meeeee-smart` | Mundus Love Meeeee smart burst |
-
-### ⚡ 3-Gauge Fast Burst & Sephira Heralds (+100% Boost)
-| Target | Element | Div | Quest ID | Quick CLI Shortcut | Direct Template Script | Purpose |
-| :--- | :---: | :---: | :---: | :--- | :--- | :--- |
-| **Herald of Water** | Fire | 9 | `819191` | `bun run arcarum:herald-water` | `bun run arcarum-mundus-herald-water-smart` | **+100% Sephira Gauge Boost for 60 Minutes** |
-| **Herald of Earth** | Fire | 6 | `819201` | `bun run arcarum:herald-earth` | `bun run arcarum-mundus-herald-earth-smart` | **+100% Sephira Gauge Boost for 60 Minutes** |
-| **Hotheaded Pincers** | Fire | 2 | `819011` | `bun run arcarum:pincers` | `bun run arcarum-mundus-pincers-smart` | 3-bar low HP fast burst farming |
-| **Winged Demon Cat** | Wind | 13 | `819101` | `bun run arcarum:winged-cat` | `bun run arcarum-mundus-winged-cat-smart` | 3-bar low HP fast burst farming |
-
----
-
-## 8. Replicard Sandbox: Stage 3 (Zone Goliath) Bosses & Defenders
-
-Optimized Smart Full Auto workflows for all Stage 3 (`#replicard/stage/3`) Zone Goliath encounters (Here Be Staves).
-
-### ⚔️ Stage 3 Bosses & Defenders (30 AAP)
-| Command | Windowed Variant | Target | Role | Drops |
-| :--- | :--- | :--- | :---: | :--- |
-| `bun run triune` / `arcarum:triune` | `bun run triune:windowed` | **Goliath Triune** | Zone Boss (Earth) | Tower/Hanged Man/Death Ideans, Earth Astra, Quartz |
-| `bun run avarice` / `arcarum:avarice` | `bun run avarice:windowed` | **Avatar of Avarice** | Defender (Pink / Hanged Man) | **Goliath Organ**, Earthborne Astra, Hanged Man Idean |
-| `bun run keeper` / `arcarum:keeper` | `bun run keeper:windowed` | **Goliath Keeper** | Defender (Green / Tower) | **Goliath Rib**, Earthborne Astra, Tower Idean |
-| `bun run howler` / `arcarum:howler` | `bun run howler:windowed` | **Frenzied Howler** | Defender (Yellow / Death) | **Goliath Core**, Darkborne Astra, Death Idean |
-| `bun run stage3` / `arcarum:stage3` / `arcarum:goliath` | `bun run stage3:windowed` | **Stage 3 Universal Map** | Universal Map Scanner | Auto-detects and targets active Defenders or quests |
-
-### 🌾 Stage 3 5-Gauge Fast Farming & Heralds (20 AAP)
-| Command | Windowed Variant | Target | Element | Purpose |
-| :--- | :--- | :--- | :---: | :--- |
-| `bun run arcarum:panther` | `bun run arcarum-goliath-panther-smart:windowed` | Earthshaking Panther | Earth | Green 5-Gauge, spawns Goliath Keeper |
-| `bun run arcarum:barbarian` | `bun run arcarum-goliath-barbarian-smart:windowed` | Bloodstained Barbarian | Earth | Pink 5-Gauge, spawns Avatar of Avarice |
-| `bun run arcarum:despair` | `bun run arcarum-goliath-despair-smart:windowed` | Writhing Despair | Dark | Yellow 5-Gauge, spawns Frenzied Howler |
-| `bun run arcarum:goliath-herald` | `bun run arcarum-goliath-herald-smart:windowed` | Goliath Heralds | All | **+100% Sephira Gauge Boost for 60 Minutes** |
-
----
-
-## 9. Replicard Sandbox: Stage 7 (Zone Faym & Joculator) Bosses & Defenders
-
-Workflows for Stage 7 and Stage 6 encounters across Zone Faym, Zone Joculator, and Zone Kalendae.
-
-| Command | Windowed Variant | Target | Div / Quest | Drops |
-| :--- | :--- | :--- | :---: | :--- |
-| `bun run redemption` / `lady` / `arcarum:redemption` / `arcarum:lady` | `bun run redemption:windowed` / `lady:windowed` | **Lady of Redemption** | Stage 7 / Div 7 / Quest 816071 | Joculator materials, Justice Idean, Aquaborne Astra, Veritas |
-| `bun run cocytus` / `xeno-cocytus` / `arcarum:cocytus` / `arcarum:xeno-cocytus` | `bun run cocytus:windowed` / `xeno-cocytus:windowed` | **Xeno Cocytus Militis** | Stage 7 / Div 15 / Quest 816131 | Xeno Cocytus Militis weapons, Water Luster, Veritas, Box |
-| `bun run ifrit` / `xeno-ifrit` / `arcarum:ifrit` / `arcarum:xeno-ifrit` | `bun run ifrit:windowed` / `xeno-ifrit:windowed` | **Xeno Ifrit Militis** | Stage 6 / Div 14 / Quest 815131 | Xeno Ifrit Militis weapons, Fire Luster, Veritas, Box |
-| `bun run paragon` / `arcarum:paragon` / `arcarum:lilywhite` | `bun run paragon:windowed` | **Lilywhite Paragon** | Div 10 / Quest 812111 | **Faym Rib**, Moon Idean, Aquaborne Astra, Moon Veritas |
-| `bun run fortress` / `arcarum:fortress` | `bun run fortress:windowed` | **Faymian Fortress** | Water (5-Gauge) | The Moon 5-Gauge, breaks 10-hit Barrier, spawns Paragon |
-| `bun run arcarum:maiden` | `bun run arcarum-maiden-of-the-depths-smart:windowed` | **Maiden of the Depths** | Water (5-Gauge) | Arctic Plains 5-Gauge (Stage 7), spawns Lady of Redemption |
-| `bun run stage7` / `arcarum:stage7` | `bun run arcarum-stage-7-smart:windowed` | **Stage 7 Universal Map** | Universal Map Scanner | Auto-detects and targets Lady of Redemption or Maiden |
-
----
-
-## 10. Replicard Sandbox: Zone Eletio, Zone Kalendae & The World
-
-Workflows for Zone Eletio/Kalendae defenders and Zone Mundus boss.
-
-| Command | Windowed Variant | Target | Description |
-| :--- | :--- | :--- | :--- |
-| `bun run athena:smart` / `athena` / `arcarum:athena` / `arcarum:athena:smart` | `bun run arcarum-athena-militis:windowed` / `athena:windowed` | Athena Militis | Smart Full Auto / Fast burst rotation (Zone Eletio) |
-| `bun run grani:smart` / `grani` / `arcarum:grani` / `arcarum:grani:smart` | `bun run arcarum-grani-militis:windowed` / `grani:windowed` | Grani Militis | Smart Full Auto rotation (Zone Faym) |
-| `bun run grani:fast` / `arcarum:grani:fast` | `bun run arcarum-grani-militis-fast:windowed` | Grani Militis | Fast burst 1-turn rotation |
-| `bun run theworld` / `arcarum-theworld` / `arcarum:world` | `bun run arcarum-theworld:windowed` | The World | Quest 819131 encounter with Plain Damage omen counters |
-| `bun run theworld:smart` / `arcarum:world:smart` | `bun run arcarum-theworld-smart:windowed` | The World | Smart Full Auto rotation |
-| `bun run theworld:bespoke` | `bun run theworld:bespoke --windowed` | The World | Dedicated standalone script runner for The World |
-
----
-
-## 11. Gold Bar (GB) Hunting & High-Difficulty Raids
-
-Dedicated Blue Chest honor burst workflows (1.4M–1.58M target honors) with drop telemetry.
-
-| Command | Windowed Variant | Raid | Target Honors | Description |
-| :--- | :--- | :--- | :---: | :--- |
-| `bun run pbhl` / `gb-pbhl` / `gb-pbhl-universal` | `bun run pbhl:windowed` / `gb-pbhl:windowed` / `gb-pbhl-universal:windowed` | Proto Bahamut HL | 1.50M | Default PBHL burst loop (`gb-pbhl`) |
-| `bun run gb-pbhl:skill` / `gb-pbhl-skill` | `bun run gb-pbhl:skill:windowed` | Proto Bahamut HL | 1.50M | Precise manual skill sequence (C4S3 $\rightarrow$ Call $\rightarrow$ C4S4 $\rightarrow$ C1S3) |
-| `bun run gb-pbhl:reload-skills` | `bun run gb-pbhl:reload-skills:windowed` | Proto Bahamut HL | 1.50M | Precise skill sequence with animation cancellation reloads |
-| `bun run gb-pbhl-fast` | `bun run gb-pbhl-fast:windowed` | Proto Bahamut HL | 1.50M | Ultra-fast 0-button reload burst rotation |
-| `bun run gb-akasha` | `bun run gb-akasha:windowed` | Akasha HL | 1.50M | Standardized 2-turn burst loop targeting Gold Bar & Keys |
-| `bun run gb-go` | `bun run gb-go:windowed` | Grand Order HL | 1.50M | Standardized 2-turn burst for Heavenly Horns & Centrums |
-| `bun run gb-farm` | `bun run gb-farm:windowed` | Tri-Raid Rotator | Dynamic | Concurrently rotates PBHL $\rightarrow$ Akasha $\rightarrow$ GOHL |
-| `bun run theworld:raid` / `world:raid` / `raid:theworld` | `bun run theworld:raid:windowed` | The World (HL) | — | Finder Tab 1 assist raid burst loop |
-| `bun run goldbar` / `notify:gold-bar` | — | Telemetry | — | Tests permanent raid archive URL resolution & drops |
-| `bun run gb:report` / `gb:summary` | — | Telemetry | — | Generates Gold Bar drop summary & dry-streak analysis |
-
----
-
-## 12. Magna 3 (Omega Rebirth) Fast Leeching & OTK Burst
-
-Late-stage raid entry (HP $\le 20\%$, Players $\ge 3$), 1-turn burst, and immediate room exit. All Magna 3 Tab 1 workflows feature autonomous Finder Slot 1 reconfiguration (`autoSetRaid: true`) with 0ms pre-check.
-
-| Command | Windowed Variant | Boss | Team Element | Supporter Summon |
-| :--- | :--- | :--- | :---: | :---: |
-| `bun run leech:colossus` / `farm:colossus` / `farm:ira` | `bun run leech:colossus:windowed` / `farm:colossus:windowed` | Colossus Ira (Fire) | Water | Varuna |
-| `bun run leech:tiamat` / `farm:tiamat` / `farm:aura` | `bun run leech:tiamat:windowed` / `farm:tiamat:windowed` | Tiamat Aura (Wind) | Fire | Agni |
-| `bun run leech:leviathan` / `farm:leviathan` / `farm:levi` | `bun run leech:leviathan:windowed` / `farm:leviathan:windowed` / `farm:levi:windowed` | Leviathan Mare (Water) | Earth | Titan |
-| `bun run leech:yggdrasil` / `farm:yggdrasil` / `farm:arbos` / `farm:ygg` | `bun run leech:yggdrasil:windowed` / `farm:yggdrasil:windowed` | Yggdrasil Arbos (Earth) | Wind | Zephyrus |
-| `bun run leech:luminiera` / `farm:luminiera` / `farm:credo` / `farm:lumi` | `bun run leech:luminiera:windowed` / `farm:luminiera:windowed` | Luminiera Credo (Light) | Dark | Hades |
-| `bun run leech:celeste` / `farm:celeste` / `farm:ater` | `bun run leech:celeste:windowed` / `farm:celeste:windowed` | Celeste Ater (Dark) | Light | Zeus |
-| `bun run leech` / `otkraid` / `farm` | `bun run leech:windowed` / `otkraid:windowed` / `farm:windowed` | Dynamic Multi-Element | Dynamic | Multi-element concurrent evaluator loop |
-
----
-
-## 13. Endgame 6-Man & Six Dragons Assist Raids
-
-Fast assist farming and leeching for foundational endgame 6-man and Six Dragons raids on Finder Tab 1 (`#quest/assist`). All workflows have autonomous Finder slot reconfiguration (`autoSetRaid: true`) enabled with 0ms pre-check.
-
-| Command | Windowed Variant | Raid | Target Enemy | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| `bun run bubz` / `beelzebub` / `long-live-the-king` | `bun run bubz:windowed` / `beelzebub:windowed` / `long-live-the-king:windowed` | Beelzebub (HL) | Long Live the King | 8-step burst, `autoSetRaid: true` enabled |
-| `bun run leech:bubz` | `bun run leech:bubz:windowed` | Beelzebub (HL) | Long Live the King | Fast leeching on dying raids (`autoSetRaid: true`) |
-| `bun run faahl` / `dark-rapture-hard` | `bun run faahl:windowed` / `dark-rapture-hard:windowed` | Lucilius (Hard) | Dark Rapture (Hard) | 8-step burst with attack cancel (`autoSetRaid: true`) |
-| `bun run leech:faahl` | `bun run leech:faahl:windowed` | Lucilius (Hard) | Dark Rapture (Hard) | Fast leeching on low HP raids (`autoSetRaid: true`) |
-| `bun run belial` / `cunning` | `bun run belial:windowed` / `cunning:windowed` | Belial (HL) | The Fallen Angel of Cunning | 8-step burst for Chains of Temptation (`autoSetRaid: true`) |
-| `bun run leech:belial` | `bun run leech:belial:windowed` | Belial (HL) | The Fallen Angel of Cunning | Fast leeching on low HP raids (`autoSetRaid: true`) |
-| `bun run fediel` | `bun run fediel:windowed` | Fediel (Impossible) | Fediel | Six Dragons dark uncap materials (`autoSetRaid: true`) |
-| `bun run leech:fediel` | `bun run leech:fediel:windowed` | Fediel (Impossible) | Fediel | Fast leeching on low HP Fediel raids (`autoSetRaid: true`) |
-| `bun run wilnas` | `bun run wilnas:windowed` | Wilnas (Impossible) | Wilnas | Six Dragons fire uncap materials (`autoSetRaid: true`) |
-| `bun run leech:wilnas` | `bun run leech:wilnas:windowed` | Wilnas (Impossible) | Wilnas | Fast leeching on low HP Wilnas raids (`autoSetRaid: true`) |
-| `bun run lindwurm` / `empyreal-ascension` / `emperial-ascension` | `bun run lindwurm:windowed` / `empyreal-ascension:windowed` | Empyreal Ascension (HL) | Empyreal Ascension (Impossible) | 8-step burst (Bubz rotation), `autoSetRaid: true` enabled |
-| `bun run leech:lindwurm` / `leech:empyreal` | `bun run leech:lindwurm:windowed` | Empyreal Ascension (HL) | Empyreal Ascension (Impossible) | Fast leeching on dying Lindwurm raids (`autoSetRaid: true`) |
-
----
-
-## 13b. Revans Series: Seofon (Siete HL) 4M Honors Blue Chest & Readiness Auto-Checker
-
-Autonomous farming, mathematical threshold evaluation, and roster readiness auditing for **Seofon (Impossible)** / **Siete HL** (`#quest/assist`, Quest ID `305411` Join / `305401` Host, Stage ID `12072`, Element: Wind, V2 system, 6 players). Primary farming source for **Sette di Spade** (*Siete Swords*), Wind Awakening Orbs, and Eternity Sands.
-
-### ⚔️ Seofon 4M Honors Operational Commands & Auto-Checker Suite
-| Command | Windowed Variant | Scope / Mode | Target Honors / Purpose | Description |
-| :--- | :--- | :---: | :---: | :--- |
-| `bun run siete` / `seofon` / `raid-seofon` | `bun run siete:windowed` / `seofon:windowed` / `raid-seofon:windowed` | Finder Tab 1 Farmer | **4,000,000** | Autonomous 4M Honors Blue Chest burst farmer (`templates/raid-seofon.json`, `autoSetRaid: true`) |
-| `bun run siete:check` | `bun run siete:check -- --windowed` | Live CDP Audit | Readiness Audit | Connects to active Chrome session (`#party/index`), audits equipped deck & inventory against Siete catalog |
-| `bun run siete:check:offline` | — | Offline Roster | Readiness Audit | Evaluates default reference Fire roster (`data/combat/siete-roster.example.json`) with zero browser launch |
-| `bun run siete:check:json` | — | Offline JSON | Machine Telemetry | Generates structured JSON readiness snapshot (`logs/siete-readiness-snapshot.json`) |
-
-### 🛠️ Custom CLI Readiness Checker Options (`src/cli/run-siete-check.ts`)
-```bash
-# 1. Audit active Chrome session live via CDP:
-bun src/cli/run-siete-check.ts acc1
-
-# 2. Evaluate a custom exported roster JSON offline:
-bun src/cli/run-siete-check.ts acc1 --offline --roster data/combat/my-fire-roster.json
-
-# 3. Test readiness against a specific archetype (e.g. Manadiver burst):
-bun src/cli/run-siete-check.ts acc1 --offline --archetype siete_fire_manadiver_burst_2t
-
-# 4. Generate Markdown report output to terminal / pipe:
-bun src/cli/run-siete-check.ts acc1 --offline --markdown
-```
-
-### 🔬 Raid Mathematics & V2 Battle Physics
-| Metric / Constraint | Threshold / Requirement | Operational Meaning & Engine Enforcement |
-| :--- | :---: | :--- |
-| **Total HP & Base DEF** | `2,500,000,000` (2.5B) / `20.0` DEF | 6-player raid; fast rooms clear in 90–150 seconds. High defense demands flat supplemental & high damage caps |
-| **Blue Chest Guarantee** | **`4,000,000` Honors** | ~100% Blue Chest proc rate for Sette di Spade (*Siete Swords*), Eternity Sands & Wind Awakening Orbs |
-| **Equivalent Total Damage** | **`400,000,000` Damage** | Target damage across 2–4 turns at standard 0.01 honor-per-damage ratio |
-| **Signature Omen Cancel** | **`77,777,777` Damage** | Single-turn burst required to cancel *Emblema*, *Infinito Creare* (80%/50%/20%), and *Cien Mil Espadas* |
-| **100% Fire Execution Protocol** | **Entry Trigger** | **999,999 Plain Damage** dealt to any non-Fire ally. Frontline & backline must be 100% Fire (no Dark Death sacrifice; use Fire Ragazzo) |
-| **99-Turn Summon Lock** | **Entry Trigger** | All summons (including Quick Call) locked for 99 turns. Must rely on passive Main/Supporter & Sub-Auras |
-| **Autonomous Finder Slot 1** | `autoSetRaid: true` | Auto-detects and configures Finder Slot 1 to Quest `305411` with 0ms pre-check overhead |
-
-### 📋 5 Codified Party Archetypes (`data/combat/siete-party-compositions.catalog.json`)
-1. **`siete_fire_manadiver_burst_2t` (Tier SS — 2–3 Turns, 35–45s)**: Manadiver (Overtrance/Wild Magica) or Relic Buster + Percival (Grand) + Zeta (Grand) + Alanaan (FLB Sk4). Turn 1 Alanaan field + Turn 2 Percival Sk3 (*Schlacht*) yields 220M–270M peak turn.
-2. **`siete_fire_berserker_fa_burst_4t` (Tier SS — 3–5 Turns, 55–75s)**: Berserker (Beast Fang/Ullikummi) or Sumaibito + Percival (Grand) + Wilnas (Grand) + Michael (Grand). 100% hands-free Full Auto reaching 4.0M by Turn 4.
-3. **`siete_fire_kengo_ougi_loop` (Tier S — 4–6 Turns, 75–95s, Magna/F2P Friendly)**: Kengo (Unsigned Kaneshige Fire) + Wilnas (Grand) + Silva (Yukata) + Satyr (Fire). Cycles 5–7 Charge Attacks and 1 Fatal Chain every 1–2 turns to effortlessly cancel *Cien Mil Espadas*.
-4. **`siete_fire_monk_lumberjack_fa_sustain` (Tier S — 5–7 Turns, 85–110s)**: Monk/Lumberjack + Percival + Satyr + Ragazzo self-sacrifice into Fraux (FLB upright domain). Unkillable sustain with high end-of-turn nuke throughput.
-5. **`siete_fire_paladin_yamato_host_solver` (Tier A — 6–10 Turns, 100%–0% Full Clear)**: Paladin/Yamato + Percival + Satyr + Fenie (Grand). Survives the lethal 10% HP 77,777 fixed damage trigger (*Cuatro Mil Espadas*) via Paladin Sk1 100% cut & Fenie auto-revive.
-
-### 🛡️ 4 Hard Readiness Gates Checked by `SieteReadinessCheckerService`
-- `gate_100_percent_fire_allies`: Blocks party configurations containing off-element characters that trigger the 999,999 wipe.
-- `gate_turn1_summon_lock_compliance`: Verifies passive aura power under 99-turn summon lock without active Turn-1 calls.
-- `gate_minimum_hp_threshold`: Asserts estimated party HP $\ge 50,000$ to absorb transition triggers and omen misses.
-- `gate_77m_omen_and_4m_honors_pace`: Projects peak turn burst $\ge 77,777,777$ and verifies time-to-4M-honors pace.
-- **Generated Artifacts**: Persists detailed diagnosis to `logs/siete-readiness-report.md` and machine-readable `logs/siete-readiness-snapshot.json`.
-
----
-
-## 13c. Revans Series: Agastia (Impossible) 4M Honors Blue Chest & 6-Ougi Loop
-
-High-tier automated 4,000,000 Honors Blue Chest farmer for **Agastia (Impossible)** (Dark Element V2 Revans, Stage ID `12072`, Quest ID `305431`) via Finder Assist Tab 1 (`autoSetRaid: true`).
-
-Executes a precision **Light Kengo 6-Ougi Loop** configured in **Deck 191** (EX A Light Party 1: **Kengo** + **Yuni** + **Cagliostro (Grand)** + **Sahar / Lucio (Grand 5★ Lv100)** + **Vajra (Light Sub 1)** + **Mahira (Holiday Sub 2)**) designed to cancel Agastia's lethal **Satellite Cannon** omen (requires **6 Charge Attacks in a single turn**) and output over 400M total damage (~4M honors) within 2–3 turns.
-
-### ⚡ Operational Commands
-
-| Command | Windowed Variant | Finder Quest ID | Party Slot | Target Honors | Description |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| `bun run agastia` / `raid-agastia` | `bun run agastia:windowed` / `raid-agastia:windowed` | `305431` (Stage `12072`) | **Deck 191** (EX A Light 1) | **`4,000,000`** | Autonomous Finder Slot 1 Assist join $\rightarrow$ Turn 1 `Magnum Opus` + `Synthesia` + `200% Double Ougi` $\rightarrow$ Turn 2 6-Ougi Satellite Cannon cancel burst $\rightarrow$ Turn 3 Finisher |
-| `bun src/cli/run-workflow.ts acc1 raid-agastia [runs]` | `[--windowed]` `[--headless]` | `305431` | Deck 191 | `4,000,000` | Custom run count invocation with live telemetry and auto-berry recovery |
-
-### 🔬 Raid Mathematics & V2 Battle Physics
-| Metric / Constraint | Threshold / Requirement | Operational Meaning & Engine Enforcement |
-| :--- | :---: | :--- |
-| **Total HP & Base DEF** | `2,000,000,000` (2.0B) / `20.0` DEF | 6-man high defense Dark raid. Demands heavy C.A. cap (`+63%`), C.A. supplemental (`+1,000,000`), and rapid charge bar generation (`+100%` gain) |
-| **Blue Chest Guarantee** | **`4,000,000` Honors** | Near-guaranteed Blue Chest drop for Agastia Daggers (*Agastia Revans*), Eternity Sands & Dark Awakening Orbs |
-| **Signature Omen Cancel** | **6 Charge Attacks (C.A.)** | Satellite Cannon fires every 2 turns. If uncanceled: catastrophic AoE wipe + permanent Skill Seal. Canceled via MC (2 C.A.s) + Yuni/Cagliostro/Sahar + Vajra Overchain |
-| **Overchain & Backup Anchor** | **Vajra (Light Sub 1)** | Provides Chain Burst passive support and enters with 200% max charge bar if any frontline ally falls |
-| **Skill & Plain Support** | **Mahira (Holiday Sub 2)** | Provides backline support and emergency dispel/plain damage utility |
-
----
-
-## 14. Autonomous Finder Slot & Raid Auto-Setting (`autoSetRaid`)
-
-Eliminates the requirement for manual in-game raid selection on Finder Tab 1 (Slot 1). All Tab 1 assist workflows automatically reconfigure Finder Slot 1 to the required raid whenever needed.
-
-### How It Works
-When running an assist raid workflow with `autoSetRaid: true`:
-1. **Zero-Overhead Fast Pre-Check**: The engine inspects the current lobby thumbnail icon (`.prt-search-switch-display.slot1 .img-quest`). If Slot 1 already matches the target encounter (e.g. Beelzebub `305181` or Seofon `305411`), it proceeds immediately with **0ms modal overhead**.
-2. **Autonomous Reconfiguration**: If a different raid is configured (for example, Slot 1 was left on Leviathan Mare `305631` from previous farming), the engine:
-   - Clicks the Set Filters button (`.btn-search-setting`).
-   - Selects Slot 1 (`.btn-select-search-slot[data-slot="1"]`).
-   - Switches to the raid's category tab (`.btn-stage-type`) and opens the stage (`.btn-search-stage`).
-   - Selects the target raid card (`.btn-select-quest`), confirms (`.btn-usual-ok`), and closes settings.
-   - Activates the slot button (`.btn-search-switch.slot1`) and begins farming!
-
-### Template Configuration (`templates/*.json`)
-```json
-{
-  "name": "Raid - Long Live the King",
-  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
-  "mode": "assist",
-  "targetEnemy": "Long Live the King",
-  "raidSlot": 1,
-  "autoSetRaid": true
-}
-```
-
-### DSL Configuration
-```yaml
-Name: Raid - Long Live the King
-Quest: https://game.granbluefantasy.jp/#quest/assist
-Mode: assist
-Slot: 1
-Auto Set Raid: true
-Target Enemy: Long Live the King
----
-wait_element .btn-attack-start
-reload
-c4s1
-c3s1
-c3s2
-c2s1
-attack
-confirm_result
-```
-
-### Parameter Reference
-| Parameter | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `autoSetRaid` | `boolean` | `false` | Enables automatic slot reconfiguration in Set Filters modal |
-| `autoSetRaidSlot` | `number` | `raidSlot \|\| 1` | Specifies which Finder slot (1–4) to configure (defaults to `1`) |
-| `targetRaidQuestId` | `string \| number` | auto-resolved | Explicit quest ID override (e.g. `"305181"` for Bubz, `"305411"` for Seofon, `"305631"` for Leviathan Mare) |
-
----
-
-## 15. Guild Wars (Unite & Fight)
-
-High-speed meat harvesting, NM95 burst sequences, multi-account swarm farming, and token box clearing.
-
-| Command | Arguments / Flags | Phase / Mode | Description |
-| :--- | :--- | :---: | :--- |
-| `bun run gw-meat` / `gw-meat-light` | `[runs] [-w]` | EX+ Meat (Windowed) | Sub-7.5s 24M meat farming rotation |
-| `bun run gw-meat:headless` / `gw-meat-light:headless` | `[runs]` | EX+ Meat (Headless) | Background meat farming loop |
-| `bun run gw-meat:swarm` / `gw-meat-swarm` | `[runs]` (e.g. `100`) | EX+ Meat (Swarm) | Parallel multi-account swarm farming (acc1 + acc2 concurrently) |
-| `bun run gw-nm95` / `gw-nm95-light` | `[runs] [-w]` | NM95 (1-Turn Burst) | Florence + Nehan 1-turn burst farm (14s/clear) |
-| `bun run gw-nm95:acc1` / `gw-nm95-light:acc1` | `[runs]` | NM95 Acc 1 | Runs NM95 explicitly on Account 1 |
-| `bun run gw-nm95:acc2` / `gw-nm95-light:acc2` | `[runs]` | NM95 Acc 2 | Runs NM95 explicitly on Account 2 |
-| `bun run gw-nm95-light:windowed` | `[runs]` | NM95 (Windowed) | NM95 burst in visible GUI window |
----
-
-## 15b. Dread Barrage (Valiant Battles)
-
-Fast 1-turn OTK and Full Auto farming for Dread Barrage 1-Star through 5-Star encounters.
-
-| Command | Windowed Variant | Star / Boss | Description |
-| :--- | :--- | :---: | :--- |
-| `bun run db:gacha` / `db:tokens` | `bun run db:gacha --windowed` | **Token Drawbox** | **Auto Token Draw**: Empties boxes on `#event/teamforce/gacha` via Bulk Box Play, Use All & auto box reset |
-| `bun run db:status` | — | Dashboard | Live Dread Barrage status, token counts, honor progress & daily missions audit |
-| `bun run db:missions` | — | Skyscope / Daily | Sweeps daily & cumulative Dread Barrage missions and claims badges |
-| `bun run db:rewards` | — | Honor / Badges | Auto-claims all unlocked battle badge and honor rewards |
-| `bun run db:unparalleled` / `db:strong` | `bun run db:unparalleled --windowed` | Daily Host | Auto-hosts and clears daily 2/2 Unparalleled Foes (Tier-scaling) |
-| `bun run db:valiant` | `bun run db:valiant --windowed` | Special | Clears daily high-honor Valiant Battle |
-| `bun run db:all` | `bun run db:all --windowed` | Full Pipeline | Runs Raids $\rightarrow$ Unparalleled $\rightarrow$ Valiant $\rightarrow$ Missions $\rightarrow$ Rewards $\rightarrow$ Token Gacha |
-| `bun run db:3star` / `db3` / `db-3star` | `bun run db:3star:windowed` | 3★ (Lvl 90 Corpus Volans) | C4S1 $\rightarrow$ C4S3 on C1 $\rightarrow$ Quick Call $\rightarrow$ F5 $\rightarrow$ C2S1 $\rightarrow$ Attack $\rightarrow$ Rerun |
-| `bun run db:1star` / `db1` | `bun run db:1star:windowed` | 1★ (Lvl 60 Lacerta Currens) | 0-button Quick Call $\rightarrow$ F5 $\rightarrow$ Rerun (9M HP) |
-| `bun run db:2star` / `db2` | `bun run db:2star:windowed` | 2★ (Lvl 75 Ferrum Agile) | 0-button Quick Call $\rightarrow$ F5 $\rightarrow$ Rerun (21.5M HP) |
-| `bun run db:4star` / `db4` | `bun run db:4star:windowed` | 4★ (Lvl 95) | Smart Full Auto clear and rerun |
-| `bun run db:5star` / `db5` | `bun run db:5star:windowed` | 5★ (Lvl 100) | Smart Full Auto clear and rerun |
-| `bun run dread-barrage-3star-otk` | `bun run dread-barrage-3star-otk:windowed` | 3★ Full Template | Canonical workflow template invocation |
-
----
-
-## 16. Story, Scenario & Collaboration Events
-
-Automated story cutscene skip, trophy crystal harvesting, daily Maniac, Nightmare HELL skip, and token drawboxes.
-
-| Command | Windowed Variant | Task | Description |
-| :--- | :--- | :---: | :--- |
-| `bun run event` / `event:story` | `bun run event:windowed` | Story Chapters | Auto-skips dialogues and Full Auto clears story stages |
-| `bun run event:all` | — | Full Pipeline | Story $\rightarrow$ Challenge $\rightarrow$ Maniac $\rightarrow$ HELL $\rightarrow$ Gacha |
-| `bun run event:sweep` / `event:quests` | — | First-Clear | Sweeps solo & raid first-clear crystals |
-| `bun run event:maniac` | — | Daily Maniac | Clears daily 2/2 Maniac solo battles |
-| `bun run event:nightmare` / `event:nightmare:skip` / `event:hell` / `nightmare` / `hell` | — | HELL Skip | Instant batch skip for accumulated Nightmare battles |
-| `bun run event:challenge` | — | Challenge Quest | Clears 1-time event challenge battle |
-| `bun run event:missions` | — | Skyscope | Clears daily event event-specific missions |
-| `bun run event:gacha` / `event:token` / `event:tokens` / `gacha:event` | — | Token Drawbox | Autonomous Draw 1 Drawbox clearer & auto-reset |
-| `bun run event:solo` / `event:collab:solo` | — | Solo Farm | Farms event solo quests (e.g. EX) |
-| `bun run event:raid` / `event:raid:ex` / `event:collab:raid` | `bun run event:raid:windowed` | Raid Burst EX | Sub-4s raid join and burst farming (Extreme) |
-| `bun run event:raid:vh` | — | Raid Burst VH | Sub-4s raid join and burst farming (Very Hard) |
-| `bun run event:raid:hl` | — | Raid Burst HL | Sub-4s raid join and burst farming (High Level) |
-| `bun run event:workflow` | — | Generic Event | Direct runner for `templates/event-story.json` |
-
----
-
-## 17. Fate Episodes Auto-Farmer
-
-Automates character Fate Episodes (`#quest/fate`) to unlock character skill slots and harvest crystals.
-
-| Command | Windowed Variant | Episodes | Description |
-| :--- | :--- | :---: | :--- |
-| `bun run fate` / `fate:headless` | `bun run fate:windowed` | 5 | Fast-skips dialogues and Full Auto clears battles (Default: 5) |
-| `bun run fate:5` | — | 5 | Farms 5 consecutive Fate Episodes |
-| `bun run fate:10` | — | 10 | Farms 10 consecutive Fate Episodes |
-| `bun run fate:20` | — | 20 | Farms 20 consecutive Fate Episodes |
-| `bun run fate:all` | — | 100 | Large-batch automated fate story clearance |
-| `bun run fate:cli` | `bun run fate:cli:windowed` | Custom | Direct CLI fate episode engine (`bun src/cli/run-fate.ts acc1 [count]`) |
-
----
-
-## 18. Rise of the Beasts (ROTB)
-
-Four Beasts farming, Baihu Extreme loops, and Titan Agon uncap summon routines.
-
-| Command | Target | Description |
-| :--- | :---: | :--- |
-| `bun run rotb` | ROTB Menu | Main ROTB selector interactive menu |
-| `bun run rotb:baihu` | Baihu (30 runs) | Farms Extreme Baihu solo battle (30 battles) |
-| `bun run rotb:earth` | 1 Cycle | Executes 9x Baihu $\rightarrow$ 1x Titan Agon |
-| `bun run rotb:earth:loop` | Continuous Loop | Infinite loop: 9x Baihu $\rightarrow$ 1x Titan repeatedly until stopped |
-
----
-
-## 18b. Special & Extra Quests: Shiny Slime Search (Very Hard)
-
-High-speed automated EXP, RP, and Rupie farming on Shiny Slime Search Very Hard (AP-30) in `#quest/extra`. Fast 2-wave clearing rotation with back button animation skipping.
-
-| Command | Windowed Variant | Quest ID / Stage | Description |
-| :--- | :--- | :---: | :--- |
-| `bun run slime` / `shiny-slime` / `shiny-slime-search` | `bun run slime:windowed` / `shiny-slime:windowed` | `400151` (Very Hard) | 6-step fast blast: Quick Call (Wave 1) $\rightarrow$ Back Button $\rightarrow$ Random Wait $\rightarrow$ C3S3 (Wave 2 Plain DMG Nuke) $\rightarrow$ Reload $\rightarrow$ Rerun |
-
----
-
-## 19. Interactive Selector & Generic Workflow Runner
-
-Execute any pre-packaged, modified, or custom workflow template dynamically.
-
-### Quick Workflow Commands
-
-| Command | Arguments / Flags | Description |
-| :--- | :--- | :--- |
-| `bun run workflow` / `run-workflow` | — | Interactive terminal menu (arrow-key template picker) |
-| `bun run workflow:validate` | — | Validates all 87 templates against strict Zod schema |
-| `bun run templates:sync` | — | Scans `templates/` and auto-registers CLI scripts in `package.json` |
-| `bun run acc1 <template> [runs]` | `[runs]` `[--windowed]` | Runs specified template on Account 1 |
-| `bun run acc1:windowed <template> [runs]` | `[runs]` | Runs specified template on Account 1 in visible window |
-| `bun run acc2 <template> [runs]` | `[runs]` `[--windowed]` | Runs specified template on Account 2 |
-| `bun run acc2:windowed <template> [runs]` | `[runs]` | Runs specified template on Account 2 in visible window |
-| `bun src/cli/run-workflow.ts <acc> <template> [runs]` | `[--windowed]` `[--headless]` | Direct CLI invocation with complete parameter control |
-
-### How to Modify a Template (e.g. `templates/gb-pbhl.json`)
-1. **Edit `templates/gb-pbhl.json`**:
-   - Change turn order, add skills (`{ "code": "skill", "character": 4, "skill": 3 }`), call summons (`{ "code": "summon", "slot": 2 }`), or adjust target honors (`"targetScore": 1500000`).
-2. **Validate Your Changes**:
-   ```bash
-   bun run workflow:validate
-   ```
-3. **Execute the Modified Template**:
-   ```bash
-   # Test in visible window:
-   bun run gb-pbhl:windowed
-
-   # Or specify custom run count on acc1:
-   bun src/cli/run-workflow.ts acc1 gb-pbhl 20 --windowed
-
-   # Or run in silent background mode:
-   bun run gb-pbhl
-   ```
-
-### How to Customize Minimum and Maximum HP Targets (Raid & Leech)
-Configure raid candidate filtering boundaries directly in the workflow JSON (`templates/*.json`):
-
-```json
-{
-  "name": "Raid - The World (HL)",
-  "questUrl": "https://game.granbluefantasy.jp/#quest/assist",
-  "raidSlot": 1,
-  "evaluatorStrategy": "leech",
-  "minHpPct": 1,
-  "maxHpPct": 100,
-  "minPlayers": 1,
-  "maxPlayers": 29,
-  "minRaidScore": 0,
-  "steps": [ ... ]
-}
-```
-
-- **`minHpPct`** (`number`): Hard lower HP% bound (e.g. `1` for dying/leech, `50` for fresh raids). Raids below this HP are disqualified (`HP_BELOW_MIN`).
-- **`maxHpPct`** (`number`): Hard upper HP% bound (e.g. `20` for Magna 3 fast leech, `80` to avoid 100% full-health raids). Raids above this HP are disqualified (`HP_ABOVE_MAX`).
-- **`evaluatorStrategy`** (`"honor"` | `"otk_burst"` | `"leech"` | `"farm"`): 
-  - `"honor"`: Blue chest focus, prioritizes fresh raids with high remaining HP.
-  - `"leech"` / `"otk_burst"`: Fast burst focus, prioritizes low HP raids for rapid drop turn-around.
-  - `"farm"`: Adaptive, evaluates damage output, most joined raid & lowest HP.
-- **`minPlayers`** / **`maxPlayers`** (`number`): Enforces minimum clearing participants (e.g. `minPlayers: 3`) or max capacity ceiling (`maxPlayers: 29`).
-- **`minRaidScore`** (`number`): Minimum score needed to accept candidate (default: `0` for custom HP bands, `40` for standard honor raids).
-
----
-
-## 20. Complete Synced Workflow Templates Master Catalog (87 Templates)
-
-Every JSON template in `templates/` is auto-synced into `package.json` with both headless and `:windowed` scripts.
-
-| Category | Template Name | Headless Script | Windowed Script |
-| :--- | :--- | :--- | :--- |
-| **Arcarum Mundus Core** | `arcarum-stage-10-smart` | `bun run arcarum-stage-10-smart` | `bun run arcarum-stage-10-smart:windowed` |
-| | `arcarum-theworld` | `bun run arcarum-theworld` | `bun run arcarum-theworld:windowed` |
-| | `arcarum-theworld-smart` | `bun run arcarum-theworld-smart` | `bun run arcarum-theworld-smart:windowed` |
-| | `arcarum-ca-ong-militis` | `bun run arcarum-ca-ong-militis` | `bun run arcarum-ca-ong-militis:windowed` |
-| | `arcarum-ca-ong-militis-smart` | `bun run arcarum-ca-ong-militis-smart` | `bun run arcarum-ca-ong-militis-smart:windowed` |
-| | `arcarum-prometheus-militis` | `bun run arcarum-prometheus-militis` | `bun run arcarum-prometheus-militis:windowed` |
-| | `arcarum-prometheus-militis-smart` | `bun run arcarum-prometheus-militis-smart` | `bun run arcarum-prometheus-militis-smart:windowed` |
-| | `arcarum-gilgamesh-militis` | `bun run arcarum-gilgamesh-militis` | `bun run arcarum-gilgamesh-militis:windowed` |
-| | `arcarum-gilgamesh-militis-smart` | `bun run arcarum-gilgamesh-militis-smart` | `bun run arcarum-gilgamesh-militis-smart:windowed` |
-| | `arcarum-morrigna-militis` | `bun run arcarum-morrigna-militis` | `bun run arcarum-morrigna-militis:windowed` |
-| | `arcarum-morrigna-militis-smart` | `bun run arcarum-morrigna-militis-smart` | `bun run arcarum-morrigna-militis-smart:windowed` |
-| **Arcarum Mundus Targets** | `arcarum-mundus-parasite-steve-smart` | `bun run arcarum-mundus-parasite-steve-smart` | `bun run arcarum-mundus-parasite-steve-smart:windowed` |
-| | `arcarum-mundus-tide-caller-smart` | `bun run arcarum-mundus-tide-caller-smart` | `bun run arcarum-mundus-tide-caller-smart:windowed` |
-| | `arcarum-mundus-fire-demon-smart` | `bun run arcarum-mundus-fire-demon-smart` | `bun run arcarum-mundus-fire-demon-smart:windowed` |
-| | `arcarum-mundus-elephant-smart` | `bun run arcarum-mundus-elephant-smart` | `bun run arcarum-mundus-elephant-smart:windowed` |
-| | `arcarum-mundus-princess-horde-smart` | `bun run arcarum-mundus-princess-horde-smart` | `bun run arcarum-mundus-princess-horde-smart:windowed` |
-| | `arcarum-mundus-dragon-green-smart` | `bun run arcarum-mundus-dragon-green-smart` | `bun run arcarum-mundus-dragon-green-smart:windowed` |
-| | `arcarum-mundus-dragon-princess-smart`| `bun run arcarum-mundus-dragon-princess-smart`| `bun run arcarum-mundus-dragon-princess-smart:windowed`|
-| | `arcarum-mundus-herald-water-smart` | `bun run arcarum-mundus-herald-water-smart` | `bun run arcarum-mundus-herald-water-smart:windowed` |
-| | `arcarum-mundus-herald-earth-smart` | `bun run arcarum-mundus-herald-earth-smart` | `bun run arcarum-mundus-herald-earth-smart:windowed` |
-| | `arcarum-mundus-pincers-smart` | `bun run arcarum-mundus-pincers-smart` | `bun run arcarum-mundus-pincers-smart:windowed` |
-| | `arcarum-mundus-winged-cat-smart` | `bun run arcarum-mundus-winged-cat-smart` | `bun run arcarum-mundus-winged-cat-smart:windowed` |
-| | `arcarum-mundus-voltage-rock-smart` | `bun run arcarum-mundus-voltage-rock-smart` | `bun run arcarum-mundus-voltage-rock-smart:windowed` |
-| | `arcarum-mundus-love-meeeee-smart` | `bun run arcarum-mundus-love-meeeee-smart` | `bun run arcarum-mundus-love-meeeee-smart:windowed` |
-| | `arcarum-mundus-wild-hunt-smart` | `bun run arcarum-mundus-wild-hunt-smart` | `bun run arcarum-mundus-wild-hunt-smart:windowed` |
-| **Arcarum Stage 3 (Goliath)**| `arcarum-stage-3-smart` | `bun run arcarum-stage-3-smart` | `bun run arcarum-stage-3-smart:windowed` |
-| | `arcarum-goliath-triune-smart` | `bun run arcarum-goliath-triune-smart` | `bun run arcarum-goliath-triune-smart:windowed` |
-| | `arcarum-goliath-keeper-smart` | `bun run arcarum-goliath-keeper-smart` | `bun run arcarum-goliath-keeper-smart:windowed` |
-| | `arcarum-avatar-of-avarice-smart` | `bun run arcarum-avatar-of-avarice-smart` | `bun run arcarum-avatar-of-avarice-smart:windowed` |
-| | `arcarum-frenzied-howler-smart` | `bun run arcarum-frenzied-howler-smart` | `bun run arcarum-frenzied-howler-smart:windowed` |
-| | `arcarum-goliath-panther-smart` | `bun run arcarum-goliath-panther-smart` | `bun run arcarum-goliath-panther-smart:windowed` |
-| | `arcarum-goliath-barbarian-smart` | `bun run arcarum-goliath-barbarian-smart` | `bun run arcarum-goliath-barbarian-smart:windowed` |
-| | `arcarum-goliath-despair-smart` | `bun run arcarum-goliath-despair-smart` | `bun run arcarum-goliath-despair-smart:windowed` |
-| | `arcarum-goliath-herald-smart` | `bun run arcarum-goliath-herald-smart` | `bun run arcarum-goliath-herald-smart:windowed` |
-| **Arcarum Stage 7 & Staves** | `arcarum-stage-7-smart` | `bun run arcarum-stage-7-smart` | `bun run arcarum-stage-7-smart:windowed` |
-| | `arcarum-lady-of-redemption-smart` | `bun run arcarum-lady-of-redemption-smart` | `bun run arcarum-lady-of-redemption-smart:windowed` |
-| | `arcarum-maiden-of-the-depths-smart`| `bun run arcarum-maiden-of-the-depths-smart`| `bun run arcarum-maiden-of-the-depths-smart:windowed`|
-| | `arcarum-lilywhite-paragon` | `bun run arcarum-lilywhite-paragon` | `bun run arcarum-lilywhite-paragon:windowed` |
-| | `arcarum-lilywhite-paragon-smart` | `bun run arcarum-lilywhite-paragon-smart` | `bun run arcarum-lilywhite-paragon-smart:windowed` |
-| | `arcarum-faymian-fortress` | `bun run arcarum-faymian-fortress` | `bun run arcarum-faymian-fortress:windowed` |
-| | `arcarum-xeno-cocytus-militis` | `bun run arcarum-xeno-cocytus-militis` | `bun run arcarum-xeno-cocytus-militis:windowed` |
-| | `arcarum-xeno-ifrit-militis` | `bun run arcarum-xeno-ifrit-militis` | `bun run arcarum-xeno-ifrit-militis:windowed` |
-| **Arcarum Eletio & Faym** | `arcarum-athena-militis` | `bun run arcarum-athena-militis` | `bun run arcarum-athena-militis:windowed` |
-| | `arcarum-athena-militis-smart` | `bun run arcarum-athena-militis-smart` | `bun run arcarum-athena-militis-smart:windowed` |
-| | `arcarum-grani-militis` | `bun run arcarum-grani-militis` | `bun run arcarum-grani-militis:windowed` |
-| | `arcarum-grani-militis-smart` | `bun run arcarum-grani-militis-smart` | `bun run arcarum-grani-militis-smart:windowed` |
-| | `arcarum-grani-militis-fast` | `bun run arcarum-grani-militis-fast` | `bun run arcarum-grani-militis-fast:windowed` |
-| **Gold Bar Raids** | `gb-pbhl` | `bun run gb-pbhl` | `bun run gb-pbhl:windowed` |
-| | `gb-pbhl-fast` | `bun run gb-pbhl-fast` | `bun run gb-pbhl-fast:windowed` |
-| | `gb-pbhl-skill` | `bun run gb-pbhl-skill` | `bun run gb-pbhl-skill:windowed` |
-| | `gb-pbhl-reload-skills` | `bun run gb-pbhl-reload-skills` | `bun run gb-pbhl-reload-skills:windowed` |
-| | `gb-akasha` | `bun run gb-akasha` | `bun run gb-akasha:windowed` |
-| | `gb-go` | `bun run gb-go` | `bun run gb-go:windowed` |
-| | `gb-farm` | `bun run gb-farm` | `bun run gb-farm:windowed` |
-| **Magna 3 (Omega Rebirth)** | `leech-colossus-ira` | `bun run leech-colossus-ira` | `bun run leech-colossus-ira:windowed` |
-| | `farm-colossus-ira` | `bun run farm-colossus-ira` | `bun run farm-colossus-ira:windowed` |
-| | `leech-tiamat-aura` | `bun run leech-tiamat-aura` | `bun run leech-tiamat-aura:windowed` |
-| | `farm-tiamat-aura` | `bun run farm-tiamat-aura` | `bun run farm-tiamat-aura:windowed` |
-| | `leech-leviathan-mare` | `bun run leech-leviathan-mare` | `bun run leech-leviathan-mare:windowed` |
-| | `farm-leviathan-mare` | `bun run farm-leviathan-mare` | `bun run farm-leviathan-mare:windowed` |
-| | `leech-yggdrasil-arbos` | `bun run leech-yggdrasil-arbos` | `bun run leech-yggdrasil-arbos:windowed` |
-| | `farm-yggdrasil-arbos` | `bun run farm-yggdrasil-arbos` | `bun run farm-yggdrasil-arbos:windowed` |
-| | `leech-luminiera-credo` | `bun run leech-luminiera-credo` | `bun run leech-luminiera-credo:windowed` |
-| | `farm-luminiera-credo` | `bun run farm-luminiera-credo` | `bun run farm-luminiera-credo:windowed` |
-| | `leech-celeste-ater` | `bun run leech-celeste-ater` | `bun run leech-celeste-ater:windowed` |
-| | `farm-celeste-ater` | `bun run farm-celeste-ater` | `bun run farm-celeste-ater:windowed` |
-| **Endgame & Dragons Raids** | `raid-long-live-the-king` | `bun run raid-long-live-the-king` | `bun run raid-long-live-the-king:windowed` |
-| | `raid-dark-rapture-hard` | `bun run raid-dark-rapture-hard` | `bun run raid-dark-rapture-hard:windowed` |
-| | `raid-the-fallen-angel-of-cunning` | `bun run raid-the-fallen-angel-of-cunning` | `bun run raid-the-fallen-angel-of-cunning:windowed` |
-| | `raid-the-world` | `bun run raid-the-world` | `bun run raid-the-world:windowed` |
-| | `raid-fediel` | `bun run raid-fediel` | `bun run raid-fediel:windowed` |
-| | `raid-wilnas` | `bun run raid-wilnas` | `bun run raid-wilnas:windowed` |
-| | `raid-empyreal-ascension` | `bun run raid-empyreal-ascension` | `bun run raid-empyreal-ascension:windowed` |
-| **Revans Raids (6-Man V2)** | `raid-seofon` | `bun run raid-seofon` *(or `siete`)* | `bun run raid-seofon:windowed` *(or `siete:windowed`)* |
-| | `raid-agastia` | `bun run raid-agastia` *(or `agastia`)* | `bun run raid-agastia:windowed` *(or `agastia:windowed`)* |
-| **Guild Wars** | `gw-meat-light` | `bun run gw-meat-light` | `bun run gw-meat-light:windowed` |
-| | `gw-nm95-light` | `bun run gw-nm95-light` | `bun run gw-nm95-light:windowed` |
-| **Dread Barrage** | `dread-barrage-1star-otk` | `bun run dread-barrage-1star-otk` | `bun run dread-barrage-1star-otk:windowed` |
-| | `dread-barrage-2star-otk` | `bun run dread-barrage-2star-otk` | `bun run dread-barrage-2star-otk:windowed` |
-| | `dread-barrage-3star-otk` | `bun run dread-barrage-3star-otk` | `bun run dread-barrage-3star-otk:windowed` |
-| | `dread-barrage-4star-fa` | `bun run dread-barrage-4star-fa` | `bun run dread-barrage-4star-fa:windowed` |
-| | `dread-barrage-5star-fa` | `bun run dread-barrage-5star-fa` | `bun run dread-barrage-5star-fa:windowed` |
-| **Special & Extra Quests** | `shiny-slime-search` | `bun run shiny-slime-search` *(or `slime`)* | `bun run shiny-slime-search:windowed` *(or `slime:windowed`)* |
-| **Dailies, Events & Fates** | `daily-favorites` | `bun run daily-favorites` | `bun run daily-favorites:windowed` |
-| | `daily-universal` | `bun run daily-universal` | `bun run daily-universal:windowed` |
-| | `event-story` | `bun run event-story` | `bun run event-story:windowed` |
-| | `event-raid` | `bun run event-raid` | `bun run event-raid:windowed` |
-| | `fate-stories` | `bun run fate-stories` | `bun run fate-stories:windowed` |
-
----
-
-## 21. Gateway Server, Web Cockpit & Mobile PWA
-
-Run the companion server for phone/tablet remote control, live screencasts, and emergency abort.
-
-| Command | Arguments / Flags | Description |
-| :--- | :--- | :--- |
-| `bun run gateway` *(or `bun run dev`)* | — | Boots HTTP/WebSocket companion gateway on port 3000/3001 |
-| `bun run dev:node` | — | Starts gateway using Node.js + tsx file watcher |
-| `bun run build` | — | Compiles TypeScript codebase (`tsc`) to `dist/` |
-| `bun run start` | — | Runs production gateway build |
-| `bun run pm2:start` | — | Starts and detaches gateway server via PM2 (`ecosystem.config.cjs`) |
-| `bun run pm2:stop` | — | Stops active PM2 `gbf-controller` process |
-| `bun run pm2:restart` | — | Gracefully restarts PM2 `gbf-controller` process |
-| `bun run pm2:logs` | — | Streams live consolidated PM2 log tail |
-| `bun run pm2:status` | — | Displays PM2 uptime, memory footprint, and process health |
-
----
-
-## 22. Discord Remote Controller & Two-Way CAPTCHA Relay
-
-Autonomous bidirectional Discord bot bridge for mobile monitoring, on-demand preset execution, and zero-latency CAPTCHA solving.
-
-| Command | Arguments / Flags | Description |
-| :--- | :--- | :--- |
-| `bun run discord:controller` / `controller` / `vps` | — | Starts 2-way Discord DM Gateway (remote `/gbf`, `/stop`, `/status`) |
-| `bun run solve-captcha` / `captcha` | `[solution]` | Injects CAPTCHA solution directly into game DOM from terminal |
-| `bun run test:discord` | — | Tests Discord webhook, DM relay connection, and command parsing |
-
-### Discord Operator Slash Commands (`/gbf <command>`)
-- `/gbf <preset> [args]`: Executes whitelisted preset or template (e.g. `/gbf daily`, `/gbf daily:host`, `/gbf gb-akasha 100`, `/gbf bubz 50`, `/gbf siete 200`, `/gbf siete:check`, `/gbf leech:leviathan`).
-- **Preemptive Task Switching**: If a task is executing and you issue another command, the controller **automatically terminates the running task and launches the new task immediately** without requiring a manual `/gbf stop`.
-- `/gbf stop` (or `/gbf halt`): Gracefully terminates active running job and releases CDP port 9222.
-- `/gbf status`: Displays active job, PID, uptime, scheduler state, and latest terminal output snippet.
-- `/gbf scheduler:off` / `/gbf scheduler:on`: Pauses or resumes autonomous 21:00 JST (19:00 WIB) Peak-Hour daily scheduler.
-- `/gbf logs`: Displays last 15 lines of live terminal output.
-- `/gbf help`: Displays the operator command reference.
-
----
-
-## 22b. Cloud VPS Operations & Emergency Dual-Node Control
-
-Controls the remote 24/7 Linux Cloud VPS (`$VPS_IP`) hosting the Discord ChatOps Gateway, PM2 process manager, and autonomous schedulers.
-
-| Command | Arguments / Flags | Host | Description |
-| :--- | :---: | :---: | :--- |
-| `bun run vps:status` | — | Remote VPS | Queries remote PM2 service status (`gbf-controller`), memory, CPU, and running processes |
-| `bun run vps:stop` | — | Remote VPS | **Emergency Halt**: Stops PM2 daemon, kills active daily host runners, and runs `pm2 save` |
-| `bun run vps:start` | — | Remote VPS | Launches PM2 daemon with `ecosystem.config.cjs` and saves persistent boot state |
-| `bun run vps:restart` | — | Remote VPS | Restarts PM2 `gbf-controller` process |
-| `bun run vps:logs` | `[lines]` | Remote VPS | Streams the last N lines of remote PM2 logs (default: 50 lines) |
-| `bun run vps:login` | — | Remote VPS | Launches interactive remote VNC/CDP browser mirror (`scripts/vps-browser.ps1`) |
-| `bun run session:sync <acc>` | `[flags]` | Local ➔ VPS | 1-Click syncs local cookies and session state to cloud VPS |
+## 2. Browser, Gateway, PM2 & Rust Core
+
+| Command | Effect |
+| :--- | :--- |
+| `bun run launch:chrome` / `launch:chrome:headless` | Launch Chrome on port 9222 (GUI / headless) |
+| `bun run gateway` / `dev` / `dev:node` | Start HTTP/WS gateway (port 3000/3001) |
+| `bun run build` / `start` | Compile `tsc` $\rightarrow$ `dist/` / run prod bundle |
+| `bun run pm2:start` \| `stop` \| `restart` \| `logs` \| `status` | Manage local PM2 `gbf-controller` |
+| `bun run vps:status` \| `stop` \| `start` \| `restart` \| `logs [n]` | Manage remote Linux VPS PM2 daemon |
+| `bun run rust:build` \| `rust:test` \| `rust:daemon` \| `rust:bench` | Build/test/run native Rust daemon & CPU governor |
 
 > [!IMPORTANT]
-> **Emergency Dual-Node Kill Rule**: Whenever an operator commands to stop schedulers or halt background jobs, **both** local processes and the remote VPS daemon (`bun run vps:stop`) must be inspected and confirmed stopped. Never assume a process is offline based on local checks alone.
-
-
----
-
-## 23. Discord Rich Presence (RPC)
-
-Synchronizes farming telemetry or productivity presets with Discord desktop status.
-
-| Command | Arguments / Flags | Preset | Description |
-| :--- | :--- | :---: | :--- |
-| `bun run presence:gbf` | — | GBF Gaming | Live raid drops, honors, and farming activity |
-| `bun run presence:work` | — | Work / Focus | Deep work status for project tracking |
-| `bun run presence:trade` | — | Trading | Trading quotes and risk management status |
-| `bun run presence` | `[mode]` | Custom | Sets presence directly to `gbf`, `work`, or `trade` |
-| `bun run presence:bg` | — | Background | Detaches silent background daemon for presence |
-| `bun run presence:bg:gbf` | — | Background | Detaches background daemon configured for GBF status |
-| `bun run presence:bg:trade` | — | Background | Detaches background daemon configured for trading status |
-| `bun run presence:clear` / `presence:stop` | — | Stop / Wipe | Terminates background daemon and wipes Discord status |
-| `bun run presence:test` | — | Diagnostics | Tests Discord RPC local IPC socket communication |
-| `bun run presence:watch` | — | Watcher | Monitors active tasks and dynamically updates presence |
+> **Dual-Node Stop Rule**: Stopping jobs/schedulers requires halting **both** local processes and remote VPS (`bun run vps:stop`).
 
 ---
 
-## 24. Quality Assurance, Testing & Pre-Flight Verification
+## 3. Dailies, Hosting & 21:00 JST Scheduler
 
-Mandatory quality gates executed locally and in CI.
-
-| Command | Scope | Description |
-| :--- | :---: | :--- |
-| `bun run verify` | Full Pre-Flight | Runs Hygiene + Schema Validation + `tsc` Build + All 57 Test Suites |
-| `bun run test` / `test:all` | Unified Runner | Executes all 57 test suites in parallel (`tests/run-all.ts`) |
-| `bun run test:node` | Node/TSX | Runs all 57 test suites under Node.js runtime via tsx |
-| `bun run hygiene` / `audit:secrets` | Security Gate | Audits git index for secret leaks, personal paths, or credentials |
-| `bun run workflow:validate` | Schema Gate | Validates all 87 workflow templates against Zod AST schemas |
-| `bun run typecheck` / `build` | Type Safety | Executes TypeScript static type-checking (`tsc --noEmit` / `tsc`) |
-| `bun run siete:check` | Readiness Audit | Audits active game session or offline roster against Seofon 4M requirements |
-| `bun tests/test-siete-4m-readiness.ts` | Unit Tests | Tests Siete 4M Honors party catalog, 77.77M Emblema math, hard gates, substitute chains, and CLI/template integration |
-| `bun tests/test-stoppage-and-captcha-safety.ts` | Unit Tests | Tests renderer freeze watchdog, about:blank standby mode, and CAPTCHA safety |
-| `bun tests/test-shiny-slime-search.ts` | Unit Tests | Tests Shiny Slime Search 400151, back button action, and shorthand DSL |
-| `bun tests/test-gold-bar-standardized-rotations.ts` | Unit Tests | Tests standardized 1.5M honor threshold across PBHL, Akasha, GOHL |
-| `bun tests/test-magna3-farm-templates.ts` | Unit Tests | Tests all 6 Magna 3 farm templates and adaptive damage strategy |
-| `bun tests/test-finder-slot-configurator.ts` | Unit Tests | Tests Search Raid Catalog, query resolver, and slot configurator |
-| `bun run test:engine` | Unit Tests | Tests Universal Workflow Engine state machines and retries |
-| `bun run test:daily` | Unit Tests | Tests Daily Routine Pro Skip and modal reconciliation |
-| `bun run test:evaluator` | Unit Tests | Tests Magna 3 concurrent evaluator and LRU cache |
-| `bun run test:templates` | Unit Tests | Tests all workflow JSON templates for schema compliance |
-| `bun run test:parser` | Unit Tests | Tests advanced DSL compiler and round-trip serializer |
+| Command | Effect |
+| :--- | :--- |
+| `bun run daily` (`:acc1` \| `:acc2` \| `:all` \| `:windowed`) | 12 Pro Skips + Rupie Gacha + Skyscope + Casino |
+| `bun run daily:favorites` | Pro Skip pinned Favorites (`#quest`) |
+| `bun run daily:host` (`:acc1` \| `:acc2` \| `:all` \| `:windowed`) | Host all 16 daily raids (HL + M3 + Six Dragons) |
+| `bun run daily:host:hl` (`daily:hostgb`) \| `:m3` \| `:dragons` | Host subset only (HL / Magna 3 / Six Dragons) |
+| `bun run daily:scheduler` | 24/7 daemon; fires daily routine at 21:00:15 JST (19:00:15 WIB) |
+| `bun run daily:routine` (`--windowed` \| `--no-hosts` \| `--no-skips`) | Run Pro Skips $\rightarrow$ Raid Hosts immediately |
+| `bun run farm:human [acc] [--cycles=3] [--gb=18] [--rest=5]` | Human cadence: GB burst $\rightarrow$ M3 leech $\rightarrow$ rest $\rightarrow$ audit |
+| `bun run inventory [acc]` / `inventory:cached` | Live or cached Elixir/Berry/GB/Crystal/AAP count |
 
 ---
 
-### Pre-Flight Quality Scorecard (57 / 57 Test Suites)
+## 4. Replicard Sandbox (Arcarum)
 
+```bash
+bun run arcarum                              # Interactive menu
+bun run arcarum:help                         # Target list
+bun src/cli/run-arcarum.ts acc1 <target> <n> # Direct runner
 ```
-========================================================================
-                       Test Execution Scorecard                         
-========================================================================
-  [1]  ✅ PASS | Workflow Template Schema & Boundary Tests
-  [2]  ✅ PASS | Advanced DSL Compiler & Round-Trip Serializer
-  [3]  ✅ PASS | Universal Engine Unit & Telemetry Mock Tests
-  [4]  ✅ PASS | Human Motor Biomechanical Math & Jitter Tests
-  [5]  ✅ PASS | ProSkip Daily Engine State Logic Tests
-  [6]  ✅ PASS | Raid Engine State Machine & Recovery Tests
-  [7]  ✅ PASS | Template Parser Backwards Compatibility Tests
-  [8]  ✅ PASS | Daily Universal Routine & Reconnect Logic Tests
-  [9]  ✅ PASS | Rupie Gacha Automation Logic Unit Tests
-  [10] ✅ PASS | 3-Raid Backup Limit Detection & Recovery Tests
-  [11] ✅ PASS | Event Engine & Scenario Story Unit Tests
-  [12] ✅ PASS | Gold Bar Tracker & Battle URL Integration Tests
-  [13] ✅ PASS | CAPTCHA Detection & Safety Sentinel Tests
-  [14] ✅ PASS | Notification Deduplication & Anti-Spam Tests
-  [15] ✅ PASS | Raid Evaluator & Score-Based Decision Tests
-  [16] ✅ PASS | Session & Cookie Synchronization Tests
-  [17] ✅ PASS | Discord Presence Multi-Template Tests
-  [18] ✅ PASS | Arcarum: The World Template & AAP Engine Tests
-  [19] ✅ PASS | Granblue Fantasy Methodological Tactical Skills Tests
-  [20] ✅ PASS | Proto Bahamut HL Universal Workflow & Shorthand DSL Tests
-  [21] ✅ PASS | Magna 3 Leech & Fast Burst 6-Element Evaluator Unit Tests
-  [22] ✅ PASS | Leviathan Mare Farm Evaluator & Adaptive Strategy Test Suite
-  [23] ✅ PASS | Raid Evaluator Parallel Multi-Condition & High-Performance Tests
-  [24] ✅ PASS | Daily Host Engine & 16-Raid Catalog Unit Tests
-  [25] ✅ PASS | Senior Gold Industry Standard Data Architecture & Catalog Tests
-  [26] ✅ PASS | Backup Broadcast Scope Verification & 3-Min Cooldown Unit Tests
-  [27] ✅ PASS | Dual-Track Assist Interleaving & Background Host Recheck Tests
-  [28] ✅ PASS | Failure Diagnostic Classifier & Critical Analysis Tests
-  [29] ✅ PASS | Daily Reset Scheduler Daemon & JST Math Tests
-  [30] ✅ PASS | Discord Remote Controller Security & Whitelist Tests
-  [31] ✅ PASS | PBHL 0-Honors Bug Critical Verification & Regression Tests
-  [32] ✅ PASS | Two-Way Discord CAPTCHA Relay & Anti-Deadlock Resolution Tests
-  [33] ✅ PASS | Proto Bahamut HL Precise Manual Skill Flow Tests
-  [34] ✅ PASS | Arcarum Zone Mundus (Stage 10) Militis Bosses & Map Tests
-  [35] ✅ PASS | Arcarum Zone Goliath (Stage 3) Bosses & Workflows Tests
-  [36] ✅ PASS | Fate Stories Engine & Routine Unit Tests
-  [37] ✅ PASS | Multi-Part Story Scene Skip Engine Tests
-  [38] ✅ PASS | Production vs Local Environment & Performance Architecture Tests
-  [39] ✅ PASS | Mobage OAuth Redirect & Cookie Replacement Tests
-  [40] ✅ PASS | Suspended Quest & Combat Resume Engine Tests
-  [41] ✅ PASS | Arcarum Zone Joculator (Stage 7) Lady of Redemption Tests
-  [42] ✅ PASS | Duplicate Workflow Prevention & Canonical Alias Tests
-  [43] ✅ PASS | Raid: The World (HL) Multi-Battle Template & DSL Tests
-  [44] ✅ PASS | Raid: Dark Rapture (Hard) Multi-Battle Template & DSL Tests
-  [45] ✅ PASS | Raid: The Fallen Angel of Cunning (HL) Multi-Battle Template & DSL Tests
-  [46] ✅ PASS | Raid: Long Live the King (HL) Multi-Battle Template & DSL Tests
-  [47] ✅ PASS | Finder Slot Configurator & Auto Set Raid Tests
-  [48] ✅ PASS | Raid: Fediel (Impossible) Multi-Battle Template & DSL Tests
-  [49] ✅ PASS | Raid: Wilnas (Impossible) Multi-Battle Template & DSL Tests
-  [50] ✅ PASS | Arcarum Stage 7 (Xeno Cocytus Militis) Template & DSL Tests
-  [51] ✅ PASS | Arcarum Stage 6 (Xeno Ifrit Militis) Template & Screen Guard Tests
-  [52] ✅ PASS | Human Behavioral Mimicry & Account Cadence Tests
-  [53] ✅ PASS | Standardized Gold Bar Rotations & 1.5M Honor Verification Tests
-  [54] ✅ PASS | Mid-Execution Stoppage, Renderer Freeze Watchdog & Standby Mode Tests
-  [55] ✅ PASS | Magna 3 (Omega Rebirth) All-Element Farm Templates & Strategy Tests
-  [56] ✅ PASS | Shiny Slime Search (Very Hard) Workflow & Back Button Tests
-  [57] ✅ PASS | Seofon (Impossible) / Siete HL 4M Honors & Readiness Auto-Checker Tests
-------------------------------------------------------------------------
-Total Suites: 57 | Passed: 57 | Failed: 0 (100% GOLD INDUSTRY STANDARD)
-========================================================================
-```
+
+### Zone Mundus (Stage 10)
+| Target | Quest ID | CLI (`bun run ...`) | Notes |
+| :--- | :---: | :--- | :--- |
+| **Zone Mundus Map** | — | `stage10` / `arcarum:stage10` / `arcarum:mundus` | Auto-scans map + defenders |
+| **The World** | `819131` | `theworld` / `theworld:smart` / `theworld:bespoke` | Div 16 boss (World Idean) |
+| **Ca Ong Militis** | `819151` | `ca-ong` / `ca-ong:smart` | Water Defender (Div 10) |
+| **Prometheus Militis** | `819141` | `prometheus` / `prometheus:smart` | Fire Defender (Div 3) |
+| **Gilgamesh Militis** | `819161` | `gilgamesh` / `gilgamesh:smart` | Earth Defender (Div 7) |
+| **Morrigna Militis** | `819171` | `morrigna` / `morrigna:smart` | Wind Defender (Div 15) |
+| **5-Gauge Nodes** | `8190xx` | `arcarum:steve` \| `tide-caller` \| `fire-demon` \| `elephant` \| `princess` \| `dragon-green` | Spawns Militis defenders |
+| **Extra 5-Gauge** | — | `arcarum-mundus-dragon-princess-smart` \| `wild-hunt-smart` \| `voltage-rock-smart` \| `love-meeeee-smart` | Smart Full Auto burst |
+| **3-Gauge & Heralds** | `819xxx` | `arcarum:herald-water` \| `herald-earth` \| `pincers` \| `winged-cat` | +100% Sephira gauge / fast 3-bar |
+
+### Stage 3 (Zone Goliath)
+| Target | CLI (`bun run ...`) | Notes |
+| :--- | :--- | :--- |
+| **Stage 3 Map / Boss** | `stage3` / `triune` | Map scanner / Goliath Triune boss |
+| **Defenders (30 AAP)** | `avarice` (Organ) \| `keeper` (Rib) \| `howler` (Core) | Pink / Green / Yellow defenders |
+| **5-Gauge & Herald** | `arcarum:panther` \| `barbarian` \| `despair` \| `goliath-herald` | Spawns defenders / +100% gauge |
+
+### Stage 6, 7 & Staves (Eletio / Faym / Joculator / Kalendae)
+| Target | Quest ID | CLI (`bun run ...`) | Notes |
+| :--- | :---: | :--- | :--- |
+| **Stage 7 Map** | — | `stage7` / `arcarum:stage7` | Auto-targets Lady of Redemption / Maiden |
+| **Lady of Redemption** | `816071` | `redemption` / `lady` | Stage 7 Defender |
+| **Xeno Cocytus Militis** | `816131` | `cocytus` / `xeno-cocytus` | Stage 7 Div 15 boss |
+| **Xeno Ifrit Militis** | `815131` | `ifrit` / `xeno-ifrit` | Stage 6 Div 14 boss |
+| **Lilywhite Paragon** | `812111` | `paragon` / `arcarum:lilywhite` | Faym Rib Defender (spawn via `fortress`) |
+| **5-Gauge Nodes** | — | `fortress` (Faym) \| `arcarum:maiden` (Stage 7) | Spawns Paragon / Redemption |
+| **Athena / Grani Militis**| — | `athena` / `athena:smart` \| `grani` / `grani:smart` / `grani:fast` | Eletio / Faym Militis bosses |
+
+---
+
+## 5. Gold Bar, Magna 3, 6-Man & Revans Raids (`#quest/assist`)
+
+All Tab 1 workflows auto-configure Finder Slot 1 (`autoSetRaid: true`, 0ms pre-check if already set).
+
+### Gold Bar & High-Level Raids
+| Command (`bun run ...`) | Raid | Target / Notes |
+| :--- | :--- | :--- |
+| `pbhl` / `gb-pbhl` / `gb-pbhl-fast` / `gb-pbhl:skill` / `gb-pbhl:reload-skills` | Proto Bahamut HL | 1.50M honors Blue Chest |
+| `gb-akasha` | Akasha HL | 1.50M honors (`c4s1` $\rightarrow$ `quick_call` $\rightarrow$ `reload` $\rightarrow$ `c3s1` $\rightarrow$ `c2s1` $\rightarrow$ 2T attack) |
+| `gb-go` | Grand Order HL | 1.50M honors 2T burst |
+| `gb-farm` | Tri-Raid Rotator | Rotates PBHL $\rightarrow$ Akasha $\rightarrow$ GOHL |
+| `theworld:raid` / `world:raid` / `raid-the-world` | The World (HL) | Same 13-step burst pipeline as Akasha |
+| `goldbar` / `gb:report` \| `eternitysand` / `sand:report` | Telemetry | Test alerts & print GB / Eternity Sand drop reports |
+
+### Magna 3 (Omega Rebirth) Leech & Farm
+| Element / Boss | Leech (`HP <= 20%`) | Adaptive Farm |
+| :--- | :--- | :--- |
+| **Fire** (Colossus Ira) | `bun run leech:colossus` | `bun run farm:colossus` / `farm:ira` |
+| **Wind** (Tiamat Aura) | `bun run leech:tiamat` | `bun run farm:tiamat` / `farm:aura` |
+| **Water** (Leviathan Mare) | `bun run leech:leviathan` | `bun run farm:leviathan` / `farm:levi` |
+| **Earth** (Yggdrasil Arbos) | `bun run leech:yggdrasil` | `bun run farm:yggdrasil` / `farm:arbos` / `farm:ygg` |
+| **Light** (Luminiera Credo) | `bun run leech:luminiera` | `bun run farm:luminiera` / `farm:credo` / `farm:lumi` |
+| **Dark** (Celeste Ater) | `bun run leech:celeste` | `bun run farm:celeste` / `farm:ater` |
+| **All Elements** | `bun run leech` / `otkraid` | `bun run farm` |
+
+### Endgame 6-Man & Six Dragons
+| Raid | Burst (`bun run ...`) | Leech (`bun run ...`) |
+| :--- | :--- | :--- |
+| **Beelzebub HL** (`305181`) | `bubz` / `beelzebub` / `long-live-the-king` | `leech:bubz` |
+| **Lucilius Hard** (`303141`) | `faahl` / `dark-rapture-hard` | `leech:faahl` |
+| **Belial HL** (`305191`) | `belial` / `cunning` | `leech:belial` |
+| **Lindwurm HL** (`305161`) | `lindwurm` / `empyreal-ascension` | `leech:lindwurm` / `leech:empyreal` |
+| **Fediel / Wilnas** | `fediel` \| `wilnas` | `leech:fediel` \| `leech:wilnas` |
+
+### Revans Series (4M Honors Blue Chest)
+| Command (`bun run ...`) | Raid / Action | Details |
+| :--- | :--- | :--- |
+| `siete` / `seofon` / `raid-seofon` | **Seofon HL** (`305411`) | 4M honors, exits if boss HP $\le 12\%$ (10% trigger cutoff) |
+| `siete:check` (`:offline` \| `:json`) | Siete Readiness Audit | Checks 100% Fire party, 99T summon lock, $\ge 50\text{k}$ HP, 77.77M omen |
+| `siete:setup` / `siete:setup:dry` | Siete Auto-Setup | Configures Fire Siete party & grid |
+| `agastia` / `raid-agastia` | **Agastia HL** (`305431`) | 4M honors, Deck 191 Light Kengo 6-Ougi Satellite Cannon cancel |
+
+---
+
+## 6. Guild Wars (Unite & Fight): Meat & NM Grinding
+
+| Phase / Target | Command (`bun run ...`) | Quest / Rotation (`ensureCast` monitored) |
+| :--- | :--- | :--- |
+| **Dark EX+ Meat** | `gw-meat` / `gw-meat-dark` / `gw-meat:dark` / `meat:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980651/1/0` (Hades): `tap_ready` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
+| **Dark NM95 Burst** | `gw-nm95` / `gw-nm95-dark` / `gw-nm95:dark` / `nm95:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980681/1/0/10116` (Hades): `c4s3` $\rightarrow$ `c4s2` $\rightarrow$ `quick_call` $\rightarrow$ `reload` $\rightarrow$ `c4s1` $\rightarrow$ `c4s3` on `c1` $\rightarrow$ `c4s4` $\rightarrow$ `c3s1` $\rightarrow$ `c3s2` $\rightarrow$ `c2s1` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
+| **Light EX+ Meat** | `gw-meat-light` (`:windowed` \| `:headless`) | Quest `947551/1/0` (Zeus): `tap_ready` $\rightarrow$ `reload` $\rightarrow$ `tap_ready` $\rightarrow$ `reload` |
+| **Light NM95 Burst** | `gw-nm95-light` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `947581/1/0/10116` (Zeus): Florence + Nehan 1T burst |
+| **Meat Swarm** | `gw-meat:swarm [runs]` / `gw-meat-swarm` | Dual-account parallel EX+ meat farm (`acc1` + `acc2`) |
+| **UNF Token Box** | `gacha:unf` | Auto-empties Unite & Fight token drawboxes |
+
+---
+
+## 6b. Events, Dread Barrage, ROTB, Slime & Fates
+
+| Category | Command (`bun run ...`) | Notes |
+| :--- | :--- | :--- |
+| **Shiny Slime** | `slime` / `shiny-slime` / `farm:slime` | Quest `400151`: Wave 1 `quick_call` $\rightarrow$ `.btn-treasure-footer-back` $\rightarrow$ Wave 2 `c4s3` $\rightarrow$ `reload` (~8.9s/run) |
+| **Dread Barrage** | `db:1star`..`db:5star` (`db1`..`db5`) \| `db:unparalleled` \| `db:valiant` \| `db:missions` \| `db:rewards` \| `db:gacha` \| `db:status` \| `db:all` | 1★–5★ OTK/FA, daily hosts, missions, auto token drawbox |
+| **Story Events** | `event` (`:all` \| `:sweep` \| `:maniac` \| `:nightmare` / `hell` \| `:challenge` \| `:missions` \| `:gacha` \| `:solo` \| `:raid` / `:raid:vh` / `:raid:hl`) | Cutscene skip, first-clear crystals, HELL skip, raid burst, token boxes |
+| **Exo Crucible** | `exo-diablo-125` | Exo Diablo Lv125 farm |
+| **Event of the Ten** | `event-of-the-ten` / `event:ten` / `ten` | Quest `981021/3` (Hades): `c4s1` $\rightarrow$ `c4s3` on `c1` $\rightarrow$ `quick_call` $\rightarrow$ `reload` $\rightarrow$ `c2s1` $\rightarrow$ `c3s1` $\rightarrow$ 2T `attack`+`reload` |
+| **ROTB** | `rotb` \| `rotb:baihu` \| `rotb:earth` \| `rotb:earth:loop` | Menu, 30x Baihu, 9x Baihu $\rightarrow$ 1x Titan Agon loop |
+| **Fate Episodes** | `fate` \| `fate:5` \| `fate:10` \| `fate:20` \| `fate:all` \| `fate:cli` | Auto-skips dialogue & clears battles (`#quest/fate`) |
+
+---
+
+## 7. Generic Workflow Runner & Custom Templates
+
+| Command | Effect |
+| :--- | :--- |
+| `bun run workflow` / `run-workflow` | Interactive arrow-key template picker (92 templates) |
+| `bun run acc1 <template> [runs]` / `acc2 <template> [runs]` | Run any `templates/<name>.json` on `acc1` or `acc2` |
+| `bun run templates:sync` | Sync `templates/*.json` $\rightarrow$ `package.json` scripts |
+| `bun run workflow:validate` | Validate all 92 templates + DSL parser |
+
+**Raid Filter Knobs (`templates/*.json`)**:
+`autoSetRaid: true`, `raidSlot: 1`, `evaluatorStrategy: "honor" | "leech" | "otk_burst" | "farm"`, `minHpPct`, `maxHpPct`, ` exitIfHpPct`, `minPlayers`, `maxPlayers`, `targetScore`.
+
+---
+
+## 8. Discord ChatOps, CAPTCHA & Rich Presence
+
+| Command | Effect |
+| :--- | :--- |
+| `bun run discord:controller` / `controller` / `vps` | Start 2-way Discord DM bot (`/gbf <cmd>`, preemptive task switch) |
+| `bun run solve-captcha <text>` / `captcha <text>` | Inject CAPTCHA answer into game DOM |
+| `bun run test:discord` | Test Discord webhook & DM relay |
+| `bun run presence` (`:gbf` \| `:work` \| `:trade` \| `:bg` \| `:watch` \| `:clear` \| `:stop`) | Manage Discord Rich Presence status |
+
+**Discord Slash Commands**: `/gbf <preset> [runs]`, `/gbf stop`, `/gbf status`, `/gbf logs`, `/gbf scheduler:on|off`, `/gbf help`.
+
+---
+
+## 9. QA & Pre-Flight Gates
+
+| Command | Effect |
+| :--- | :--- |
+| `bun run verify` | **Full Gate**: `hygiene` + `workflow:validate` + `build` + all 59 test suites |
+| `bun run test` / `test:all` / `test:node` | Run all 59 test suites in parallel (`tests/run-all.ts`) |
+| `bun run hygiene` / `audit:secrets` | Scan git index for credentials, personal paths, or leaks |
+| `bun run typecheck` | Run `tsc --noEmit` |
+| `bun run test:engine` \| `test:daily` \| `test:evaluator` \| `test:templates` \| `test:parser` | Targeted unit test suites |

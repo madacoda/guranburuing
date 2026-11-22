@@ -2,6 +2,7 @@
 import { Page } from 'puppeteer-core';
 import { UniversalContext } from './types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
+import { StepExecutionMonitorService } from './step-execution-monitor.service.js';
 import { WorkflowStep, isSoloWorkflowTemplate } from '../../types/workflow.types.js';
 import { config } from '../../config.js';
 import {
@@ -10,20 +11,26 @@ import {
   randomDelay,
   logNormalDelay,
   sampleGaussian,
+  moveMouseSmoothly,
   getSpeedProfile
 } from '../../human-motor.js';
 
 export interface CombatExecutionDependencies {
   combatResolution: CombatResolutionService;
+  stepMonitor?: StepExecutionMonitorService;
   executeSingleStep?: (step: WorkflowStep, stepNum: number, runNumber: number) => Promise<boolean>;
   isManualWorkflow?: () => boolean;
 }
 
 export class CombatExecutionService {
+  public readonly stepMonitor: StepExecutionMonitorService;
+
   constructor(
     private ctx: UniversalContext,
     private deps: CombatExecutionDependencies
-  ) {}
+  ) {
+    this.stepMonitor = deps.stepMonitor || new StepExecutionMonitorService(ctx);
+  }
 
   public get page(): Page {
     return this.ctx.page;
@@ -526,16 +533,20 @@ export class CombatExecutionService {
    */
   /**
    * Executes a character skill step (C{char}S{skill}).
-   * Reliably ensures the target character's ability tray is active, checks true readiness
-   * via internal game state and DOM markers, dispatches clicks, and handles single-target popups.
+   * Ensures the target character's ability drawer is open, waits for ongoing animations or dynamic
+   * skill unlocks (e.g. Relic Buster C1S1 -> C1S2 x3), presses the skill button cleanly, verifies
+   * placement in GBF's Ability Queue (.prt-ability-rail) or active cast state, and awaits server
+   * confirmation (ability_result.json) without corrupting stage.gGameStatus.lock.
    */
   public async handleSkill(step: WorkflowStep): Promise<boolean> {
     (this.ctx.state as any).lastAttackReloadedAt = 0;
+    const stepStart = Date.now();
+    const runNum = (this.ctx.state.totalCompletedRuns || 0) + 1;
+    const stepNum = this.ctx.state.activeStepNum || 1;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     const isManual = this.isManualWorkflow();
     const char = step.character || 1;
     const skill = step.skill || 1;
-    const charIdx = char - 1;
 
     if (isManual) {
       await this.deps.combatResolution.cancelFullAutoAndActionQueue();
@@ -547,344 +558,849 @@ export class CombatExecutionService {
       await this.deps.combatResolution.waitForWave(targetWave, isTurbo ? 6000 : 10000);
     }
 
-    // 1. Fast O(1) JavaScript game state & DOM attribute inspection
-    const jsSkillCheck = await this.page.evaluate((cNum: number, sNum: number) => {
-      const stage = (window as any).stage;
-      const gStatus = stage?.gGameStatus;
-      const pJsn = stage?.pJsnData;
-      const charPos = cNum - 1;
+    const preState = await this.stepMonitor.captureCombatSnapshot({ character: char, skill });
 
-      // 1a. Check if frontline slot charPos is dead or empty
-      const rawPlayers = gStatus?.player?.param || pJsn?.player?.param;
-      const players = Array.isArray(rawPlayers) ? rawPlayers : (rawPlayers ? Object.values(rawPlayers) : []);
-      if (players.length > 0) {
-        const p = players[charPos] as any;
-        if (!p || Number(p.hp) <= 0 || p.alive === 0) {
-          return { found: true, isReady: false, recast: 'KO', name: p?.name || '' };
-        }
-      }
-      const charPortraitEl = document.querySelector(`.lis-character${charPos}`) as HTMLElement;
-      if (charPortraitEl && (charPortraitEl.classList.contains('blank') || charPortraitEl.classList.contains('empty'))) {
-        return { found: true, isReady: false, recast: 'empty', name: '' };
-      }
-
-      const abilityMap = pJsn?.ability || {};
-      let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
-      if (!charObj) {
-        charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
-      }
-      if (charObj && charObj.list) {
-        const ab = charObj.list[String(sNum)];
-        const abilityData = Array.isArray(ab) ? ab[0] : ab;
-        if (abilityData) {
-          const recast = String(abilityData['ability-recast'] ?? '');
-          const reqMet = abilityData['requirement_result_flag'] !== false;
-          const isReady = (recast === '0' || recast === '') && reqMet;
-          return { found: true, isReady, recast, name: abilityData['ability-name'] || '' };
-        }
-      }
-
-      // Fallback O(1) DOM attribute check (works even while character drawer is closed)
-      const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-      if (domEl) {
-        const container = (domEl.closest('.lis-ability') || domEl) as HTMLElement;
-        const recastAttr = container.getAttribute('ability-recast') || domEl.getAttribute('ability-recast') || container.querySelector('[ability-recast]')?.getAttribute('ability-recast') || '';
-        const abilityName = container.getAttribute('ability-name') || domEl.getAttribute('ability-name') || container.querySelector('[ability-name]')?.getAttribute('ability-name') || '';
-        const isUnavailable =
-          container.classList.contains('btn-ability-unavailable') ||
-          container.classList.contains('btn-ability-off') ||
-          domEl.classList.contains('btn-ability-unavailable') ||
-          domEl.classList.contains('btn-ability-off') ||
-          container.classList.contains('empty') ||
-          container.classList.contains('disabled') ||
-          (recastAttr !== '' && recastAttr !== '0');
-        const isAvailable =
-          container.classList.contains('btn-ability-available') ||
-          domEl.classList.contains('btn-ability-available') ||
-          !!container.querySelector('.btn-ability-available');
-        if (isUnavailable && !isAvailable) {
-          return { found: true, isReady: false, recast: recastAttr || 'unavailable', name: abilityName };
-        }
-      }
-
-      return { found: false, isReady: null, recast: '', name: '' };
-    }, char, skill).catch(() => ({ found: false, isReady: null, recast: '', name: '' }));
-
-    if (jsSkillCheck.found && jsSkillCheck.isReady === false) {
-      console.log(`[Combat] Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''} is on cooldown (${jsSkillCheck.recast} turns left). Skipping.`);
+    if (await this.deps.combatResolution.isBattleEnded()) {
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: preState.abilityName,
+        status: 'SKIPPED_BATTLE_ENDED',
+        verified: true,
+        attempts: 1,
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        reason: 'Battle concluded prior to skill cast'
+      });
       return true;
     }
 
-    // 2. Wait for combat HUD readiness
-    await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 800 : 3000);
-    if (await this.deps.combatResolution.isBattleEnded()) return true;
+    // 1. Unified Drawer Open & Skill Readiness Poll Loop
+    // Do NOT skip skills before the drawer is open or while a previous skill animation is still unlocking/resetting the button!
+    const readinessTimeoutMs = isTurbo ? 6000 : 10000;
+    const readinessStart = Date.now();
+    let lastBackTapAt = 0;
+    let lastOpenTapAt = 0;
+    let idleCooldownSince = 0;
+    let skillDisplayName = preState.abilityName || '';
+    let baselineRailCount = 0;
+    let isSkillReadyToPress = false;
+    const cooldownGraceMs = step.ensureCast ? (isTurbo ? 450 : 750) : (isTurbo ? 250 : 450);
 
-    // 3. Ensure Character `char`'s ability drawer is open
-    let isDrawerOpen = await this.page.evaluate((cNum: number, sNum: number) => {
-      const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-      if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
-        return true;
-      }
-      const charDrawer = document.querySelector(`.prt-command-chara.chara${cNum}`) as HTMLElement;
-      if (charDrawer && charDrawer.offsetParent !== null && charDrawer.offsetWidth > 0 && window.getComputedStyle(charDrawer).display !== 'none') {
-        return true;
-      }
-      return false;
-    }, char, skill).catch(() => false);
+    while (Date.now() - readinessStart < readinessTimeoutMs) {
+      if (this.ctx.state.stopRequested) return false;
 
-    if (!isDrawerOpen) {
-      // If another character's ability drawer or summon panel is currently open, close it first
-      // so the main character portrait strip (.lis-character0..3) becomes visible immediately.
-      await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+      const now = Date.now();
+      const canTapBack = now - lastBackTapAt >= (isTurbo ? 180 : 250);
+      const canTapOpen = now - lastOpenTapAt >= (isTurbo ? 220 : 300);
 
-      const charSelector = `.lis-character${charIdx}.btn-command-character, .lis-character${charIdx}, .prt-command-top .btn-command-character[pos="${charIdx}"], .btn-command-character[pos="${charIdx}"]`;
-      const maxOpenAttempts = step.ensureCast ? 5 : 3;
+      const pollState = await this.page.evaluate(
+        (cNum: number, sNum: number, allowBackTap: boolean, allowOpenTap: boolean) => {
+          const cjs = (window as any).createjs;
+          if (cjs?.Tween?.tick) {
+            cjs.Tween.tick(1200, false);
+          }
 
-      for (let openAttempt = 1; openAttempt <= maxOpenAttempts; openAttempt++) {
-        let charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 800 : 1800 }).catch(() => null);
-        if (!charBtn) {
-          await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-          await logNormalDelay(80, 0.1);
-          charBtn = await this.page.waitForSelector(charSelector, { visible: true, timeout: isTurbo ? 800 : 1800 }).catch(() => null);
-        }
+          const stage = (window as any).stage;
+          const gStatus = stage?.gGameStatus;
+          const pJsn = stage?.pJsnData;
+          const charPos = cNum - 1;
 
-        if (charBtn) {
-          await humanizedClick(this.page, charBtn).catch(() => null);
-          await charBtn.evaluate((el: any, cNum: number, sNum: number) => {
-            const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-            if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
-              return;
+          // Check if battle ended
+          const firstBoss = pJsn?.boss?.param?.[0] || gStatus?.boss?.param?.[0];
+          const bossDead = firstBoss && firstBoss.hp !== undefined && Number(firstBoss.hp) <= 0;
+          if (gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish || pJsn?.is_defeat || bossDead) {
+            return { status: 'battle_ended', name: '', recast: '', railCount: 0 };
+          }
+
+          // Check if frontline slot charPos is KO'd or empty
+          const rawPlayers = gStatus?.player?.param || pJsn?.player?.param;
+          const players = Array.isArray(rawPlayers) ? rawPlayers : (rawPlayers ? Object.values(rawPlayers) : []);
+          if (players.length > 0) {
+            const p = players[charPos] as any;
+            if (!p || Number(p.hp) <= 0 || p.alive === 0) {
+              return { status: 'ko', name: p?.name || '', recast: 'KO', railCount: 0 };
             }
-            const $ = (window as any).$ || (window as any).Zepto;
+          }
+          const charPortraitEl = document.querySelector(`.lis-character${charPos}`) as HTMLElement | null;
+          if (charPortraitEl && (charPortraitEl.classList?.contains('blank') || charPortraitEl.classList?.contains('empty'))) {
+            return { status: 'ko', name: '', recast: 'empty', railCount: 0 };
+          }
+
+          const isVisible = (el: HTMLElement | null | undefined) =>
+            !!(el && el.offsetParent !== null && (el.offsetWidth === undefined || el.offsetWidth > 0) && window.getComputedStyle(el).display !== 'none');
+
+          const $ = (window as any).$ || (window as any).Zepto;
+          const triggerTap = (el: HTMLElement) => {
             if ($) {
               $(el).trigger('tap');
-            } else {
+            } else if (typeof el.click === 'function') {
               el.click();
             }
-          }, char, skill).catch(() => null);
+          };
 
-          // Wait for ability drawer to open specifically for character `char`
-          isDrawerOpen = await this.page.waitForFunction((cNum: number, sNum: number) => {
-            const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-            if (specificBtn && specificBtn.offsetParent !== null && specificBtn.offsetWidth > 0 && window.getComputedStyle(specificBtn).display !== 'none') {
-              return true;
-            }
-            const charDrawer = document.querySelector(`.prt-command-chara.chara${cNum}`) as HTMLElement;
-            if (charDrawer && charDrawer.offsetParent !== null && charDrawer.offsetWidth > 0 && window.getComputedStyle(charDrawer).display !== 'none') {
-              return true;
-            }
-            return false;
-          }, { timeout: isTurbo ? 1200 : 2500 }, char, skill).then(() => true).catch(() => false);
-
-          if (isDrawerOpen) break;
-        }
-
-        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-        await logNormalDelay(120, 0.1);
-      }
-
-      if (!isDrawerOpen) {
-        console.warn(`[Combat] Character portrait for C${char} drawer could not be opened!`);
-        if (!step.optional) return false;
-        return true;
-      }
-    }
-
-    // 4. Evaluate skill availability (only if jsSkillCheck didn't already verify it is ready)
-    if (jsSkillCheck.isReady !== true) {
-      const domSkillCheck = await this.page.evaluate((cNum: number, sNum: number) => {
-        const slotIdx = sNum - 1;
-        const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-        const listEl = document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"], .prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`) as HTMLElement;
-        const el = specificEl || listEl;
-
-        if (!el || el.offsetParent === null) return { found: false, ready: false, onCooldown: false };
-
-        const hasAvailableClass = el.classList.contains('btn-ability-available') || !!el.querySelector('.btn-ability-available');
-        const hasUnavailableClass = el.classList.contains('btn-ability-unavailable') || el.classList.contains('btn-ability-off') || !!el.querySelector('.btn-ability-unavailable, .btn-ability-off');
-        const hasEmptyOrDisabled = el.classList.contains('empty') || el.classList.contains('disabled');
-        const recastAttr = el.getAttribute('ability-recast') || el.querySelector('[ability-recast]')?.getAttribute('ability-recast');
-        const hasNonZeroRecast = recastAttr !== null && recastAttr !== '' && recastAttr !== '0';
-
-        const onCooldown = hasUnavailableClass || hasEmptyOrDisabled || hasNonZeroRecast;
-        const ready = hasAvailableClass || (!onCooldown && el.offsetParent !== null);
-
-        return { found: true, ready, onCooldown };
-      }, char, skill).catch(() => ({ found: false, ready: false, onCooldown: false }));
-
-      if (domSkillCheck.found && domSkillCheck.onCooldown && !domSkillCheck.ready) {
-        console.log(`[Combat] Skill C${char}S${skill} is on cooldown or unavailable. Skipping.`);
-        return true;
-      }
-    }
-
-    // 5. Locate skill button handle and dispatch click (strictly scoped to character `char`)
-    const skillSelectors = [
-      `.ability-character-num-${char}-${skill} .btn-ability-available`,
-      `.ability-character-num-${char}-${skill}`,
-      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"] .btn-ability-available`,
-      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability:nth-child(${skill}) .btn-ability-available`,
-      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"] [ability-id]`,
-      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability:nth-child(${skill}) [ability-id]`,
-      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"]`,
-      `.prt-command-chara.chara${char} .prt-ability-list .lis-ability:nth-child(${skill})`
-    ];
-
-    const targetNet = step.waitForNetwork || 'ability_result.json';
-    const maxCastTries = step.ensureCast ? 3 : 2;
-    let clicked = false;
-
-    for (let tryNum = 1; tryNum <= maxCastTries; tryNum++) {
-      const netPromise = this.deps.combatResolution.waitForNetworkResponse(targetNet, isTurbo ? 2500 : 4500);
-
-      for (const sel of skillSelectors) {
-        clicked = await this.page.evaluate((s: string) => {
-          const target = document.querySelector(s) as HTMLElement;
-          if (!target || target.offsetParent === null) return false;
-          const container = (target.closest('.lis-ability') || target) as HTMLElement;
-          if (container.classList.contains('btn-ability-unavailable') || container.classList.contains('btn-ability-off') || container.classList.contains('empty')) return false;
-          const btn = ((container.classList.contains('btn-ability-available') ? container : container.querySelector('.btn-ability-available')) || container) as HTMLElement;
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) {
-            $(container).trigger('tap');
-            $(container).trigger('click');
-            $(target).trigger('tap');
-            $(target).trigger('click');
-            if (btn !== container && btn !== target) {
-              $(btn).trigger('tap');
-              $(btn).trigger('click');
+          // Dismiss any stray non-target popup if open
+          const strayCloseBtns = Array.from(
+            document.querySelectorAll('.pop-usual .btn-usual-cancel, .pop-usual .btn-usual-close, .prt-popup-header .btn-close')
+          ) as HTMLElement[];
+          for (const btn of strayCloseBtns) {
+            if (isVisible(btn)) {
+              triggerTap(btn);
             }
           }
-          target.click();
-          btn.click();
-          container.click();
-          return true;
-        }, sel).catch(() => false);
 
-        if (clicked) break;
-      }
+          // Check if Character cNum's ability drawer is currently open
+          const slotIdx = sNum - 1;
+          const specificBtn = (
+            document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
+            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
+            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
+          ) as HTMLElement | null;
+          const charDrawer = document.querySelector(`.prt-command-chara.chara${cNum}`) as HTMLElement | null;
+          const drawerOpen = isVisible(specificBtn) || isVisible(charDrawer);
 
-      if (!clicked) {
-        for (const sel of skillSelectors) {
-          const handle = await this.page.$(sel).catch(() => null);
-          if (handle) {
-            await humanizedClick(this.page, handle);
-            clicked = true;
-            break;
-          }
-        }
-      }
+          if (!drawerOpen) {
+            // Check if another character's drawer or summon tray is open (indicated by .btn-command-back.display-on)
+            const backBtn = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement | null;
+            const otherDrawerOpen = Array.from(document.querySelectorAll('.prt-command-chara, .prt-command-summon.summon-on')).some(
+              el => !el.classList?.contains(`chara${cNum}`) && isVisible(el as HTMLElement)
+            );
 
-      if (clicked) {
-        // Handle ability confirmation modal if Skill Check is enabled
-        await this.page.evaluate(() => {
-          const ok = document.querySelector('.btn-usual-ok.btn-ability-use, .btn-usual-ok.se-ability-use, .pop-usual .btn-usual-ok') as HTMLElement;
-          if (ok && ok.offsetParent !== null) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) {
-              $(ok).trigger('tap');
-              $(ok).trigger('click');
+            if ((otherDrawerOpen || isVisible(backBtn)) && backBtn && isVisible(backBtn)) {
+              if (allowBackTap) {
+                triggerTap(backBtn);
+                return { status: 'tapped_back', name: '', recast: '', railCount: 0 };
+              }
+              return { status: 'waiting_back', name: '', recast: '', railCount: 0 };
             }
-            ok.click();
-          }
-        }).catch(() => null);
 
-        // Wait for network response
-        const netSuccess = await netPromise;
-
-        // Verify if skill actually went on cooldown in client state or DOM
-        const recastCheck = await this.page.evaluate((cNum: number, sNum: number) => {
-          const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement;
-          if (domEl) {
-            const container = (domEl.closest('.lis-ability') || domEl) as HTMLElement;
-            const recastAttr = container.getAttribute('ability-recast') || domEl.getAttribute('ability-recast') || container.querySelector('[ability-recast]')?.getAttribute('ability-recast') || '';
-            if ((recastAttr !== '' && recastAttr !== '0') || container.classList.contains('btn-ability-unavailable') || domEl.classList.contains('btn-ability-unavailable')) {
-              return true;
+            // Main command HUD: tap Character cNum's portrait to open its ability drawer
+            const charBtn = document.querySelector(
+              `.lis-character${charPos}.btn-command-character, .lis-character${charPos}, .prt-command-top .btn-command-character[pos="${charPos}"], .btn-command-character[pos="${charPos}"]`
+            ) as HTMLElement | null;
+            if (charBtn && isVisible(charBtn)) {
+              if (allowOpenTap) {
+                triggerTap(charBtn);
+                return { status: 'tapped_open', name: '', recast: '', railCount: 0 };
+              }
+              return { status: 'waiting_open', name: '', recast: '', railCount: 0 };
             }
+
+            return { status: 'waiting_hud', name: '', recast: '', railCount: 0 };
           }
-          const stage = (window as any).stage;
-          const pJsn = stage?.pJsnData;
+
+          // Drawer is open! Inspect Ability Queue (.prt-ability-rail) and skill readiness
+          const railDomItems = document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]');
+          const queueArr = Array.isArray(gStatus?.ability_queue)
+            ? gStatus.ability_queue
+            : (Array.isArray(stage?.gAbilityQueue) ? stage.gAbilityQueue : []);
+          const railCount = Math.max(railDomItems ? railDomItems.length : 0, queueArr.length);
+
+          // GBF's Ability Queue (.prt-ability-rail) holds at most 4 queued skills at a time
+          if (railCount >= 4) {
+            return { status: 'rail_full', name: '', recast: '', railCount };
+          }
+
           const abilityMap = pJsn?.ability || {};
-          const charPos = cNum - 1;
           let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
           if (!charObj) {
             charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
           }
-          if (charObj && charObj.list) {
-            const ab = charObj.list[String(sNum)];
-            const abilityData = Array.isArray(ab) ? ab[0] : ab;
-            if (abilityData) {
-              const recast = String(abilityData['ability-recast'] ?? '');
-              return recast !== '0' && recast !== '';
-            }
-          }
-          return false;
-        }, char, skill).catch(() => false);
+          const ab = charObj?.list ? charObj.list[String(sNum)] : undefined;
+          const abilityData = Array.isArray(ab) ? ab[0] : ab;
+          const pJsnName = abilityData?.['ability-name'] || '';
+          const pJsnRecast = abilityData?.['ability-recast'] !== undefined ? String(abilityData['ability-recast']) : '';
+          const pJsnReqMet = abilityData ? abilityData['requirement_result_flag'] !== false : true;
 
-        const isCastConfirmed = netSuccess || recastCheck;
-        if (isCastConfirmed) {
-          console.log(`[Combat] ⚡ Cast Skill C${char}S${skill}${jsSkillCheck.name ? ` ("${jsSkillCheck.name}")` : ''}${step.ensureCast ? ' (Verified)' : ''}`);
-
-          // 6. Handle single-target character selection modal if present
-          await this.page.evaluate((targetIdx: number) => {
-            const pop = document.querySelector('.pop-usual, .prt-popup-body, .pop-target');
-            if (pop && (pop as HTMLElement).offsetParent !== null) {
-              const targetChar = pop.querySelector(`.lis-character${targetIdx}, .btn-command-character[pos="${targetIdx}"], .lis-character0, .btn-command-character`) as HTMLElement;
-              if (targetChar) {
-                const $ = (window as any).$ || (window as any).Zepto;
-                if ($) $(targetChar).trigger('tap');
-                targetChar.click();
-              }
-            }
-          }, (step.targetCharacter ? step.targetCharacter - 1 : 0)).catch(() => null);
-
-          if (!isTurbo) {
-            await new Promise(r => setTimeout(r, 150));
+          const domEl = specificBtn;
+          if (!domEl) {
+            return { status: 'waiting_button', name: pJsnName, recast: pJsnRecast, railCount };
           }
 
-          // 7. Fast-tick animation and unlock UI
-          await this.page.evaluate(() => {
-            const cjs = (window as any).createjs;
-            if (cjs?.Tween?.tick) cjs.Tween.tick(2500, false);
-            const stage = (window as any).stage;
-            if (stage?.gGameStatus) {
-              stage.gGameStatus.lock = false;
-              stage.gGameStatus.btn_lock = false;
-              stage.gGameStatus.animation = false;
-            }
-          }).catch(() => null);
+          const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
+          const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
+          const querySub = (el: any, sel: string) => (el && typeof el.querySelector === 'function' ? el.querySelector(sel) : null);
 
-          // Wait for ability settlement in client JS state
-          await this.page.waitForFunction(() => {
-            const stage = (window as any).stage;
-            const pJsn = stage?.pJsnData;
-            const gStatus = stage?.gGameStatus;
-            const isDefeated = gStatus?.win || pJsn?.is_clear || pJsn?.finish;
-            const firstBoss = pJsn?.boss?.param?.[0];
-            const bossDead = firstBoss && Number(firstBoss.hp) <= 0;
-            const inputUnlocked = !gStatus?.lock && !gStatus?.btn_lock && !gStatus?.animation;
-            return isDefeated || bossDead || inputUnlocked;
-          }, { timeout: 1200 }).catch(() => null);
+          const recastAttr =
+            getAttr(container, 'ability-recast') ||
+            getAttr(domEl, 'ability-recast') ||
+            getAttr(querySub(container, '[ability-recast]'), 'ability-recast') ||
+            pJsnRecast ||
+            '';
+          const abilityName =
+            getAttr(container, 'ability-name') ||
+            getAttr(domEl, 'ability-name') ||
+            getAttr(querySub(container, '[ability-name]'), 'ability-name') ||
+            pJsnName;
 
-          await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1000);
-          await this.deps.combatResolution.getAndLogEnemyHp(`C${char}S${skill} Cast`);
+          const hasUnavailableClass =
+            Boolean(container.classList?.contains('btn-ability-unavailable')) ||
+            Boolean(container.classList?.contains('btn-ability-off')) ||
+            Boolean(container.classList?.contains('tmp-unusable')) ||
+            Boolean(container.classList?.contains('empty')) ||
+            Boolean(container.classList?.contains('disabled')) ||
+            Boolean(domEl.classList?.contains('btn-ability-unavailable')) ||
+            Boolean(domEl.classList?.contains('btn-ability-off')) ||
+            Boolean(domEl.classList?.contains('tmp-unusable')) ||
+            Boolean(querySub(container, '.btn-ability-unavailable, .btn-ability-off, .tmp-unusable'));
+
+          const hasAvailableClass =
+            Boolean(container.classList?.contains('btn-ability-available')) ||
+            Boolean(domEl.classList?.contains('btn-ability-available')) ||
+            Boolean(querySub(container, '.btn-ability-available'));
+
+          const hasPositiveRecast = recastAttr !== '' && recastAttr !== '0' && Number(recastAttr) > 0;
+          const isMockDom = domEl.offsetWidth === undefined;
+          const isReady = !hasUnavailableClass && !hasPositiveRecast && (hasAvailableClass || isMockDom);
+
+          if (isReady) {
+            return { status: 'ready', name: abilityName, recast: '0', railCount };
+          }
+
+          const isBusyAnimating = Boolean(
+            gStatus?.lock ||
+            gStatus?.btn_lock ||
+            gStatus?.attacking ||
+            gStatus?.ability_turn ||
+            railCount > 0 ||
+            (pJsnRecast === '0' && pJsnReqMet && !hasPositiveRecast)
+          );
+
+          if (isBusyAnimating || !hasPositiveRecast) {
+            return { status: 'waiting_unlock', name: abilityName, recast: recastAttr || '0', railCount };
+          }
+
+          return { status: 'idle_cooldown', name: abilityName, recast: recastAttr || 'unavailable', railCount };
+        },
+        char,
+        skill,
+        canTapBack,
+        canTapOpen
+      ).catch(() => ({ status: 'error', name: '', recast: '', railCount: 0 }));
+
+      if (pollState.name) {
+        skillDisplayName = pollState.name;
+      }
+
+      if (pollState.status === 'battle_ended') {
+        this.stepMonitor.recordStepReceipt({
+          runNumber: runNum,
+          stepNumber: stepNum,
+          step,
+          dynamicName: skillDisplayName,
+          status: 'SKIPPED_BATTLE_ENDED',
+          verified: true,
+          attempts: 1,
+          durationMs: Date.now() - stepStart,
+          preState,
+          networkConfirmed: false,
+          stateMutated: false,
+          reason: 'Battle ended while opening drawer'
+        });
+        return true;
+      }
+
+      if (pollState.status === 'ko') {
+        console.log(`[Combat] Character C${char} is KO'd or slot empty. Skipping C${char}S${skill}.`);
+        this.stepMonitor.recordStepReceipt({
+          runNumber: runNum,
+          stepNumber: stepNum,
+          step,
+          dynamicName: skillDisplayName,
+          status: 'SKIPPED_KO',
+          verified: true,
+          attempts: 1,
+          durationMs: Date.now() - stepStart,
+          preState,
+          networkConfirmed: false,
+          stateMutated: false,
+          reason: `Character C${char} KO or slot empty`
+        });
+        return true;
+      }
+
+      if (pollState.status === 'tapped_back') {
+        lastBackTapAt = Date.now();
+        idleCooldownSince = 0;
+      } else if (pollState.status === 'tapped_open') {
+        lastOpenTapAt = Date.now();
+        idleCooldownSince = 0;
+      } else if (pollState.status === 'ready') {
+        baselineRailCount = pollState.railCount;
+        isSkillReadyToPress = true;
+        break;
+      } else if (pollState.status === 'idle_cooldown') {
+        if (idleCooldownSince === 0) {
+          idleCooldownSince = Date.now();
+        } else if (Date.now() - idleCooldownSince >= cooldownGraceMs) {
+          console.log(`[Combat] Skill C${char}S${skill}${skillDisplayName ? ` ("${skillDisplayName}")` : ''} is on cooldown (${pollState.recast} turns left). Skipping.`);
+          this.stepMonitor.recordStepReceipt({
+            runNumber: runNum,
+            stepNumber: stepNum,
+            step,
+            dynamicName: skillDisplayName,
+            status: 'SKIPPED_COOLDOWN',
+            verified: true,
+            attempts: 1,
+            durationMs: Date.now() - stepStart,
+            preState,
+            networkConfirmed: false,
+            stateMutated: false,
+            recastTransition: `${pollState.recast}->${pollState.recast}`,
+            reason: `Skill on cooldown (${pollState.recast} turns left)`
+          });
           return true;
         }
-
-        console.warn(`[Combat] Skill C${char}S${skill} cast attempt ${tryNum}/${maxCastTries} unacknowledged. Retrying...`);
-        isDrawerOpen = false;
+      } else {
+        idleCooldownSince = 0;
       }
 
-      if (tryNum < maxCastTries) {
-        await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, isTurbo ? 35 : 55));
+    }
+
+    if (!isSkillReadyToPress) {
+      console.warn(`[Combat] Timed out waiting for C${char}S${skill} drawer/button readiness after ${readinessTimeoutMs}ms.`);
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: skillDisplayName,
+        status: step.optional ? 'SKIPPED_OPTIONAL' : 'FAILED_TIMEOUT',
+        verified: Boolean(step.optional),
+        attempts: 1,
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        reason: `Timed out waiting for drawer/button readiness (${readinessTimeoutMs}ms)`
+      });
+      return step.optional ? true : false;
+    }
+
+    // 2. Closed-Loop Enforced Skill Press + Target Selection + Queue (.prt-ability-rail) & Cast (ability_result.json) Verification
+    const targetNet = step.waitForNetwork || 'ability_result.json';
+    let netResolved = false;
+    let netJson: any = null;
+    let netPopupLockout = false;
+    let netPromise: Promise<{ resolved: boolean; json: any | null; isPopupLockout?: boolean }>;
+
+    const armNetworkListener = (timeoutMs: number) => {
+      netPopupLockout = false;
+      netPromise = this.deps.combatResolution
+        .waitForNetworkResponseAndPayload(targetNet, timeoutMs)
+        .then(res => {
+          if (res.isPopupLockout) {
+            netPopupLockout = true;
+          } else if (res.resolved) {
+            netResolved = true;
+            netJson = res.json;
+          }
+          return res;
+        });
+    };
+
+    armNetworkListener(isTurbo ? 7500 : 12000);
+
+    const maxPressAttempts = step.retries || (step.ensureCast ? 4 : 3);
+    let pressConfirmedInQueueOrCast = false;
+    let totalAttemptsUsed = 0;
+    let lastAbilityId = preState.abilityId || '';
+
+    for (let pressAttempt = 1; pressAttempt <= maxPressAttempts; pressAttempt++) {
+      if (this.ctx.state.stopRequested) return false;
+      if (netResolved) {
+        pressConfirmedInQueueOrCast = true;
+        break;
       }
+
+      totalAttemptsUsed = pressAttempt;
+
+      // If previous attempt encountered a server lockout popup, dismiss it and re-arm network listener
+      if (netPopupLockout) {
+        console.log(`[Enforcer] 🔄 Server lockout popup intercepted on C${char}S${skill} (attempt ${pressAttempt}); dismissing & re-arming...`);
+        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+        await new Promise(r => setTimeout(r, isTurbo ? 120 : 220));
+        armNetworkListener(isTurbo ? 7500 : 12000);
+      }
+
+      // Ensure C{char}'s drawer is still open before pressing on retry attempts
+      if (pressAttempt > 1) {
+        await this.page.evaluate((cNum: number, sNum: number) => {
+          const isVisible = (el: HTMLElement | null | undefined) =>
+            !!(el && el.offsetParent !== null && (el.offsetWidth === undefined || el.offsetWidth > 0) && window.getComputedStyle(el).display !== 'none');
+          const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+          if (isVisible(specificBtn)) return;
+          const charPos = cNum - 1;
+          const charBtn = document.querySelector(`.lis-character${charPos}.btn-command-character, .lis-character${charPos}`) as HTMLElement | null;
+          if (charBtn && isVisible(charBtn)) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(charBtn).trigger('tap');
+            else charBtn.click();
+          }
+        }, char, skill).catch(() => null);
+        await new Promise(r => setTimeout(r, isTurbo ? 80 : 140));
+      }
+
+      // Dispatch a SINGLE clean tap on the skill button (avoiding multi-tap bubbling spam)
+      const pressResult = await this.page.evaluate((cNum: number, sNum: number) => {
+        const slotIdx = sNum - 1;
+        const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+        const listEl = (
+          document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
+          document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
+        ) as HTMLElement | null;
+        const rawTarget = specificEl || listEl;
+        if (!rawTarget || rawTarget.offsetParent === null) return { clicked: false, abilityId: '' };
+
+        const container = ((typeof rawTarget.closest === 'function' ? rawTarget.closest('.lis-ability') : null) || rawTarget) as HTMLElement;
+        const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
+        const btn = subAvail || container;
+        const abilityId =
+          (typeof container.getAttribute === 'function' ? container.getAttribute('ability-id') : null) ||
+          (typeof rawTarget.getAttribute === 'function' ? rawTarget.getAttribute('ability-id') : null) ||
+          '';
+
+        const $ = (window as any).$ || (window as any).Zepto;
+        if ($) {
+          $(btn).trigger('tap');
+        } else if (typeof btn.click === 'function') {
+          btn.click();
+        }
+        return { clicked: true, abilityId: abilityId || '' };
+      }, char, skill).catch(() => ({ clicked: false, abilityId: '' }));
+
+      if (pressResult.abilityId) {
+        lastAbilityId = pressResult.abilityId;
+      }
+
+      if (!pressResult.clicked) {
+        const fallbackHandle = await this.page.$(`.ability-character-num-${char}-${skill}, .prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"]`).catch(() => null);
+        if (fallbackHandle) {
+          await humanizedClick(this.page, fallbackHandle).catch(() => null);
+        }
+      }
+
+      // Handle ability confirmation modal if Skill Confirmation popup is enabled in GBF settings
+      await this.page.evaluate(() => {
+        const ok = document.querySelector('.btn-usual-ok.btn-ability-use, .btn-usual-ok.se-ability-use') as HTMLElement | null;
+        if (ok && ok.offsetParent !== null && window.getComputedStyle(ok).display !== 'none') {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(ok).trigger('tap');
+          else ok.click();
+        }
+      }).catch(() => null);
+
+      // Handle single-target character selection modal (e.g. C2S1 -> C1) strictly inside the popup container
+      if (step.targetCharacter) {
+        const targetIdx = step.targetCharacter - 1;
+        const popupStart = Date.now();
+        const popupDeadline = popupStart + (isTurbo ? 1800 : 2800);
+        let targetSelected = false;
+        let retappedSkillForPopup = false;
+
+        while (Date.now() < popupDeadline && !netResolved) {
+          const shouldRetapSkill = !retappedSkillForPopup && (Date.now() - popupStart >= (isTurbo ? 450 : 700));
+          targetSelected = await this.page.evaluate((cNum: number, sNum: number, tIdx: number, retapSkill: boolean) => {
+            const cjs = (window as any).createjs;
+            if (cjs?.Tween?.tick) cjs.Tween.tick(800, false);
+
+            const popups = Array.from(
+              document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
+            ) as HTMLElement[];
+            for (const pop of popups) {
+              if (!pop || pop.offsetParent === null || (pop.offsetWidth !== undefined && pop.offsetWidth <= 0) || window.getComputedStyle(pop).display === 'none') {
+                continue;
+              }
+              const targetChar = (
+                pop.querySelector(`.lis-character${tIdx}`) ||
+                pop.querySelector(`.btn-command-character[pos="${tIdx}"]`) ||
+                pop.querySelector(`[pos="${tIdx}"]`)
+              ) as HTMLElement | null;
+              if (targetChar && targetChar.offsetParent !== null) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) {
+                  $(targetChar).trigger('tap');
+                } else if (typeof targetChar.click === 'function') {
+                  targetChar.click();
+                }
+                return true;
+              }
+            }
+
+            if (retapSkill) {
+              const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+              if (specificEl && specificEl.offsetParent !== null) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(specificEl).trigger('tap');
+                else specificEl.click();
+              }
+            }
+            return false;
+          }, char, skill, targetIdx, shouldRetapSkill).catch(() => false);
+
+          if (shouldRetapSkill) {
+            retappedSkillForPopup = true;
+          }
+
+          if (targetSelected) {
+            await new Promise(r => setTimeout(r, isTurbo ? 60 : 110));
+            break;
+          }
+          await new Promise(r => setTimeout(r, 45));
+        }
+      }
+
+      // Poll up to 650ms to confirm the skill is listed in the Ability Queue (.prt-ability-rail) or actively casting
+      const verifyDeadline = Date.now() + (isTurbo ? 450 : 650);
+      while (Date.now() < verifyDeadline) {
+        if (netResolved) {
+          pressConfirmedInQueueOrCast = true;
+          break;
+        }
+        if (netPopupLockout) {
+          break;
+        }
+
+        const queueCheck = await this.page.evaluate(
+          (cNum: number, sNum: number, prevRailCount: number, abId: string) => {
+            const cjs = (window as any).createjs;
+            if (cjs?.Tween?.tick) cjs.Tween.tick(800, false);
+
+            const stage = (window as any).stage;
+            const gStatus = stage?.gGameStatus;
+
+            // 1. Check Ability Queue (.prt-ability-rail / stage.gGameStatus.ability_queue)
+            const railDomItems = Array.from(
+              document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]')
+            ) as HTMLElement[];
+            const queueArr = Array.isArray(gStatus?.ability_queue)
+              ? gStatus.ability_queue
+              : (Array.isArray(stage?.gAbilityQueue) ? stage.gAbilityQueue : []);
+            const currentRailCount = Math.max(railDomItems.length, queueArr.length);
+            const inRailById = Boolean(
+              abId &&
+              (railDomItems.some(el => typeof el.getAttribute === 'function' && el.getAttribute('ability-id') === abId) ||
+               queueArr.some((item: any) => String(item?.ability_id || item?.id || '') === abId))
+            );
+            const railIncreased = currentRailCount > prevRailCount;
+
+            // 2. Check if the skill button transitioned to .tmp-unusable / .btn-ability-unavailable / recast > 0
+            const slotIdx = sNum - 1;
+            const domEl = (
+              document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
+              document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`)
+            ) as HTMLElement | null;
+            let buttonMarkedUsedOrQueued = false;
+            if (domEl) {
+              const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
+              const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
+              const querySub = (el: any, sel: string) => (el && typeof el.querySelector === 'function' ? el.querySelector(sel) : null);
+              const recastAttr =
+                getAttr(container, 'ability-recast') ||
+                getAttr(domEl, 'ability-recast') ||
+                getAttr(querySub(container, '[ability-recast]'), 'ability-recast') ||
+                '';
+              buttonMarkedUsedOrQueued =
+                Boolean(container.classList?.contains('tmp-unusable')) ||
+                Boolean(container.classList?.contains('btn-ability-unavailable')) ||
+                Boolean(domEl.classList?.contains('tmp-unusable')) ||
+                Boolean(domEl.classList?.contains('btn-ability-unavailable')) ||
+                Boolean(querySub(container, '.tmp-unusable, .btn-ability-unavailable')) ||
+                (recastAttr !== '' && recastAttr !== '0');
+            }
+
+            return {
+              confirmed: inRailById || railIncreased || buttonMarkedUsedOrQueued,
+              inRail: inRailById || railIncreased,
+              currentRailCount
+            };
+          },
+          char,
+          skill,
+          baselineRailCount,
+          lastAbilityId
+        ).catch(() => ({ confirmed: false, inRail: false, currentRailCount: 0 }));
+
+        if (queueCheck.confirmed) {
+          pressConfirmedInQueueOrCast = true;
+          break;
+        }
+
+        await new Promise(r => setTimeout(r, 45));
+      }
+
+      if ((pressConfirmedInQueueOrCast || netResolved) && !netPopupLockout) {
+        break;
+      }
+
+      console.warn(`[Combat] Skill C${char}S${skill} press attempt ${pressAttempt}/${maxPressAttempts} not yet confirmed in queue; re-pressing...`);
+    }
+
+    // 3. Await this skill's ability_result.json (or authoritative in-game state mutation) while ticking CreateJS animations
+    let lastReTapAt = Date.now();
+    const waitNetStart = Date.now();
+    const maxNetWaitMs = isTurbo ? 7500 : 12000;
+    let stateMutatedToCooldown = false;
+
+    while (!netResolved && Date.now() - waitNetStart < maxNetWaitMs) {
+      if (this.ctx.state.stopRequested) return false;
+      if (await this.deps.combatResolution.isBattleEnded()) {
+        this.stepMonitor.recordStepReceipt({
+          runNumber: runNum,
+          stepNumber: stepNum,
+          step,
+          dynamicName: skillDisplayName,
+          status: 'SKIPPED_BATTLE_ENDED',
+          verified: true,
+          attempts: Math.max(1, totalAttemptsUsed),
+          durationMs: Date.now() - stepStart,
+          preState,
+          networkConfirmed: false,
+          stateMutated: true,
+          reason: 'Battle concluded during skill resolution'
+        });
+        return true;
+      }
+
+      // If a server lockout popup interrupted the skill cast, dismiss it, re-arm listener, and force an immediate re-tap
+      if (netPopupLockout) {
+        console.log(`[Enforcer] 🔄 Server lockout popup detected while awaiting C${char}S${skill}; dismissing & re-casting...`);
+        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+        await new Promise(r => setTimeout(r, isTurbo ? 100 : 180));
+        armNetworkListener(Math.max(2500, maxNetWaitMs - (Date.now() - waitNetStart)));
+        lastReTapAt = 0;
+        totalAttemptsUsed++;
+      }
+
+      const needsReTap = Date.now() - lastReTapAt >= 1200;
+      const tickState = await this.page.evaluate(
+        (cNum: number, sNum: number, tChar: number | undefined, allowReTap: boolean) => {
+          const cjs = (window as any).createjs;
+          if (cjs?.Tween?.tick) {
+            cjs.Tween.tick(1500, false);
+          }
+
+          const $ = (window as any).$ || (window as any).Zepto;
+          const triggerTap = (el: HTMLElement) => {
+            if ($) $(el).trigger('tap');
+            else if (typeof el.click === 'function') el.click();
+          };
+
+          // If target selection popup is still open for a targeted skill, tap the target character
+          if (tChar) {
+            const tIdx = tChar - 1;
+            const popups = Array.from(
+              document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
+            ) as HTMLElement[];
+            for (const pop of popups) {
+              if (!pop || pop.offsetParent === null || (pop.offsetWidth !== undefined && pop.offsetWidth <= 0) || window.getComputedStyle(pop).display === 'none') {
+                continue;
+              }
+              const targetEl = (
+                pop.querySelector(`.lis-character${tIdx}`) ||
+                pop.querySelector(`.btn-command-character[pos="${tIdx}"]`) ||
+                pop.querySelector(`[pos="${tIdx}"]`)
+              ) as HTMLElement | null;
+              if (targetEl && targetEl.offsetParent !== null) {
+                triggerTap(targetEl);
+                return { reTapped: true, transitionedToCooldown: false };
+              }
+            }
+          }
+
+          const stage = (window as any).stage;
+          const gStatus = stage?.gGameStatus;
+          const pJsn = stage?.pJsnData;
+          const railItems = document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]');
+          const queueArr = Array.isArray(gStatus?.ability_queue) ? gStatus.ability_queue : [];
+          const railCount = Math.max(railItems ? railItems.length : 0, queueArr.length);
+
+          // Check if the skill's recast in pJsnData or DOM has already transitioned from 0 -> >0
+          const charPos = cNum - 1;
+          const abilityMap = pJsn?.ability || {};
+          let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
+          if (!charObj) {
+            charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
+          }
+          const ab = charObj?.list ? charObj.list[String(sNum)] : undefined;
+          const abilityData = Array.isArray(ab) ? ab[0] : ab;
+          const pJsnRecast = abilityData?.['ability-recast'] !== undefined ? String(abilityData['ability-recast']) : '';
+
+          const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+          let domRecast = '';
+          if (domEl) {
+            const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
+            const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
+            const querySub = (el: any, sel: string) => (el && typeof el.querySelector === 'function' ? el.querySelector(sel) : null);
+            domRecast =
+              getAttr(container, 'ability-recast') ||
+              getAttr(domEl, 'ability-recast') ||
+              getAttr(querySub(container, '[ability-recast]'), 'ability-recast') ||
+              '';
+          }
+
+          const effectiveRecast = domRecast || pJsnRecast;
+          if (
+            railCount === 0 &&
+            !gStatus?.lock &&
+            !gStatus?.btn_lock &&
+            effectiveRecast !== '' &&
+            effectiveRecast !== '0' &&
+            Number(effectiveRecast) > 0
+          ) {
+            return { reTapped: false, transitionedToCooldown: true };
+          }
+
+          // If the ability queue drained completely and the skill button is still .btn-ability-available, re-tap it
+          if (allowReTap && railCount === 0 && !gStatus?.lock && !gStatus?.btn_lock) {
+            if (domEl && domEl.offsetParent !== null) {
+              const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
+              const isAvail =
+                Boolean(container.classList?.contains('btn-ability-available')) &&
+                !container.classList?.contains('btn-ability-unavailable') &&
+                !container.classList?.contains('tmp-unusable');
+              if (isAvail) {
+                const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
+                triggerTap(subAvail || container);
+                return { reTapped: true, transitionedToCooldown: false };
+              }
+            }
+          }
+
+          return { reTapped: false, transitionedToCooldown: false };
+        },
+        char,
+        skill,
+        step.targetCharacter,
+        needsReTap
+      ).catch(() => ({ reTapped: false, transitionedToCooldown: false }));
+
+      if (tickState.transitionedToCooldown) {
+        stateMutatedToCooldown = true;
+        break;
+      }
+
+      if (tickState.reTapped) {
+        lastReTapAt = Date.now();
+        totalAttemptsUsed++;
+      }
+
+      if (netResolved) break;
+      await new Promise(r => setTimeout(r, isTurbo ? 40 : 65));
+    }
+
+    const netRes = netResolved
+      ? { resolved: true, json: netJson }
+      : stateMutatedToCooldown
+      ? { resolved: false, json: null }
+      : await netPromise!;
+
+    if (netRes.resolved || stateMutatedToCooldown) {
+      let skillDmg = 0;
+      let skillHonors = 0;
+      if (netRes.json) {
+        skillDmg = CombatResolutionService.extractTurnDamage(netRes.json);
+        if (skillDmg > 0 && !this.isSoloQuest()) {
+          skillHonors = Math.floor(skillDmg / 100);
+          this.ctx.state.currentScore += skillHonors;
+        }
+      }
+
+      console.log(
+        `[Combat] ⚡ Cast Skill C${char}S${skill}${step.targetCharacter ? ` -> C${step.targetCharacter}` : ''}${skillDisplayName ? ` ("${skillDisplayName}")` : ''}${step.ensureCast ? ' (Verified)' : ''}`
+      );
+
+      // 4. Advance CreateJS tweens naturally (WITHOUT forcing stage.gGameStatus.lock = false)
+      // so chained animations (e.g. C1S1 Engage unlocking C1S2, or C1S2 Blitz Raid attack) settle cleanly.
+      const hasAttackScenario = Array.isArray(netRes.json?.scenario) && netRes.json.scenario.some((ev: any) => ev && ev.cmd === 'attack');
+      const settleTimeoutMs = (hasAttackScenario || (step.delayAfterMs && step.delayAfterMs >= 1000))
+        ? (isTurbo ? 2200 : 3500)
+        : (isTurbo ? 600 : 1200);
+      const settleStart = Date.now();
+
+      while (Date.now() - settleStart < settleTimeoutMs) {
+        const settled = await this.page.evaluate(() => {
+          const cjs = (window as any).createjs;
+          if (cjs?.Tween?.tick) {
+            cjs.Tween.tick(1500, false);
+          }
+          const stage = (window as any).stage;
+          const pJsn = stage?.pJsnData;
+          const gStatus = stage?.gGameStatus;
+          const isDefeated = gStatus?.win || pJsn?.is_clear || pJsn?.finish;
+          const firstBoss = pJsn?.boss?.param?.[0] || gStatus?.boss?.param?.[0];
+          const bossDead = firstBoss && firstBoss.hp !== undefined && Number(firstBoss.hp) <= 0;
+          const inputUnlocked = !gStatus?.lock && !gStatus?.btn_lock && !gStatus?.attacking && !gStatus?.ability_turn;
+          return Boolean(isDefeated || bossDead || inputUnlocked);
+        }).catch(() => true);
+
+        if (settled) break;
+        await new Promise(r => setTimeout(r, 45));
+      }
+
+      const postState = await this.stepMonitor.captureCombatSnapshot({ character: char, skill });
+      const recastBefore = preState.recast || '0';
+      const recastAfter = postState.recast || (stateMutatedToCooldown ? 'cd' : '0');
+
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: skillDisplayName || postState.abilityName,
+        status: netRes.resolved ? 'CONFIRMED_NETWORK' : 'CONFIRMED_STATE_MUTATION',
+        verified: true,
+        attempts: Math.max(1, totalAttemptsUsed),
+        durationMs: Date.now() - stepStart,
+        damageDealt: skillDmg,
+        honorsGained: skillHonors,
+        preState,
+        postState,
+        networkConfirmed: netRes.resolved,
+        stateMutated: recastAfter !== recastBefore || stateMutatedToCooldown || skillDmg > 0,
+        recastTransition: `${recastBefore}->${recastAfter}`
+      });
+
+      await this.deps.combatResolution.getAndLogEnemyHp(`C${char}S${skill} Cast`);
+      return true;
     }
 
     if (step.optional) {
       console.log(`[Combat] Optional skill C${char}S${skill} skipped.`);
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: skillDisplayName,
+        status: 'SKIPPED_OPTIONAL',
+        verified: true,
+        attempts: Math.max(1, totalAttemptsUsed),
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        reason: 'Optional skill unconfirmed after timeout'
+      });
       return true;
     }
 
+    console.warn(`[Combat] ❌ Skill C${char}S${skill} failed to confirm ability_result.json within timeout.`);
+    this.stepMonitor.recordStepReceipt({
+      runNumber: runNum,
+      stepNumber: stepNum,
+      step,
+      dynamicName: skillDisplayName,
+      status: 'FAILED_TIMEOUT',
+      verified: false,
+      attempts: Math.max(1, totalAttemptsUsed),
+      durationMs: Date.now() - stepStart,
+      preState,
+      networkConfirmed: false,
+      stateMutated: false,
+      reason: 'Failed to confirm ability_result.json or cooldown state mutation'
+    });
     return false;
   }
 
@@ -892,6 +1408,9 @@ export class CombatExecutionService {
    * Uses a summon card from the summon tray.
    */
   public async handleSummon(step: WorkflowStep): Promise<boolean> {
+    const stepStart = Date.now();
+    const runNum = (this.ctx.state.totalCompletedRuns || 0) + 1;
+    const stepNum = this.ctx.state.activeStepNum || 1;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     let slot = (step as any).summonSlot || step.slot || 1;
     const targetName = ((step as any).summonName || '').toLowerCase().trim();
@@ -899,7 +1418,25 @@ export class CombatExecutionService {
     // 1. Dismiss any open ability drawers or popups so summon controls are active
     await this.deps.combatResolution.dismissCombatDrawersAndPopups();
     await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 800 : 2500);
-    if (await this.deps.combatResolution.isBattleEnded()) return true;
+    const preState = await this.stepMonitor.captureCombatSnapshot({ summonSlot: slot });
+
+    if (await this.deps.combatResolution.isBattleEnded()) {
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: preState.abilityName,
+        status: 'SKIPPED_BATTLE_ENDED',
+        verified: true,
+        attempts: 1,
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        reason: 'Battle ended prior to summon invocation'
+      });
+      return true;
+    }
 
     // Fast O(1) JavaScript game state & DOM inspection for summon readiness
     const jsSummonCheck = await this.page.evaluate((targetSlot: number, targetNameStr: string) => {
@@ -961,165 +1498,291 @@ export class CombatExecutionService {
       console.log(`[Workflow] Resolved summon "${targetName}" to slot ${slot}`);
     }
 
+    const summonDisplayName = jsSummonCheck.name || preState.abilityName || '';
+
     if (jsSummonCheck.found && jsSummonCheck.isReady === false) {
-      console.log(`[Combat] Summon slot ${slot}${jsSummonCheck.name ? ` ("${jsSummonCheck.name}")` : ''} is on cooldown (${jsSummonCheck.recast} turns left). Skipping.`);
+      console.log(`[Combat] Summon slot ${slot}${summonDisplayName ? ` ("${summonDisplayName}")` : ''} is on cooldown (${jsSummonCheck.recast} turns left). Skipping.`);
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: summonDisplayName,
+        status: 'SKIPPED_COOLDOWN',
+        verified: true,
+        attempts: 1,
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        recastTransition: `${jsSummonCheck.recast}->${jsSummonCheck.recast}`,
+        reason: `Summon on cooldown (${jsSummonCheck.recast} turns left)`
+      });
       return true;
     }
 
-    // 2. Open summon tray if not already open
-    let isSummonOpen = await this.page.evaluate((targetSlot: number) => {
-      const slotEl = (document.querySelector(`.lis-summon[pos="${targetSlot}"]`) || document.querySelector('.lis-summon')) as HTMLElement;
-      const tray = document.querySelector('.prt-command-summon') as HTMLElement;
-      const trayVisible = !!(tray && tray.classList.contains('summon-on') && tray.offsetParent !== null);
-      return trayVisible || !!(slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0);
-    }, slot).catch(() => false);
+    const maxSummonAttempts = step.retries || (step.ensureCast ? 3 : 2);
+    for (let summonAttempt = 1; summonAttempt <= maxSummonAttempts; summonAttempt++) {
+      if (this.ctx.state.stopRequested) return false;
 
-    if (!isSummonOpen) {
-      for (let openTry = 1; openTry <= 3 && !isSummonOpen; openTry++) {
-        const hadOpenDrawer = await this.page.evaluate(() => {
-          const tray = document.querySelector('.prt-command-summon') as HTMLElement;
-          if (tray && tray.classList.contains('summon-on') && tray.offsetParent !== null) return false;
-          const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-          if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(back).trigger('tap');
-            else back.click();
-            return true;
+      if (summonAttempt > 1) {
+        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+      }
+
+      // 2. Open summon tray if not already open
+      let isSummonOpen = await this.page.evaluate((targetSlot: number) => {
+        const slotEl = (document.querySelector(`.lis-summon[pos="${targetSlot}"]`) || document.querySelector('.lis-summon')) as HTMLElement;
+        const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+        const trayVisible = !!(tray && tray.classList.contains('summon-on') && tray.offsetParent !== null);
+        return trayVisible || !!(slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0);
+      }, slot).catch(() => false);
+
+      if (!isSummonOpen) {
+        for (let openTry = 1; openTry <= 3 && !isSummonOpen; openTry++) {
+          const hadOpenDrawer = await this.page.evaluate(() => {
+            const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+            if (tray && tray.classList.contains('summon-on') && tray.offsetParent !== null) return false;
+            const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
+            if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(back).trigger('tap');
+              else back.click();
+              return true;
+            }
+            return false;
+          }).catch(() => false);
+
+          if (hadOpenDrawer) {
+            await new Promise(r => setTimeout(r, isTurbo ? 90 : 160));
           }
-          return false;
+
+          const summonTrayBtn = await this.page.waitForSelector('.prt-list-top.btn-command-summon:not(.summon-on), .btn-command-summon', { visible: true, timeout: isTurbo ? 500 : 900 }).catch(() => null);
+          if (summonTrayBtn) {
+            await humanizedClick(this.page, summonTrayBtn).catch(() => null);
+            await new Promise(r => setTimeout(r, isTurbo ? 120 : 200));
+            await summonTrayBtn.evaluate((el: any) => {
+              const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+              const slotEl = document.querySelector('.lis-summon') as HTMLElement;
+              if ((tray && tray.classList.contains('summon-on')) || (slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0)) return;
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(el).trigger('tap');
+              else el.click();
+            }).catch(() => null);
+          }
+
+          isSummonOpen = await this.page.waitForFunction((targetSlot: number) => {
+            const slotEl = (document.querySelector(`.lis-summon[pos="${targetSlot}"]`) || document.querySelector('.lis-summon')) as HTMLElement;
+            const tray = document.querySelector('.prt-command-summon') as HTMLElement;
+            return !!(slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0) || !!(tray && tray.classList.contains('summon-on'));
+          }, { timeout: isTurbo ? 700 : 1200 }, slot).then(() => true).catch(() => false);
+        }
+      }
+
+      // 3. Locate target summon slot button (in GBF .prt-summon-list, pos is 1-indexed: slot 1..5 is pos="1..5", slot 6 is supporter)
+      const combinedSummonSelector = slot === 6
+        ? `.lis-summon.supporter, .lis-summon[pos="6"], .lis-summon[pos="supporter"], .btn-summon-use[pos="6"], .lis-summon:nth-child(6), .lis-summon.summon-6`
+        : `.lis-summon[pos="${slot}"], .btn-summon-use[pos="${slot}"], .lis-summon:nth-child(${slot}), .lis-summon.summon-${slot}`;
+
+      let summonSlot: any = await this.page.waitForSelector(combinedSummonSelector, { visible: true, timeout: isTurbo ? 900 : 1800 }).catch(() => null);
+      if (!summonSlot) {
+        const allSummonCards = await this.page.$$('.prt-summon-list .lis-summon, .lis-summon').catch(() => []);
+        if (allSummonCards.length >= slot) {
+          summonSlot = allSummonCards[slot - 1];
+        }
+      }
+
+      if (summonSlot) {
+        const isUnavailable = await summonSlot.evaluate((el: any) => {
+          const recastAttr = el.getAttribute('summon-recast') || el.getAttribute('recast') || '';
+          return el.classList.contains('btn-summon-unavailable') ||
+                 el.classList.contains('off') ||
+                 el.classList.contains('disabled') ||
+                 (recastAttr !== '' && recastAttr !== '0');
         }).catch(() => false);
 
-        if (hadOpenDrawer) {
-          await new Promise(r => setTimeout(r, isTurbo ? 90 : 160));
+        if (isUnavailable) {
+          console.log(`[Combat] Summon slot ${slot} is on cooldown or unavailable. Skipping.`);
+          await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+          this.stepMonitor.recordStepReceipt({
+            runNumber: runNum,
+            stepNumber: stepNum,
+            step,
+            dynamicName: summonDisplayName,
+            status: 'SKIPPED_COOLDOWN',
+            verified: true,
+            attempts: summonAttempt,
+            durationMs: Date.now() - stepStart,
+            preState,
+            networkConfirmed: false,
+            stateMutated: false,
+            reason: `Summon slot ${slot} unavailable in tray`
+          });
+          return true;
         }
 
-        const summonTrayBtn = await this.page.waitForSelector('.prt-list-top.btn-command-summon:not(.summon-on), .btn-command-summon', { visible: true, timeout: isTurbo ? 500 : 900 }).catch(() => null);
-        if (summonTrayBtn) {
-          await humanizedClick(this.page, summonTrayBtn).catch(() => null);
-          await new Promise(r => setTimeout(r, isTurbo ? 120 : 200));
-          await summonTrayBtn.evaluate((el: any) => {
-            const tray = document.querySelector('.prt-command-summon') as HTMLElement;
-            const slotEl = document.querySelector('.lis-summon') as HTMLElement;
-            if ((tray && tray.classList.contains('summon-on')) || (slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0)) return;
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(el).trigger('tap');
-            else el.click();
-          }).catch(() => null);
-        }
+        const targetNet = step.waitForNetwork || 'summon_result.json';
+        const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 2500 : 4500);
 
-        isSummonOpen = await this.page.waitForFunction((targetSlot: number) => {
-          const slotEl = (document.querySelector(`.lis-summon[pos="${targetSlot}"]`) || document.querySelector('.lis-summon')) as HTMLElement;
-          const tray = document.querySelector('.prt-command-summon') as HTMLElement;
-          return !!(slotEl && slotEl.offsetParent !== null && slotEl.offsetWidth > 0) || !!(tray && tray.classList.contains('summon-on'));
-        }, { timeout: isTurbo ? 700 : 1200 }, slot).then(() => true).catch(() => false);
-      }
-    }
-
-    // 3. Locate target summon slot button (in GBF .prt-summon-list, pos is 1-indexed: slot 1..5 is pos="1..5", slot 6 is supporter)
-    const combinedSummonSelector = slot === 6
-      ? `.lis-summon.supporter, .lis-summon[pos="6"], .lis-summon[pos="supporter"], .btn-summon-use[pos="6"], .lis-summon:nth-child(6), .lis-summon.summon-6`
-      : `.lis-summon[pos="${slot}"], .btn-summon-use[pos="${slot}"], .lis-summon:nth-child(${slot}), .lis-summon.summon-${slot}`;
-
-    let summonSlot: any = await this.page.waitForSelector(combinedSummonSelector, { visible: true, timeout: isTurbo ? 900 : 1800 }).catch(() => null);
-    if (!summonSlot) {
-      const allSummonCards = await this.page.$$('.prt-summon-list .lis-summon, .lis-summon').catch(() => []);
-      if (allSummonCards.length >= slot) {
-        summonSlot = allSummonCards[slot - 1];
-      }
-    }
-
-    if (summonSlot) {
-      const isUnavailable = await summonSlot.evaluate((el: any) => {
-        const recastAttr = el.getAttribute('summon-recast') || el.getAttribute('recast') || '';
-        return el.classList.contains('btn-summon-unavailable') ||
-               el.classList.contains('off') ||
-               el.classList.contains('disabled') ||
-               (recastAttr !== '' && recastAttr !== '0');
-      }).catch(() => false);
-
-      if (isUnavailable) {
-        console.log(`[Combat] Summon slot ${slot} is on cooldown or unavailable.`);
-        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-        if (step.optional) return true;
-        return false;
-      }
-
-      const targetNet = step.waitForNetwork || 'summon_result.json';
-      const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 2500 : 4500);
-
-      await humanizedClick(this.page, summonSlot).catch(() => null);
-      await new Promise(r => setTimeout(r, isTurbo ? 140 : 220));
-      await summonSlot.evaluate((el: any) => {
-        const pop = document.querySelector('.pop-summon-detail, .pop-usual.pop-show, #pop .btn-usual-ok') as HTMLElement;
-        if (pop && pop.offsetParent !== null) return;
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) $(el).trigger('tap');
-        else el.click();
-      }).catch(() => null);
-
-      // 4. Click Call confirmation button inside the summon detail popup (never bare .btn-summon-use which matches tray cards)
-      const okBtn = await this.page.waitForSelector(
-        '.btn-usual-ok.btn-summon-use, .pop-summon-detail .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, #pop .btn-usual-ok, .btn-call, .se-summon-call',
-        { visible: true, timeout: isTurbo ? 1200 : 2500 }
-      ).catch(() => null);
-
-      if (okBtn) {
-        await humanizedClick(this.page, okBtn).catch(() => null);
-        await new Promise(r => setTimeout(r, isTurbo ? 100 : 180));
-        await okBtn.evaluate((el: any) => {
-          if (el.offsetParent === null) return;
+        await humanizedClick(this.page, summonSlot).catch(() => null);
+        await new Promise(r => setTimeout(r, isTurbo ? 140 : 220));
+        await summonSlot.evaluate((el: any) => {
+          const pop = document.querySelector('.pop-summon-detail, .pop-usual.pop-show, #pop .btn-usual-ok') as HTMLElement;
+          if (pop && pop.offsetParent !== null) return;
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(el).trigger('tap');
           else el.click();
         }).catch(() => null);
-      } else {
-        await this.deps.combatResolution.dismissCombatDrawersAndPopups();
-        if (step.optional) {
-          console.log(`[Combat] Optional summon slot ${slot} popup did not open; skipping.`);
-          return true;
+
+        // 4. Click Call confirmation button inside the summon detail popup (never bare .btn-summon-use which matches tray cards)
+        const okBtn = await this.page.waitForSelector(
+          '.btn-usual-ok.btn-summon-use, .pop-summon-detail .btn-usual-ok, .pop-usual.pop-show .btn-usual-ok, #pop .btn-usual-ok, .btn-call, .se-summon-call',
+          { visible: true, timeout: isTurbo ? 1200 : 2500 }
+        ).catch(() => null);
+
+        if (okBtn) {
+          await humanizedClick(this.page, okBtn).catch(() => null);
+          await new Promise(r => setTimeout(r, isTurbo ? 100 : 180));
+          await okBtn.evaluate((el: any) => {
+            if (el.offsetParent === null) return;
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(el).trigger('tap');
+            else el.click();
+          }).catch(() => null);
+        } else {
+          await this.deps.combatResolution.dismissCombatDrawersAndPopups();
+          if (summonAttempt < maxSummonAttempts) {
+            console.warn(`[Enforcer] Summon slot ${slot} detail popup did not open on attempt ${summonAttempt}/${maxSummonAttempts}; retrying...`);
+            continue;
+          }
+          if (step.optional) {
+            console.log(`[Combat] Optional summon slot ${slot} popup did not open; skipping.`);
+            this.stepMonitor.recordStepReceipt({
+              runNumber: runNum,
+              stepNumber: stepNum,
+              step,
+              dynamicName: summonDisplayName,
+              status: 'SKIPPED_OPTIONAL',
+              verified: true,
+              attempts: summonAttempt,
+              durationMs: Date.now() - stepStart,
+              preState,
+              networkConfirmed: false,
+              stateMutated: false,
+              reason: 'Optional summon popup did not open'
+            });
+            return true;
+          }
+          return false;
         }
-        return false;
+
+        console.log(`[Combat] 🔮 Invoked Summon Slot ${slot}. Awaiting resolution...`);
+        const netRes = await netPromise;
+
+        if (netRes.isPopupLockout && summonAttempt < maxSummonAttempts) {
+          console.warn(`[Enforcer] 🔄 Server lockout popup on Summon Slot ${slot} (attempt ${summonAttempt}/${maxSummonAttempts}); dismissing & retrying...`);
+          await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+          await new Promise(r => setTimeout(r, isTurbo ? 120 : 220));
+          continue;
+        }
+
+        let summonDmg = 0;
+        let summonHonors = 0;
+        if (netRes.json) {
+          summonDmg = CombatResolutionService.extractTurnDamage(netRes.json);
+          if (summonDmg > 0) {
+            summonHonors = Math.floor(summonDmg / 100);
+            this.ctx.state.currentScore += summonHonors;
+          }
+        }
+
+        // 5. Advance CreateJS tweens naturally (without forcing stage.gGameStatus.lock = false)
+        // until the summon animation settles so subsequent summons or skills open their trays cleanly.
+        const summonSettleStart = Date.now();
+        const summonSettleTimeout = isTurbo ? 800 : 1800;
+        while (Date.now() - summonSettleStart < summonSettleTimeout) {
+          const summonSettled = await this.page.evaluate(() => {
+            const cjs = (window as any).createjs;
+            if (cjs?.Tween?.tick) {
+              cjs.Tween.tick(1500, false);
+            }
+            const pop = document.querySelector('.pop-summon-detail, .pop-usual.pop-show, .prt-popup-header .btn-close') as HTMLElement | null;
+            if (pop && pop.offsetParent !== null) {
+              const close = pop.querySelector('.btn-close, .btn-usual-ok, .btn-usual-cancel') as HTMLElement | null;
+              if (close && typeof close.click === 'function') close.click();
+            }
+            const stage = (window as any).stage;
+            const gStatus = stage?.gGameStatus;
+            const pJsn = stage?.pJsnData;
+            const isDefeated = gStatus?.win || pJsn?.is_clear || pJsn?.finish;
+            const inputUnlocked = !gStatus?.lock && !gStatus?.btn_lock && !gStatus?.attacking;
+            return Boolean(isDefeated || inputUnlocked);
+          }).catch(() => true);
+
+          if (summonSettled) break;
+          await new Promise(r => setTimeout(r, 45));
+        }
+
+        await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1500);
+        const postState = await this.stepMonitor.captureCombatSnapshot({ summonSlot: slot });
+        const recastBefore = preState.recast || '0';
+        const recastAfter = postState.recast || (netRes.resolved ? 'cast' : '0');
+
+        this.stepMonitor.recordStepReceipt({
+          runNumber: runNum,
+          stepNumber: stepNum,
+          step,
+          dynamicName: summonDisplayName || postState.abilityName,
+          status: netRes.resolved ? 'CONFIRMED_NETWORK' : 'CONFIRMED_STATE_MUTATION',
+          verified: true,
+          attempts: summonAttempt,
+          durationMs: Date.now() - stepStart,
+          damageDealt: summonDmg,
+          honorsGained: summonHonors,
+          preState,
+          postState,
+          networkConfirmed: netRes.resolved,
+          stateMutated: recastAfter !== recastBefore || summonDmg > 0,
+          recastTransition: `${recastBefore}->${recastAfter}`
+        });
+
+        await this.deps.combatResolution.getAndLogEnemyHp(`Summon Slot ${slot}`);
+        return true;
       }
-
-      console.log(`[Combat] 🔮 Invoked Summon Slot ${slot}. Awaiting resolution...`);
-      const netRes = await netPromise;
-      if (netRes.json) {
-        const summonDmg = CombatResolutionService.extractTurnDamage(netRes.json);
-        if (summonDmg > 0) {
-          const summonHonors = Math.floor(summonDmg / 100);
-          this.ctx.state.currentScore += summonHonors;
-        }
-      }
-
-      // 5. Fast-tick animation and unlock UI
-      await this.page.evaluate(() => {
-        const cjs = (window as any).createjs;
-        if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(3000, false);
-        }
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
-        }
-        const pop = document.querySelector('.pop-summon-detail, .pop-usual.pop-show, .prt-popup-header .btn-close') as HTMLElement;
-        if (pop && pop.offsetParent !== null) {
-          const close = pop.querySelector('.btn-close, .btn-usual-ok, .btn-usual-cancel') as HTMLElement;
-          if (close) close.click();
-        }
-      }).catch(() => null);
-
-      await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 350 : 1500);
-      await this.deps.combatResolution.getAndLogEnemyHp(`Summon Slot ${slot}`);
-      return true;
     }
 
     if (step.optional) {
       console.log(`[Combat] Optional summon slot ${slot} skipped.`);
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        dynamicName: summonDisplayName,
+        status: 'SKIPPED_OPTIONAL',
+        verified: true,
+        attempts: maxSummonAttempts,
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        reason: 'Optional summon slot skipped'
+      });
       return true;
     }
 
+    this.stepMonitor.recordStepReceipt({
+      runNumber: runNum,
+      stepNumber: stepNum,
+      step,
+      dynamicName: summonDisplayName,
+      status: 'FAILED_TIMEOUT',
+      verified: false,
+      attempts: maxSummonAttempts,
+      durationMs: Date.now() - stepStart,
+      preState,
+      networkConfirmed: false,
+      stateMutated: false,
+      reason: `Failed to locate or invoke Summon Slot ${slot}`
+    });
     return false;
   }
 
@@ -1441,6 +2104,7 @@ export class CombatExecutionService {
         }
       }
 
+      const netPromise = this.deps.combatResolution.waitForNetworkResponse('ability_result.json', 3500);
       const skillEl = await this.page.$(selector).catch(() => null);
       const clicked = await this.page.evaluate((sel: string) => {
         const btn = document.querySelector(sel) as HTMLElement;
@@ -1455,10 +2119,23 @@ export class CombatExecutionService {
 
       if (clicked) {
         console.log(`[Combat] [Turn ${turn}] Cast [${skill.category.toUpperCase()}] C${charNum}S${slot}${skill.abilityName ? ` ("${skill.abilityName}")` : ''}`);
-        await this.deps.combatResolution.waitForNetworkResponse('ability_result.json', 3500);
 
         if (skill.requiresPick) {
+          await logNormalDelay(150, 0.1);
           await this.page.evaluate(() => {
+            const popups = Array.from(
+              document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
+            ) as HTMLElement[];
+            for (const pop of popups) {
+              if (!pop || pop.offsetParent === null) continue;
+              const targetInPop = pop.querySelector('.lis-character0, .btn-command-character[pos="0"], [pos="0"]') as HTMLElement | null;
+              if (targetInPop) {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(targetInPop).trigger('tap');
+                targetInPop.click();
+                return;
+              }
+            }
             const targetChar = document.querySelector('.lis-character0, .btn-command-character[pos="0"]') as HTMLElement;
             if (targetChar) {
               const $ = (window as any).$ || (window as any).Zepto;
@@ -1466,9 +2143,10 @@ export class CombatExecutionService {
               targetChar.click();
             }
           }).catch(() => null);
-          await logNormalDelay(150, 0.1);
+          await logNormalDelay(120, 0.1);
         }
 
+        await netPromise;
         await this.deps.combatResolution.waitForCombatInputReady(1200);
       }
     }
@@ -1592,10 +2270,15 @@ export class CombatExecutionService {
 
   /**
    * Taps the READY screen overlay / Auto button to trigger Full Auto, Turn action, or Attack.
+   * Confirms whether the action (normal_attack_result.json or summon_result.json) fired from the READY tap;
+   * if not, waits for the combat screen to finish loading and manually clicks the Attack / Quick Call button.
    */
   public async handleTapReady(step: WorkflowStep): Promise<boolean> {
+    (this.ctx.state as any).lastTapReadyAttackConfirmedAt = 0;
+    (this.ctx.state as any).lastAttackReloadedAt = 0;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     const targetNet = step.waitForNetwork || 'normal_attack_result.json';
+    const isQuickSummonTarget = targetNet.includes('summon_result.json');
     const initialTurn = this.ctx.state.currentTurn;
     const initialHonors = this.ctx.state.currentScore;
     const maxRetries = 3;
@@ -1606,85 +2289,210 @@ export class CombatExecutionService {
       await this.deps.combatResolution.waitForBattleToMount(8000);
       if (await this.deps.combatResolution.isBattleEnded()) return true;
 
-      await this.page.evaluate(() => {
-        const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
-        if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(back).trigger('tap');
-          back.click();
-        }
-      }).catch(() => null);
       await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
       await this.deps.combatResolution.dismissCombatDrawersAndPopups();
 
-      await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 500 : 2500);
-      if (await this.deps.combatResolution.isBattleEnded()) return true;
-
       if (this.ctx.state.currentTurn > initialTurn || (this.ctx.state.currentScore > initialHonors && initialHonors > 0)) {
         await this.deps.combatResolution.syncCurrentHonors();
+        if (!isQuickSummonTarget) {
+          (this.ctx.state as any).lastTapReadyAttackConfirmedAt = Date.now();
+        }
         console.log(`[Combat] [tap_ready] Turn already resolved (${this.ctx.state.currentScore.toLocaleString()} pt).`);
         return true;
       }
 
-      await this.page.evaluate((targetFps: number) => {
+      // 1. Arm network/turn resolution listener BEFORE tapping the READY screen so fast responses are never missed
+      let turnResolved = false;
+      const combatPromise = this.deps.combatResolution
+        .waitForCombatTurnResolution(targetNet, isTurbo ? 6000 : 12000)
+        .then(ok => {
+          if (ok) turnResolved = true;
+          return ok;
+        });
+
+      // 2. Tap READY screen ("TAP TO THE SCREEN") once with full Human Motor kinematics
+      //    (Log-Normal reaction latency -> 2D Gaussian coordinate -> Cubic Bézier trajectory -> Microswitch hold & tap)
+      const useHumanMotor = this.ctx.template?.humanMotor !== false;
+      const vp = this.page.viewport() || { width: 480, height: 960 };
+      const readyTapX = Math.max(
+        24,
+        Math.min(vp.width - 24, Math.round(vp.width * 0.5 + (useHumanMotor ? sampleGaussian(0, 14) : 0)))
+      );
+      const readyTapY = Math.max(
+        48,
+        Math.min(vp.height - 48, Math.round(vp.height * 0.385 + (useHumanMotor ? sampleGaussian(0, 16) : 0)))
+      );
+
+      // Inspect READY overlay & combat button state before physical actuation
+      const preTapCheck = await this.page.evaluate((targetFps: number) => {
         const cjs = (window as any).createjs;
         if (cjs?.Ticker) {
           cjs.Ticker.framerate = targetFps;
           if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
         }
         if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(2000, false);
+          cjs.Tween.tick(1500, false);
         }
-        const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready');
-        if (readyEl) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(readyEl).trigger('tap');
-          (readyEl as HTMLElement).click();
-        }
-      }, config.TICKER_FPS).catch(() => null);
+        const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start') as HTMLElement | null;
+        const hasVisibleReady = !!(readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none');
+        const atkEl = document.querySelector('.btn-attack-start') as HTMLElement | null;
+        const atkAlreadyReady = !!(
+          atkEl &&
+          atkEl.offsetWidth > 0 &&
+          window.getComputedStyle(atkEl).display !== 'none' &&
+          !atkEl.classList.contains('display-off') &&
+          !atkEl.classList.contains('lock')
+        );
+        return { hasVisibleReady, atkAlreadyReady };
+      }, config.TICKER_FPS).catch(() => ({ hasVisibleReady: false, atkAlreadyReady: false }));
 
-      const combatPromise = this.deps.combatResolution.waitForCombatTurnResolution(targetNet, isTurbo ? 6000 : 12000);
+      if (useHumanMotor && !config.isProduction) {
+        await humanReactionDelay(isTurbo ? 25 : 70, 0.18);
+        await moveMouseSmoothly(this.page, { x: readyTapX, y: readyTapY }).catch(() => null);
+      }
 
-      let attackDispatched = false;
-
-      const atkBtn = await this.page.waitForFunction(() => {
-        const back = document.querySelector('.btn-command-back.display-on') as HTMLElement;
-        if (back && back.offsetWidth > 0 && window.getComputedStyle(back).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(back).trigger('tap');
-          back.click();
-          return false;
-        }
-        const el = document.querySelector('.btn-attack-start') as HTMLElement;
-        if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') return false;
-        const isLocked = el.classList.contains('display-off') || el.classList.contains('lock');
-        return !isLocked;
-      }, { timeout: isTurbo ? 800 : 2500 }).then(() => this.page.$('.btn-attack-start')).catch(() => null);
-
-      if (atkBtn) {
-        await humanizedClick(this.page, atkBtn);
-        await atkBtn.evaluate((el: any) => {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) {
-            $(el).trigger('tap');
-            $(el).trigger('click');
-          }
-          el.click();
-        }).catch(() => null);
-        attackDispatched = true;
-      } else {
-        const autoBtn = await this.page.waitForSelector('.btn-auto, .btn-ability-auto, #btn-auto', { visible: true, timeout: 1000 }).catch(() => null);
-        if (autoBtn) {
-          console.log('[Combat] [tap_ready] Attack button in cooldown; engaging Auto...');
-          await humanizedClick(this.page, autoBtn);
-          attackDispatched = true;
+      if (preTapCheck.hasVisibleReady) {
+        console.log(`[Combat] [tap_ready] Tapping READY screen ("TAP TO THE SCREEN") with human motor at (${readyTapX}, ${readyTapY})...`);
+        await this.page.touchscreen.tap(readyTapX, readyTapY).catch(() => null);
+        if (useHumanMotor && typeof this.page.mouse?.down === 'function' && typeof this.page.mouse?.up === 'function') {
+          await this.page.mouse.down().catch(() => null);
+          await logNormalDelay(isTurbo ? 18 : 42, 0.18);
+          await this.page.mouse.up().catch(() => null);
+        } else {
+          await this.page.mouse.click(readyTapX, readyTapY).catch(() => null);
         }
       }
 
-      if (!attackDispatched) {
-        const vp = this.page.viewport() || { width: 480, height: 960 };
-        const atkX = Math.round(vp.width * 0.75);
-        const atkY = Math.round(vp.height * 0.46);
+      const readyState = await this.page.evaluate((x: number, y: number) => {
+        const readyEl = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start') as HTMLElement | null;
+        const hasVisibleReady = !!(readyEl && readyEl.offsetParent !== null && window.getComputedStyle(readyEl).display !== 'none');
+        const targetEl =
+          readyEl ||
+          (typeof document.elementFromPoint === 'function' ? (document.elementFromPoint(x, y) as HTMLElement | null) : null) ||
+          (document.querySelector('canvas, .cnt-raid') as HTMLElement | null);
+        if (targetEl) {
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) $(targetEl).trigger('tap');
+          if (typeof targetEl.click === 'function') targetEl.click();
+        }
+        const atkEl = document.querySelector('.btn-attack-start') as HTMLElement | null;
+        const atkAlreadyReady = !!(
+          atkEl &&
+          atkEl.offsetWidth > 0 &&
+          window.getComputedStyle(atkEl).display !== 'none' &&
+          !atkEl.classList.contains('display-off') &&
+          !atkEl.classList.contains('lock')
+        );
+        return { hasVisibleReady: hasVisibleReady || Boolean(readyEl), atkAlreadyReady };
+      }, readyTapX, readyTapY).catch(() => preTapCheck);
+
+      // 3. Grace window: check if tapping READY automatically triggered the attack / quick summon
+      const autoGraceMs = (preTapCheck.hasVisibleReady || readyState.hasVisibleReady) ? (isTurbo ? 350 : 450) : 40;
+      const graceStart = Date.now();
+      while (!turnResolved && Date.now() - graceStart < autoGraceMs) {
+        if (this.ctx.state.stopRequested) return false;
+        await new Promise(r => setTimeout(r, 25));
+      }
+
+      // 4. Confirm the attack (if not triggered by READY tap, click Attack / Quick Summon button manually after fully loaded screen)
+      let manualActionDispatched = false;
+      if (!turnResolved) {
+        if (isQuickSummonTarget) {
+          const qsBtn = await this.page
+            .waitForSelector('.btn-quick-summon.qs-ready, .btn-quick-summon, #js-btn-quick-summon', {
+              visible: true,
+              timeout: isTurbo ? 800 : 2000
+            })
+            .catch(() => null);
+          if (qsBtn && !turnResolved) {
+            await humanizedClick(this.page, qsBtn).catch(() => null);
+            await qsBtn.evaluate((el: any) => {
+              const win = typeof window !== 'undefined' ? (window as any) : (globalThis as any);
+              const $ = win?.$ || win?.Zepto;
+              if ($) $(el).trigger('tap');
+              if (typeof el.click === 'function') el.click();
+            }).catch(() => null);
+            manualActionDispatched = true;
+          }
+        } else {
+          // Wait for screen to be fully loaded (.prt-ready dismissed and .btn-attack-start interactable) unless auto-attack already started
+          const loadWaitStart = Date.now();
+          const loadTimeoutMs = isTurbo ? 1200 : 3000;
+          let atkReady = readyState.atkAlreadyReady;
+
+          while (!turnResolved && !atkReady && Date.now() - loadWaitStart < loadTimeoutMs) {
+            if (this.ctx.state.stopRequested) return false;
+            const loadCheck = await this.page.evaluate(() => {
+              const cjs = (window as any).createjs;
+              if (cjs?.Tween?.tick) cjs.Tween.tick(1500, false);
+
+              const back = document.querySelector('.btn-command-back.display-on') as HTMLElement | null;
+              if (back && back.offsetWidth > 0 && window.getComputedStyle(back).display !== 'none') {
+                const $ = (window as any).$ || (window as any).Zepto;
+                if ($) $(back).trigger('tap');
+                back.click();
+                return { atkReady: false, autoAttacking: false };
+              }
+
+              const stage = (window as any).stage;
+              const gStatus = stage?.gGameStatus;
+              const autoAttacking = Boolean(gStatus?.attacking === 1 || gStatus?.attacking === true || gStatus?.turn_ing === 1);
+
+              const activeReady = document.querySelector('.prt-ready, .cnt-ready, .prt-popup-ready, #ready, .prt-start') as HTMLElement | null;
+              const readyStillVisible = !!(activeReady && activeReady.offsetParent !== null && window.getComputedStyle(activeReady).display !== 'none');
+
+              const el = document.querySelector('.btn-attack-start') as HTMLElement | null;
+              if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') {
+                return { atkReady: false, autoAttacking };
+              }
+              const isLocked = el.classList.contains('display-off') || el.classList.contains('lock');
+              return { atkReady: !isLocked && !readyStillVisible, autoAttacking };
+            }).catch(() => ({ atkReady: false, autoAttacking: false }));
+
+            if (loadCheck.autoAttacking) {
+              break;
+            }
+            if (loadCheck.atkReady) {
+              atkReady = true;
+              break;
+            }
+            await new Promise(r => setTimeout(r, 35));
+          }
+
+          if (!turnResolved && atkReady) {
+            const atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start').catch(() => null);
+            if (atkBtn && !turnResolved) {
+              console.log('[Combat] [tap_ready] Auto-attack not active after full screen load; clicking Attack button manually...');
+              await humanizedClick(this.page, atkBtn);
+              await atkBtn.evaluate((el: any) => {
+                const win = typeof window !== 'undefined' ? (window as any) : (globalThis as any);
+                const $ = win?.$ || win?.Zepto;
+                if ($) {
+                  $(el).trigger('tap');
+                  $(el).trigger('click');
+                }
+                if (typeof el.click === 'function') el.click();
+              }).catch(() => null);
+              manualActionDispatched = true;
+            }
+          } else if (!turnResolved) {
+            const autoBtn = await this.page.waitForSelector('.btn-auto, .btn-ability-auto, #btn-auto', { visible: true, timeout: 800 }).catch(() => null);
+            if (autoBtn && !turnResolved) {
+              console.log('[Combat] [tap_ready] Attack button in cooldown; engaging Auto...');
+              await humanizedClick(this.page, autoBtn);
+              manualActionDispatched = true;
+            }
+          }
+        }
+      }
+
+      if (!turnResolved && !manualActionDispatched) {
+        const atkX = Math.round(vp.width * 0.75 + (useHumanMotor ? sampleGaussian(0, 8) : 0));
+        const atkY = Math.round(vp.height * 0.46 + (useHumanMotor ? sampleGaussian(0, 8) : 0));
+        if (useHumanMotor && !config.isProduction) {
+          await moveMouseSmoothly(this.page, { x: atkX, y: atkY }).catch(() => null);
+          await logNormalDelay(isTurbo ? 15 : 35, 0.18);
+        }
         await this.page.touchscreen.tap(atkX, atkY).catch(() => null);
         await this.page.mouse.click(atkX, atkY).catch(() => null);
       }
@@ -1701,12 +2509,18 @@ export class CombatExecutionService {
       const honorsGained = this.ctx.state.currentScore > initialHonors;
 
       if (turnOutcome || serverTurnAdvanced || honorsGained) {
+        if (!isQuickSummonTarget) {
+          (this.ctx.state as any).lastTapReadyAttackConfirmedAt = Date.now();
+        }
         await this.deps.combatResolution.syncCurrentHonors();
         console.log(`[Combat] [tap_ready] Turn resolved successfully on attempt ${attempt}. Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
         return true;
       }
 
       if (await this.deps.combatResolution.isBattleEnded()) {
+        if (!isQuickSummonTarget) {
+          (this.ctx.state as any).lastTapReadyAttackConfirmedAt = Date.now();
+        }
         await this.deps.combatResolution.syncCurrentHonors();
         return true;
       }
@@ -1723,13 +2537,37 @@ export class CombatExecutionService {
    */
   public async handleQuickCall(step: WorkflowStep): Promise<boolean> {
     (this.ctx.state as any).lastAttackReloadedAt = 0;
+    const stepStart = Date.now();
+    const runNum = (this.ctx.state.totalCompletedRuns || 0) + 1;
+    const stepNum = this.ctx.state.activeStepNum || 1;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     await this.deps.combatResolution.dismissCombatDrawersAndPopups();
     await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 600 : 3000);
-    if (await this.deps.combatResolution.isBattleEnded()) return true;
+    const preState = await this.stepMonitor.captureCombatSnapshot();
 
-    const qBtn = await this.page.waitForSelector('.btn-quick-summon, #js-btn-quick-summon', { visible: true, timeout: 2500 }).catch(() => null);
-    if (qBtn) {
+    if (await this.deps.combatResolution.isBattleEnded()) {
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        status: 'SKIPPED_BATTLE_ENDED',
+        verified: true,
+        attempts: 1,
+        durationMs: Date.now() - stepStart,
+        preState,
+        networkConfirmed: false,
+        stateMutated: false,
+        reason: 'Battle ended prior to Quick Summon'
+      });
+      return true;
+    }
+
+    const maxAttempts = step.retries || (step.ensureCast ? 3 : 2);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (this.ctx.state.stopRequested) return false;
+      const qBtn = await this.page.waitForSelector('.btn-quick-summon, #js-btn-quick-summon', { visible: true, timeout: 2500 }).catch(() => null);
+      if (!qBtn) break;
+
       const isUnavailable = await qBtn.evaluate((el: any) => {
         return el.classList.contains('btn-summon-unavailable') ||
                el.classList.contains('off') ||
@@ -1740,6 +2578,19 @@ export class CombatExecutionService {
 
       if (isUnavailable) {
         console.log('[Workflow] Quick Summon button disabled or already invoked this turn. Continuing...');
+        this.stepMonitor.recordStepReceipt({
+          runNumber: runNum,
+          stepNumber: stepNum,
+          step,
+          status: attempt > 1 ? 'CONFIRMED_STATE_MUTATION' : 'SKIPPED_COOLDOWN',
+          verified: true,
+          attempts: attempt,
+          durationMs: Date.now() - stepStart,
+          preState,
+          networkConfirmed: false,
+          stateMutated: attempt > 1,
+          reason: attempt > 1 ? 'Quick Summon button transitioned to used state' : 'Quick Summon already on cooldown'
+        });
         return true;
       }
 
@@ -1751,10 +2602,20 @@ export class CombatExecutionService {
         el.click();
       }).catch(() => null);
       const netRes = await netPromise;
+
+      if (netRes.isPopupLockout && attempt < maxAttempts) {
+        console.warn(`[Enforcer] 🔄 Server lockout popup on Quick Summon (attempt ${attempt}/${maxAttempts}); dismissing & retrying...`);
+        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+        await new Promise(r => setTimeout(r, isTurbo ? 100 : 180));
+        continue;
+      }
+
+      let qDmg = 0;
+      let qHonors = 0;
       if (netRes.json) {
-        const qDmg = CombatResolutionService.extractTurnDamage(netRes.json);
+        qDmg = CombatResolutionService.extractTurnDamage(netRes.json);
         if (qDmg > 0) {
-          const qHonors = Math.floor(qDmg / 100);
+          qHonors = Math.floor(qDmg / 100);
           this.ctx.state.currentScore += qHonors;
         }
       }
@@ -1762,20 +2623,46 @@ export class CombatExecutionService {
       await this.page.evaluate(() => {
         const cjs = (window as any).createjs;
         if (cjs?.Tween?.tick) {
-          cjs.Tween.tick(3000, false);
-        }
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
+          cjs.Tween.tick(2000, false);
         }
       }).catch(() => null);
 
       await this.deps.combatResolution.waitForCombatInputReady(isTurbo ? 400 : 2500);
+      const postState = await this.stepMonitor.captureCombatSnapshot();
+
+      this.stepMonitor.recordStepReceipt({
+        runNumber: runNum,
+        stepNumber: stepNum,
+        step,
+        status: netRes.resolved ? 'CONFIRMED_NETWORK' : 'CONFIRMED_STATE_MUTATION',
+        verified: true,
+        attempts: attempt,
+        durationMs: Date.now() - stepStart,
+        damageDealt: qDmg,
+        honorsGained: qHonors,
+        preState,
+        postState,
+        networkConfirmed: netRes.resolved,
+        stateMutated: qDmg > 0 || postState.bossHp < preState.bossHp
+      });
+
       await this.deps.combatResolution.getAndLogEnemyHp('Quick Call');
       return true;
     }
+
+    this.stepMonitor.recordStepReceipt({
+      runNumber: runNum,
+      stepNumber: stepNum,
+      step,
+      status: step.optional ? 'SKIPPED_OPTIONAL' : 'FAILED_TIMEOUT',
+      verified: Boolean(step.optional),
+      attempts: maxAttempts,
+      durationMs: Date.now() - stepStart,
+      preState,
+      networkConfirmed: false,
+      stateMutated: false,
+      reason: 'Quick Summon button not found or unconfirmed'
+    });
     return step.optional ? true : false;
   }
 
@@ -1786,6 +2673,28 @@ export class CombatExecutionService {
   public async handleAttack(step: WorkflowStep): Promise<boolean> {
     (this.ctx.state as any).lastAttackReloadedAt = 0;
     const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
+
+    // If the immediately preceding tap_ready step already confirmed the attack for this turn,
+    // verify and proceed immediately without dispatching a duplicate second attack.
+    const lastTapReadyConfirmedAt = Number((this.ctx.state as any).lastTapReadyAttackConfirmedAt || 0);
+    (this.ctx.state as any).lastTapReadyAttackConfirmedAt = 0;
+    if (lastTapReadyConfirmedAt > 0 && Date.now() - lastTapReadyConfirmedAt < 5000) {
+      console.log(`[Combat] ✅ Attack already confirmed by READY screen step. Proceeding immediately to next step...`);
+      this.stepMonitor.recordStepReceipt({
+        runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+        stepNumber: this.ctx.state.activeStepNum || 1,
+        step,
+        status: 'CONFIRMED_NETWORK',
+        verified: true,
+        attempts: 1,
+        durationMs: 0,
+        honorsGained: this.ctx.state.currentScore,
+        networkConfirmed: true,
+        stateMutated: true,
+        reason: 'Attack confirmed during READY tap sequence'
+      });
+      return true;
+    }
 
     // HonorGuard: Suppress attack immediately if targetScore has already been met
     if (this.ctx.template.honorGuard !== false && this.ctx.template.targetScore && this.ctx.state.currentScore >= this.ctx.template.targetScore) {
@@ -1803,6 +2712,34 @@ export class CombatExecutionService {
         console.log(`[Combat] Boss HP is at or below cutoff (${enemy.hpPct.toFixed(1)}% <= ${exitHpCutoff}%). Honors will not count past 10% with current setup. Suppressing attack.`);
         return true;
       }
+    }
+
+    // Wait for any queued skills in .prt-ability-rail or active attack-ability animations (e.g. C1S2 Blitz Raid) to finish draining before attacking
+    const queueDrainStart = Date.now();
+    const queueDrainTimeout = isTurbo ? 2500 : 6000;
+    while (Date.now() - queueDrainStart < queueDrainTimeout) {
+      if (this.ctx.state.stopRequested) return false;
+      const queueDrained = await this.page.evaluate(() => {
+        const cjs = (window as any).createjs;
+        if (cjs?.Tween?.tick) {
+          cjs.Tween.tick(1500, false);
+        }
+        const stage = (window as any).stage;
+        const gStatus = stage?.gGameStatus;
+        const pJsn = stage?.pJsnData;
+        const isDefeated = gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish;
+        if (isDefeated) return true;
+        const railItems = document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]');
+        const queueArr = Array.isArray(gStatus?.ability_queue)
+          ? gStatus.ability_queue
+          : (Array.isArray(stage?.gAbilityQueue) ? stage.gAbilityQueue : []);
+        const railCount = Math.max(railItems ? railItems.length : 0, queueArr.length);
+        const isBusy = Boolean(gStatus?.lock || gStatus?.btn_lock || gStatus?.attacking || gStatus?.ability_turn || railCount > 0);
+        return !isBusy;
+      }).catch(() => true);
+
+      if (queueDrained) break;
+      await new Promise(r => setTimeout(r, 50));
     }
 
     const targetNet = step.waitForNetwork || 'normal_attack_result.json';
@@ -1844,18 +2781,26 @@ export class CombatExecutionService {
         return true;
       }
 
-      let atkBtn = await this.page.waitForFunction(() => {
+      let atkBtn = await this.page.waitForFunction((caOff: boolean) => {
         const back = document.querySelector('.btn-command-back.display-on, .btn-command-back') as HTMLElement;
         if (back && back.offsetParent !== null && window.getComputedStyle(back).display !== 'none') {
           const $ = (window as any).$ || (window as any).Zepto;
           if ($) $(back).trigger('tap');
-          back.click();
+          else back.click();
+        }
+        if (caOff) {
+          const caOnBtn = document.querySelector('.btn-lock.lock0') as HTMLElement | null;
+          if (caOnBtn && caOnBtn.offsetParent !== null && window.getComputedStyle(caOnBtn).display !== 'none') {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(caOnBtn).trigger('tap');
+            else caOnBtn.click();
+          }
         }
         const el = document.querySelector('.btn-attack-start') as HTMLElement;
         if (!el || el.offsetWidth === 0 || window.getComputedStyle(el).display === 'none') return false;
         const isReady = el.classList.contains('display-on') && !el.classList.contains('lock') && !el.classList.contains('display-off');
         return isReady;
-      }, { timeout: isTurbo ? 1000 : 2200 }).then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
+      }, { timeout: isTurbo ? 1000 : 2200 }, this.ctx.template.chargeAttack === false || this.ctx.template.chargeAttack === 'off' || this.ctx.template.chargeAttack === 'hold').then(() => this.page.$('.btn-attack-start.display-on, .btn-attack-start')).catch(() => null);
 
       if (!atkBtn) {
         if (await this.deps.combatResolution.isBattleEnded()) {
@@ -2020,6 +2965,19 @@ export class CombatExecutionService {
         }
         await this.deps.combatResolution.syncCurrentHonors();
         console.log(`[Combat] Attack registered successfully (attempt ${attempt}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        this.stepMonitor.recordStepReceipt({
+          runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+          stepNumber: this.ctx.state.activeStepNum || 1,
+          step,
+          status: resolved ? 'CONFIRMED_NETWORK' : 'CONFIRMED_STATE_MUTATION',
+          verified: true,
+          attempts: attempt,
+          durationMs: 0,
+          honorsGained: Math.max(0, this.ctx.state.currentScore - initialHonors),
+          networkConfirmed: resolved,
+          stateMutated: serverTurnAdvanced || serverHonorsIncreased || clientState.bossHpDropped,
+          recastTransition: `T${baselineTurn}->T${this.ctx.state.currentTurn}`
+        });
         await this.deps.combatResolution.getAndLogEnemyHp(`Turn ${this.ctx.state.currentTurn} Attack`);
         return true;
       }
@@ -2027,6 +2985,19 @@ export class CombatExecutionService {
       if (await this.deps.combatResolution.isBattleEnded()) {
         await this.deps.combatResolution.syncCurrentHonors();
         console.log(`[Combat] Battle concluded during attack attempt. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        this.stepMonitor.recordStepReceipt({
+          runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+          stepNumber: this.ctx.state.activeStepNum || 1,
+          step,
+          status: 'SKIPPED_BATTLE_ENDED',
+          verified: true,
+          attempts: attempt,
+          durationMs: 0,
+          honorsGained: Math.max(0, this.ctx.state.currentScore - initialHonors),
+          networkConfirmed: false,
+          stateMutated: true,
+          reason: 'Battle concluded during attack attempt'
+        });
         return true;
       }
 
@@ -2035,6 +3006,19 @@ export class CombatExecutionService {
         await this.executeFastAttackSyncReload(isTurbo);
         (this.ctx.state as any).lastAttackReloadedAt = Date.now();
         console.log(`[Combat] Attack synced via reload (attempt ${attempt}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        this.stepMonitor.recordStepReceipt({
+          runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+          stepNumber: this.ctx.state.activeStepNum || 1,
+          step,
+          status: 'CONFIRMED_STATE_MUTATION',
+          verified: true,
+          attempts: attempt,
+          durationMs: 0,
+          honorsGained: Math.max(0, this.ctx.state.currentScore - initialHonors),
+          networkConfirmed: false,
+          stateMutated: true,
+          recastTransition: `T${baselineTurn}->T${this.ctx.state.currentTurn}`
+        });
         return true;
       }
 
@@ -2046,6 +3030,19 @@ export class CombatExecutionService {
         await this.deps.combatResolution.syncCurrentHonors();
         (this.ctx.state as any).lastAttackReloadedAt = Date.now();
         console.log(`[Combat] Battle concluded upon post-attack reload check. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        this.stepMonitor.recordStepReceipt({
+          runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+          stepNumber: this.ctx.state.activeStepNum || 1,
+          step,
+          status: 'CONFIRMED_STATE_MUTATION',
+          verified: true,
+          attempts: attempt,
+          durationMs: 0,
+          honorsGained: Math.max(0, this.ctx.state.currentScore - initialHonors),
+          networkConfirmed: false,
+          stateMutated: true,
+          reason: 'Battle concluded upon post-attack reload check'
+        });
         return true;
       }
 
@@ -2081,12 +3078,37 @@ export class CombatExecutionService {
       if (confirmedAfterReload) {
         (this.ctx.state as any).lastAttackReloadedAt = Date.now();
         console.log(`[Combat] Post-reload verification confirmed attack already executed (Turn ${baselineTurn} -> ${this.ctx.state.currentTurn}). Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        this.stepMonitor.recordStepReceipt({
+          runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+          stepNumber: this.ctx.state.activeStepNum || 1,
+          step,
+          status: 'CONFIRMED_STATE_MUTATION',
+          verified: true,
+          attempts: attempt,
+          durationMs: 0,
+          honorsGained: Math.max(0, this.ctx.state.currentScore - initialHonors),
+          networkConfirmed: false,
+          stateMutated: true,
+          recastTransition: `T${baselineTurn}->T${this.ctx.state.currentTurn}`
+        });
         return true;
       }
 
       console.log(`[Combat] Post-reload check: attack not yet executed (Turn ${this.ctx.state.currentTurn || baselineTurn}). Retrying immediately on refreshed state...`);
     }
 
+    this.stepMonitor.recordStepReceipt({
+      runNumber: (this.ctx.state.totalCompletedRuns || 0) + 1,
+      stepNumber: this.ctx.state.activeStepNum || 1,
+      step,
+      status: 'FAILED_TIMEOUT',
+      verified: false,
+      attempts: maxAttempts,
+      durationMs: 0,
+      networkConfirmed: false,
+      stateMutated: false,
+      reason: 'All 5 attack dispatch & reload verification attempts failed'
+    });
     return false;
   }
 
@@ -2175,7 +3197,12 @@ export class CombatExecutionService {
     if (!isTurbo) await logNormalDelay(100, 0.1);
 
     // Wait out server-side Charge Attack (Ougi) lockout window before executing next turn's skills/summons
-    if (this.ctx.state.lastAttackLockoutExpires > Date.now()) {
+    // Only wait if there are subsequent combat actions in the pipeline (skip wait if reload is followed only by confirm_result)
+    const remainingSteps = (this.ctx.template?.steps || []).slice(this.ctx.state.activeStepNum || 0);
+    const hasSubsequentCombatSteps = remainingSteps.some(s =>
+      ['skill', 'summon', 'quick_call', 'attack', 'tap_ready', 'repeat', 'smart_full_auto'].includes((s.code || s.action) as string)
+    );
+    if (hasSubsequentCombatSteps && this.ctx.state.lastAttackLockoutExpires > Date.now()) {
       const waitRemainingMs = this.ctx.state.lastAttackLockoutExpires - Date.now();
       if (waitRemainingMs > 400) {
         console.log(`[Combat] ⏳ Awaiting post-Ougi server lockout (${(waitRemainingMs / 1000).toFixed(1)}s remaining)...`);

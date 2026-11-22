@@ -14,6 +14,10 @@
   "autoBerry": true,
   "defaultRuns": 500,
   "speedProfile": "fast",
+  "minHpPct": 25,
+  "maxHpPct": 100,
+  "minPlayers": 1,
+  "maxPlayers": 8,
   "steps": [
     {
       "code": "wait_element",

@@ -197,6 +197,52 @@ if (reParsedRoutine.steps.length !== parsedRoutine.steps.length) {
 }
 console.log('  ✅ [PASS] Routine DSL round-trip serialization retained identical structure');
 
+console.log('\n--- 4. Testing Exo Diablo Lvl 125 Natural Shorthand DSL Compilation ---');
+const exoDiabloDsl = `
+url https://game.granbluefantasy.jp/#quest/supporter/919221/3
+pick zeus only
+
+step
+wait full load
+summon 1
+summon 2
+c4 s1
+c4 s2
+c4 s3
+c3 s2
+c2 s1 target c1
+c1 s4
+c1 s3
+c1 s1
+c1 s2 (its attacking, wait a moment)
+c1 s2 (its attacking, wait a moment)
+c1 s2 (its attacking, wait a moment)
+attack
+reload
+rerun
+`;
+
+const parsedExo = TemplateParser.parseShorthandDsl(exoDiabloDsl, 'exo-diablo-125');
+if (parsedExo.questUrl !== 'https://game.granbluefantasy.jp/#quest/supporter/919221/3') {
+  throw new Error(`Expected Exo Diablo questUrl, got ${parsedExo.questUrl}`);
+}
+if (!parsedExo.supporterPriority || parsedExo.supporterPriority[0] !== 'Zeus' || parsedExo.supporterPriority.length !== 1) {
+  throw new Error(`Expected supporterPriority ['Zeus'], got ${JSON.stringify(parsedExo.supporterPriority)}`);
+}
+if (parsedExo.steps.length !== 17) {
+  throw new Error(`Expected 17 steps for exo-diablo-125, got ${parsedExo.steps.length}`);
+}
+if (parsedExo.steps[7].character !== 2 || parsedExo.steps[7].skill !== 1 || parsedExo.steps[7].targetCharacter !== 1) {
+  throw new Error(`Expected step 8 to be c2 s1 target c1, got ${JSON.stringify(parsedExo.steps[7])}`);
+}
+for (const idx of [11, 12, 13]) {
+  const s = parsedExo.steps[idx];
+  if (s.character !== 1 || s.skill !== 2 || s.delayAfterMs !== 1500) {
+    throw new Error(`Expected step ${idx + 1} to be c1 s2 with delayAfterMs=1500, got ${JSON.stringify(s)}`);
+  }
+}
+console.log('  ✅ [PASS] Exo Diablo 125 natural shorthand DSL compiled with 17 steps, Zeus-only supporter, targeted skill, and attack-wait delays');
+
 console.log('\n========================================================================');
 console.log('     🎉 ALL ADVANCED DSL COMPILER & ROUND-TRIP TESTS PASSED (100%)       ');
 console.log('========================================================================\n');

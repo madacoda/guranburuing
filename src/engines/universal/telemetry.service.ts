@@ -82,6 +82,7 @@ export class UniversalTelemetryService {
           url.includes('start.json') ||
           url.includes('raid_battle.json')
         ) {
+          this.ctx.state.networkSequenceId = (this.ctx.state.networkSequenceId || 0) + 1;
           const json = await res.json().catch(() => null);
           if (json) {
             if (json.raid_id) {
@@ -122,6 +123,7 @@ export class UniversalTelemetryService {
 
         // 2. Normal Attack Result
         if (url.includes('normal_attack_result.json')) {
+          this.ctx.state.networkSequenceId = (this.ctx.state.networkSequenceId || 0) + 1;
           this.ctx.state.lastAttackLockoutExpires = Date.now() + 2400;
           const json = await res.json().catch(() => null);
           if (json) {
@@ -192,6 +194,7 @@ export class UniversalTelemetryService {
 
         // 3. Ability Result
         if (url.includes('ability_result.json')) {
+          this.ctx.state.networkSequenceId = (this.ctx.state.networkSequenceId || 0) + 1;
           const json = await res.json().catch(() => null);
           if (json) {
             const hasAttackCmd = Array.isArray(json.scenario) && json.scenario.some((s: any) => s && s.cmd === 'attack');
@@ -228,6 +231,7 @@ export class UniversalTelemetryService {
 
         // 4. Summon Result
         if (url.includes('summon_result.json')) {
+          this.ctx.state.networkSequenceId = (this.ctx.state.networkSequenceId || 0) + 1;
           const json = await res.json().catch(() => null);
           if (json) {
             if (this.callbacks.isSoloQuest()) {

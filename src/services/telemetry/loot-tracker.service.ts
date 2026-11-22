@@ -430,6 +430,12 @@ export class LootTrackerService implements ILootTrackerService {
           } catch {
             return outcome;
           }
+        } else if (!rustBridge.isActive() && data instanceof Uint8Array) {
+          try {
+            parsed = JSON.parse(new TextDecoder().decode(data));
+          } catch {
+            return outcome;
+          }
         } else {
           return outcome;
         }

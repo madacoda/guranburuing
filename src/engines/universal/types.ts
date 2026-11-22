@@ -1,7 +1,12 @@
 // src/engines/universal/types.ts
 import { Page } from 'puppeteer-core';
 import { SentinelWatchdog } from '../../sentinel-watchdog.js';
-import { WorkflowTemplate, WorkflowRunResult } from '../../types/workflow.types.js';
+import {
+  WorkflowTemplate,
+  WorkflowRunResult,
+  StepExecutionReceipt,
+  RunExecutionAuditReport
+} from '../../types/workflow.types.js';
 import { AlertRelay } from '../../alert-relay.js';
 import { DropLogger } from '../drop-logger.js';
 
@@ -37,6 +42,14 @@ export interface UniversalWorkflowState {
   lastAttackLockoutExpires: number;
   lastProcessedAttackKey?: string;
   isClaimingPending?: boolean;
+  networkSequenceId?: number;
+  activeStepNum?: number;
+  lastStepReceipt?: StepExecutionReceipt | null;
+  currentRunStepReceipts?: StepExecutionReceipt[];
+  lastRunAuditReport?: RunExecutionAuditReport | null;
+  totalPerfectRuns?: number;
+  totalStepRetries?: number;
+  totalFailedSteps?: number;
 }
 
 export interface UniversalContext {

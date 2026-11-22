@@ -1,4 +1,17 @@
 // src/types/workflow.types.ts
+import {
+  StepExecutionOutcomeStatus,
+  StepStateSnapshot,
+  StepExecutionReceipt,
+  RunExecutionAuditReport
+} from '../domain/combat/combat.types.js';
+
+export type {
+  StepExecutionOutcomeStatus,
+  StepStateSnapshot,
+  StepExecutionReceipt,
+  RunExecutionAuditReport
+};
 
 export type WorkflowActionType =
   | 'start_quest'
@@ -129,6 +142,7 @@ export interface WorkflowTemplate {
   targetScore?: number;     // Default score to exit raid (e.g. 1480000 for Blue Chest)
   waves?: number;           // Total waves/battles in quest (e.g. 2 for Shiny Slime Search, 3 for Angel Halo)
   isSolo?: boolean;         // Mark quest as solo (Arcarum, Replicard, Fate Story). Automatically bypasses honorGuard and enables enemy HP tracking.
+  chargeAttack?: boolean | 'on' | 'off' | 'auto' | 'hold'; // Charge Attack (Ougi) toggle at combat start: 'off'/false = Hold (.lock1), 'on'/true = Auto (.lock0)
   honorGuard?: boolean;     // Enable/disable extra attack turns after combat pipeline if targetScore not reached (default: true)
   minBatchClaim?: number;   // Min raids before checking pending battles (default: 3)
   maxBatchClaim?: number;   // Max raids before checking pending battles (default: 5)
@@ -184,6 +198,8 @@ export interface WorkflowRunResult {
   itemsGained?: number;
   honors?: number;
   message: string;
+  perfectExecution?: boolean;
+  stepAudit?: RunExecutionAuditReport;
 }
 
 export interface WorkflowSummary {
@@ -193,4 +209,7 @@ export interface WorkflowSummary {
   totalDurationMs: number;
   averageDurationSec: number;
   logPath: string;
+  totalPerfectRuns?: number;
+  totalStepRetries?: number;
+  totalFailedSteps?: number;
 }

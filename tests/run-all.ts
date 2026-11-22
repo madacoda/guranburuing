@@ -314,6 +314,16 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Revans Series All-Element Readiness & Substitute Engine Tests',
     file: 'tests/test-revans-readiness.ts',
     description: 'Verify 6-raid Revans catalog, hard gates, substitute penalty scoring, and raid-by-raid CLI evaluation'
+  },
+  {
+    name: 'Step Execution Monitor & Closed-Loop Cast Enforcer Tests',
+    file: 'tests/test-step-monitor-and-enforcer.ts',
+    description: 'Verify pre/post combat snapshots, lockout popup retry recovery, in-game recast state mutation proof, requiresPick target ordering, and RunExecutionAuditReport'
+  },
+  {
+    name: 'Guild War Dark Meat Farm (Hades) Workflow & Fallback Tests',
+    file: 'tests/test-gw-meat-dark.ts',
+    description: 'Verify gw-meat-dark template, Quest 980651, Hades supporter, natural DSL compilation, READY auto-attack toggle, and manual attack fallback'
   }
 ];
 

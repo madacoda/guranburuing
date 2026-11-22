@@ -18,10 +18,11 @@ function serializeStep(step: WorkflowStep, indent = ''): string {
       return `${indent}reload`;
     case 'skill': {
       const ensureStr = step.ensureCast ? ' (make sure clicked or casted)' : '';
+      const waitAttackStr = !step.ensureCast && step.delayAfterMs && step.delayAfterMs >= 1000 ? ' (its attacking, wait a moment)' : '';
       if (step.targetCharacter) {
-        return `${indent}c${step.character}s${step.skill} on ${step.targetCharacter}${ensureStr}`;
+        return `${indent}c${step.character}s${step.skill} on ${step.targetCharacter}${ensureStr}${waitAttackStr}`;
       }
-      return `${indent}c${step.character}s${step.skill}${ensureStr}`;
+      return `${indent}c${step.character}s${step.skill}${ensureStr}${waitAttackStr}`;
     }
     case 'summon':
       if (step.target && isNaN(Number(step.target))) {
@@ -49,6 +50,8 @@ function serializeStep(step: WorkflowStep, indent = ''): string {
       return `${indent}wait_network ${step.waitForNetwork || 'normal_attack_result.json'}`;
     case 'wait_element':
       return `${indent}wait_element ${step.target || '.btn-attack-start'}`;
+    case 'wait_full_load':
+      return `${indent}wait full load`;
     case 'wait_wave':
     case 'wait_for_wave':
       return `${indent}wait_wave ${step.wave || step.waitForWave || 2}`;

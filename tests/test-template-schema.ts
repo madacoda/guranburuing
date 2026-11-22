@@ -29,7 +29,8 @@ const recognizedActionCodes = new Set([
   'backup_request', 'exit_if_score', 'skip_story_scene', 'pro_skip_favorites',
   'dismiss_popups', 'loop_while', 'loop_until', 'do_until_finish',
   'run_daily_target', 'select_supporter', 'condition', 'auto_fate_episode',
-  'log_enemy_hp', 'exit_if_dead', 'exit_if_hp', 'wait_wave', 'wait_for_wave'
+  'log_enemy_hp', 'exit_if_dead', 'exit_if_hp', 'wait_wave', 'wait_for_wave',
+  'wait_full_load'
 ]);
 
 function verifyStepActions(steps: any[], fileName: string) {

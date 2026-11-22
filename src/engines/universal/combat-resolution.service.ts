@@ -152,18 +152,16 @@ export class CombatResolutionService {
         const pJsn = stage?.pJsnData;
 
         // 1. Explicit victory/defeat flags
-        if (gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish) {
+        if (gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish || pJsn?.is_defeat) {
           return true;
         }
 
-        // 1b. Party wipe check: if all player characters (frontline + sub) are at 0 HP
-        const rawPlayers = gStatus?.player?.param || pJsn?.player?.param;
-        const players = Array.isArray(rawPlayers) ? rawPlayers : (rawPlayers ? Object.values(rawPlayers) : []);
-        if (players.length > 0) {
-          const anyPlayerAlive = players.some((p: any) => p && Number(p.hp) > 0 && p.alive !== 0);
-          if (!anyPlayerAlive) {
-            return true;
-          }
+        // 1b. Defeat / revival popup check when party is wiped
+        const hasDefeatPopup = Array.from(document.querySelectorAll('.pop-revival, .btn-revival, .btn-retire')).some(
+          el => (el as HTMLElement).offsetParent !== null && window.getComputedStyle(el).display !== 'none'
+        );
+        if (hasDefeatPopup) {
+          return true;
         }
 
         // 2. Multi-wave awareness:
@@ -331,6 +329,13 @@ export class CombatResolutionService {
     const pollInterval = isTurbo ? (config.isProduction ? 35 : 20) : 100;
     const isManual = this.isManualWorkflow();
     const isSolo = this.isSoloQuest();
+    const caPref = this.ctx.template?.chargeAttack;
+    const caMode: 'off' | 'on' | 'preserve' =
+      caPref === false || caPref === 'off' || caPref === 'hold'
+        ? 'off'
+        : caPref === true || caPref === 'on' || caPref === 'auto'
+        ? 'on'
+        : 'preserve';
     const start = Date.now();
 
     while (Date.now() - start < effectiveTimeout) {
@@ -341,7 +346,7 @@ export class CombatResolutionService {
         await this.cancelFullAutoAndActionQueue();
       }
 
-      const isReady = await this.page.evaluate((manual: boolean, solo: boolean, targetFps: number) => {
+      const isReady = await this.page.evaluate((manual: boolean, solo: boolean, targetFps: number, chargeAttackMode: 'off' | 'on' | 'preserve') => {
         const cjs = (window as any).createjs;
         if (cjs?.Ticker) {
           cjs.Ticker.framerate = targetFps;
@@ -371,12 +376,22 @@ export class CombatResolutionService {
           }
         }
 
-        // Ensure Charge Attack is set to Auto/ON (.lock0) rather than Hold/OFF (.lock1)
-        const lockBtn = document.querySelector('.btn-lock.lock1') as HTMLElement;
-        if (lockBtn && lockBtn.offsetParent !== null) {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(lockBtn).trigger('tap');
-          lockBtn.click();
+        // Configure Charge Attack (Ougi) toggle according to template preference:
+        // .btn-lock.lock0 = C.A. Auto (Ougi ON), .btn-lock.lock1 = C.A. Hold (Ougi OFF)
+        if (chargeAttackMode === 'off') {
+          const caOnBtn = document.querySelector('.btn-lock.lock0') as HTMLElement | null;
+          if (caOnBtn && caOnBtn.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(caOnBtn).trigger('tap');
+            else caOnBtn.click();
+          }
+        } else if (chargeAttackMode === 'on') {
+          const caOffBtn = document.querySelector('.btn-lock.lock1') as HTMLElement | null;
+          if (caOffBtn && caOffBtn.offsetParent !== null) {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(caOffBtn).trigger('tap');
+            else caOffBtn.click();
+          }
         }
 
         // 1. Verify stage data has populated real boss information
@@ -411,7 +426,7 @@ export class CombatResolutionService {
         const isLocked = gStatus ? (Boolean(gStatus.lock) || Boolean(gStatus.btn_lock) || Boolean(gStatus.attacking)) : false;
 
         return (hasAtk || hasQs) && hasChar0 && !isLocked;
-      }, isManual, isSolo, config.TICKER_FPS).catch(() => false);
+      }, isManual, isSolo, config.TICKER_FPS, caMode).catch(() => false);
 
       if (isReady) {
         if (!isTurbo) {
@@ -906,13 +921,7 @@ export class CombatResolutionService {
       return await this.page.evaluate(() => {
         let acted = false;
         const cjs = (window as any).createjs;
-        if (cjs?.Tween?.tick) cjs.Tween.tick(2000, false);
-        const stage = (window as any).stage;
-        if (stage?.gGameStatus) {
-          stage.gGameStatus.lock = false;
-          stage.gGameStatus.btn_lock = false;
-          stage.gGameStatus.animation = false;
-        }
+        if (cjs?.Tween?.tick) cjs.Tween.tick(1500, false);
 
         // Close quest-launch confirmation modals strictly via Close/Cancel
         const closeOnlyBtns = Array.from(document.querySelectorAll(
@@ -1413,7 +1422,10 @@ export class CombatResolutionService {
     });
   }
 
-  public async waitForNetworkResponseAndPayload(targetSubstring: string, timeoutMs: number): Promise<{ resolved: boolean; json: any | null }> {
+  public async waitForNetworkResponseAndPayload(
+    targetSubstring: string,
+    timeoutMs: number
+  ): Promise<{ resolved: boolean; json: any | null; isPopupLockout?: boolean }> {
     return new Promise(resolve => {
       let resolved = false;
       const timer = setTimeout(() => {
@@ -1425,25 +1437,34 @@ export class CombatResolutionService {
       }, timeoutMs);
 
       const responseHandler = async (res: HTTPResponse) => {
+        let matchedUrl = false;
         try {
-          if (res.url().includes(targetSubstring)) {
-            if (!resolved) {
-              const json = await res.json().catch(() => null);
-              if (json && json.popup && !Array.isArray(json.scenario)) {
-                resolved = true;
-                clearTimeout(timer);
-                this.page.off('response', responseHandler);
-                resolve({ resolved: false, json: null });
-                return;
-              }
-              resolved = true;
-              clearTimeout(timer);
-              this.page.off('response', responseHandler);
-              resolve({ resolved: true, json });
-            }
+          matchedUrl = Boolean(res && typeof res.url === 'function' && res.url().includes(targetSubstring));
+        } catch {
+          return;
+        }
+        if (!matchedUrl || resolved) return;
+
+        try {
+          const json = await res.json().catch(() => null);
+          if (resolved) return;
+
+          if (json && ((json.popup && !Array.isArray(json.scenario)) || json.result === 'ng' || json.error)) {
+            resolved = true;
+            clearTimeout(timer);
+            this.page.off('response', responseHandler);
+            resolve({ resolved: false, json, isPopupLockout: true });
+            return;
           }
+
+          this.ctx.state.networkSequenceId = (this.ctx.state.networkSequenceId || 0) + 1;
+          resolved = true;
+          clearTimeout(timer);
+          this.page.off('response', responseHandler);
+          resolve({ resolved: true, json });
         } catch {
           if (!resolved) {
+            this.ctx.state.networkSequenceId = (this.ctx.state.networkSequenceId || 0) + 1;
             resolved = true;
             clearTimeout(timer);
             this.page.off('response', responseHandler);

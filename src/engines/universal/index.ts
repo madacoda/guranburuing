@@ -7,3 +7,4 @@ export * from './milestone-sweeper.service.js';
 export * from './quest-navigation.service.js';
 export * from './routine-execution.service.js';
 export * from './telemetry.service.js';
+export * from './step-execution-monitor.service.js';
