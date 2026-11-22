@@ -12,7 +12,7 @@
   "humanMotor": true,
   "stopOnCaptcha": true,
   "autoElixir": true,
-  "defaultRuns": 1000,
+  "defaultRuns": 2000,
   "speedProfile": "fast",
   "steps": [
     {
