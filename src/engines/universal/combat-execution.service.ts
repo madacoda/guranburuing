@@ -11,6 +11,7 @@ import {
   randomDelay,
   logNormalDelay,
   sampleGaussian,
+  sampleTargetCoordinate,
   moveMouseSmoothly,
   getSpeedProfile
 } from '../../human-motor.js';
@@ -825,9 +826,15 @@ export class CombatExecutionService {
       if (pollState.status === 'tapped_back') {
         lastBackTapAt = Date.now();
         idleCooldownSince = 0;
+        if (this.ctx.template.humanMotor !== false && !isTurbo) {
+          await logNormalDelay(40, 0.15);
+        }
       } else if (pollState.status === 'tapped_open') {
         lastOpenTapAt = Date.now();
         idleCooldownSince = 0;
+        if (this.ctx.template.humanMotor !== false && !isTurbo) {
+          await logNormalDelay(45, 0.15);
+        }
       } else if (pollState.status === 'ready') {
         baselineRailCount = pollState.railCount;
         isSkillReadyToPress = true;
@@ -944,6 +951,27 @@ export class CombatExecutionService {
         await new Promise(r => setTimeout(r, isTurbo ? 80 : 140));
       }
 
+      // Human motor reaction cadence, fatigue tracking, & 2D Gaussian/Bezier cursor movement before skill actuation
+      if (this.ctx.template.humanMotor !== false && !isTurbo) {
+        const btnBox = await this.page.evaluate((cNum: number, sNum: number) => {
+          const slotIdx = sNum - 1;
+          const el = (
+            document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
+            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
+            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
+          ) as HTMLElement | null;
+          if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+          const r = el.getBoundingClientRect();
+          return r && r.width > 6 && r.height > 6 ? { x: r.left, y: r.top, width: r.width, height: r.height } : null;
+        }, char, skill).catch(() => null);
+
+        if (btnBox) {
+          const targetPt = sampleTargetCoordinate(btnBox);
+          await moveMouseSmoothly(this.page, targetPt).catch(() => null);
+        }
+        await logNormalDelay(50, 0.16);
+      }
+
       // Dispatch a SINGLE clean tap on the skill button (avoiding multi-tap bubbling spam)
       const pressResult = await this.page.evaluate((cNum: number, sNum: number) => {
         const slotIdx = sNum - 1;
@@ -995,6 +1023,9 @@ export class CombatExecutionService {
 
       // Handle single-target character selection modal (e.g. C2S1 -> C1) strictly inside the popup container
       if (step.targetCharacter) {
+        if (this.ctx.template.humanMotor !== false && !isTurbo) {
+          await logNormalDelay(55, 0.16);
+        }
         const targetIdx = step.targetCharacter - 1;
         const popupStart = Date.now();
         const popupDeadline = popupStart + (isTurbo ? 1800 : 2800);
