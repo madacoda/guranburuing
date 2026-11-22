@@ -16,6 +16,7 @@ const template = TemplateParser.loadTemplate('gw-meat-dark');
 assert.strictEqual(template.questUrl, 'https://game.granbluefantasy.jp/#quest/supporter/980651/1/0');
 assert.strictEqual(template.questId, '980651');
 assert.strictEqual(template.element, 'Dark');
+assert.strictEqual(template.defaultRuns, 1000);
 assert.deepStrictEqual(template.supporterPriority, ['Hades']);
 assert.strictEqual(template.steps.length, 4);
 assert.strictEqual(template.steps[0].code, 'tap_ready');

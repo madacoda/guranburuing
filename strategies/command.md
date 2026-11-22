@@ -151,9 +151,9 @@ All Tab 1 workflows auto-configure Finder Slot 1 (`autoSetRaid: true`, 0ms pre-c
 
 ---
 
-## 6. Guild Wars (Unite & Fight): Meat & NM Grinding
+## 6. Guild Wars (Unite & Fight): Meat & NM Grinding (Default: 1000 Runs)
 
-| Phase / Target | Command (`bun run ...`) | Quest / Rotation (`ensureCast` monitored) |
+| Phase / Target | Command (`bun run ...`) | Quest / Rotation (`ensureCast` monitored, default `1000` runs) |
 | :--- | :--- | :--- |
 | **Dark EX+ Meat** | `gw-meat` / `gw-meat-dark` / `gw-meat:dark` / `meat:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980651/1/0` (Hades): `tap_ready` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
 | **Dark NM95 Burst** | `gw-nm95` / `gw-nm95-dark` / `gw-nm95:dark` / `nm95:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980681/1/0/10116` (Hades): `c4s3` $\rightarrow$ `c4s2` $\rightarrow$ `quick_call` $\rightarrow$ `reload` $\rightarrow$ `c4s1` $\rightarrow$ `c4s3` on `c1` $\rightarrow$ `c4s4` $\rightarrow$ `c3s1` $\rightarrow$ `c3s2` $\rightarrow$ `c2s1` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
