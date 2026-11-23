@@ -324,6 +324,16 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Guild War Dark Meat Farm (Hades) Workflow & Fallback Tests',
     file: 'tests/test-gw-meat-dark.ts',
     description: 'Verify gw-meat-dark template, Quest 980651, Hades supporter, natural DSL compilation, READY auto-attack toggle, and manual attack fallback'
+  },
+  {
+    name: 'GW NM95 Dark KMS Vol. 23, Deck Audit & Optimizer Tests',
+    file: 'tests/test-gw-nm95-dark-setup.ts',
+    description: 'Verify KMS Vol. 23 catalog, Yatima Death+Versusia determinism gate, 4-Axe Eternal Signature check, Opus Beta & Sub-Aura simulator, turbo template round-trip, and active workflow conflict guard'
+  },
+  {
+    name: 'Black Friday 2026 VPS Stock & Price Monitor Tests',
+    file: 'tests/test-bf-vps-monitor.ts',
+    description: 'Verify Contabo SvelteKit IIFE, OVH catalog API, OrangeVPS WHMCS/cart, GreenCloud, ExtraVM, ShockHosting, LightNode, Vultr parsers, diff detection, and Discord digest formatting'
   }
 ];
 

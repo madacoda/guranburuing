@@ -35,6 +35,7 @@ data/*-cookies.json
 *-cookies.json
 data/.test-*
 data/.active-captcha-prompt.json
+data/bf-vps-monitor-state.json
 .test-*
 
 
