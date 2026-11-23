@@ -10,6 +10,7 @@ import { discordPresence } from '../../relay/discord-presence.js';
 import { discordDmRelay } from '../../relay/discord-dm-relay.js';
 import { UniversalContext } from './types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
+import { isSoloWorkflowTemplate, isGuildWarWorkflowTemplate } from '../../types/workflow.types.js';
 
 export interface IMilestoneSweeperCombatDelegate {
   handleAttack: (step: any) => Promise<boolean>;
@@ -59,9 +60,15 @@ export class MilestoneSweeperService {
   }
 
   /**
-   * Enforces GBF milestone check every 5 joined and cleared battles to prevent hard lock.
+   * Enforces GBF milestone check every 5 joined and cleared multi-raid assist battles to prevent hard lock.
+   * Disabled for Guild War (Unite and Fight) and solo/supporter quests.
    */
   public async checkFiveBattleMilestone(logPath: string, currentRuns: number): Promise<void> {
+    const tmpl = this.ctx.template;
+    const isAssist = Boolean(tmpl?.questUrl?.includes('assist') || tmpl?.mode === 'assist');
+    if (!isAssist || isSoloWorkflowTemplate(tmpl) || isGuildWarWorkflowTemplate(tmpl)) {
+      return;
+    }
     if (this.ctx.state.totalJoinedAndClearedBattles > 0 && this.ctx.state.totalJoinedAndClearedBattles % 5 === 0) {
       console.log(`\n========================================================================`);
       console.log(`[Workflow] 🛡️ 5-Battle Milestone Reached (${this.ctx.state.totalJoinedAndClearedBattles} battles joined & cleared)`);

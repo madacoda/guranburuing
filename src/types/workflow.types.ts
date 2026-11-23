@@ -161,8 +161,38 @@ export interface WorkflowTemplate {
 }
 
 /**
- * Returns true if the workflow template represents a Solo quest (Arcarum, Replicard, Fate Episode, etc.).
- * Solo quests do not feature raid honors, multi-player rankings, or Blue Chests.
+ * Returns true if the workflow template is a Guild War (Unite and Fight) quest or raid.
+ */
+export function isGuildWarWorkflowTemplate(tmpl?: WorkflowTemplate | null): boolean {
+  if (!tmpl) return false;
+  const qUrl = (tmpl.questUrl || '').toLowerCase();
+  const name = (tmpl.name || '').toLowerCase();
+  const desc = (tmpl.description || '').toLowerCase();
+  const qId = String(tmpl.questId || tmpl.targetRaidQuestId || '');
+  return (
+    /\bgw\b/.test(name) ||
+    /\bunf\b/.test(name) ||
+    name.includes('guild war') ||
+    name.includes('unite and fight') ||
+    name.includes('unite & fight') ||
+    name.includes('meat farm') ||
+    /\bnm(90|95|100|150|200|250)\b/.test(name) ||
+    desc.includes('guild war') ||
+    desc.includes('unite and fight') ||
+    desc.includes('unite & fight') ||
+    qUrl.includes('teamraid') ||
+    qUrl.includes('980651') ||
+    qUrl.includes('980681') ||
+    qUrl.includes('947581') ||
+    qId === '980651' ||
+    qId === '980681' ||
+    qId === '947581'
+  );
+}
+
+/**
+ * Returns true if the workflow template represents a Solo quest (Arcarum, Replicard, Fate Episode, GW/Event supporter quest, etc.).
+ * Solo quests do not feature multi-player raid Finder backups, Blue Chests, or #quest/assist/unclaimed pending sweeps.
  */
 export function isSoloWorkflowTemplate(tmpl?: WorkflowTemplate | null): boolean {
   if (!tmpl) return false;

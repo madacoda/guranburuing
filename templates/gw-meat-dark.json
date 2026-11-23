@@ -5,6 +5,7 @@
   "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980651/1/0",
   "questId": "980651",
   "element": "Dark",
+  "isSolo": true,
   "supporterPriority": [
     "Hades"
   ],

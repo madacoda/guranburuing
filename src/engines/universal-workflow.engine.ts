@@ -21,7 +21,8 @@ import {
   WorkflowTemplate,
   WorkflowStep,
   WorkflowRunResult,
-  WorkflowSummary
+  WorkflowSummary,
+  isGuildWarWorkflowTemplate
 } from '../types/workflow.types.js';
 import { AccountRegistry } from '../auth/account-registry.js';
 import { FinderSlotConfiguratorService } from '../services/navigation/index.js';
@@ -399,8 +400,8 @@ export class UniversalWorkflowEngine {
 
     await this.combatResolution.resolveLingeringState();
 
-    const isGw = this.template.name.toLowerCase().includes('gw') || this.template.questUrl.includes('teamraid') || this.template.questUrl.includes('event');
-    if (isAssistRaid || isGw) {
+    const shouldCheckPendingBattles = isAssistRaid && !this.isSoloQuest() && !this.isGuildWarQuest();
+    if (shouldCheckPendingBattles) {
       console.log('[Workflow] 🛡️ Verifying zero pending/unclaimed battles exist before starting runs...');
       await this.milestoneSweeper.claimPendingBattles(activeLogPath, 0, this.template.questUrl);
     }
@@ -411,7 +412,7 @@ export class UniversalWorkflowEngine {
     while (totalCompleted < runs && !this.ctx.state.stopRequested) {
       const runNumber = totalCompleted + 1;
       const runStart = Date.now();
-      if (isAssistRaid && this.ctx.state.joinedInCurrentBatch >= this.ctx.state.currentBatchThreshold) {
+      if (shouldCheckPendingBattles && this.ctx.state.joinedInCurrentBatch >= this.ctx.state.currentBatchThreshold) {
         console.log(`\n[Workflow] Batch claim threshold (${this.ctx.state.currentBatchThreshold}) reached. Claiming pending battles...`);
         await this.milestoneSweeper.claimPendingBattles(activeLogPath, totalCompleted);
         this.ctx.state.joinedInCurrentBatch = 0;
@@ -587,8 +588,8 @@ export class UniversalWorkflowEngine {
       this.appendRunLog(workflowLogPath, result);
       if (onProgress) onProgress(result);
 
-      // Phase 4: 5-Battle Milestone Unclaimed Sweep (runs AFTER logging the completed battle so turns/honors aren't overwritten)
-      if (this.template.mode !== 'routine' && !this.isSoloQuest()) {
+      // Phase 4: 5-Battle Milestone Unclaimed Sweep (strictly disabled for Guild War / Unite & Fight and Solo quests)
+      if (shouldCheckPendingBattles && this.template.mode !== 'routine') {
         await this.milestoneSweeper.checkFiveBattleMilestone(activeLogPath, totalCompleted);
       }
 
@@ -885,6 +886,10 @@ export class UniversalWorkflowEngine {
 
   public isSoloQuest(): boolean {
     return this.combatExecution.isSoloQuest();
+  }
+
+  public isGuildWarQuest(): boolean {
+    return isGuildWarWorkflowTemplate(this.template);
   }
 
   public isManualWorkflow(): boolean {
