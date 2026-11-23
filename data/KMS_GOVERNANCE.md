@@ -125,7 +125,8 @@ data/
 │   ├── character-tiering.schema.json    # Schema: Character Roles, Burst & FA Tiers
 │   ├── summon-hierarchies.schema.json   # Schema: Providence & Sub-Aura Summon Tiers
 │   ├── revans-and-apex.schema.json      # Schema: Revans, M3 & Apex Raid Walkthroughs
-│   └── unf-guild-wars.schema.json       # Schema: Guild Wars Stages, Meat & Nightmares
+│   ├── unf-guild-wars.schema.json       # Schema: Guild Wars Stages, Meat & Nightmares
+│   └── gw-nm95-dark.schema.json         # Schema: GW NM95 Dark Optimization
 ├── raids/                               # Raids Subsystem
 │   ├── raids.catalog.json               # Master Raids Catalog
 │   └── revans-and-apex-walkthroughs.catalog.json # Magna 3, Revans & Apex Mechanics
@@ -139,7 +140,8 @@ data/
 ├── combat/                              # Combat Subsystem
 │   ├── weapon-grids.catalog.json        # Authoritative M1-M3 & Primal Weapon Grids
 │   ├── character-tiering.catalog.json   # Tactical Character Roles & Tiers
-│   └── summon-hierarchies.catalog.json  # Providence & Sub-Aura Hierarchies
+│   ├── summon-hierarchies.catalog.json  # Providence & Sub-Aura Hierarchies
+│   └── gw-nm95-dark.catalog.json        # GW NM95 Dark Yatima/Ereshkigal Catalog
 ├── elements/                            # Elements Subsystem
 ├── ui/                                  # UI & Navigation Subsystem
 ├── network/                             # Network & Protocol Subsystem

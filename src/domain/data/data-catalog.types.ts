@@ -1083,6 +1083,166 @@ export interface SietePartyArchetypeDefinition {
   strategySummary: string;
 }
 
+// ============================================================================
+// GW NM95 DARK YATIMA / ERESHKIGAL OPTIMIZATION KMS (Volume 23)
+// ============================================================================
+
+export interface GwNm95DarkBossSpec {
+  eventId: string;
+  questId: string;
+  questUrl: string;
+  bossName: string;
+  bossHp: number;
+  baseDefense: number;
+  element: string;
+  advantageousElement: string;
+  apCost: number;
+  baitCost: number;
+  honorsBreakdown: {
+    baseHpHonors: number;
+    soloClearAndMvpBonus: number;
+    debuffSkillBonus: number;
+    summonCallBonus: number;
+    totalFullRotationHonors: number;
+    totalNoSummonHonors: number;
+    singleTurnSkipNote: string;
+  };
+  triggers: Array<{
+    hpPercent: number;
+    notes: string;
+  }>;
+}
+
+export interface GwNm95DarkSubAuraEval {
+  summonName: string;
+  summonId: string;
+  masterId?: string;
+  slotType: string;
+  turn1Value: string;
+  estimatedDamageDelta: number;
+  verdict: 'OPTIMAL' | 'SUBOPTIMAL_WASTED' | 'VIABLE_FALLBACK' | 'DO_NOT_PUT_IN_MAIN_SLOTS';
+  notes: string;
+}
+
+export interface GwNm95DarkYatimaEngine {
+  mainSummon: string;
+  quickCallRule: string;
+  zeroCallDamageRule: string;
+  callablePool: string[];
+  excludedNonCallablePool: string[];
+  causalityChain: string[];
+  subAuraAnalysis: GwNm95DarkSubAuraEval[];
+}
+
+export interface GwNm95DarkWeaponRule {
+  coreWeapons: Array<{
+    slot: number;
+    name: string;
+    masterId?: string;
+    role: string;
+    notes: string;
+  }>;
+  capBracketLaws: Array<{
+    bracket: string;
+    capLimit: string;
+    currentValue: string;
+    status: string;
+    implication: string;
+  }>;
+  upgradeRecommendations: Array<{
+    weaponName: string;
+    currentState: string;
+    recommendedState: string;
+    estimatedDamageGain: number;
+    priority: string;
+    reason: string;
+  }>;
+}
+
+export interface GwNm95DarkSkillRoiItem {
+  slot: string;
+  character: string;
+  masterId: string;
+  skillCode: string;
+  skillName: string;
+  measuredSec: number;
+  measuredDamage: number;
+  dpsMPerSec: number;
+  verdict: 'KEEP_CORE' | 'ADD_HIGH_ROI' | 'OPTIONAL_SAFE_FILLER' | 'CUT_LOW_ROI';
+  notes: string;
+}
+
+export interface GwNm95DarkRotationArchetype {
+  id: string;
+  name: string;
+  tier: string;
+  skillCount: number;
+  speedProfile: 'fast' | 'turbo' | 'stealth';
+  estimatedClearSecMin: number;
+  estimatedClearSecMax: number;
+  projectedPlayerPhaseDamage: number;
+  projectedOverkillMargin: number;
+  requiresOpusBeta: boolean;
+  requiresSarielSubAura: boolean;
+  stepSummary: string;
+  steps: Array<{
+    code: string;
+    character?: number;
+    skill?: number;
+    targetCharacter?: number;
+    notes?: string;
+  }>;
+}
+
+export interface GwNm95DarkEmpiricalBenchmark {
+  deck133Baseline: {
+    deckPriority: number;
+    startBossHp: number;
+    ewiyarS2Damage: number;
+    mcCa1Damage: number;
+    celestialDominionDamage: number;
+    mcCa2Damage: number;
+    ilsaNormalsDamage: number;
+    seoxNormalsDamage: number;
+    nierNormalsDamage: number;
+    nierEternalVowNukeDamage: number;
+    playerPhaseTotalDamage: number;
+    bossHpRemainingBeforeCounters: number;
+    counterKillDamage: number;
+    baselineRunSecMin: number;
+    baselineRunSecMax: number;
+  };
+  backlineSlot5Audit: {
+    totalDarkSsrOwned: number;
+    slot5RecommendedUse: string;
+    ownedBacklinePassiveDarkSsrs: Array<{
+      name: string;
+      passiveSummary: string;
+      helpsTurn1Burst: boolean;
+    }>;
+  };
+  optimizedLiveBenchmark?: {
+    recordedAt?: string;
+    profileId?: string;
+    playerPhaseTotalDamage?: number;
+    killedInPlayerPhase?: boolean;
+    clearTimeSec?: number;
+    honorsAwarded?: number;
+  };
+}
+
+export interface GwNm95DarkCatalog {
+  version: string;
+  generatedAt: string;
+  description: string;
+  bossSpecification: GwNm95DarkBossSpec;
+  yatimaEngine: GwNm95DarkYatimaEngine;
+  weaponGridRules: GwNm95DarkWeaponRule;
+  characterAndSkillRoi: GwNm95DarkSkillRoiItem[];
+  rotationArchetypes: GwNm95DarkRotationArchetype[];
+  empiricalLiveBenchmarks: GwNm95DarkEmpiricalBenchmark;
+}
+
 
 
 

@@ -52,7 +52,8 @@ data/
 │   ├── character-tiering.schema.json   # Schema: Character Roles, Burst & FA Tiers
 │   ├── summon-hierarchies.schema.json  # Schema: Providence & Sub-Aura Summon Tiers
 │   ├── revans-and-apex.schema.json     # Schema: Revans, M3 & Apex Raid Walkthroughs
-│   └── unf-guild-wars.schema.json      # Schema: Guild Wars Stages, Meat & Nightmares
+│   ├── unf-guild-wars.schema.json      # Schema: Guild Wars Stages, Meat & Nightmares
+│   └── gw-nm95-dark.schema.json        # Schema: GW NM95 Dark Yatima/Ereshkigal Optimization
 ├── raids/                              # Raid Data & Mechanics Subsystem
 │   ├── raids.catalog.json              # Complete catalog (Stage IDs, Quest IDs, HP, Blue Chests)
 │   ├── categories.json                 # Raid category hierarchy (HL, Magna 3, Six Dragons, etc.)
@@ -86,7 +87,8 @@ data/
 │   ├── tactical-action-priority.json   # Lockout-optimized combat action priority & safety
 │   ├── weapon-grids.catalog.json       # Authoritative M1-M3 & Primal Weapon Grids for 6 Elements
 │   ├── character-tiering.catalog.json  # Tactical Character Roles, Burst, FA & Omen Solvers
-│   └── summon-hierarchies.catalog.json # Providence, Archangel & Six Dragon Sub-Aura Hierarchies
+│   ├── summon-hierarchies.catalog.json # Providence, Archangel & Six Dragon Sub-Aura Hierarchies
+│   └── gw-nm95-dark.catalog.json       # GW NM95 Dark Yatima/Death+Versusia/Ereshkigal Catalog
 ├── elements/                           # Elemental Wheel & Party Synergy Subsystem
 │   ├── elements.catalog.json           # 6 Elements + Plain, internal IDs, hex colors, summons, skills
 │   ├── elemental-matrix.json           # 7x7 Pairwise damage multipliers, crit/seraphic eligibility
@@ -132,6 +134,8 @@ The directory includes fifteen exhaustive technical volumes analyzing the game's
 | **Vol. 19** | [`19_character_roles_synergies_and_summon_sub_auras_kms.md`](file:///c:/laragon/www/guranburuing/data/19_character_roles_synergies_and_summon_sub_auras_kms.md) | Tactical character roles (Burst OTK, Full Auto Sustain, Omen Solvers), Providence summon hierarchy (Beelzebub, Belial, Lucifer 250, Bahamut 250, Yatima, Triple Zero), and Archangel/Six Dragon sub-auras. |
 | **Vol. 20** | [`20_high_difficulty_raids_revans_and_apex_walkthroughs_kms.md`](file:///c:/laragon/www/guranburuing/data/20_high_difficulty_raids_revans_and_apex_walkthroughs_kms.md) | Magna 3 (Omega Rebirth) mechanics, 6 Revans raids (Diaspora, Seofon, Siegfried, Mugen, Cosmos, Agastia) detailed phases/triggers/omens, and Apex endgame (Faa-0, Hexa, SUBHL). |
 | **Vol. 21** | [`21_unite_and_fight_guild_wars_optimization_and_tactics_kms.md`](file:///c:/laragon/www/guranburuing/data/21_unite_and_fight_guild_wars_optimization_and_tactics_kms.md) | Guild Wars tournament progression, 0-button EX+ meat farming mechanics (0B0C, 0B1C, 1B Quick Summon), NM90-NM250 boss triggers, survival interlocks, and honor pacing. |
+| **Vol. 22** | [`22_seofon_revans_4m_honors_party_and_readiness_kms.md`](file:///c:/laragon/www/guranburuing/data/22_seofon_revans_4m_honors_party_and_readiness_kms.md) | Seofon (Impossible) / Siete HL 4M Honors (400M Damage) entry mechanics, 77.77M Emblema omen cancellation, party archetypes, and automated roster readiness evaluation. |
+| **Vol. 23** | [`23_gw_nm95_dark_yatima_ereshkigal_optimization_kms.md`](file:///c:/laragon/www/guranburuing/data/23_gw_nm95_dark_yatima_ereshkigal_optimization_kms.md) | Guild Wars NM95 Dark 1-turn burst engineering: Yatima Quick Call (`Death Lv200` + `Versusia Lv150` -> `Nier Lv100`), `Ereshkigal Lv250`, Sub-Aura & cap-bracket audits, and `18–23s` step optimization. |
 
 ---
 

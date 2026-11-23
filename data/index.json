@@ -46,7 +46,8 @@
       "revansAndApex": "data/schemas/revans-and-apex.schema.json",
       "unfGuildWars": "data/schemas/unf-guild-wars.schema.json",
       "sietePartyComp": "data/schemas/siete-party-comp.schema.json",
-      "sieteRoster": "data/schemas/siete-roster.schema.json"
+      "sieteRoster": "data/schemas/siete-roster.schema.json",
+      "gwNm95Dark": "data/schemas/gw-nm95-dark.schema.json"
     },
     "modules": {
       "raids": {
@@ -87,7 +88,8 @@
         "weaponGrids": "data/combat/weapon-grids.catalog.json",
         "characterTiering": "data/combat/character-tiering.catalog.json",
         "summonHierarchies": "data/combat/summon-hierarchies.catalog.json",
-        "sietePartyCompositions": "data/combat/siete-party-compositions.catalog.json"
+        "sietePartyCompositions": "data/combat/siete-party-compositions.catalog.json",
+        "gwNm95Dark": "data/combat/gw-nm95-dark.catalog.json"
       },
       "elements": {
         "catalog": "data/elements/elements.catalog.json",

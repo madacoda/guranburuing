@@ -90,7 +90,9 @@ async function run() {
     'schemas/siete-party-comp.schema.json',
     'schemas/siete-roster.schema.json',
     'combat/siete-party-compositions.catalog.json',
-    'combat/siete-roster.example.json'
+    'combat/siete-roster.example.json',
+    'schemas/gw-nm95-dark.schema.json',
+    'combat/gw-nm95-dark.catalog.json'
   ];
 
   for (const relPath of expectedFiles) {
@@ -363,7 +365,8 @@ async function run() {
     'raids/raids.catalog.json',
     'ui/modals.catalog.json',
     'ui/navigation-routes.json',
-    'ui/selectors.catalog.json'
+    'ui/selectors.catalog.json',
+    'combat/gw-nm95-dark.catalog.json'
   ];
 
   for (const catRelPath of dataCatalogs) {
@@ -612,6 +615,20 @@ async function run() {
 
   const sieteArchetypes = catalog.getAllSietePartyArchetypes();
   assert(sieteArchetypes.length === 5, `Loaded all 5 Siete 4M Honors party archetypes (count: ${sieteArchetypes.length})`);
+
+  // 12.7 GW NM95 Dark Yatima / Ereshkigal Optimization KMS (Vol. 23)
+  const nm95Boss = catalog.getGwNm95DarkBossSpec();
+  assert(!!nm95Boss, 'Resolves GW NM95 Dark boss specification');
+  assert(nm95Boss?.questId === '980681', 'GW NM95 Dark questId is 980681');
+  assert(nm95Boss?.bossHp === 131250000, 'GW NM95 Demeter HP is 131,250,000');
+
+  const nm95Archetypes = catalog.getAllGwNm95DarkArchetypes();
+  assert(nm95Archetypes.length === 3, `Loaded all 3 GW NM95 Dark archetypes (count: ${nm95Archetypes.length})`);
+  const nm95Fast = catalog.getGwNm95DarkArchetype('nm95_dark_yatima_5skill_turbo');
+  assert(!!nm95Fast && nm95Fast.skillCount === 5, 'Resolves 5-skill turbo NM95 Dark archetype');
+
+  const nm95Roi = catalog.getGwNm95DarkSkillRoi();
+  assert(nm95Roi.some(r => r.skillCode === 'C2S3' && r.verdict === 'ADD_HIGH_ROI'), 'NM95 Dark ROI includes Yukata Ilsa C2S3 Diva Satanica');
 
   console.log('\n🎉 ALL DATA ARCHITECTURE ASSERTIONS PASSED (100% GOLD INDUSTRY STANDARD)');
 }

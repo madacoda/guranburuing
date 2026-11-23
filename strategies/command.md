@@ -156,10 +156,12 @@ All Tab 1 workflows auto-configure Finder Slot 1 (`autoSetRaid: true`, 0ms pre-c
 | Phase / Target | Command (`bun run ...`) | Quest / Rotation (`ensureCast` monitored, default `1000` runs) |
 | :--- | :--- | :--- |
 | **Dark EX+ Meat** | `gw-meat` / `gw-meat-dark` / `gw-meat:dark` / `meat:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980651/1/0` (Hades): `tap_ready` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
-| **Dark NM95 Burst** | `gw-nm95` / `gw-nm95-dark` / `gw-nm95:dark` / `nm95:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980681/1/0/10116` (Hades): `c4s3` $\rightarrow$ `c4s2` $\rightarrow$ `quick_call` $\rightarrow$ `reload` $\rightarrow$ `c4s1` $\rightarrow$ `c4s3` on `c1` $\rightarrow$ `c4s4` $\rightarrow$ `c3s1` $\rightarrow$ `c3s2` $\rightarrow$ `c2s1` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
+| **Dark NM95 Burst** | `gw-nm95` / `gw-nm95-dark` / `gw-nm95:dark` / `nm95:dark` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `980681/1/0/10116` (Hades, `turbo`): `c4s2` $\rightarrow$ `quick_call` $\rightarrow$ `reload` $\rightarrow$ `c4s1` $\rightarrow$ `c4s4` $\rightarrow$ `c3s1` $\rightarrow$ `c2s1` $\rightarrow$ `c2s3` $\rightarrow$ `attack` $\rightarrow$ `reload` $\rightarrow$ `confirm_result` |
+| **Dark NM95 Setup** | `gw:nm95:sim` / `gw:nm95:audit` / `gw:nm95:setup` / `gw:nm95:setup:fast` | Offline sim, live read-only Deck 133 audit, or conflict-guarded Sub-Aura swap (`Sariel Lv150` + `Fediel`) & `turbo` template sync (Vol. 23) |
 | **Light EX+ Meat** | `gw-meat-light` (`:windowed` \| `:headless`) | Quest `947551/1/0` (Zeus): `tap_ready` $\rightarrow$ `reload` $\rightarrow$ `tap_ready` $\rightarrow$ `reload` |
 | **Light NM95 Burst** | `gw-nm95-light` (`:acc1` \| `:acc2` \| `:windowed`) | Quest `947581/1/0/10116` (Zeus): Florence + Nehan 1T burst |
 | **Meat Swarm** | `gw-meat:swarm [runs]` / `gw-meat-swarm` | Dual-account parallel EX+ meat farm (`acc1` + `acc2`) |
+| **Honor Parking** | `gw:park [target]` / `gw:park:plan` / `honor:park` | Exact Diophantine Honor Parker (`#event/teamraid085`, default `500,000,000` pt with `0` residual) |
 | **UNF Token Box** | `gacha:unf` | Auto-empties Unite & Fight token drawboxes |
 
 ---

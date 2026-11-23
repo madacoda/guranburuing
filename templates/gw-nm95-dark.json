@@ -1,6 +1,6 @@
 {
   "name": "GW NM95 - Dark Farm",
-  "description": "GW NM95 Dark 1-turn burst: C4S3 -> C4S2 -> Quick Call -> Reload -> C4S1 -> C4S3 on C1 -> C4S4 -> C3S1 -> C3S2 -> C2S1 -> Attack -> Reload -> Confirm Result",
+  "description": "GW NM95 Dark 6-skill safe turbo 1-turn burst: C4S2 -> Quick Call (Yatima -> Death + Versusia) -> Reload -> C4S1 -> C4S4 -> C3S1 -> C2S1 -> C2S3 (Diva Satanica Triple Strike) -> Attack -> Reload -> Confirm Result",
   "mode": "combat",
   "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980681/1/0/10116",
   "questId": "980681",
@@ -13,21 +13,11 @@
   "stopOnCaptcha": true,
   "autoElixir": true,
   "defaultRuns": 2000,
-  "speedProfile": "fast",
+  "speedProfile": "turbo",
   "steps": [
     {
-      "id": "step_1",
-      "name": "Character 4 Skill 3 (Ensured)",
-      "code": "skill",
-      "action": "skill",
-      "character": 4,
-      "skill": 3,
-      "ensureCast": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "id": "step_2",
-      "name": "Character 4 Skill 2 (Ensured)",
+      "id": "step_c4s2",
+      "name": "Ewiyar Skill 2: Release the Clawvalry! + (30k Supp Debuff, Ensured)",
       "code": "skill",
       "action": "skill",
       "character": 4,
@@ -36,21 +26,21 @@
       "waitForNetwork": "ability_result.json"
     },
     {
-      "id": "step_3",
-      "name": "Quick Call Summon",
+      "id": "step_quick_call",
+      "name": "Quick Call Summon (Yatima -> Death + Versusia)",
       "code": "quick_call",
       "action": "quick_call",
       "waitForNetwork": "summon_result.json"
     },
     {
-      "id": "step_4",
-      "name": "Reload F5 (Post-Summon Animation Cancel)",
+      "id": "step_reload_summon",
+      "name": "Reload F5 (Post-Summon Swap to Nier)",
       "code": "reload",
       "action": "reload"
     },
     {
-      "id": "step_5",
-      "name": "Character 4 Skill 1 (Ensured)",
+      "id": "step_c4s1",
+      "name": "Nier Skill 1: World of Death and Love + (Ensured)",
       "code": "skill",
       "action": "skill",
       "character": 4,
@@ -59,19 +49,8 @@
       "waitForNetwork": "ability_result.json"
     },
     {
-      "id": "step_6",
-      "name": "Character 4 Skill 3 on Character 1 (Ensured)",
-      "code": "skill",
-      "action": "skill",
-      "character": 4,
-      "skill": 3,
-      "targetCharacter": 1,
-      "ensureCast": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "id": "step_7",
-      "name": "Character 4 Skill 4 (Ensured)",
+      "id": "step_c4s4",
+      "name": "Nier Skill 4: Eternal Vow (Same Drawer, Ensured)",
       "code": "skill",
       "action": "skill",
       "character": 4,
@@ -80,8 +59,8 @@
       "waitForNetwork": "ability_result.json"
     },
     {
-      "id": "step_8",
-      "name": "Character 3 Skill 1 (Ensured)",
+      "id": "step_c3s1",
+      "name": "Seox Skill 1: Gate of Sin ++ (Ensured)",
       "code": "skill",
       "action": "skill",
       "character": 3,
@@ -90,18 +69,8 @@
       "waitForNetwork": "ability_result.json"
     },
     {
-      "id": "step_9",
-      "name": "Character 3 Skill 2 (Ensured)",
-      "code": "skill",
-      "action": "skill",
-      "character": 3,
-      "skill": 2,
-      "ensureCast": true,
-      "waitForNetwork": "ability_result.json"
-    },
-    {
-      "id": "step_10",
-      "name": "Character 2 Skill 1 (Ensured)",
+      "id": "step_c2s1",
+      "name": "Ilsa Skill 1: War Eternal + (Ensured)",
       "code": "skill",
       "action": "skill",
       "character": 2,
@@ -110,20 +79,30 @@
       "waitForNetwork": "ability_result.json"
     },
     {
-      "id": "step_11",
-      "name": "Execute Attack",
+      "id": "step_c2s3",
+      "name": "Ilsa Skill 3: Diva Satanica Triple Strike (Same Drawer, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 3,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_attack",
+      "name": "Execute Attack (1T Kill)",
       "code": "attack",
       "action": "attack",
       "waitForNetwork": "normal_attack_result.json"
     },
     {
-      "id": "step_12",
+      "id": "step_reload_attack",
       "name": "Reload F5 (Post-Attack Animation Cancel)",
       "code": "reload",
       "action": "reload"
     },
     {
-      "id": "step_13",
+      "id": "step_confirm",
       "name": "Confirm Battle Result & Rerun",
       "code": "confirm_result",
       "action": "confirm_result"

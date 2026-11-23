@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game.granbluefantasy.jp/schemas/gw-nm95-dark.schema.json",
+  "title": "GBFGwNm95DarkYatimaEreshkigalOptimizationSchema",
+  "description": "Authoritative schema for Unite and Fight (Guild Wars) NM95 Dark 1-turn burst optimization using Yatima Quick Call (Death + Versusia -> Nier), Ereshkigal, and Yukata Ilsa + Seox Lv150.",
+  "type": "object",
+  "required": [
+    "version",
+    "generatedAt",
+    "description",
+    "bossSpecification",
+    "yatimaEngine",
+    "weaponGridRules",
+    "characterAndSkillRoi",
+    "rotationArchetypes",
+    "empiricalLiveBenchmarks"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "description": { "type": "string" },
+    "bossSpecification": {
+      "type": "object",
+      "required": [
+        "eventId",
+        "questId",
+        "questUrl",
+        "bossName",
+        "bossHp",
+        "baseDefense",
+        "element",
+        "advantageousElement",
+        "apCost",
+        "baitCost",
+        "honorsBreakdown",
+        "triggers"
+      ],
+      "properties": {
+        "eventId": { "type": "string" },
+        "questId": { "type": "string" },
+        "questUrl": { "type": "string" },
+        "bossName": { "type": "string" },
+        "bossHp": { "type": "number" },
+        "baseDefense": { "type": "number" },
+        "element": { "type": "string" },
+        "advantageousElement": { "type": "string" },
+        "apCost": { "type": "number" },
+        "baitCost": { "type": "number" },
+        "honorsBreakdown": {
+          "type": "object",
+          "required": [
+            "baseHpHonors",
+            "soloClearAndMvpBonus",
+            "debuffSkillBonus",
+            "summonCallBonus",
+            "totalFullRotationHonors",
+            "totalNoSummonHonors",
+            "singleTurnSkipNote"
+          ],
+          "properties": {
+            "baseHpHonors": { "type": "number" },
+            "soloClearAndMvpBonus": { "type": "number" },
+            "debuffSkillBonus": { "type": "number" },
+            "summonCallBonus": { "type": "number" },
+            "totalFullRotationHonors": { "type": "number" },
+            "totalNoSummonHonors": { "type": "number" },
+            "singleTurnSkipNote": { "type": "string" }
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["hpPercent", "notes"],
+            "properties": {
+              "hpPercent": { "type": "number" },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "yatimaEngine": {
+      "type": "object",
+      "required": [
+        "mainSummon",
+        "quickCallRule",
+        "zeroCallDamageRule",
+        "callablePool",
+        "excludedNonCallablePool",
+        "causalityChain",
+        "subAuraAnalysis"
+      ],
+      "properties": {
+        "mainSummon": { "type": "string" },
+        "quickCallRule": { "type": "string" },
+        "zeroCallDamageRule": { "type": "string" },
+        "callablePool": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "excludedNonCallablePool": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "causalityChain": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "subAuraAnalysis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["summonName", "summonId", "slotType", "turn1Value", "estimatedDamageDelta", "verdict", "notes"],
+            "properties": {
+              "summonName": { "type": "string" },
+              "summonId": { "type": "string" },
+              "masterId": { "type": "string" },
+              "slotType": { "type": "string" },
+              "turn1Value": { "type": "string" },
+              "estimatedDamageDelta": { "type": "number" },
+              "verdict": { "type": "string", "enum": ["OPTIMAL", "SUBOPTIMAL_WASTED", "VIABLE_FALLBACK", "DO_NOT_PUT_IN_MAIN_SLOTS"] },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "weaponGridRules": {
+      "type": "object",
+      "required": ["coreWeapons", "capBracketLaws", "upgradeRecommendations"],
+      "properties": {
+        "coreWeapons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["slot", "name", "role", "notes"],
+            "properties": {
+              "slot": { "type": "number" },
+              "name": { "type": "string" },
+              "masterId": { "type": "string" },
+              "role": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "capBracketLaws": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["bracket", "capLimit", "currentValue", "status", "implication"],
+            "properties": {
+              "bracket": { "type": "string" },
+              "capLimit": { "type": "string" },
+              "currentValue": { "type": "string" },
+              "status": { "type": "string" },
+              "implication": { "type": "string" }
+            }
+          }
+        },
+        "upgradeRecommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["weaponName", "currentState", "recommendedState", "estimatedDamageGain", "priority", "reason"],
+            "properties": {
+              "weaponName": { "type": "string" },
+              "currentState": { "type": "string" },
+              "recommendedState": { "type": "string" },
+              "estimatedDamageGain": { "type": "number" },
+              "priority": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "characterAndSkillRoi": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "slot",
+          "character",
+          "masterId",
+          "skillCode",
+          "skillName",
+          "measuredSec",
+          "measuredDamage",
+          "dpsMPerSec",
+          "verdict",
+          "notes"
+        ],
+        "properties": {
+          "slot": { "type": "string" },
+          "character": { "type": "string" },
+          "masterId": { "type": "string" },
+          "skillCode": { "type": "string" },
+          "skillName": { "type": "string" },
+          "measuredSec": { "type": "number" },
+          "measuredDamage": { "type": "number" },
+          "dpsMPerSec": { "type": "number" },
+          "verdict": { "type": "string", "enum": ["KEEP_CORE", "ADD_HIGH_ROI", "OPTIONAL_SAFE_FILLER", "CUT_LOW_ROI"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "rotationArchetypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "tier",
+          "skillCount",
+          "speedProfile",
+          "estimatedClearSecMin",
+          "estimatedClearSecMax",
+          "projectedPlayerPhaseDamage",
+          "projectedOverkillMargin",
+          "requiresOpusBeta",
+          "requiresSarielSubAura",
+          "stepSummary",
+          "steps"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "tier": { "type": "string" },
+          "skillCount": { "type": "number" },
+          "speedProfile": { "type": "string", "enum": ["fast", "turbo", "stealth"] },
+          "estimatedClearSecMin": { "type": "number" },
+          "estimatedClearSecMax": { "type": "number" },
+          "projectedPlayerPhaseDamage": { "type": "number" },
+          "projectedOverkillMargin": { "type": "number" },
+          "requiresOpusBeta": { "type": "boolean" },
+          "requiresSarielSubAura": { "type": "boolean" },
+          "stepSummary": { "type": "string" },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code"],
+              "properties": {
+                "code": { "type": "string" },
+                "character": { "type": "number" },
+                "skill": { "type": "number" },
+                "targetCharacter": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "empiricalLiveBenchmarks": {
+      "type": "object",
+      "required": ["deck133Baseline", "backlineSlot5Audit"],
+      "properties": {
+        "deck133Baseline": {
+          "type": "object",
+          "required": [
+            "deckPriority",
+            "startBossHp",
+            "ewiyarS2Damage",
+            "mcCa1Damage",
+            "celestialDominionDamage",
+            "mcCa2Damage",
+            "ilsaNormalsDamage",
+            "seoxNormalsDamage",
+            "nierNormalsDamage",
+            "nierEternalVowNukeDamage",
+            "playerPhaseTotalDamage",
+            "bossHpRemainingBeforeCounters",
+            "counterKillDamage",
+            "baselineRunSecMin",
+            "baselineRunSecMax"
+          ],
+          "properties": {
+            "deckPriority": { "type": "number" },
+            "startBossHp": { "type": "number" },
+            "ewiyarS2Damage": { "type": "number" },
+            "mcCa1Damage": { "type": "number" },
+            "celestialDominionDamage": { "type": "number" },
+            "mcCa2Damage": { "type": "number" },
+            "ilsaNormalsDamage": { "type": "number" },
+            "seoxNormalsDamage": { "type": "number" },
+            "nierNormalsDamage": { "type": "number" },
+            "nierEternalVowNukeDamage": { "type": "number" },
+            "playerPhaseTotalDamage": { "type": "number" },
+            "bossHpRemainingBeforeCounters": { "type": "number" },
+            "counterKillDamage": { "type": "number" },
+            "baselineRunSecMin": { "type": "number" },
+            "baselineRunSecMax": { "type": "number" }
+          }
+        },
+        "backlineSlot5Audit": {
+          "type": "object",
+          "required": ["totalDarkSsrOwned", "slot5RecommendedUse", "ownedBacklinePassiveDarkSsrs"],
+          "properties": {
+            "totalDarkSsrOwned": { "type": "number" },
+            "slot5RecommendedUse": { "type": "string" },
+            "ownedBacklinePassiveDarkSsrs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "passiveSummary", "helpsTurn1Burst"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "passiveSummary": { "type": "string" },
+                  "helpsTurn1Burst": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "optimizedLiveBenchmark": {
+          "type": "object",
+          "properties": {
+            "recordedAt": { "type": "string" },
+            "profileId": { "type": "string" },
+            "playerPhaseTotalDamage": { "type": "number" },
+            "killedInPlayerPhase": { "type": "boolean" },
+            "clearTimeSec": { "type": "number" },
+            "honorsAwarded": { "type": "number" }
+          }
+        }
+      }
+    }
+  }
+}

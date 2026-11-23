@@ -1,0 +1,506 @@
+{
+  "$schema": "../schemas/gw-nm95-dark.schema.json",
+  "version": "1.0.0",
+  "generatedAt": "2026-11-23T04:30:00.000Z",
+  "description": "Unite and Fight (Guild Wars) Nightmare 95 Dark 1-turn burst optimization catalog built around Yatima Quick Call (Death Lv200 + Versusia Lv150 -> Nier Lv100), Ereshkigal Lv250, Yukata Ilsa, Seox Lv150, and Halloween Ewiyar.",
+  "bossSpecification": {
+    "eventId": "teamraid085",
+    "questId": "980681",
+    "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980681/1/0/10116",
+    "bossName": "Lvl 95 Demeter",
+    "bossHp": 131250000,
+    "baseDefense": 15,
+    "element": "Light",
+    "advantageousElement": "Dark",
+    "apCost": 40,
+    "baitCost": 10,
+    "honorsBreakdown": {
+      "baseHpHonors": 900000,
+      "soloClearAndMvpBonus": 10000,
+      "debuffSkillBonus": 375,
+      "summonCallBonus": 10,
+      "totalFullRotationHonors": 910385,
+      "totalNoSummonHonors": 910375,
+      "singleTurnSkipNote": "Killing Demeter cleanly in Turn 1 skips all 75%, 50%, and 25% HP triggers (zero boss buffs/dispel needed)."
+    },
+    "triggers": [
+      {
+        "hpPercent": 75,
+        "notes": "Skipped completely on 1T burst."
+      },
+      {
+        "hpPercent": 50,
+        "notes": "Skipped completely on 1T burst."
+      },
+      {
+        "hpPercent": 25,
+        "notes": "Skipped completely on 1T burst."
+      }
+    ]
+  },
+  "yatimaEngine": {
+    "mainSummon": "Yatima Lv150 (2040417000, id=1301888572)",
+    "quickCallRule": "Yatima (Home at Last) cuts skill CDs by 1T and calls 2 eligible equipped summons. With Summer Belial and regular Belial both excluded from Yatima's call pool, Quick Call deterministically triggers Death Lv200 + Versusia Lv150 in 1 button 100% of runs.",
+    "zeroCallDamageRule": "Yatima verbatim: 'Activated calls don't deal call DMG / Excludes sub aura summons and one-use calls.' Direct nuke summons like Bahamut deal 0 call damage when invoked through Yatima or sitting in Sub-Aura slots.",
+    "callablePool": [
+      "Death Lv200 (971897245, 2040315000)",
+      "Versusia Lv150 (1510948782, 2040448000)"
+    ],
+    "excludedNonCallablePool": [
+      "Summer Belial Lv40 (1273519543, 2040411000 - one-use call: Dodge/Tank-and-Counter + 2k supp taken at battle start)",
+      "Belial Lv150 (933713546, 2040347000 - one-use call: +30,000 Supplemental DMG per hit / -30% Max HP)"
+    ],
+    "causalityChain": [
+      "1. Yatima Quick Call invokes Death Lv200 + Versusia Lv150 simultaneously.",
+      "2. Death (Deathly Thirteen) executes Slot 3 Ewiyar (Halloween), grants party 4T Guaranteed TA, and swaps Backline Slot 4 Nier (Lv100) into frontline Slot 3.",
+      "3. Nier entry triggers 'The Lovers Upright +' (unlocking C4S4 Eternal Vow) and grants Thirsting (Autorevive + 15% Absorption).",
+      "4. Ally KO triggers Yukata Ilsa Passive 2 'Diuturna' (1 -> 2 stacks + resets cooldowns), unlocking Triple Strike on C2S3 'Diva Satanica'.",
+      "5. Ally KO triggers Pain of Death Lv200 'Lovers-Death's Demise' (+15% Unique Stackable ATK & DEF to all Dark allies).",
+      "6. Versusia (Yomotsu) grants party 'Wild Flurry (1 time)' (+1 normal attack hit count on every ally's first swing) and grants MC 'Celestial Dominion'.",
+      "7. Ereshkigal (Tell Ibrahim II) starts MC at 100% charge bar. On Attack, MC C.A.s FIRST ('Eklu Kurnugia +'), granting all allies Double Strike + 50,000 Normal Attack Supplemental DMG AND immediately consuming Celestial Dominion (2.60M nuke + +20% DMG Taken Amplified debuff for 1T) BEFORE Ilsa, Seox, and Nier swing."
+    ],
+    "subAuraAnalysis": [
+      {
+        "summonName": "Sariel Lv150",
+        "summonId": "977961317",
+        "masterId": "2040327000",
+        "slotType": "Sub-Aura Slot 1",
+        "turn1Value": "+15% Dark allies' DMG Cap (Passive)",
+        "estimatedDamageDelta": 10000000,
+        "verdict": "OPTIMAL",
+        "notes": "Replaces Beelzebub Lv150 in Sub-Aura 1 without affecting Yatima's Death+Versusia pool; adds ~10M free player-phase damage across Ilsa, Seox, Nier, and MC."
+      },
+      {
+        "summonName": "Fediel Lv40",
+        "summonId": "1510948871",
+        "masterId": "2040418000",
+        "slotType": "Sub-Aura Slot 2",
+        "turn1Value": "+10% boost to Dark's, Hatred's, and Oblivion's weapon skills",
+        "estimatedDamageDelta": 1200000,
+        "verdict": "OPTIMAL",
+        "notes": "Best Sub-Aura 2 currently owned because Hades is Lv200 evo 5 (sub-aura unlocks at Transcendence Lv210+) and Bahamut Lv250 gives 0% value under 1T Yatima."
+      },
+      {
+        "summonName": "Beelzebub Lv150",
+        "summonId": "1217829246",
+        "masterId": "2040408000",
+        "slotType": "Sub-Aura Slot 1 (Legacy Defect)",
+        "turn1Value": "When MC uses a C.A.: Raise MC Trance lvl +1 (Max 2 in 1T; Sharp boost requires Trance 3)",
+        "estimatedDamageDelta": 0,
+        "verdict": "SUBOPTIMAL_WASTED",
+        "notes": "In a 1-turn Ereshkigal burst, MC only performs 1 C.A. (or 2 with Last Love), reaching at most Trance lvl 2. Trance lvl 3 (50% Perp ATK / 20% Cap) never activates."
+      },
+      {
+        "summonName": "Bahamut Lv250",
+        "summonId": "906416626",
+        "masterId": "2040003000",
+        "slotType": "Sub-Aura Slot 2 (Legacy Defect)",
+        "turn1Value": "+50% Summon Call DMG / -1T Summon Cooldown",
+        "estimatedDamageDelta": 0,
+        "verdict": "SUBOPTIMAL_WASTED",
+        "notes": "Activated Yatima sub-summon calls deal 0 direct call damage, so Bahamut's +50% call DMG and -1T CD cut provide zero Turn-1 damage."
+      },
+      {
+        "summonName": "Hades Lv200 (0x sub_skill)",
+        "summonId": "764643670",
+        "masterId": "2040090000",
+        "slotType": "Friend Support Only (Lv250 Friend)",
+        "turn1Value": "Friend Hades Lv250 provides +170% Optimus aura + 30% Dark ATK; owned Hades Lv200 has no sub_aura.",
+        "estimatedDamageDelta": 0,
+        "verdict": "DO_NOT_PUT_IN_MAIN_SLOTS",
+        "notes": "Owned Hades Lv200 lacks Transcendence sub-aura and is callable if placed in Sub 2-5, which would pollute Yatima's Death+Versusia lock."
+      }
+    ]
+  },
+  "weaponGridRules": {
+    "coreWeapons": [
+      {
+        "slot": 1,
+        "name": "Ereshkigal Lv250",
+        "masterId": "1040315100",
+        "role": "Mainhand Engine (Axe #1)",
+        "notes": "Gugalanna (+30% Normal Amp max, -300% bar gain), Disease Demon II (+20% Normal Cap max, +15% MA), Tell Ibrahim II (MC starts 100% bar), Eklu Kurnugia+ (Team Double Strike + 50k Normal Supp)."
+      },
+      {
+        "slot": 2,
+        "name": "Pain and Suffering Lv150 (#1)",
+        "masterId": "1040314300",
+        "role": "Pact Supplemental + Axe #2",
+        "notes": "Contributes +50k Supplemental DMG, +7% DMG Cap, Axe Voltage II."
+      },
+      {
+        "slot": 3,
+        "name": "Pain and Suffering Lv150 (#2)",
+        "masterId": "1040314300",
+        "role": "Pact Supplemental + Axe #3",
+        "notes": "Maxes Purgatory's Pact +100k Grid Supplemental DMG and pushes Special/General Cap."
+      },
+      {
+        "slot": 4,
+        "name": "Eternal Signature Lv150",
+        "masterId": "1040116600",
+        "role": "Graphite Convergence Resonator (+7% Special Cap)",
+        "notes": "CRITICAL: Requires >= 4 weapons of the same weapon group (4 Axes in Deck 133: Ereshkigal, 2x PnS, Scythe of Darkherald)."
+      },
+      {
+        "slot": 5,
+        "name": "Fallen Sword Lv150",
+        "masterId": "1040014300",
+        "role": "Optimus Stamina + Might III Beatstick",
+        "notes": "Currently Multiattack Lv1 (0% active bonus). Upgrade to Attack Awakening Lv4 (+35% ATK) for +2M stability."
+      },
+      {
+        "slot": 6,
+        "name": "Causality Driver Lv150",
+        "masterId": "1040916700",
+        "role": "Optimus Exalto Caliginis (+30% Hades boost)",
+        "notes": "Boosts Fallen Sword, Parazonium, Dark Opus, Causality Driver. Note: Oblivion's Deathstrike A-side echo is overwritten by Falsehood Opus (20% > 4.5%)."
+      },
+      {
+        "slot": 7,
+        "name": "Katana of Repudiation Lv220",
+        "masterId": "1040911000",
+        "role": "Dark Opus (Skill 3: Deceitful Fallacy / Falsehood)",
+        "notes": "Skill 2 α Revelation Ruber (+10% Normal Cap) is 100% wasted because Ereshkigal already maxes 20% Normal Cap! Swap α -> β (+50% Skill Cap) for Eternal Vow + Celestial Dominion."
+      },
+      {
+        "slot": 8,
+        "name": "Parazonium Lv150 [Attack Lv4]",
+        "masterId": "1040108700",
+        "role": "High Raw ATK + +5% DMG Cap (Awakening)",
+        "notes": "Provides +40% Awakening Might and +5% General DMG Cap from Attack Lv4 awakening."
+      },
+      {
+        "slot": 9,
+        "name": "Pain of Death Lv200",
+        "masterId": "1040113200",
+        "role": "NWF Death/Nier Synergy (+5% Cap + KO ATK Stack)",
+        "notes": "Lovers-Death's Demise triggers when Death executes Ewiyar (+15% Unique Stackable ATK/DEF to all Dark allies) plus +5% Sephira Maxi-Dark DMG Cap outside Arcarum."
+      },
+      {
+        "slot": 10,
+        "name": "Scythe of Darkherald Lv150",
+        "masterId": "1040310800",
+        "role": "Seraphic +23% & Mandatory 4th Axe",
+        "notes": "Activates Eternal Signature's Graphite Convergence (4 Axes) and grants +23% Seraphic Amplification against Light Demeter."
+      }
+    ],
+    "capBracketLaws": [
+      {
+        "bracket": "Normal Attack DMG Cap Up (04_icon_na_dmg_cap)",
+        "capLimit": "20% (Weapon Skill Cap)",
+        "currentValue": "20% (is_max: true) from Ereshkigal Disease Demon II alone",
+        "status": "MAXED_WASTED_OVERLAP",
+        "implication": "Dark Opus Skill 2 α Revelation Ruber (+10%) and Claws of Terror Astral Claw II contribute 0% additional cap. Replace Opus α with β (+50% Skill Cap)."
+      },
+      {
+        "bracket": "Normal Attack DMG Amplified (04_icon_normal_dmg_amp)",
+        "capLimit": "30%",
+        "currentValue": "30% (is_max: true) from Ereshkigal Gugalanna",
+        "status": "MAXED",
+        "implication": "World Harps (e.g. Worldvexing Angelos / Worldforging Moros) share or hit this bracket and do NOT stack above 30%."
+      },
+      {
+        "bracket": "Passive A-Side Bonus DMG (Weapon Skills)",
+        "capLimit": "Highest single A-side source applies",
+        "currentValue": "20% from Katana of Repudiation Deceitful Fallacy (Falsehood)",
+        "status": "ACTIVE_OVERRIDE",
+        "implication": "Confirmed in live packet: Ilsa deals 4 hits/swing (Base + War Eternal + World of Death and Love + Falsehood), not 5, proving Falsehood overrides Causality Driver's 4.5% Oblivion's Deathstrike."
+      },
+      {
+        "bracket": "General DMG Cap Up (04_icon_dmg_cap)",
+        "capLimit": "20% (Weapon Skill Cap)",
+        "currentValue": "20% (is_max: true) from 2x Pain and Suffering (14%) + Pain of Death (5%) + Parazonium Atk Lv4 (5%)",
+        "status": "MAXED",
+        "implication": "Summon sub-auras (Sariel +15%) and character buffs (Ilsa S1 +15%) sit in separate additive buckets and break past this weapon grid limit."
+      },
+      {
+        "bracket": "Supplemental DMG (04_icon_dmg_supp)",
+        "capLimit": "100,000 (Grid Weapon Skills)",
+        "currentValue": "+100,000 (is_max: true) from 2x Pain and Suffering",
+        "status": "MAXED",
+        "implication": "Additional supplemental must come from Belial (+30k), Ereshkigal C.A. (+50k), and Ewiyar S2 (+30k taken debuff)."
+      }
+    ],
+    "upgradeRecommendations": [
+      {
+        "weaponName": "Sariel Lv150 Sub-Aura Swap (Beelzebub -> Sariel)",
+        "currentState": "Beelzebub Lv150 in Sub-Aura Slot 1 (0% effect T1)",
+        "recommendedState": "Sariel Lv150 in Sub-Aura Slot 1 (+15% Dark DMG Cap)",
+        "estimatedDamageGain": 10000000,
+        "priority": "CRITICAL_FREE_UPGRADE",
+        "reason": "Owned in box (977961317); preserves 100% Yatima Death+Versusia pool while unlocking ~10M player-phase damage."
+      },
+      {
+        "weaponName": "Fediel Lv40 Sub-Aura Swap (Bahamut -> Fediel)",
+        "currentState": "Bahamut Lv250 in Sub-Aura Slot 2 (0% call DMG under Yatima)",
+        "recommendedState": "Fediel Lv40 in Sub-Aura Slot 2 (+10% Optimus aura)",
+        "estimatedDamageGain": 1200000,
+        "priority": "HIGH_FREE_UPGRADE",
+        "reason": "Owned in box (1510948871); adds 10% boost to Fallen Sword, Parazonium, Opus, and Causality Driver."
+      },
+      {
+        "weaponName": "Katana of Repudiation Lv220 (Pendulum Key 2)",
+        "currentState": "α Revelation Ruber (wasted 10% Normal Cap)",
+        "recommendedState": "β Revelation (Skill DMG Cap +50%)",
+        "estimatedDamageGain": 5000000,
+        "priority": "HIGH_GRID_UPGRADE",
+        "reason": "Boosts Nier's 2x 6-hit Eternal Vow auto-nukes, MC Celestial Dominion 2-hit nuke, and Ewiyar S2 nuke; enables 5-Skill Turbo with huge overkill."
+      },
+      {
+        "weaponName": "Fallen Sword Lv150 Awakening",
+        "currentState": "Multiattack Lv1 (0% active bonus)",
+        "recommendedState": "Attack Awakening Lv4 (+35% ATK)",
+        "estimatedDamageGain": 2000000,
+        "priority": "MEDIUM_GRID_UPGRADE",
+        "reason": "Stabilizes damage cap for Ilsa and Nier against Demeter 15 DEF without needing Miserable Mist or Ewiyar S2."
+      }
+    ]
+  },
+  "characterAndSkillRoi": [
+    {
+      "slot": "C4 -> Sub 1",
+      "character": "Ewiyar (Halloween) / Yatima",
+      "masterId": "3040680000",
+      "skillCode": "quick_call",
+      "skillName": "Yatima Quick Call (Death Lv200 + Versusia Lv150) + F5 Reload",
+      "measuredSec": 6.31,
+      "measuredDamage": 30000000,
+      "dpsMPerSec": 4.75,
+      "verdict": "KEEP_CORE",
+      "notes": "Enables Nier switch-in (The Lovers Upright -> Eternal Vow), Ilsa Diuturna 1->2, Pain of Death +15% Perp ATK, 4T TA, Wild Flurry (+9.9M), and Celestial Dominion (+2.6M + 20% Amp)."
+    },
+    {
+      "slot": "C2 (Slot 1)",
+      "character": "Ilsa (Yukata) Lv80",
+      "masterId": "3040456000",
+      "skillCode": "C2S3",
+      "skillName": "Diva Satanica (Triple Strike via Diuturna=2)",
+      "measuredSec": 1.8,
+      "measuredDamage": 15600000,
+      "dpsMPerSec": 8.67,
+      "verdict": "ADD_HIGH_ROI",
+      "notes": "Highest single-button DPS gain in the party! Death killing Ewiyar raises Diuturna from 1 -> 2, turning Diva Satanica into Triple Strike (3x 3-hit autos). Same drawer as C2S1."
+    },
+    {
+      "slot": "C4 (after Death)",
+      "character": "Nier Lv100",
+      "masterId": "3040169000",
+      "skillCode": "C4S1",
+      "skillName": "World of Death and Love +",
+      "measuredSec": 2.59,
+      "measuredDamage": 24000000,
+      "dpsMPerSec": 9.27,
+      "verdict": "KEEP_CORE",
+      "notes": "Grants field +30% Bonus Dark DMG (Echo) and +20% ATK across all 4 attackers' multi-hit normal swings."
+    },
+    {
+      "slot": "C2 (Slot 1)",
+      "character": "Ilsa (Yukata) Lv80",
+      "masterId": "3040456000",
+      "skillCode": "C2S1",
+      "skillName": "War Eternal +",
+      "measuredSec": 3.22,
+      "measuredDamage": 25000000,
+      "dpsMPerSec": 7.76,
+      "verdict": "KEEP_CORE",
+      "notes": "Grants party 100%/20% Crit, +15% DMG Cap Up, and +20% Bonus Dark DMG (Echo) for 5 turns."
+    },
+    {
+      "slot": "C3 (Slot 2)",
+      "character": "Seox Lv150",
+      "masterId": "3040035000",
+      "skillCode": "C3S1",
+      "skillName": "Gate of Sin ++",
+      "measuredSec": 3.16,
+      "measuredDamage": 20000000,
+      "dpsMPerSec": 6.33,
+      "verdict": "KEEP_CORE",
+      "notes": "Grants Seox +60% Normal Attack DMG Amplified and +60% Bonus Dark DMG (42.7M Double Strike damage on Turn 1)."
+    },
+    {
+      "slot": "C4 (after Death)",
+      "character": "Nier Lv100",
+      "masterId": "3040169000",
+      "skillCode": "C4S4",
+      "skillName": "Eternal Vow",
+      "measuredSec": 2.24,
+      "measuredDamage": 8060003,
+      "dpsMPerSec": 3.6,
+      "verdict": "KEEP_CORE",
+      "notes": "Shares Nier's already-open drawer after C4S1 (no extra open-drawer tap): adds Perpetuity ATK + two 6-hit post-attack Dark nukes (8.06M+)."
+    },
+    {
+      "slot": "C4 (before Death)",
+      "character": "Ewiyar (Halloween) Lv80",
+      "masterId": "3040680000",
+      "skillCode": "C4S2",
+      "skillName": "Release the Clawvalry! +",
+      "measuredSec": 3.76,
+      "measuredDamage": 8070000,
+      "dpsMPerSec": 2.15,
+      "verdict": "OPTIONAL_SAFE_FILLER",
+      "notes": "Deals 2.22M skill nuke + inflicts 30,000 Supplemental DMG Taken debuff (~5.85M across ~195 hits) and +375 honor. Keep as safe buffer until Opus Beta / Sariel push 5-Skill over 135M."
+    },
+    {
+      "slot": "C4 (after Death)",
+      "character": "Nier Lv100",
+      "masterId": "3040169000",
+      "skillCode": "C4S3->C1",
+      "skillName": "Last Love (targeted on MC)",
+      "measuredSec": 4.74,
+      "measuredDamage": 8484247,
+      "dpsMPerSec": 1.79,
+      "verdict": "CUT_LOW_ROI",
+      "notes": "Targeted character popup adds ~2.5s extra latency (4.74s total) and adds C.A. lockout penalty, yielding only ~1.79 M/sec vs C2S3 Diva Satanica's ~8.67 M/sec."
+    },
+    {
+      "slot": "C3 (Slot 2)",
+      "character": "Seox Lv150",
+      "masterId": "3040035000",
+      "skillCode": "C3S2",
+      "skillName": "Thunderflash +++",
+      "measuredSec": 2.92,
+      "measuredDamage": 0,
+      "dpsMPerSec": 0,
+      "verdict": "CUT_LOW_ROI",
+      "notes": "Heavenly Howl starts at lvl 3 and needs lvl 6 for Double Strike, so C3S2 gives 0 Double Strike and 0 player-phase damage on Turn 1. Replace with C2S3."
+    }
+  ],
+  "rotationArchetypes": [
+    {
+      "id": "nm95_dark_yatima_5skill_turbo",
+      "name": "Option A: 5-Skill Turbo (Fastest Speed)",
+      "tier": "SS_OPTIMAL_TIME",
+      "skillCount": 5,
+      "speedProfile": "turbo",
+      "estimatedClearSecMin": 18,
+      "estimatedClearSecMax": 23,
+      "projectedPlayerPhaseDamage": 135800000,
+      "projectedOverkillMargin": 4550000,
+      "requiresOpusBeta": true,
+      "requiresSarielSubAura": true,
+      "stepSummary": "Quick Call -> Reload -> C4S1 -> C4S4 -> C3S1 -> C2S1 -> C2S3 -> Attack -> Reload -> Confirm",
+      "steps": [
+        { "code": "quick_call", "notes": "Yatima calls Death + Versusia" },
+        { "code": "reload", "notes": "Cancel summon animation and swap Ewiyar -> Nier" },
+        { "code": "skill", "character": 4, "skill": 1, "notes": "Nier World of Death and Love +" },
+        { "code": "skill", "character": 4, "skill": 4, "notes": "Nier Eternal Vow (same drawer)" },
+        { "code": "skill", "character": 3, "skill": 1, "notes": "Seox Gate of Sin ++" },
+        { "code": "skill", "character": 2, "skill": 1, "notes": "Ilsa War Eternal +" },
+        { "code": "skill", "character": 2, "skill": 3, "notes": "Ilsa Diva Satanica Triple Strike (same drawer)" },
+        { "code": "attack", "notes": "Execute 1T kill (~136M-142M with Opus Beta + Sariel)" },
+        { "code": "reload", "notes": "Cancel attack/C.A. lockout animation" },
+        { "code": "confirm_result", "notes": "Collect result and rerun" }
+      ]
+    },
+    {
+      "id": "nm95_dark_yatima_6skill_safe",
+      "name": "Option B: 6-Skill Zero-Grid-Change Safe",
+      "tier": "S_ZERO_GRID_CHANGE",
+      "skillCount": 6,
+      "speedProfile": "turbo",
+      "estimatedClearSecMin": 22,
+      "estimatedClearSecMax": 26,
+      "projectedPlayerPhaseDamage": 141100000,
+      "projectedOverkillMargin": 9850000,
+      "requiresOpusBeta": false,
+      "requiresSarielSubAura": true,
+      "stepSummary": "C4S2 -> Quick Call -> Reload -> C4S1 -> C4S4 -> C3S1 -> C2S1 -> C2S3 -> Attack -> Reload -> Confirm",
+      "steps": [
+        { "code": "skill", "character": 4, "skill": 2, "notes": "Ewiyar Release the Clawvalry! + (2.22M + 30k supp debuff)" },
+        { "code": "quick_call", "notes": "Yatima calls Death + Versusia" },
+        { "code": "reload", "notes": "Cancel summon animation and swap Ewiyar -> Nier" },
+        { "code": "skill", "character": 4, "skill": 1, "notes": "Nier World of Death and Love +" },
+        { "code": "skill", "character": 4, "skill": 4, "notes": "Nier Eternal Vow (same drawer)" },
+        { "code": "skill", "character": 3, "skill": 1, "notes": "Seox Gate of Sin ++" },
+        { "code": "skill", "character": 2, "skill": 1, "notes": "Ilsa War Eternal +" },
+        { "code": "skill", "character": 2, "skill": 3, "notes": "Ilsa Diva Satanica Triple Strike (same drawer)" },
+        { "code": "attack", "notes": "Guaranteed 1T player-phase kill (>141M with Sariel alone)" },
+        { "code": "reload", "notes": "Cancel attack animation" },
+        { "code": "confirm_result", "notes": "Collect result and rerun" }
+      ]
+    },
+    {
+      "id": "nm95_dark_yatima_legacy_baseline",
+      "name": "Legacy 7-Skill Baseline (Beelzebub + Last Love + Thunderflash)",
+      "tier": "B_BASELINE",
+      "skillCount": 7,
+      "speedProfile": "fast",
+      "estimatedClearSecMin": 36,
+      "estimatedClearSecMax": 44,
+      "projectedPlayerPhaseDamage": 125339038,
+      "projectedOverkillMargin": -5910962,
+      "requiresOpusBeta": false,
+      "requiresSarielSubAura": false,
+      "stepSummary": "C4S2 -> Quick Call -> Reload -> C4S1 -> C4S3->C1 -> C4S4 -> C3S1 -> C3S2 -> C2S1 -> Attack -> Reload -> Confirm",
+      "steps": [
+        { "code": "skill", "character": 4, "skill": 2 },
+        { "code": "quick_call" },
+        { "code": "reload" },
+        { "code": "skill", "character": 4, "skill": 1 },
+        { "code": "skill", "character": 4, "skill": 3, "targetCharacter": 1 },
+        { "code": "skill", "character": 4, "skill": 4 },
+        { "code": "skill", "character": 3, "skill": 1 },
+        { "code": "skill", "character": 3, "skill": 2 },
+        { "code": "skill", "character": 2, "skill": 1 },
+        { "code": "attack" },
+        { "code": "reload" },
+        { "code": "confirm_result" }
+      ]
+    }
+  ],
+  "empiricalLiveBenchmarks": {
+    "deck133Baseline": {
+      "deckPriority": 133,
+      "startBossHp": 131250000,
+      "ewiyarS2Damage": 2217741,
+      "mcCa1Damage": 7857837,
+      "celestialDominionDamage": 2595405,
+      "mcCa2Damage": 8484247,
+      "ilsaNormalsDamage": 31188122,
+      "seoxNormalsDamage": 42732600,
+      "nierNormalsDamage": 22203083,
+      "nierEternalVowNukeDamage": 8060003,
+      "playerPhaseTotalDamage": 125339038,
+      "bossHpRemainingBeforeCounters": 5910962,
+      "counterKillDamage": 7293576,
+      "baselineRunSecMin": 36,
+      "baselineRunSecMax": 44
+    },
+    "backlineSlot5Audit": {
+      "totalDarkSsrOwned": 78,
+      "slot5RecommendedUse": "Any character needing XP/EMP (currently Tyra or Shao). None of the 78 owned Dark SSRs possess a sub-ally offensive Turn-1 normal-attack burst passive.",
+      "ownedBacklinePassiveDarkSsrs": [
+        {
+          "name": "Florence",
+          "passiveSummary": "Adorned: Boost to dark allies' DEF based on Oblivion Crests.",
+          "helpsTurn1Burst": false
+        },
+        {
+          "name": "Albert",
+          "passiveSummary": "Electrifying Feats: Boost to skill specs based on foe's Thunderstruck lvl.",
+          "helpsTurn1Burst": false
+        },
+        {
+          "name": "Forte",
+          "passiveSummary": "Sky Supremacy: Boost to skill specs based on Oblivion Crests.",
+          "helpsTurn1Burst": false
+        },
+        {
+          "name": "Rei",
+          "passiveSummary": "Loving Mother: Boost to C.A. specs against foes with Celestial Vision.",
+          "helpsTurn1Burst": false
+        }
+      ]
+    },
+    "optimizedLiveBenchmark": {
+      "recordedAt": "2026-11-23T04:41:53.000Z",
+      "profileId": "nm95_dark_yatima_6skill_safe",
+      "playerPhaseTotalDamage": 135390258,
+      "killedInPlayerPhase": true,
+      "clearTimeSec": 19.1,
+      "honorsAwarded": 910385
+    }
+  }
+}

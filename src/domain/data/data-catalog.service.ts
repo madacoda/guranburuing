@@ -59,7 +59,11 @@ import {
   SieteCharacterRegistryItem,
   SieteWeaponRegistryItem,
   SieteSummonRegistryItem,
-  SietePartyArchetypeDefinition
+  SietePartyArchetypeDefinition,
+  GwNm95DarkCatalog,
+  GwNm95DarkBossSpec,
+  GwNm95DarkRotationArchetype,
+  GwNm95DarkSkillRoiItem
 } from './data-catalog.types.js';
 
 /**
@@ -162,6 +166,10 @@ export class DataCatalogService {
   private sietePartyArchetypesList: SietePartyArchetypeDefinition[] = [];
   private sietePartyArchetypesById = new Map<string, SietePartyArchetypeDefinition>();
 
+  // KMS Extensions: GW NM95 Dark Optimization (Vol. 23)
+  private gwNm95DarkCatalog: GwNm95DarkCatalog | null = null;
+  private gwNm95DarkArchetypesById = new Map<string, GwNm95DarkRotationArchetype>();
+
   private rawSelectors: Record<string, any> = {};
 
   private dataBasePath: string;
@@ -201,7 +209,8 @@ export class DataCatalogService {
       'side_stories',
       'progression',
       'endgame',
-      'siete'
+      'siete',
+      'gw_nm95_dark'
     ];
     for (const d of domains) {
       this.ensureDomainLoaded(d);
@@ -636,6 +645,19 @@ export class DataCatalogService {
             this.sietePartyArchetypesList = data.partyArchetypes || [];
             for (const arch of this.sietePartyArchetypesList) {
               this.sietePartyArchetypesById.set(arch.archetypeId.toLowerCase(), arch);
+            }
+          }
+          break;
+        }
+
+        case 'gw_nm95_dark': {
+          // 28. Load GW NM95 Dark Yatima / Ereshkigal Optimization Catalog (Vol. 23)
+          const nm95Path = path.join(this.dataBasePath, 'combat', 'gw-nm95-dark.catalog.json');
+          if (fs.existsSync(nm95Path)) {
+            const data = JSON.parse(fs.readFileSync(nm95Path, 'utf-8')) as GwNm95DarkCatalog;
+            this.gwNm95DarkCatalog = data;
+            for (const arch of data.rotationArchetypes || []) {
+              this.gwNm95DarkArchetypesById.set(arch.id.toLowerCase(), arch);
             }
           }
           break;
@@ -1116,6 +1138,32 @@ export class DataCatalogService {
   public getAllSietePartyArchetypes(): SietePartyArchetypeDefinition[] {
     this.ensureDomainLoaded('siete');
     return [...this.sietePartyArchetypesList];
+  }
+
+  // KMS Queries: GW NM95 Dark Yatima / Ereshkigal Optimization (Vol. 23)
+  public getGwNm95DarkCatalog(): GwNm95DarkCatalog | null {
+    this.ensureDomainLoaded('gw_nm95_dark');
+    return this.gwNm95DarkCatalog;
+  }
+
+  public getGwNm95DarkBossSpec(): GwNm95DarkBossSpec | null {
+    this.ensureDomainLoaded('gw_nm95_dark');
+    return this.gwNm95DarkCatalog?.bossSpecification ?? null;
+  }
+
+  public getGwNm95DarkArchetype(archetypeId: string): GwNm95DarkRotationArchetype | undefined {
+    this.ensureDomainLoaded('gw_nm95_dark');
+    return this.gwNm95DarkArchetypesById.get(archetypeId.trim().toLowerCase());
+  }
+
+  public getAllGwNm95DarkArchetypes(): GwNm95DarkRotationArchetype[] {
+    this.ensureDomainLoaded('gw_nm95_dark');
+    return [...(this.gwNm95DarkCatalog?.rotationArchetypes ?? [])];
+  }
+
+  public getGwNm95DarkSkillRoi(): GwNm95DarkSkillRoiItem[] {
+    this.ensureDomainLoaded('gw_nm95_dark');
+    return [...(this.gwNm95DarkCatalog?.characterAndSkillRoi ?? [])];
   }
 }
 
