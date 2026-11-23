@@ -4,6 +4,7 @@ import readline from 'readline';
 import path from 'path';
 import fs from 'fs';
 import { SentinelWatchdog } from '../sentinel-watchdog.js';
+import { discordDmRelay } from '../relay/discord-dm-relay.js';
 
 async function promptUser(question: string): Promise<string> {
   const rl = readline.createInterface({
@@ -47,6 +48,8 @@ async function main() {
     process.exit(0);
   }
 
+  const artifacts = await sentinel.captureCaptchaArtifacts();
+
   // Save current captcha image crop
   const capDir = path.resolve(process.cwd(), 'artifacts/captures');
   if (!fs.existsSync(capDir)) fs.mkdirSync(capDir, { recursive: true });
@@ -73,6 +76,13 @@ async function main() {
 
   console.log(`\nSubmitting code "${codeToSubmit}" to game...`);
   const success = await sentinel.submitCaptchaCode(codeToSubmit);
+  discordDmRelay.saveCaptchaRelay({
+    code: codeToSubmit,
+    rawMessage: `/gbf ${codeToSubmit}`,
+    verified: success,
+    images: artifacts.allImages,
+    initialCapturePath: artifacts.capturePath
+  });
   if (success) {
     console.log('\n🎉 Verification successful! The challenge modal has been cleared.');
   } else {

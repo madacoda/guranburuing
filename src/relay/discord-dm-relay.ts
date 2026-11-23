@@ -2,6 +2,20 @@
 import fs from 'fs';
 import path from 'path';
 import { config } from '../config.js';
+import {
+  CaptchaCapturedImage,
+  CaptchaRelayRecord,
+  CaptchaRelayStorageService,
+  captchaRelayStorage
+} from '../services/telemetry/captcha-relay-storage.service.js';
+
+export interface DiscordMessageAttachment {
+  id: string;
+  filename: string;
+  url: string;
+  proxy_url?: string;
+  content_type?: string;
+}
 
 export interface DiscordMessageResponse {
   id: string;
@@ -12,11 +26,19 @@ export interface DiscordMessageResponse {
     bot?: boolean;
   };
   timestamp: string;
+  attachments?: DiscordMessageAttachment[];
 }
 
 export interface DiscordAttachment {
   buffer: Buffer;
   filename: string;
+}
+
+export interface CaptchaImageBundle {
+  fullScreenshot: Buffer;
+  puzzleCrop?: Buffer;
+  capturePath?: string;
+  allImages?: CaptchaCapturedImage[];
 }
 
 export interface CaptchaContext {
@@ -121,6 +143,171 @@ export class DiscordDmRelay {
   private notifiedKeys = new Map<string, number>();
   private activeCaptchaPrompt = false;
   private static activePromptFile = path.resolve(process.cwd(), 'data', '.active-captcha-prompt.json');
+  private relayStorage: CaptchaRelayStorageService = captchaRelayStorage;
+  private activePromptImages: CaptchaCapturedImage[] = [];
+  private activePromptCapturePath?: string;
+  private activePromptContext?: CaptchaContext;
+  private lastSentAttachments: CaptchaCapturedImage[] = [];
+  private lastSavedRelayRecord: CaptchaRelayRecord | null = null;
+
+  public setRelayStorage(storage: CaptchaRelayStorageService): void {
+    this.relayStorage = storage;
+  }
+
+  public getRelayStorage(): CaptchaRelayStorageService {
+    return this.relayStorage;
+  }
+
+  public getLastSavedRelayRecord(): CaptchaRelayRecord | null {
+    return this.lastSavedRelayRecord;
+  }
+
+  public updateLastSavedRelayVerification(verified: boolean): CaptchaRelayRecord | null {
+    if (!this.lastSavedRelayRecord) return null;
+    const updated = this.relayStorage.updateVerificationStatus(this.lastSavedRelayRecord.id, verified);
+    if (updated) {
+      this.lastSavedRelayRecord = updated;
+    }
+    return updated;
+  }
+
+  /**
+   * Collects all images from a CAPTCHA bundle or attachment input into normalized CaptchaCapturedImage items.
+   */
+  public static collectImagesFromInput(
+    images?: Buffer | CaptchaImageBundle | DiscordAttachment[] | { buffer: Buffer; filename: string }
+  ): { list: CaptchaCapturedImage[]; capturePath?: string } {
+    const list: CaptchaCapturedImage[] = [];
+    let capturePath: string | undefined;
+
+    if (!images) return { list };
+
+    if (Buffer.isBuffer(images)) {
+      if (images.length > 0) {
+        list.push({ label: 'viewport', buffer: images, filename: 'captcha-challenge.png' });
+      }
+      return { list };
+    }
+
+    if (Array.isArray(images)) {
+      images.forEach((att, idx) => {
+        if (att?.buffer && att.buffer.length > 0) {
+          list.push({
+            label: att.filename ? att.filename.replace(/\.[^.]+$/, '') : `attachment-${idx + 1}`,
+            buffer: att.buffer,
+            filename: att.filename
+          });
+        }
+      });
+      return { list };
+    }
+
+    if ('buffer' in images && Buffer.isBuffer(images.buffer)) {
+      if (images.buffer.length > 0) {
+        list.push({
+          label: images.filename ? images.filename.replace(/\.[^.]+$/, '') : 'attachment',
+          buffer: images.buffer,
+          filename: images.filename
+        });
+      }
+      return { list };
+    }
+
+    const bundle = images as CaptchaImageBundle;
+    capturePath = bundle.capturePath;
+
+    if (bundle.fullScreenshot && bundle.fullScreenshot.length > 0) {
+      list.push({
+        label: 'viewport',
+        buffer: bundle.fullScreenshot,
+        filename: 'captcha-challenge.png'
+      });
+    }
+
+    if (bundle.puzzleCrop && bundle.puzzleCrop.length > 0) {
+      list.push({
+        label: 'puzzle-crop',
+        buffer: bundle.puzzleCrop,
+        filename: 'captcha-puzzle.png'
+      });
+    }
+
+    if (Array.isArray(bundle.allImages)) {
+      for (const extra of bundle.allImages) {
+        if (extra?.buffer && extra.buffer.length > 0) {
+          list.push(extra);
+        }
+      }
+    }
+
+    return {
+      list: CaptchaRelayStorageService.normalizeImages(list),
+      capturePath
+    };
+  }
+
+  /**
+   * Persists a `/gbf <code>` reply from Discord with all associated images.
+   */
+  public saveCaptchaRelay(params: {
+    code: string;
+    rawMessage?: string;
+    messageId?: string;
+    promptMessageId?: string;
+    verified?: boolean | null;
+    images?: CaptchaCapturedImage[];
+    initialCapturePath?: string;
+    context?: CaptchaContext;
+  }): CaptchaRelayRecord {
+    let imagesToSave = params.images && params.images.length > 0
+      ? params.images
+      : this.activePromptImages.length > 0
+        ? this.activePromptImages
+        : this.lastSentAttachments;
+
+    // Fallback: if no in-memory images exist, load the most recent viewport capture from scratch/captures/captcha
+    if ((!imagesToSave || imagesToSave.length === 0)) {
+      const scratchCaptchaDir = path.resolve(process.cwd(), 'scratch/captures/captcha');
+      try {
+        if (fs.existsSync(scratchCaptchaDir)) {
+          const recentFiles = fs.readdirSync(scratchCaptchaDir)
+            .filter(f => f.endsWith('_viewport.png'))
+            .map(f => {
+              const fullPath = path.join(scratchCaptchaDir, f);
+              return { fullPath, mtimeMs: fs.statSync(fullPath).mtimeMs };
+            })
+            .sort((a, b) => b.mtimeMs - a.mtimeMs);
+          if (recentFiles.length > 0) {
+            imagesToSave = [{
+              label: 'viewport',
+              buffer: fs.readFileSync(recentFiles[0].fullPath)
+            }];
+          }
+        }
+      } catch {}
+    }
+
+    const ctx = params.context || this.activePromptContext;
+    const record = this.relayStorage.saveRelayRecord({
+      code: params.code,
+      rawMessage: params.rawMessage,
+      messageId: params.messageId,
+      promptMessageId: params.promptMessageId,
+      verified: params.verified ?? null,
+      images: imagesToSave || [],
+      initialCapturePath: params.initialCapturePath ?? this.activePromptCapturePath,
+      accountId: ctx?.accountId,
+      playerName: ctx?.playerName,
+      questName: ctx?.questName,
+      raidId: ctx?.raidId,
+      runNumber: ctx?.runNumber,
+      attempt: ctx?.attempt,
+      maxAttempts: ctx?.maxAttempts
+    });
+
+    this.lastSavedRelayRecord = record;
+    return record;
+  }
 
   private static readonly RESERVED_CONTROLLER_COMMANDS = new Set([
     'status', 'stop', 'reset', 'next', 'logs', 'log', 'inventory', 'supplies',
@@ -355,6 +542,10 @@ export class DiscordDmRelay {
     let res: Response;
 
     if (attachments && hasAttachments()) {
+      const collected = DiscordDmRelay.collectImagesFromInput(attachments);
+      if (collected.list.length > 0) {
+        this.lastSentAttachments = collected.list;
+      }
       const formData = new FormData();
       formData.append('content', safeContent);
 
@@ -474,6 +665,51 @@ export class DiscordDmRelay {
                 console.log(
                   `[DiscordDmRelay] 📩 Received valid /gbf CAPTCHA reply: "${parsedReply}" (Raw: "${msg.content.trim()}", Message ID: ${msg.id})`
                 );
+
+                if (parsedReply !== 'HALT_REQUESTED' && parsedReply !== 'RESOLVED_EXTERNALLY') {
+                  const combinedImages: CaptchaCapturedImage[] = [
+                    ...(this.activePromptImages.length > 0 ? this.activePromptImages : this.lastSentAttachments)
+                  ];
+
+                  // Also fetch any images directly attached by the user on the Discord reply message
+                  if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+                    for (let i = 0; i < msg.attachments.length; i++) {
+                      const att = msg.attachments[i];
+                      if (att?.url) {
+                        try {
+                          const attRes = await fetch(att.url);
+                          if (attRes.ok) {
+                            const arrBuf = await attRes.arrayBuffer();
+                            const buf = Buffer.from(arrBuf);
+                            if (buf.length > 0) {
+                              combinedImages.push({
+                                label: att.filename ? `discord-${att.filename.replace(/\.[^.]+$/, '')}` : `discord-reply-${i + 1}`,
+                                buffer: buf,
+                                filename: att.filename,
+                                src: att.url
+                              });
+                            }
+                          }
+                        } catch {}
+                      }
+                    }
+                  }
+
+                  try {
+                    this.saveCaptchaRelay({
+                      code: parsedReply,
+                      rawMessage: msg.content.trim(),
+                      messageId: msg.id,
+                      promptMessageId,
+                      images: combinedImages,
+                      initialCapturePath: this.activePromptCapturePath,
+                      context: this.activePromptContext
+                    });
+                  } catch (saveErr: any) {
+                    console.warn(`[DiscordDmRelay] Warning saving CAPTCHA relay record: ${saveErr.message}`);
+                  }
+                }
+
                 return parsedReply;
               }
 
@@ -505,11 +741,19 @@ export class DiscordDmRelay {
    * Formatted concisely, displaying in-game player name and clear action choices.
    */
   public async requestCaptchaResolution(
-    images: Buffer | { fullScreenshot: Buffer; puzzleCrop?: Buffer },
+    images: Buffer | CaptchaImageBundle,
     timeoutMs = 300000,
     onPollTick?: (elapsedMs: number) => Promise<boolean | void> | boolean | void,
     context?: CaptchaContext
   ): Promise<string | null> {
+    const collected = DiscordDmRelay.collectImagesFromInput(images);
+    this.activePromptImages = collected.list;
+    this.activePromptCapturePath = collected.capturePath;
+    this.activePromptContext = context;
+    if (collected.list.length > 0) {
+      this.lastSentAttachments = collected.list;
+    }
+
     const isRetry = Boolean(context?.attempt && context.attempt > 1);
     const playerDisplay = context?.playerName
       ? `${context.playerName}${context.accountId && context.accountId !== context.playerName ? ` (\`${context.accountId}\`)` : ''}`
@@ -579,6 +823,9 @@ export class DiscordDmRelay {
       return await this.waitForReply(promptMessage.id, timeoutMs, 2500, onPollTick);
     } finally {
       this.setCaptchaPromptState(false);
+      this.activePromptImages = [];
+      this.activePromptCapturePath = undefined;
+      this.activePromptContext = undefined;
     }
   }
 

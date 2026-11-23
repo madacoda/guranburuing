@@ -3,7 +3,8 @@ import path from 'path';
 import { Page } from 'puppeteer-core';
 import { AlertRelay } from './alert-relay.js';
 import { ArtifactManager } from './core/artifact-manager.js';
-import { discordDmRelay, CaptchaContext } from './relay/discord-dm-relay.js';
+import { discordDmRelay, CaptchaContext, CaptchaImageBundle } from './relay/discord-dm-relay.js';
+import { CaptchaCapturedImage } from './services/telemetry/captcha-relay-storage.service.js';
 
 export type SentinelContext = CaptchaContext;
 
@@ -431,28 +432,152 @@ export class SentinelWatchdog {
   }
 
   /**
-   * Captures the full game viewport screenshot of the active CAPTCHA challenge.
-   * Ensures the challenge is fully rendered before capture.
+   * Captures the full game viewport screenshot and all isolated DOM verification/puzzle/tile/modal images
+   * of the active CAPTCHA challenge. Ensures the challenge is fully rendered before capture.
    */
-  public async captureCaptchaArtifacts(): Promise<{ fullScreenshot: Buffer; puzzleCrop?: Buffer }> {
+  public async captureCaptchaArtifacts(): Promise<CaptchaImageBundle> {
     const capturePath = ArtifactManager.getCapturePath({ namespace: 'captcha', label: 'viewport' });
     let fullScreenshot: Buffer = Buffer.alloc(0);
+    const allImages: CaptchaCapturedImage[] = [];
 
     // 1. Ensure the active CAPTCHA is fully rendered and stabilized
     await this.waitForActiveCaptchaRender(3500);
 
-    // 2. Capture clean full viewport
+    // 2. Capture clean full viewport (do not prune so all captcha captures remain available)
     if (typeof this.page.screenshot === 'function') {
       try {
         fullScreenshot = (await this.page.screenshot({ path: capturePath, type: 'png' })) as Buffer;
-        ArtifactManager.pruneOldCaptures(path.dirname(capturePath), 20);
+        if (fullScreenshot && fullScreenshot.length > 0) {
+          allImages.push({ label: 'viewport', buffer: fullScreenshot });
+        }
         console.error(`[Sentinel] 📸 CAPTCHA Viewport: ${capturePath}`);
       } catch (err: any) {
         console.warn('[Sentinel] Failed to capture full viewport screenshot:', err.message);
       }
     }
 
-    return { fullScreenshot };
+    // 3. Extract all verification puzzle & tile images directly from the DOM at native resolution
+    if (typeof this.page.evaluate === 'function') {
+      try {
+        const domExtracted = await this.page.evaluate(() => {
+          const results: Array<{
+            label: string;
+            dataUrl: string;
+            width: number;
+            height: number;
+            src: string;
+          }> = [];
+
+          const isVisible = (el: HTMLElement | null): boolean => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            if (!style || style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') <= 0.05) {
+              return false;
+            }
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          };
+
+          const seen = new Set<HTMLImageElement>();
+          const candidateSelectors = [
+            'img.img-verification',
+            'img[src*="c/i?"]',
+            'img[src*="/c/i?"]',
+            'img.image[src*="c/i?"]',
+            '.prt-c-a-i-image img',
+            '.prt-c-a-i-input img',
+            '#c-a-i-frm-group img',
+            'li.c-a-i-image img',
+            '.lis-c-a-i-image img',
+            '#cnt-verification img',
+            '.cnt-verification img',
+            '.prt-verification img',
+            '.pop-usual.verification img',
+            '.cnt-captcha img',
+            '.pop-captcha img'
+          ];
+
+          let puzzleIdx = 0;
+          let tileIdx = 0;
+
+          for (const sel of candidateSelectors) {
+            const nodes = document.querySelectorAll(sel);
+            for (let i = 0; i < nodes.length; i++) {
+              const img = nodes[i] as HTMLImageElement;
+              if (!img || seen.has(img) || !isVisible(img)) continue;
+              if (!img.complete || img.naturalWidth <= 24 || img.naturalHeight <= 16) continue;
+
+              seen.add(img);
+              const isTile = Boolean(img.closest('li.c-a-i-image, .lis-c-a-i-image'));
+              const label = isTile
+                ? `tile-${++tileIdx}`
+                : (++puzzleIdx === 1 ? 'puzzle' : `puzzle-${puzzleIdx}`);
+
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0);
+                  const dataUrl = canvas.toDataURL('image/png');
+                  if (dataUrl && dataUrl.startsWith('data:image/png;base64,')) {
+                    results.push({
+                      label,
+                      dataUrl,
+                      width: img.naturalWidth,
+                      height: img.naturalHeight,
+                      src: img.currentSrc || img.src || ''
+                    });
+                  }
+                }
+              } catch {
+                // Ignore cross-origin canvas taint; element screenshot fallback below handles it
+              }
+            }
+          }
+
+          return results;
+        }).catch(() => []);
+
+        if (Array.isArray(domExtracted)) {
+          for (const item of domExtracted) {
+            const b64 = item.dataUrl.replace(/^data:image\/png;base64,/, '');
+            const buf = Buffer.from(b64, 'base64');
+            if (buf.length > 0) {
+              allImages.push({
+                label: item.label,
+                buffer: buf,
+                width: item.width,
+                height: item.height,
+                src: item.src
+              });
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // 4. Capture verification modal / container crop if available via ElementHandle
+    if (typeof this.page.$ === 'function') {
+      try {
+        const modalEl = await this.page.$(
+          '#cnt-verification, .cnt-verification, .pop-usual.verification, #c-a-i-frm-group, .prt-c-a-i-input, .cnt-captcha, .pop-captcha'
+        ).catch(() => null);
+        if (modalEl && typeof (modalEl as any).screenshot === 'function') {
+          const modalBuf = (await (modalEl as any).screenshot({ type: 'png' }).catch(() => null)) as Buffer | null;
+          if (modalBuf && Buffer.isBuffer(modalBuf) && modalBuf.length > 0) {
+            allImages.push({ label: 'modal', buffer: modalBuf });
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      fullScreenshot,
+      capturePath,
+      allImages
+    };
   }
 
   /**
@@ -539,7 +664,7 @@ export class SentinelWatchdog {
         }
 
         console.log(`[Sentinel] 🤖 [Attempt ${attempt}/${MAX_ATTEMPTS}] Capturing CAPTCHA artifacts...`);
-        let artifacts: { fullScreenshot: Buffer; puzzleCrop?: Buffer } | null = null;
+        let artifacts: CaptchaImageBundle | null = null;
         try {
           artifacts = await this.captureCaptchaArtifacts();
         } catch (err: any) {
@@ -595,6 +720,7 @@ export class SentinelWatchdog {
         if (reply) {
           console.log(`[Sentinel] 📩 Submitting response code from Discord: "${reply}"...`);
           const solved = await this.submitCaptchaCode(reply);
+          discordDmRelay.updateLastSavedRelayVerification(solved);
           if (solved) {
             console.log('[Sentinel] ✅ CAPTCHA verified and dismissed successfully!');
             await discordDmRelay.sendConfirmation(

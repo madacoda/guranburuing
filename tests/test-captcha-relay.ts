@@ -1,8 +1,22 @@
 // tests/test-captcha-relay.ts
 import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
 import { SentinelWatchdog } from '../src/sentinel-watchdog.js';
 import { AlertRelay } from '../src/alert-relay.js';
 import { discordDmRelay } from '../src/relay/discord-dm-relay.js';
+import { CaptchaRelayStorageService } from '../src/services/telemetry/captcha-relay-storage.service.js';
+
+const testTempRoot = path.resolve(process.cwd(), 'scratch/test-captcha-relay-storage');
+if (fs.existsSync(testTempRoot)) {
+  fs.rmSync(testTempRoot, { recursive: true, force: true });
+}
+const testRelayStorage = new CaptchaRelayStorageService({
+  artifactsDir: path.join(testTempRoot, 'artifacts'),
+  scratchDir: path.join(testTempRoot, 'scratch'),
+  logsDir: path.join(testTempRoot, 'logs')
+});
+discordDmRelay.setRelayStorage(testRelayStorage);
 
 console.log('========================================================================');
 console.log('       Granblue Fantasy CAPTCHA Relay & Two-Way Resolution Test Suite    ');
@@ -239,6 +253,129 @@ console.log('\n[Test 6] Testing Strict /gbf Prefix & Input Validation in CAPTCHA
     globalThis.fetch = origFetch;
     (discordDmRelay as any).isConfigured = origIsConfigured;
     (discordDmRelay as any).getDmChannelId = origGetDmChannelId;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Test 7: Saving /gbf <code> with ALL Images (Viewport, Puzzle, Modal, Tiles)
+// -----------------------------------------------------------------------------
+console.log('\n[Test 7] Testing Discord /gbf <code> Relay Persistence with All Images...');
+{
+  const dummyPngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const dummyDataUrl = `data:image/png;base64,${dummyPngB64}`;
+
+  const mockMultiImagePage = createMockPage({
+    screenshot: async () => Buffer.from('full-viewport-image-bytes'),
+    evaluate: async (fn: any) => {
+      const fnStr = fn.toString();
+      if (fnStr.includes('candidateSelectors')) {
+        return [
+          {
+            label: 'puzzle',
+            dataUrl: dummyDataUrl,
+            width: 220,
+            height: 80,
+            src: 'https://game.granbluefantasy.jp/c/i?t=123'
+          },
+          {
+            label: 'tile-1',
+            dataUrl: dummyDataUrl,
+            width: 64,
+            height: 64,
+            src: 'https://game.granbluefantasy.jp/c/i?tile=1'
+          }
+        ];
+      }
+      return true;
+    },
+    $: async () => ({
+      screenshot: async () => Buffer.from('modal-container-image-bytes')
+    })
+  });
+
+  const sentinelMulti = new SentinelWatchdog(mockMultiImagePage, dummyRelay, { enableTwoWayDiscord: true });
+  const multiArtifacts = await sentinelMulti.captureCaptchaArtifacts();
+
+  assert(Array.isArray(multiArtifacts.allImages), 'allImages array must be populated');
+  assert.strictEqual(multiArtifacts.allImages!.length, 4, 'Must capture viewport, puzzle, tile-1, and modal images');
+
+  const origFetch = globalThis.fetch;
+  const origIsConfigured = discordDmRelay.isConfigured.bind(discordDmRelay);
+  const origGetDmChannelId = discordDmRelay.getDmChannelId.bind(discordDmRelay);
+  const origSendMessage = discordDmRelay.sendMessage.bind(discordDmRelay);
+  const targetUserId = (await import('../src/config.js')).config.DISCORD_USER_ID || 'test-user';
+
+  (discordDmRelay as any).isConfigured = () => true;
+  (discordDmRelay as any).getDmChannelId = async () => 'mock_dm_chan';
+  (discordDmRelay as any).sendMessage = async (_content: string) => ({
+    id: '223456789012345678',
+    content: _content,
+    author: { id: 'bot', username: 'GBF' },
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify([
+          {
+            id: '200000000000000099',
+            content: '/gbf k9m4x2',
+            author: { id: targetUserId, username: 'Player', bot: false },
+            timestamp: '2026-11-24T00:10:00.000Z'
+          }
+        ]),
+        { status: 200 }
+      );
+    }) as any;
+
+    const codeReply = await discordDmRelay.requestCaptchaResolution(
+      multiArtifacts,
+      500,
+      undefined,
+      {
+        accountId: 'acc1',
+        playerName: 'Gran',
+        questName: 'Akasha HL',
+        raidId: '47208148161',
+        runNumber: 7,
+        attempt: 1,
+        maxAttempts: 5
+      }
+    );
+
+    assert.strictEqual(codeReply, 'k9m4x2', 'Must resolve /gbf k9m4x2');
+
+    // Update verification status to true (as SentinelWatchdog does after submitCaptchaCode)
+    const updatedRecord = discordDmRelay.updateLastSavedRelayVerification(true);
+    assert(updatedRecord !== null, 'Saved relay record must exist');
+    assert.strictEqual(updatedRecord!.code, 'k9m4x2', 'Saved record must preserve exact code');
+    assert.strictEqual(updatedRecord!.rawMessage, '/gbf k9m4x2', 'Saved record must preserve raw Discord command');
+    assert.strictEqual(updatedRecord!.verified, true, 'Saved record must reflect verified status');
+    assert.strictEqual(updatedRecord!.images.length, 4, 'All 4 images (viewport, puzzle, tile-1, modal) must be saved');
+
+    for (const imgInfo of updatedRecord!.images) {
+      assert(fs.existsSync(imgInfo.artifactPath), `Artifact image must exist on disk: ${imgInfo.artifactPath}`);
+      assert(fs.existsSync(imgInfo.scratchPath), `Scratch image must exist on disk: ${imgInfo.scratchPath}`);
+      assert(imgInfo.filename.includes('code-k9m4x2'), `Filename must include the code: ${imgInfo.filename}`);
+    }
+
+    assert(fs.existsSync(updatedRecord!.metadataPath), 'Companion JSON metadata file must exist');
+    const txtPath = updatedRecord!.metadataPath.replace(/\.json$/, '.txt');
+    assert(fs.existsSync(txtPath), 'Companion TXT code file must exist');
+    assert.strictEqual(fs.readFileSync(txtPath, 'utf-8').trim(), 'k9m4x2', 'Companion TXT file must contain exact code');
+
+    const ledgerRecords = testRelayStorage.getRecords();
+    assert(ledgerRecords.some(r => r.code === 'k9m4x2' && r.verified === true), 'Master ledger must contain verified k9m4x2 record');
+    console.log('  ✅ [PASS] /gbf <code> saved properly with all 4 images (viewport, puzzle, tile-1, modal), JSON/TXT companions, and ledger');
+  } finally {
+    globalThis.fetch = origFetch;
+    (discordDmRelay as any).isConfigured = origIsConfigured;
+    (discordDmRelay as any).getDmChannelId = origGetDmChannelId;
+    (discordDmRelay as any).sendMessage = origSendMessage;
+    if (fs.existsSync(testTempRoot)) {
+      fs.rmSync(testTempRoot, { recursive: true, force: true });
+    }
   }
 }
 

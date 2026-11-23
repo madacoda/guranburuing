@@ -414,12 +414,33 @@ export class DiscordCommandGatewayService {
       action === 'answer' ||
       action === 'reply'
     ) {
+      if (!this.isVerificationAwaitingReply()) {
+        const parsedCode = discordDmRelay.parseCaptchaReply(raw);
+        if (parsedCode && parsedCode !== 'HALT_REQUESTED') {
+          discordDmRelay.saveCaptchaRelay({
+            code: parsedCode,
+            rawMessage: raw,
+            messageId: msg.id
+          });
+        }
+      }
       console.log(`[CommandGateway] 🔐 Deferring explicit verification reply "${raw}" to CAPTCHA relay listener.`);
       return;
     }
 
-    if (this.isVerificationAwaitingReply() && discordDmRelay.parseCaptchaReply(raw) !== null) {
+    const parsedCaptchaCode = discordDmRelay.parseCaptchaReply(raw);
+    if (this.isVerificationAwaitingReply() && parsedCaptchaCode !== null) {
       console.log(`[CommandGateway] 🔐 Deferring "${raw}" to active CAPTCHA relay listener.`);
+      return;
+    }
+
+    if (parsedCaptchaCode !== null && parsedCaptchaCode !== 'HALT_REQUESTED') {
+      discordDmRelay.saveCaptchaRelay({
+        code: parsedCaptchaCode,
+        rawMessage: raw,
+        messageId: msg.id
+      });
+      console.log(`[CommandGateway] 💾 Saved standalone /gbf code relay "${parsedCaptchaCode}" from Discord message ${msg.id}.`);
       return;
     }
 
