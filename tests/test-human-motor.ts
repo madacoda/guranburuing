@@ -2,6 +2,9 @@
 import {
   sampleGaussian,
   sampleTargetCoordinate,
+  sampleHumanDelayMs,
+  sampleHumanSpamCadence,
+  moveMouseSmoothly,
   evaluateCubicBezier,
   getFatigueState,
   getFatigueLevel,
@@ -9,6 +12,8 @@ import {
   resetFatigue,
   recordRunCompletedForFatigue,
   applyPassiveIdleRecovery,
+  getSpeedProfile,
+  setSpeedProfile,
 } from '../src/human-motor.js';
 
 console.log('--- Testing Human Motor Simulation Math ---');
@@ -112,5 +117,85 @@ for (let i = 0; i < 500; i++) {
 }
 resetFatigue(1.0);
 console.log('Fatigue Curve, Micro-Break Reset, & Idle Decay Test: PASSED');
+
+// 5. Test Non-Uniform Human Delay & Natural Spam Cadence + Turbo Micro-Bezier
+console.log('\n--- Testing Non-Uniform Spam Cadence & Turbo Micro-Bezier Trajectory ---');
+const origProfile = getSpeedProfile();
+try {
+  setSpeedProfile('turbo');
+
+  const sampledDelays: number[] = [];
+  for (let i = 0; i < 40; i++) {
+    const val = sampleHumanDelayMs(300, 0.30, { minMs: 150, maxMs: 550 });
+    if (val < 150 || val > 550) {
+      throw new Error(`sampleHumanDelayMs out of bounds [150, 550]: ${val}`);
+    }
+    sampledDelays.push(val);
+  }
+  const uniqueDelays = new Set(sampledDelays).size;
+  if (uniqueDelays < 10) {
+    throw new Error(`Expected non-metronomic delay variance (>=10 unique values), got ${uniqueDelays}`);
+  }
+
+  const c1Turbo = sampleHumanSpamCadence(1, true);
+  if (c1Turbo.preRetryGapMs !== 0 || c1Turbo.verifyWindowMs < 360 || c1Turbo.verifyWindowMs > 740) {
+    throw new Error(`Unexpected attempt-1 turbo cadence: ${JSON.stringify(c1Turbo)}`);
+  }
+
+  const turboGaps: number[] = [];
+  const turboWindows: number[] = [];
+  const fastGaps: number[] = [];
+  const fastWindows: number[] = [];
+  for (let i = 0; i < 30; i++) {
+    const attemptNum = 2 + (i % 3);
+    const tc = sampleHumanSpamCadence(attemptNum, true);
+    if (tc.preRetryGapMs < 24 || tc.preRetryGapMs > 130 || tc.verifyWindowMs < 175 || tc.verifyWindowMs > 540) {
+      throw new Error(`Turbo spam cadence out of bounds: ${JSON.stringify(tc)}`);
+    }
+    turboGaps.push(tc.preRetryGapMs);
+    turboWindows.push(tc.verifyWindowMs);
+
+    const fc = sampleHumanSpamCadence(attemptNum, false);
+    if (fc.preRetryGapMs < 60 || fc.preRetryGapMs > 245 || fc.verifyWindowMs < 280 || fc.verifyWindowMs > 820) {
+      throw new Error(`Fast spam cadence out of bounds: ${JSON.stringify(fc)}`);
+    }
+    fastGaps.push(fc.preRetryGapMs);
+    fastWindows.push(fc.verifyWindowMs);
+  }
+
+  if (
+    new Set(turboGaps).size < 8 ||
+    new Set(turboWindows).size < 8 ||
+    new Set(fastGaps).size < 8 ||
+    new Set(fastWindows).size < 8
+  ) {
+    throw new Error('Expected natural variance (>=8 unique values) in human spam cadence');
+  }
+
+  // Verify moveMouseSmoothly in turbo uses micro-Bezier (>=2 steps across 200px)
+  const recordedMoves: { x: number; y: number }[] = [];
+  const mockCursorPage = {
+    mouse: {
+      move: async (x: number, y: number) => {
+        recordedMoves.push({ x, y });
+      }
+    }
+  } as any;
+
+  await moveMouseSmoothly(mockCursorPage, { x: 100, y: 100 });
+  recordedMoves.length = 0;
+  await moveMouseSmoothly(mockCursorPage, { x: 300, y: 150 });
+  if (recordedMoves.length < 2) {
+    throw new Error(`Expected >=2 micro-Bezier moves in turbo across 206px, got ${recordedMoves.length}`);
+  }
+  const lastMove = recordedMoves[recordedMoves.length - 1];
+  if (Math.hypot(lastMove.x - 300, lastMove.y - 150) > 1e-6) {
+    throw new Error(`Expected final micro-Bezier point at (300, 150), got (${lastMove.x}, ${lastMove.y})`);
+  }
+  console.log(`Non-Uniform Spam Cadence (unique=${uniqueDelays}/40) & Turbo Micro-Bezier (${recordedMoves.length} steps): PASSED`);
+} finally {
+  setSpeedProfile(origProfile);
+  resetFatigue(1.0);
+}
 
 console.log('\n✅ Task 02 Human Motor Simulation Tests: ALL PASSED!');

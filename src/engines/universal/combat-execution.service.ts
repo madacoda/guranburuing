@@ -12,6 +12,9 @@ import {
   logNormalDelay,
   sampleGaussian,
   sampleTargetCoordinate,
+  sampleHumanDelayMs,
+  sampleHumanSpamCadence,
+  recordMotorAction,
   moveMouseSmoothly,
   getSpeedProfile
 } from '../../human-motor.js';
@@ -585,6 +588,14 @@ export class CombatExecutionService {
     const readinessStart = Date.now();
     let lastBackTapAt = 0;
     let lastOpenTapAt = 0;
+    let backTapCooldownMs = sampleHumanDelayMs(isTurbo ? 165 : 245, 0.25, {
+      minMs: isTurbo ? 110 : 170,
+      maxMs: isTurbo ? 260 : 360
+    });
+    let openTapCooldownMs = sampleHumanDelayMs(isTurbo ? 195 : 290, 0.25, {
+      minMs: isTurbo ? 130 : 200,
+      maxMs: isTurbo ? 310 : 420
+    });
     let idleCooldownSince = 0;
     let skillDisplayName = preState.abilityName || '';
     let baselineRailCount = 0;
@@ -595,8 +606,8 @@ export class CombatExecutionService {
       if (this.ctx.state.stopRequested) return false;
 
       const now = Date.now();
-      const canTapBack = now - lastBackTapAt >= (isTurbo ? 180 : 250);
-      const canTapOpen = now - lastOpenTapAt >= (isTurbo ? 220 : 300);
+      const canTapBack = now - lastBackTapAt >= backTapCooldownMs;
+      const canTapOpen = now - lastOpenTapAt >= openTapCooldownMs;
 
       const pollState = await this.page.evaluate(
         (cNum: number, sNum: number, allowBackTap: boolean, allowOpenTap: boolean) => {
@@ -825,15 +836,31 @@ export class CombatExecutionService {
 
       if (pollState.status === 'tapped_back') {
         lastBackTapAt = Date.now();
+        backTapCooldownMs = sampleHumanDelayMs(isTurbo ? 165 : 245, 0.25, {
+          minMs: isTurbo ? 110 : 170,
+          maxMs: isTurbo ? 260 : 360
+        });
         idleCooldownSince = 0;
-        if (this.ctx.template.humanMotor !== false && !isTurbo) {
-          await logNormalDelay(40, 0.15);
+        if (this.ctx.template.humanMotor !== false) {
+          const backDelay = sampleHumanDelayMs(isTurbo ? 24 : 42, 0.30, {
+            minMs: isTurbo ? 12 : 22,
+            maxMs: isTurbo ? 55 : 85
+          });
+          await new Promise(r => setTimeout(r, backDelay));
         }
       } else if (pollState.status === 'tapped_open') {
         lastOpenTapAt = Date.now();
+        openTapCooldownMs = sampleHumanDelayMs(isTurbo ? 195 : 290, 0.25, {
+          minMs: isTurbo ? 130 : 200,
+          maxMs: isTurbo ? 310 : 420
+        });
         idleCooldownSince = 0;
-        if (this.ctx.template.humanMotor !== false && !isTurbo) {
-          await logNormalDelay(45, 0.15);
+        if (this.ctx.template.humanMotor !== false) {
+          const openDelay = sampleHumanDelayMs(isTurbo ? 28 : 48, 0.30, {
+            minMs: isTurbo ? 14 : 25,
+            maxMs: isTurbo ? 62 : 95
+          });
+          await new Promise(r => setTimeout(r, openDelay));
         }
       } else if (pollState.status === 'ready') {
         baselineRailCount = pollState.railCount;
@@ -865,7 +892,15 @@ export class CombatExecutionService {
         idleCooldownSince = 0;
       }
 
-      await new Promise(r => setTimeout(r, isTurbo ? 35 : 55));
+      await new Promise(r =>
+        setTimeout(
+          r,
+          sampleHumanDelayMs(isTurbo ? 34 : 54, 0.24, {
+            minMs: isTurbo ? 22 : 35,
+            maxMs: isTurbo ? 58 : 88
+          })
+        )
+      );
     }
 
     if (!isSkillReadyToPress) {
@@ -892,7 +927,29 @@ export class CombatExecutionService {
     let netResolved = false;
     let netJson: any = null;
     let netPopupLockout = false;
+    let netRequestSent = false;
+    let netRequestSentAt = 0;
     let netPromise: Promise<{ resolved: boolean; json: any | null; isPopupLockout?: boolean }>;
+
+    const onSkillRequest = (req: any) => {
+      try {
+        const url = typeof req?.url === 'function' ? req.url() : '';
+        if (url && url.includes(targetNet)) {
+          netRequestSent = true;
+          netRequestSentAt = Date.now();
+        }
+      } catch {
+        // ignore
+      }
+    };
+    if (typeof this.page.on === 'function') {
+      this.page.on('request', onSkillRequest);
+    }
+    const detachRequestListener = () => {
+      if (typeof this.page.off === 'function') {
+        this.page.off('request', onSkillRequest);
+      }
+    };
 
     const armNetworkListener = (timeoutMs: number) => {
       netPopupLockout = false;
@@ -915,419 +972,513 @@ export class CombatExecutionService {
     let pressConfirmedInQueueOrCast = false;
     let totalAttemptsUsed = 0;
     let lastAbilityId = preState.abilityId || '';
+    let stateMutatedToCooldown = false;
+    let netRes: { resolved: boolean; json: any | null };
 
-    for (let pressAttempt = 1; pressAttempt <= maxPressAttempts; pressAttempt++) {
-      if (this.ctx.state.stopRequested) return false;
-      if (netResolved) {
-        pressConfirmedInQueueOrCast = true;
-        break;
-      }
-
-      totalAttemptsUsed = pressAttempt;
-
-      // If previous attempt encountered a server lockout popup, dismiss it and re-arm network listener
-      if (netPopupLockout) {
-        console.log(`[Enforcer] 🔄 Server lockout popup intercepted on C${char}S${skill} (attempt ${pressAttempt}); dismissing & re-arming...`);
-        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
-        await new Promise(r => setTimeout(r, isTurbo ? 120 : 220));
-        armNetworkListener(isTurbo ? 7500 : 12000);
-      }
-
-      // Ensure C{char}'s drawer is still open before pressing on retry attempts
-      if (pressAttempt > 1) {
-        await this.page.evaluate((cNum: number, sNum: number) => {
-          const isVisible = (el: HTMLElement | null | undefined) =>
-            !!(el && el.offsetParent !== null && (el.offsetWidth === undefined || el.offsetWidth > 0) && window.getComputedStyle(el).display !== 'none');
-          const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
-          if (isVisible(specificBtn)) return;
-          const charPos = cNum - 1;
-          const charBtn = document.querySelector(`.lis-character${charPos}.btn-command-character, .lis-character${charPos}`) as HTMLElement | null;
-          if (charBtn && isVisible(charBtn)) {
-            const $ = (window as any).$ || (window as any).Zepto;
-            if ($) $(charBtn).trigger('tap');
-            else charBtn.click();
-          }
-        }, char, skill).catch(() => null);
-        await new Promise(r => setTimeout(r, isTurbo ? 80 : 140));
-      }
-
-      // Human motor reaction cadence, fatigue tracking, & 2D Gaussian/Bezier cursor movement before skill actuation
-      if (this.ctx.template.humanMotor !== false && !isTurbo) {
-        const btnBox = await this.page.evaluate((cNum: number, sNum: number) => {
-          const slotIdx = sNum - 1;
-          const el = (
-            document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
-            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
-            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
-          ) as HTMLElement | null;
-          if (!el || typeof el.getBoundingClientRect !== 'function') return null;
-          const r = el.getBoundingClientRect();
-          return r && r.width > 6 && r.height > 6 ? { x: r.left, y: r.top, width: r.width, height: r.height } : null;
-        }, char, skill).catch(() => null);
-
-        if (btnBox) {
-          const targetPt = sampleTargetCoordinate(btnBox);
-          await moveMouseSmoothly(this.page, targetPt).catch(() => null);
-        }
-        await logNormalDelay(50, 0.16);
-      }
-
-      // Dispatch a SINGLE clean tap on the skill button (avoiding multi-tap bubbling spam)
-      const pressResult = await this.page.evaluate((cNum: number, sNum: number) => {
-        const slotIdx = sNum - 1;
-        const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
-        const listEl = (
-          document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
-          document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
-        ) as HTMLElement | null;
-        const rawTarget = specificEl || listEl;
-        if (!rawTarget || rawTarget.offsetParent === null) return { clicked: false, abilityId: '' };
-
-        const container = ((typeof rawTarget.closest === 'function' ? rawTarget.closest('.lis-ability') : null) || rawTarget) as HTMLElement;
-        const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
-        const btn = subAvail || container;
-        const abilityId =
-          (typeof container.getAttribute === 'function' ? container.getAttribute('ability-id') : null) ||
-          (typeof rawTarget.getAttribute === 'function' ? rawTarget.getAttribute('ability-id') : null) ||
-          '';
-
-        const $ = (window as any).$ || (window as any).Zepto;
-        if ($) {
-          $(btn).trigger('tap');
-        } else if (typeof btn.click === 'function') {
-          btn.click();
-        }
-        return { clicked: true, abilityId: abilityId || '' };
-      }, char, skill).catch(() => ({ clicked: false, abilityId: '' }));
-
-      if (pressResult.abilityId) {
-        lastAbilityId = pressResult.abilityId;
-      }
-
-      if (!pressResult.clicked) {
-        const fallbackHandle = await this.page.$(`.ability-character-num-${char}-${skill}, .prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"]`).catch(() => null);
-        if (fallbackHandle) {
-          await humanizedClick(this.page, fallbackHandle).catch(() => null);
-        }
-      }
-
-      // Handle ability confirmation modal if Skill Confirmation popup is enabled in GBF settings
-      await this.page.evaluate(() => {
-        const ok = document.querySelector('.btn-usual-ok.btn-ability-use, .btn-usual-ok.se-ability-use') as HTMLElement | null;
-        if (ok && ok.offsetParent !== null && window.getComputedStyle(ok).display !== 'none') {
-          const $ = (window as any).$ || (window as any).Zepto;
-          if ($) $(ok).trigger('tap');
-          else ok.click();
-        }
-      }).catch(() => null);
-
-      // Handle single-target character selection modal (e.g. C2S1 -> C1) strictly inside the popup container
-      if (step.targetCharacter) {
-        if (this.ctx.template.humanMotor !== false && !isTurbo) {
-          await logNormalDelay(55, 0.16);
-        }
-        const targetIdx = step.targetCharacter - 1;
-        const popupStart = Date.now();
-        const popupDeadline = popupStart + (isTurbo ? 1800 : 2800);
-        let targetSelected = false;
-        let retappedSkillForPopup = false;
-
-        while (Date.now() < popupDeadline && !netResolved) {
-          const shouldRetapSkill = !retappedSkillForPopup && (Date.now() - popupStart >= (isTurbo ? 450 : 700));
-          targetSelected = await this.page.evaluate((cNum: number, sNum: number, tIdx: number, retapSkill: boolean) => {
-            const cjs = (window as any).createjs;
-            if (cjs?.Tween?.tick) cjs.Tween.tick(800, false);
-
-            const popups = Array.from(
-              document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
-            ) as HTMLElement[];
-            for (const pop of popups) {
-              if (!pop || pop.offsetParent === null || (pop.offsetWidth !== undefined && pop.offsetWidth <= 0) || window.getComputedStyle(pop).display === 'none') {
-                continue;
-              }
-              const targetChar = (
-                pop.querySelector(`.lis-character${tIdx}`) ||
-                pop.querySelector(`.btn-command-character[pos="${tIdx}"]`) ||
-                pop.querySelector(`[pos="${tIdx}"]`)
-              ) as HTMLElement | null;
-              if (targetChar && targetChar.offsetParent !== null) {
-                const $ = (window as any).$ || (window as any).Zepto;
-                if ($) {
-                  $(targetChar).trigger('tap');
-                } else if (typeof targetChar.click === 'function') {
-                  targetChar.click();
-                }
-                return true;
-              }
-            }
-
-            if (retapSkill) {
-              const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
-              if (specificEl && specificEl.offsetParent !== null) {
-                const $ = (window as any).$ || (window as any).Zepto;
-                if ($) $(specificEl).trigger('tap');
-                else specificEl.click();
-              }
-            }
-            return false;
-          }, char, skill, targetIdx, shouldRetapSkill).catch(() => false);
-
-          if (shouldRetapSkill) {
-            retappedSkillForPopup = true;
-          }
-
-          if (targetSelected) {
-            await new Promise(r => setTimeout(r, isTurbo ? 60 : 110));
-            break;
-          }
-          await new Promise(r => setTimeout(r, 45));
-        }
-      }
-
-      // Poll up to 650ms to confirm the skill is listed in the Ability Queue (.prt-ability-rail) or actively casting
-      const verifyDeadline = Date.now() + (isTurbo ? 450 : 650);
-      while (Date.now() < verifyDeadline) {
-        if (netResolved) {
+    try {
+      for (let pressAttempt = 1; pressAttempt <= maxPressAttempts; pressAttempt++) {
+        if (this.ctx.state.stopRequested) return false;
+        if (netResolved || (netRequestSent && !netPopupLockout)) {
           pressConfirmedInQueueOrCast = true;
           break;
         }
+
+        totalAttemptsUsed = pressAttempt;
+
+        // If previous attempt encountered a server lockout popup, dismiss it and re-arm network listener
         if (netPopupLockout) {
+          console.log(`[Enforcer] 🔄 Server lockout popup intercepted on C${char}S${skill} (attempt ${pressAttempt}); dismissing & re-arming...`);
+          netRequestSent = false;
+          netRequestSentAt = 0;
+          await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+          const lockoutPauseMs = sampleHumanDelayMs(isTurbo ? 115 : 210, 0.28, {
+            minMs: isTurbo ? 70 : 130,
+            maxMs: isTurbo ? 190 : 320
+          });
+          await new Promise(r => setTimeout(r, lockoutPauseMs));
+          armNetworkListener(isTurbo ? 7500 : 12000);
+        }
+
+        const { preRetryGapMs, verifyWindowMs } = sampleHumanSpamCadence(pressAttempt, isTurbo);
+
+        // Ensure C{char}'s drawer is still open before pressing on retry attempts
+        if (pressAttempt > 1) {
+          await this.page.evaluate((cNum: number, sNum: number) => {
+            const isVisible = (el: HTMLElement | null | undefined) =>
+              !!(el && el.offsetParent !== null && (el.offsetWidth === undefined || el.offsetWidth > 0) && window.getComputedStyle(el).display !== 'none');
+            const specificBtn = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+            if (isVisible(specificBtn)) return;
+            const charPos = cNum - 1;
+            const charBtn = document.querySelector(`.lis-character${charPos}.btn-command-character, .lis-character${charPos}`) as HTMLElement | null;
+            if (charBtn && isVisible(charBtn)) {
+              const $ = (window as any).$ || (window as any).Zepto;
+              if ($) $(charBtn).trigger('tap');
+              else charBtn.click();
+            }
+          }, char, skill).catch(() => null);
+          await new Promise(r => setTimeout(r, preRetryGapMs));
+        }
+
+        // Human motor reaction cadence, fatigue tracking, & 2D Gaussian/Bezier cursor movement before skill actuation
+        if (this.ctx.template.humanMotor !== false) {
+          if (!(config.isProduction || config.EXECUTION_MODE === 'dom')) {
+            const btnBox = await this.page.evaluate((cNum: number, sNum: number) => {
+              const slotIdx = sNum - 1;
+              const el = (
+                document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
+                document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
+                document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
+              ) as HTMLElement | null;
+              if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+              const r = el.getBoundingClientRect();
+              return r && r.width > 6 && r.height > 6 ? { x: r.left, y: r.top, width: r.width, height: r.height } : null;
+            }, char, skill).catch(() => null);
+
+            if (btnBox) {
+              const targetPt = sampleTargetCoordinate(btnBox);
+              await moveMouseSmoothly(this.page, targetPt).catch(() => null);
+            }
+          }
+          if (isTurbo) {
+            recordMotorAction();
+            const turboReactMs = sampleHumanDelayMs(pressAttempt === 1 ? 26 : 18, 0.35, { minMs: 10, maxMs: 65 });
+            await new Promise(r => setTimeout(r, turboReactMs));
+          } else {
+            await logNormalDelay(50, 0.16);
+          }
+        }
+
+        // Dispatch a SINGLE clean tap on the skill button and snapshot pre-tap rail & class state
+        const pressResult = await this.page.evaluate((cNum: number, sNum: number) => {
+          const slotIdx = sNum - 1;
+          const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+          const listEl = (
+            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`) ||
+            document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability:nth-child(${sNum})`)
+          ) as HTMLElement | null;
+          const rawTarget = specificEl || listEl;
+          if (!rawTarget || rawTarget.offsetParent === null) {
+            return { clicked: false, abilityId: '', preClassName: '|', preRailCount: 0 };
+          }
+
+          const container = ((typeof rawTarget.closest === 'function' ? rawTarget.closest('.lis-ability') : null) || rawTarget) as HTMLElement;
+          const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
+          const btn = subAvail || container;
+          const abilityId =
+            (typeof container.getAttribute === 'function' ? container.getAttribute('ability-id') : null) ||
+            (typeof rawTarget.getAttribute === 'function' ? rawTarget.getAttribute('ability-id') : null) ||
+            '';
+
+          const preClassName = `${String((container as any).className || '')}|${String((btn as any).className || '')}`;
+          const preRailItems = document.querySelectorAll(
+            '.prt-ability-rail > *, .prt-command-rail > *, .prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]'
+          );
+          const preRailCount = preRailItems ? preRailItems.length : 0;
+
+          const $ = (window as any).$ || (window as any).Zepto;
+          if ($) {
+            $(btn).trigger('tap');
+          } else if (typeof btn.click === 'function') {
+            btn.click();
+          }
+          return { clicked: true, abilityId: abilityId || '', preClassName, preRailCount };
+        }, char, skill).catch(() => ({ clicked: false, abilityId: '', preClassName: '|', preRailCount: 0 }));
+
+        if (pressResult.abilityId) {
+          lastAbilityId = pressResult.abilityId;
+        }
+
+        if (!pressResult.clicked) {
+          const fallbackHandle = await this.page.$(`.ability-character-num-${char}-${skill}, .prt-command-chara.chara${char} .prt-ability-list .lis-ability[pos="${skill - 1}"]`).catch(() => null);
+          if (fallbackHandle) {
+            await humanizedClick(this.page, fallbackHandle).catch(() => null);
+          }
+        }
+
+        // Handle ability confirmation modal if Skill Confirmation popup is enabled in GBF settings
+        await this.page.evaluate(() => {
+          const ok = document.querySelector('.btn-usual-ok.btn-ability-use, .btn-usual-ok.se-ability-use') as HTMLElement | null;
+          if (ok && ok.offsetParent !== null && window.getComputedStyle(ok).display !== 'none') {
+            const $ = (window as any).$ || (window as any).Zepto;
+            if ($) $(ok).trigger('tap');
+            else ok.click();
+          }
+        }).catch(() => null);
+
+        // Handle single-target character selection modal (e.g. C2S1 -> C1) strictly inside the popup container
+        if (step.targetCharacter) {
+          if (this.ctx.template.humanMotor !== false) {
+            await logNormalDelay(55, 0.16);
+          }
+          const targetIdx = step.targetCharacter - 1;
+          const popupStart = Date.now();
+          const popupDeadline = popupStart + (isTurbo ? 1800 : 2800);
+          let targetSelected = false;
+          let retappedSkillForPopup = false;
+
+          while (Date.now() < popupDeadline && !netResolved) {
+            const shouldRetapSkill = !retappedSkillForPopup && (Date.now() - popupStart >= (isTurbo ? 450 : 700));
+            targetSelected = await this.page.evaluate((cNum: number, sNum: number, tIdx: number, retapSkill: boolean) => {
+              const cjs = (window as any).createjs;
+              if (cjs?.Tween?.tick) cjs.Tween.tick(800, false);
+
+              const popups = Array.from(
+                document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
+              ) as HTMLElement[];
+              for (const pop of popups) {
+                if (!pop || pop.offsetParent === null || (pop.offsetWidth !== undefined && pop.offsetWidth <= 0) || window.getComputedStyle(pop).display === 'none') {
+                  continue;
+                }
+                const targetChar = (
+                  pop.querySelector(`.lis-character${tIdx}`) ||
+                  pop.querySelector(`.btn-command-character[pos="${tIdx}"]`) ||
+                  pop.querySelector(`[pos="${tIdx}"]`)
+                ) as HTMLElement | null;
+                if (targetChar && targetChar.offsetParent !== null) {
+                  const $ = (window as any).$ || (window as any).Zepto;
+                  if ($) {
+                    $(targetChar).trigger('tap');
+                  } else if (typeof targetChar.click === 'function') {
+                    targetChar.click();
+                  }
+                  return true;
+                }
+              }
+
+              if (retapSkill) {
+                const specificEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+                if (specificEl && specificEl.offsetParent !== null) {
+                  const $ = (window as any).$ || (window as any).Zepto;
+                  if ($) $(specificEl).trigger('tap');
+                  else specificEl.click();
+                }
+              }
+              return false;
+            }, char, skill, targetIdx, shouldRetapSkill).catch(() => false);
+
+            if (shouldRetapSkill) {
+              retappedSkillForPopup = true;
+            }
+
+            if (targetSelected) {
+              const postTargetMs = sampleHumanDelayMs(isTurbo ? 58 : 108, 0.24, {
+                minMs: isTurbo ? 35 : 70,
+                maxMs: isTurbo ? 95 : 165
+              });
+              await new Promise(r => setTimeout(r, postTargetMs));
+              break;
+            }
+            const popupPollMs = sampleHumanDelayMs(isTurbo ? 38 : 50, 0.24, {
+              minMs: isTurbo ? 24 : 32,
+              maxMs: isTurbo ? 68 : 85
+            });
+            await new Promise(r => setTimeout(r, popupPollMs));
+          }
+        }
+
+        // Poll across jittered verifyWindowMs to confirm skill is in Ability Queue, accepted via outgoing XHR, or mutating class state
+        const verifyDeadline = Date.now() + verifyWindowMs;
+        while (Date.now() < verifyDeadline) {
+          if (netResolved || (netRequestSent && !netPopupLockout)) {
+            pressConfirmedInQueueOrCast = true;
+            break;
+          }
+          if (netPopupLockout) {
+            break;
+          }
+
+          const queueCheck = await this.page.evaluate(
+            (cNum: number, sNum: number, prevRailCount: number, preTapRailCount: number, preTapClassName: string, abId: string) => {
+              const cjs = (window as any).createjs;
+              if (cjs?.Tween?.tick) cjs.Tween.tick(800, false);
+
+              const stage = (window as any).stage;
+              const gStatus = stage?.gGameStatus;
+
+              // 1. Check Ability Queue (.prt-ability-rail / .prt-command-rail / stage.gGameStatus.ability_queue)
+              const railDomItems = Array.from(
+                document.querySelectorAll(
+                  '.prt-ability-rail > *, .prt-command-rail > *, .prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]'
+                )
+              ) as HTMLElement[];
+              const queueArr = Array.isArray(gStatus?.ability_queue)
+                ? gStatus.ability_queue
+                : (Array.isArray(stage?.gAbilityQueue) ? stage.gAbilityQueue : []);
+              const currentRailCount = Math.max(railDomItems.length, queueArr.length);
+              const inRailById = Boolean(
+                abId &&
+                (railDomItems.some(el => typeof el.getAttribute === 'function' && el.getAttribute('ability-id') === abId) ||
+                 queueArr.some((item: any) => String(item?.ability_id || item?.id || '') === abId))
+              );
+              const effectivePrevRail = Math.max(prevRailCount, preTapRailCount);
+              const railIncreased = currentRailCount > effectivePrevRail;
+
+              // 2. Check if the skill button transitioned to .tmp-unusable / .btn-ability-unavailable / recast > 0 / queued class
+              const slotIdx = sNum - 1;
+              const domEl = (
+                document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
+                document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`)
+              ) as HTMLElement | null;
+              let buttonMarkedUsedOrQueued = false;
+              let classChangedToQueuedOrLocked = false;
+              if (domEl) {
+                const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
+                const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
+                const btn = subAvail || container;
+                const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
+                const querySub = (el: any, sel: string) => (el && typeof el.querySelector === 'function' ? el.querySelector(sel) : null);
+                const recastAttr =
+                  getAttr(container, 'ability-recast') ||
+                  getAttr(domEl, 'ability-recast') ||
+                  getAttr(querySub(container, '[ability-recast]'), 'ability-recast') ||
+                  '';
+                buttonMarkedUsedOrQueued =
+                  Boolean(container.classList?.contains('tmp-unusable')) ||
+                  Boolean(container.classList?.contains('btn-ability-unavailable')) ||
+                  Boolean(domEl.classList?.contains('tmp-unusable')) ||
+                  Boolean(domEl.classList?.contains('btn-ability-unavailable')) ||
+                  Boolean(querySub(container, '.tmp-unusable, .btn-ability-unavailable')) ||
+                  (recastAttr !== '' && recastAttr !== '0');
+
+                if (preTapClassName && preTapClassName !== '|') {
+                  const [prevContainerCls = '', prevBtnCls = ''] = preTapClassName.split('|');
+                  const curContainerCls = String((container as any).className || '');
+                  const curBtnCls = String((btn as any).className || '');
+                  const prevCombined = `${prevContainerCls} ${prevBtnCls}`;
+                  const curCombined = `${curContainerCls} ${curBtnCls}`;
+                  const hadAvail = /\bbtn-ability-available\b/.test(prevCombined);
+                  const hasAvailNow = /\bbtn-ability-available\b/.test(curCombined);
+                  const gainedQueueOrLockClass =
+                    /\b(tmp-unusable|btn-ability-unavailable|btn-ability-off|disable|disabled|queued|on-rail)\b/.test(curCombined) &&
+                    !/\b(tmp-unusable|btn-ability-unavailable|btn-ability-off|disable|disabled|queued|on-rail)\b/.test(prevCombined);
+                  const hasRailBadge = Boolean(querySub(container, '.txt-ability-rail, .ico-rail-num'));
+                  classChangedToQueuedOrLocked =
+                    (hadAvail && !hasAvailNow) ||
+                    gainedQueueOrLockClass ||
+                    hasRailBadge;
+                }
+              }
+
+              return {
+                confirmed: inRailById || railIncreased || buttonMarkedUsedOrQueued || classChangedToQueuedOrLocked,
+                inRail: inRailById || railIncreased,
+                currentRailCount
+              };
+            },
+            char,
+            skill,
+            baselineRailCount,
+            pressResult.preRailCount || 0,
+            pressResult.preClassName || '|',
+            lastAbilityId
+          ).catch(() => ({ confirmed: false, inRail: false, currentRailCount: 0 }));
+
+          if (queueCheck.confirmed) {
+            pressConfirmedInQueueOrCast = true;
+            break;
+          }
+
+          const pollWaitMs = sampleHumanDelayMs(isTurbo ? 38 : 50, 0.25, { minMs: 24, maxMs: 72 });
+          await new Promise(r => setTimeout(r, pollWaitMs));
+        }
+
+        if ((pressConfirmedInQueueOrCast || netResolved || (netRequestSent && !netPopupLockout)) && !netPopupLockout) {
           break;
         }
 
-        const queueCheck = await this.page.evaluate(
-          (cNum: number, sNum: number, prevRailCount: number, abId: string) => {
+        console.warn(`[Combat] Skill C${char}S${skill} press attempt ${pressAttempt}/${maxPressAttempts} not yet confirmed in queue after ${verifyWindowMs}ms; re-pressing...`);
+      }
+
+      // 3. Await this skill's ability_result.json (or authoritative in-game state mutation) while ticking CreateJS animations
+      let lastReTapAt = Date.now();
+      let nextReTapIntervalMs = sampleHumanDelayMs(isTurbo ? 820 : 1250, 0.30, {
+        minMs: isTurbo ? 520 : 850,
+        maxMs: isTurbo ? 1320 : 1850
+      });
+      const waitNetStart = Date.now();
+      const maxNetWaitMs = isTurbo ? 7500 : 12000;
+
+      while (!netResolved && Date.now() - waitNetStart < maxNetWaitMs) {
+        if (this.ctx.state.stopRequested) return false;
+        if (await this.deps.combatResolution.isBattleEnded()) {
+          this.stepMonitor.recordStepReceipt({
+            runNumber: runNum,
+            stepNumber: stepNum,
+            step,
+            dynamicName: skillDisplayName,
+            status: 'SKIPPED_BATTLE_ENDED',
+            verified: true,
+            attempts: Math.max(1, totalAttemptsUsed),
+            durationMs: Date.now() - stepStart,
+            preState,
+            networkConfirmed: false,
+            stateMutated: true,
+            reason: 'Battle concluded during skill resolution'
+          });
+          return true;
+        }
+
+        // If a server lockout popup interrupted the skill cast, dismiss it, re-arm listener, and force an immediate re-tap
+        if (netPopupLockout) {
+          console.log(`[Enforcer] 🔄 Server lockout popup detected while awaiting C${char}S${skill}; dismissing & re-casting...`);
+          netRequestSent = false;
+          netRequestSentAt = 0;
+          await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
+          const waitLockoutMs = sampleHumanDelayMs(isTurbo ? 105 : 185, 0.26, {
+            minMs: isTurbo ? 65 : 115,
+            maxMs: isTurbo ? 175 : 290
+          });
+          await new Promise(r => setTimeout(r, waitLockoutMs));
+          armNetworkListener(Math.max(2500, maxNetWaitMs - (Date.now() - waitNetStart)));
+          lastReTapAt = 0;
+          totalAttemptsUsed++;
+        }
+
+        const requestStalled =
+          netRequestSent &&
+          netRequestSentAt > 0 &&
+          Date.now() - netRequestSentAt >= (isTurbo ? 3200 : 4500);
+        const needsReTap = (!netRequestSent || requestStalled) && Date.now() - lastReTapAt >= nextReTapIntervalMs;
+        const tickState = await this.page.evaluate(
+          (cNum: number, sNum: number, tChar: number | undefined, allowReTap: boolean) => {
             const cjs = (window as any).createjs;
-            if (cjs?.Tween?.tick) cjs.Tween.tick(800, false);
+            if (cjs?.Tween?.tick) {
+              cjs.Tween.tick(1500, false);
+            }
+
+            const $ = (window as any).$ || (window as any).Zepto;
+            const triggerTap = (el: HTMLElement) => {
+              if ($) $(el).trigger('tap');
+              else if (typeof el.click === 'function') el.click();
+            };
+
+            // If target selection popup is still open for a targeted skill, tap the target character
+            if (tChar) {
+              const tIdx = tChar - 1;
+              const popups = Array.from(
+                document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
+              ) as HTMLElement[];
+              for (const pop of popups) {
+                if (!pop || pop.offsetParent === null || (pop.offsetWidth !== undefined && pop.offsetWidth <= 0) || window.getComputedStyle(pop).display === 'none') {
+                  continue;
+                }
+                const targetEl = (
+                  pop.querySelector(`.lis-character${tIdx}`) ||
+                  pop.querySelector(`.btn-command-character[pos="${tIdx}"]`) ||
+                  pop.querySelector(`[pos="${tIdx}"]`)
+                ) as HTMLElement | null;
+                if (targetEl && targetEl.offsetParent !== null) {
+                  triggerTap(targetEl);
+                  return { reTapped: true, transitionedToCooldown: false };
+                }
+              }
+            }
 
             const stage = (window as any).stage;
             const gStatus = stage?.gGameStatus;
+            const pJsn = stage?.pJsnData;
+            const railItems = document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]');
+            const queueArr = Array.isArray(gStatus?.ability_queue) ? gStatus.ability_queue : [];
+            const railCount = Math.max(railItems ? railItems.length : 0, queueArr.length);
 
-            // 1. Check Ability Queue (.prt-ability-rail / stage.gGameStatus.ability_queue)
-            const railDomItems = Array.from(
-              document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]')
-            ) as HTMLElement[];
-            const queueArr = Array.isArray(gStatus?.ability_queue)
-              ? gStatus.ability_queue
-              : (Array.isArray(stage?.gAbilityQueue) ? stage.gAbilityQueue : []);
-            const currentRailCount = Math.max(railDomItems.length, queueArr.length);
-            const inRailById = Boolean(
-              abId &&
-              (railDomItems.some(el => typeof el.getAttribute === 'function' && el.getAttribute('ability-id') === abId) ||
-               queueArr.some((item: any) => String(item?.ability_id || item?.id || '') === abId))
-            );
-            const railIncreased = currentRailCount > prevRailCount;
+            // Check if the skill's recast in pJsnData or DOM has already transitioned from 0 -> >0
+            const charPos = cNum - 1;
+            const abilityMap = pJsn?.ability || {};
+            let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
+            if (!charObj) {
+              charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
+            }
+            const ab = charObj?.list ? charObj.list[String(sNum)] : undefined;
+            const abilityData = Array.isArray(ab) ? ab[0] : ab;
+            const pJsnRecast = abilityData?.['ability-recast'] !== undefined ? String(abilityData['ability-recast']) : '';
 
-            // 2. Check if the skill button transitioned to .tmp-unusable / .btn-ability-unavailable / recast > 0
-            const slotIdx = sNum - 1;
-            const domEl = (
-              document.querySelector(`.ability-character-num-${cNum}-${sNum}`) ||
-              document.querySelector(`.prt-command-chara.chara${cNum} .prt-ability-list .lis-ability[pos="${slotIdx}"]`)
-            ) as HTMLElement | null;
-            let buttonMarkedUsedOrQueued = false;
+            const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
+            let domRecast = '';
             if (domEl) {
               const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
               const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
               const querySub = (el: any, sel: string) => (el && typeof el.querySelector === 'function' ? el.querySelector(sel) : null);
-              const recastAttr =
+              domRecast =
                 getAttr(container, 'ability-recast') ||
                 getAttr(domEl, 'ability-recast') ||
                 getAttr(querySub(container, '[ability-recast]'), 'ability-recast') ||
                 '';
-              buttonMarkedUsedOrQueued =
-                Boolean(container.classList?.contains('tmp-unusable')) ||
-                Boolean(container.classList?.contains('btn-ability-unavailable')) ||
-                Boolean(domEl.classList?.contains('tmp-unusable')) ||
-                Boolean(domEl.classList?.contains('btn-ability-unavailable')) ||
-                Boolean(querySub(container, '.tmp-unusable, .btn-ability-unavailable')) ||
-                (recastAttr !== '' && recastAttr !== '0');
             }
 
-            return {
-              confirmed: inRailById || railIncreased || buttonMarkedUsedOrQueued,
-              inRail: inRailById || railIncreased,
-              currentRailCount
-            };
+            const effectiveRecast = domRecast || pJsnRecast;
+            if (
+              railCount === 0 &&
+              !gStatus?.lock &&
+              !gStatus?.btn_lock &&
+              effectiveRecast !== '' &&
+              effectiveRecast !== '0' &&
+              Number(effectiveRecast) > 0
+            ) {
+              return { reTapped: false, transitionedToCooldown: true };
+            }
+
+            // If the ability queue drained completely and the skill button is still .btn-ability-available, re-tap it
+            if (allowReTap && railCount === 0 && !gStatus?.lock && !gStatus?.btn_lock) {
+              if (domEl && domEl.offsetParent !== null) {
+                const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
+                const isAvail =
+                  Boolean(container.classList?.contains('btn-ability-available')) &&
+                  !container.classList?.contains('btn-ability-unavailable') &&
+                  !container.classList?.contains('tmp-unusable');
+                if (isAvail) {
+                  const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
+                  triggerTap(subAvail || container);
+                  return { reTapped: true, transitionedToCooldown: false };
+                }
+              }
+            }
+
+            return { reTapped: false, transitionedToCooldown: false };
           },
           char,
           skill,
-          baselineRailCount,
-          lastAbilityId
-        ).catch(() => ({ confirmed: false, inRail: false, currentRailCount: 0 }));
+          step.targetCharacter,
+          needsReTap
+        ).catch(() => ({ reTapped: false, transitionedToCooldown: false }));
 
-        if (queueCheck.confirmed) {
-          pressConfirmedInQueueOrCast = true;
+        if (tickState.transitionedToCooldown) {
+          stateMutatedToCooldown = true;
           break;
         }
 
-        await new Promise(r => setTimeout(r, 45));
+        if (tickState.reTapped) {
+          lastReTapAt = Date.now();
+          nextReTapIntervalMs = sampleHumanDelayMs(isTurbo ? 820 : 1250, 0.30, {
+            minMs: isTurbo ? 520 : 850,
+            maxMs: isTurbo ? 1320 : 1850
+          });
+          if (requestStalled) {
+            netRequestSent = false;
+            netRequestSentAt = 0;
+          }
+          totalAttemptsUsed++;
+        }
+
+        if (netResolved) break;
+        await new Promise(r =>
+          setTimeout(
+            r,
+            sampleHumanDelayMs(isTurbo ? 38 : 62, 0.24, {
+              minMs: isTurbo ? 24 : 38,
+              maxMs: isTurbo ? 68 : 95
+            })
+          )
+        );
       }
 
-      if ((pressConfirmedInQueueOrCast || netResolved) && !netPopupLockout) {
-        break;
-      }
-
-      console.warn(`[Combat] Skill C${char}S${skill} press attempt ${pressAttempt}/${maxPressAttempts} not yet confirmed in queue; re-pressing...`);
+      netRes = netResolved
+        ? { resolved: true, json: netJson }
+        : stateMutatedToCooldown
+        ? { resolved: false, json: null }
+        : await netPromise!;
+    } finally {
+      detachRequestListener();
     }
-
-    // 3. Await this skill's ability_result.json (or authoritative in-game state mutation) while ticking CreateJS animations
-    let lastReTapAt = Date.now();
-    const waitNetStart = Date.now();
-    const maxNetWaitMs = isTurbo ? 7500 : 12000;
-    let stateMutatedToCooldown = false;
-
-    while (!netResolved && Date.now() - waitNetStart < maxNetWaitMs) {
-      if (this.ctx.state.stopRequested) return false;
-      if (await this.deps.combatResolution.isBattleEnded()) {
-        this.stepMonitor.recordStepReceipt({
-          runNumber: runNum,
-          stepNumber: stepNum,
-          step,
-          dynamicName: skillDisplayName,
-          status: 'SKIPPED_BATTLE_ENDED',
-          verified: true,
-          attempts: Math.max(1, totalAttemptsUsed),
-          durationMs: Date.now() - stepStart,
-          preState,
-          networkConfirmed: false,
-          stateMutated: true,
-          reason: 'Battle concluded during skill resolution'
-        });
-        return true;
-      }
-
-      // If a server lockout popup interrupted the skill cast, dismiss it, re-arm listener, and force an immediate re-tap
-      if (netPopupLockout) {
-        console.log(`[Enforcer] 🔄 Server lockout popup detected while awaiting C${char}S${skill}; dismissing & re-casting...`);
-        await this.deps.combatResolution.checkAndDismissProcessingTurnPopup();
-        await new Promise(r => setTimeout(r, isTurbo ? 100 : 180));
-        armNetworkListener(Math.max(2500, maxNetWaitMs - (Date.now() - waitNetStart)));
-        lastReTapAt = 0;
-        totalAttemptsUsed++;
-      }
-
-      const needsReTap = Date.now() - lastReTapAt >= 1200;
-      const tickState = await this.page.evaluate(
-        (cNum: number, sNum: number, tChar: number | undefined, allowReTap: boolean) => {
-          const cjs = (window as any).createjs;
-          if (cjs?.Tween?.tick) {
-            cjs.Tween.tick(1500, false);
-          }
-
-          const $ = (window as any).$ || (window as any).Zepto;
-          const triggerTap = (el: HTMLElement) => {
-            if ($) $(el).trigger('tap');
-            else if (typeof el.click === 'function') el.click();
-          };
-
-          // If target selection popup is still open for a targeted skill, tap the target character
-          if (tChar) {
-            const tIdx = tChar - 1;
-            const popups = Array.from(
-              document.querySelectorAll('.pop-usual, .pop-select-member, .prt-popup-body, .pop-target, #pop')
-            ) as HTMLElement[];
-            for (const pop of popups) {
-              if (!pop || pop.offsetParent === null || (pop.offsetWidth !== undefined && pop.offsetWidth <= 0) || window.getComputedStyle(pop).display === 'none') {
-                continue;
-              }
-              const targetEl = (
-                pop.querySelector(`.lis-character${tIdx}`) ||
-                pop.querySelector(`.btn-command-character[pos="${tIdx}"]`) ||
-                pop.querySelector(`[pos="${tIdx}"]`)
-              ) as HTMLElement | null;
-              if (targetEl && targetEl.offsetParent !== null) {
-                triggerTap(targetEl);
-                return { reTapped: true, transitionedToCooldown: false };
-              }
-            }
-          }
-
-          const stage = (window as any).stage;
-          const gStatus = stage?.gGameStatus;
-          const pJsn = stage?.pJsnData;
-          const railItems = document.querySelectorAll('.prt-ability-rail .lis-ability, .prt-ability-rail .ico-ability, .prt-ability-rail [ability-id]');
-          const queueArr = Array.isArray(gStatus?.ability_queue) ? gStatus.ability_queue : [];
-          const railCount = Math.max(railItems ? railItems.length : 0, queueArr.length);
-
-          // Check if the skill's recast in pJsnData or DOM has already transitioned from 0 -> >0
-          const charPos = cNum - 1;
-          const abilityMap = pJsn?.ability || {};
-          let charObj = abilityMap[String(cNum)] || abilityMap[String(charPos)];
-          if (!charObj) {
-            charObj = Object.values(abilityMap).find((o: any) => Number(o?.pos) === charPos);
-          }
-          const ab = charObj?.list ? charObj.list[String(sNum)] : undefined;
-          const abilityData = Array.isArray(ab) ? ab[0] : ab;
-          const pJsnRecast = abilityData?.['ability-recast'] !== undefined ? String(abilityData['ability-recast']) : '';
-
-          const domEl = document.querySelector(`.ability-character-num-${cNum}-${sNum}`) as HTMLElement | null;
-          let domRecast = '';
-          if (domEl) {
-            const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
-            const getAttr = (el: any, attr: string) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(attr) : null);
-            const querySub = (el: any, sel: string) => (el && typeof el.querySelector === 'function' ? el.querySelector(sel) : null);
-            domRecast =
-              getAttr(container, 'ability-recast') ||
-              getAttr(domEl, 'ability-recast') ||
-              getAttr(querySub(container, '[ability-recast]'), 'ability-recast') ||
-              '';
-          }
-
-          const effectiveRecast = domRecast || pJsnRecast;
-          if (
-            railCount === 0 &&
-            !gStatus?.lock &&
-            !gStatus?.btn_lock &&
-            effectiveRecast !== '' &&
-            effectiveRecast !== '0' &&
-            Number(effectiveRecast) > 0
-          ) {
-            return { reTapped: false, transitionedToCooldown: true };
-          }
-
-          // If the ability queue drained completely and the skill button is still .btn-ability-available, re-tap it
-          if (allowReTap && railCount === 0 && !gStatus?.lock && !gStatus?.btn_lock) {
-            if (domEl && domEl.offsetParent !== null) {
-              const container = ((typeof domEl.closest === 'function' ? domEl.closest('.lis-ability') : null) || domEl) as HTMLElement;
-              const isAvail =
-                Boolean(container.classList?.contains('btn-ability-available')) &&
-                !container.classList?.contains('btn-ability-unavailable') &&
-                !container.classList?.contains('tmp-unusable');
-              if (isAvail) {
-                const subAvail = typeof container.querySelector === 'function' ? (container.querySelector('.btn-ability-available') as HTMLElement | null) : null;
-                triggerTap(subAvail || container);
-                return { reTapped: true, transitionedToCooldown: false };
-              }
-            }
-          }
-
-          return { reTapped: false, transitionedToCooldown: false };
-        },
-        char,
-        skill,
-        step.targetCharacter,
-        needsReTap
-      ).catch(() => ({ reTapped: false, transitionedToCooldown: false }));
-
-      if (tickState.transitionedToCooldown) {
-        stateMutatedToCooldown = true;
-        break;
-      }
-
-      if (tickState.reTapped) {
-        lastReTapAt = Date.now();
-        totalAttemptsUsed++;
-      }
-
-      if (netResolved) break;
-      await new Promise(r => setTimeout(r, isTurbo ? 40 : 65));
-    }
-
-    const netRes = netResolved
-      ? { resolved: true, json: netJson }
-      : stateMutatedToCooldown
-      ? { resolved: false, json: null }
-      : await netPromise!;
 
     if (netRes.resolved || stateMutatedToCooldown) {
       let skillDmg = 0;
@@ -1369,7 +1520,8 @@ export class CombatExecutionService {
         }).catch(() => true);
 
         if (settled) break;
-        await new Promise(r => setTimeout(r, 45));
+        const settlePollMs = sampleHumanDelayMs(isTurbo ? 38 : 52, 0.22, { minMs: 24, maxMs: 80 });
+        await new Promise(r => setTimeout(r, settlePollMs));
       }
 
       const postState = await this.stepMonitor.captureCombatSnapshot({ character: char, skill });
@@ -2848,9 +3000,24 @@ export class CombatExecutionService {
         atkBtn = await this.page.$('.btn-attack-start.display-on, .btn-attack-start').catch(() => null);
       }
 
-      if (this.ctx.template.humanMotor !== false && !isTurbo) {
-        // Minimal ocular-motor reaction latency before striking attack
-        await logNormalDelay(80, 0.12);
+      if (this.ctx.template.humanMotor !== false) {
+        if (
+          atkBtn &&
+          typeof atkBtn.boundingBox === 'function' &&
+          !(config.isProduction || config.EXECUTION_MODE === 'dom')
+        ) {
+          const atkBox = await atkBtn.boundingBox().catch(() => null);
+          if (atkBox && atkBox.width > 6 && atkBox.height > 6) {
+            await moveMouseSmoothly(this.page, sampleTargetCoordinate(atkBox)).catch(() => null);
+          }
+        }
+        if (isTurbo) {
+          recordMotorAction();
+          await new Promise(r => setTimeout(r, sampleHumanDelayMs(28, 0.32, { minMs: 12, maxMs: 68 })));
+        } else {
+          // Minimal ocular-motor reaction latency before striking attack
+          await logNormalDelay(80, 0.12);
+        }
       }
 
       const netPromise = this.deps.combatResolution.waitForNetworkResponseAndPayload(targetNet, isTurbo ? 1800 : 2400);
@@ -2871,8 +3038,9 @@ export class CombatExecutionService {
         if (!tapped) {
           const box = await atkBtn.boundingBox().catch(() => null);
           if (box && box.width > 0 && box.height > 0) {
-            const tapX = Math.round(box.x + box.width / 2 + (isTurbo ? 0 : sampleGaussian(0, 3)));
-            const tapY = Math.round(box.y + box.height / 2 + (isTurbo ? 0 : sampleGaussian(0, 2)));
+            const useHumanJitter = this.ctx.template.humanMotor !== false;
+            const tapX = Math.round(box.x + box.width / 2 + (useHumanJitter ? sampleGaussian(0, 3) : 0));
+            const tapY = Math.round(box.y + box.height / 2 + (useHumanJitter ? sampleGaussian(0, 2) : 0));
             await this.page.touchscreen.tap(tapX, tapY).catch(() => null);
             tapped = true;
           }

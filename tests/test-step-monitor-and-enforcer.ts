@@ -28,12 +28,15 @@ const createMockElement = (selector: string, extra: Record<string, any> = {}) =>
 class EnforcerMockPage {
   public urlStr = 'https://game.granbluefantasy.jp/#raid_multi/123456';
   public responseHandlers: ((res: any) => void)[] = [];
+  public requestHandlers: ((req: any) => void)[] = [];
   public mockStage: any = {};
   public domAbilities: Record<string, { recast: string; available: boolean; name: string; id: string }> = {};
   public popupOpen = false;
   public targetPopupOpen = false;
   public targetPickedIndex: number | null = null;
   public skillTapCount = 0;
+  public onSkillTap?: () => void;
+  public customAtkBtn: any = null;
 
   public url() {
     return this.urlStr;
@@ -43,12 +46,26 @@ class EnforcerMockPage {
 
   public on(event: string, handler: any) {
     if (event === 'response') this.responseHandlers.push(handler);
+    if (event === 'request') this.requestHandlers.push(handler);
   }
 
   public off(event: string, handler: any) {
     if (event === 'response') {
       const idx = this.responseHandlers.indexOf(handler);
       if (idx !== -1) this.responseHandlers.splice(idx, 1);
+    }
+    if (event === 'request') {
+      const idx = this.requestHandlers.indexOf(handler);
+      if (idx !== -1) this.requestHandlers.splice(idx, 1);
+    }
+  }
+
+  public async emitRequest(url: string) {
+    const mockReq = {
+      url: () => url
+    };
+    for (const h of [...this.requestHandlers]) {
+      await h(mockReq);
     }
   }
 
@@ -129,6 +146,7 @@ class EnforcerMockPage {
         },
         click: () => {
           self.skillTapCount++;
+          self.onSkillTap?.();
         }
       };
       return node;
@@ -156,6 +174,7 @@ class EnforcerMockPage {
           };
         }
         if (sel.includes('.btn-attack-start')) {
+          if (self.customAtkBtn) return self.customAtkBtn;
           return {
             offsetParent: {},
             offsetWidth: 100,
@@ -436,6 +455,104 @@ async function runTests() {
     throw new Error(`Expected triggerSkill to succeed, got ${JSON.stringify(outcome5)}`);
   }
   console.log('   ✅ CombatActionService.triggerSkill verified queue/recast cleanly!\n');
+
+  // =========================================================================
+  // Test 6: In-Flight Request Tracking Prevents Spam Re-Presses Under Latency
+  // =========================================================================
+  console.log('6. Testing In-Flight ability_result.json Request Guard (Zero Spam on Slow Response)...');
+  const page6 = new EnforcerMockPage();
+  page6.domAbilities['2-1'] = { recast: '0', available: true, name: 'War Eternal +', id: '2001' };
+  page6.mockStage = {
+    gGameStatus: { lock: false, attacking: false, turn: 1, boss: { param: [{ hp: 131250000, hpmax: 131250000 }] } },
+    pJsnData: {
+      turn: 1,
+      boss: { param: [{ hp: 131250000, hpmax: 131250000 }] },
+      ability: {
+        '2': {
+          pos: 1,
+          list: {
+            '1': [{ 'ability-id': '2001', 'ability-name': 'War Eternal +', 'ability-recast': '0', requirement_result_flag: true }]
+          }
+        }
+      }
+    }
+  };
+  page6.onSkillTap = () => {
+    setTimeout(() => {
+      page6.emitRequest('https://game.granbluefantasy.jp/rest/raid/ability_result.json');
+    }, 30);
+    setTimeout(() => {
+      page6.domAbilities['2-1'].recast = '6';
+      page6.domAbilities['2-1'].available = false;
+      page6.mockStage.pJsnData.ability['2'].list['1'][0]['ability-recast'] = '6';
+      page6.emitResponse('https://game.granbluefantasy.jp/rest/raid/ability_result.json', {
+        status: { turn: 1 },
+        scenario: [{ cmd: 'ability', name: 'War Eternal +' }]
+      });
+    }, 900);
+  };
+
+  const tmpl6: WorkflowTemplate = {
+    name: 'Enforcer In-Flight Request Guard Test',
+    questUrl: 'https://game.granbluefantasy.jp/#quest/supporter/980681/1/0/10116',
+    speedProfile: 'turbo',
+    humanMotor: true,
+    steps: [
+      { code: 'skill', character: 2, skill: 1, ensureCast: true, waitForNetwork: 'ability_result.json' }
+    ]
+  };
+
+  const engine6 = new UniversalWorkflowEngine(page6 as any, mockSentinel, tmpl6, 'test-acc');
+  engine6.stepMonitor.beginRun(1);
+  const ok6 = await engine6.executeSingleStep(tmpl6.steps[0], 1, 1);
+  if (!ok6) {
+    throw new Error('Expected handleSkill to confirm slow response after in-flight request');
+  }
+  const receipt6 = engine6.ctx.state.lastStepReceipt;
+  if (!receipt6 || receipt6.status !== 'CONFIRMED_NETWORK' || receipt6.attempts !== 1) {
+    throw new Error(`Expected attempts === 1 and CONFIRMED_NETWORK, got ${JSON.stringify(receipt6)}`);
+  }
+  if (page6.skillTapCount !== 1) {
+    throw new Error(`Expected exactly 1 skill tap with in-flight request active, got ${page6.skillTapCount}`);
+  }
+  if (page6.requestHandlers.length !== 0) {
+    throw new Error(`Expected request listener detached after handleSkill, remaining: ${page6.requestHandlers.length}`);
+  }
+  console.log('   ✅ In-flight request prevented re-tap spam across 900ms latency (1 tap, 1 attempt)!\n');
+
+  // =========================================================================
+  // Test 7: waitForBattleToMount Waits For Hydrated Stage After Reload
+  // =========================================================================
+  console.log('7. Testing waitForBattleToMount Post-Reload Hydration Gate...');
+  const page7 = new EnforcerMockPage();
+  page7.mockStage = { gGameStatus: {} };
+  page7.customAtkBtn = {
+    offsetParent: null,
+    offsetWidth: 0,
+    classList: { contains: (c: string) => c === 'display-off' },
+    click: () => {}
+  };
+  const engine7 = new UniversalWorkflowEngine(page7 as any, mockSentinel, tmpl6, 'test-acc');
+  let mounted7 = false;
+  const mountPromise7 = engine7.combatResolution.waitForBattleToMount(2500).then(val => {
+    mounted7 = val;
+    return val;
+  });
+
+  await new Promise(r => setTimeout(r, 180));
+  if (mounted7) {
+    throw new Error('waitForBattleToMount prematurely resolved on unhydrated stage + hidden attack button');
+  }
+
+  page7.mockStage.pJsnData = {
+    turn: 1,
+    boss: { param: [{ hp: 131250000, hpmax: 131250000 }] }
+  };
+  const finalMounted7 = await mountPromise7;
+  if (!finalMounted7) {
+    throw new Error('Expected waitForBattleToMount to resolve true once boss.param hydrated');
+  }
+  console.log('   ✅ waitForBattleToMount waited for hydrated stage before mounting!\n');
 
   console.log('========================================================================');
   console.log('🎉 ALL STEP EXECUTION MONITOR & ENFORCER TESTS PASSED (100%)');

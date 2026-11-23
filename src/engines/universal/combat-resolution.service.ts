@@ -1,6 +1,6 @@
 // src/engines/universal/combat-resolution.service.ts
 import { HTTPResponse, Page } from 'puppeteer-core';
-import { humanizedClick, logNormalDelay, sampleGaussian, getSpeedProfile } from '../../human-motor.js';
+import { humanizedClick, logNormalDelay, sampleGaussian, sampleHumanDelayMs, getSpeedProfile } from '../../human-motor.js';
 import { UniversalContext } from './types.js';
 import { config } from '../../config.js';
 import { isSoloWorkflowTemplate } from '../../types/workflow.types.js';
@@ -575,6 +575,7 @@ export class CombatResolutionService {
 
   public async waitForBattleToMount(timeoutMs = 15000): Promise<boolean> {
     const start = Date.now();
+    const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
     while (Date.now() - start < timeoutMs) {
       if (this.ctx.state.stopRequested) return false;
 
@@ -584,10 +585,33 @@ export class CombatResolutionService {
           const isCombat = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(hash) || hash.includes('replicard/battle');
           const isResult = hash.includes('result');
           const stage = (window as any).stage;
-          const hasStage = !!(stage && (stage.gGameStatus || stage.pJsnData || stage.gEnemyStatus));
-          const hasAtkBtn = !!document.querySelector('.btn-attack-start.display-on, .btn-attack-start');
+          const gStatus = stage?.gGameStatus;
+          const pJsn = stage?.pJsnData;
 
-          if (isCombat && (hasStage || hasAtkBtn)) return 'MOUNTED';
+          const rawBoss = gStatus?.boss?.param || pJsn?.boss?.param || stage?.gEnemyStatus?.param || stage?.gEnemyStatus;
+          const bosses = Array.isArray(rawBoss)
+            ? rawBoss
+            : (rawBoss && typeof rawBoss === 'object' ? Object.values(rawBoss) : []);
+          const hasHydratedBoss = bosses.some((b: any) => b && (b.hp !== undefined || b.hpmax !== undefined));
+
+          const rawPlayers = pJsn?.player?.param || gStatus?.player?.param;
+          const players = Array.isArray(rawPlayers)
+            ? rawPlayers
+            : (rawPlayers && typeof rawPlayers === 'object' ? Object.values(rawPlayers) : []);
+          const hasHydratedPlayers = players.length > 0;
+
+          const isEndedState = Boolean(gStatus?.win || gStatus?.lose || pJsn?.is_clear || pJsn?.finish || pJsn?.is_defeat);
+          const hasHydratedStage = Boolean(stage && (hasHydratedBoss || hasHydratedPlayers || isEndedState));
+
+          const atkEl = document.querySelector('.btn-attack-start') as HTMLElement | null;
+          const hasVisibleAtk = Boolean(
+            atkEl &&
+            (atkEl.offsetWidth === undefined || atkEl.offsetWidth > 0) &&
+            atkEl.classList?.contains('display-on') &&
+            !atkEl.classList?.contains('display-off')
+          );
+
+          if (isCombat && (hasHydratedStage || hasVisibleAtk)) return 'MOUNTED';
           if (isResult) return 'MOUNTED';
 
           const modal = document.querySelector('.pop-usual, #pop, .prt-popup-body');
@@ -621,13 +645,16 @@ export class CombatResolutionService {
               if (typeof cjs.Ticker.setInterval === 'function') cjs.Ticker.setInterval(1000 / targetFps);
             }
           }, config.TICKER_FPS).catch(() => null);
-          const isTurbo = this.ctx.template?.speedProfile === 'turbo' || getSpeedProfile() === 'turbo';
           if (!isTurbo) await logNormalDelay(150, 0.1);
           return true;
         }
         if (check === 'PENDING_MODAL') return false;
       } catch {}
-      await new Promise(r => setTimeout(r, 120));
+      const pollMs = sampleHumanDelayMs(isTurbo ? 65 : 110, 0.22, {
+        minMs: isTurbo ? 40 : 75,
+        maxMs: isTurbo ? 110 : 165
+      });
+      await new Promise(r => setTimeout(r, pollMs));
     }
     return false;
   }

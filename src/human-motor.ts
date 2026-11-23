@@ -272,6 +272,52 @@ export async function logNormalDelay(medianMs: number, shape = 0.28): Promise<vo
   await new Promise(resolve => setTimeout(resolve, Math.max(minDelay, duration)));
 }
 
+/**
+ * Samples a non-uniform, fatigue-scaled millisecond duration from a log-normal distribution
+ * without mutating action counters (safe inside high-frequency poll loops).
+ */
+export function sampleHumanDelayMs(
+  medianMs: number,
+  shape = 0.28,
+  bounds?: { minMs?: number; maxMs?: number }
+): number {
+  const fatigueMult = 1.0 + fatigueState.fatigueLevel * (currentSpeedProfile === 'turbo' ? 0.05 : 0.10);
+  const minMs = bounds?.minMs ?? Math.max(1, Math.round(medianMs * 0.45));
+  const rawMaxMs = bounds?.maxMs ?? Math.max(minMs + 1, Math.round(medianMs * 2.2));
+  const maxMs = Math.max(minMs, rawMaxMs);
+  const adjustedMedian = Math.max(1, medianMs * fatigueMult);
+  const sample = Math.exp(sampleGaussian(Math.log(adjustedMedian), shape));
+  return Math.round(Math.max(minMs, Math.min(maxMs, sample)));
+}
+
+/**
+ * Samples asymmetric human retry spacing and queue verification windows so rapid skill
+ * actuation exhibits natural variance rather than constant timer intervals.
+ */
+export function sampleHumanSpamCadence(
+  attempt: number,
+  isTurbo: boolean
+): { preRetryGapMs: number; verifyWindowMs: number } {
+  if (attempt <= 1) {
+    return {
+      preRetryGapMs: 0,
+      verifyWindowMs: isTurbo
+        ? sampleHumanDelayMs(520, 0.22, { minMs: 360, maxMs: 740 })
+        : sampleHumanDelayMs(720, 0.22, { minMs: 500, maxMs: 1020 }),
+    };
+  }
+
+  const stepDrift = Math.min(attempt - 2, 3);
+  return {
+    preRetryGapMs: isTurbo
+      ? sampleHumanDelayMs(58, 0.38, { minMs: 24, maxMs: 130 })
+      : sampleHumanDelayMs(125, 0.35, { minMs: 60, maxMs: 245 }),
+    verifyWindowMs: isTurbo
+      ? sampleHumanDelayMs(290 + stepDrift * 40, 0.34, { minMs: 175, maxMs: 540 })
+      : sampleHumanDelayMs(460 + stepDrift * 55, 0.32, { minMs: 280, maxMs: 820 }),
+  };
+}
+
 export interface InterRunDelayOptions {
   speedProfile?: SpeedProfile;
   customDelayMs?: number | [number, number];
@@ -418,33 +464,35 @@ export function evaluateCubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, 
  * Generates a continuous cursor trajectory scaled to the speed profile.
  */
 export async function moveMouseSmoothly(page: Page, target: Point): Promise<void> {
-  const start = { ...getPageCursorPos(page) };
-  const dx = target.x - start.x;
-  const dy = target.y - start.y;
-  const distance = Math.hypot(dx, dy);
-
-  if (distance < 4 || currentSpeedProfile === 'turbo') {
-    await page.mouse.move(target.x, target.y);
-    setPageCursorPos(page, { ...target });
-    return;
-  }
-
   if (typeof page.mouse?.move !== 'function') {
     setPageCursorPos(page, { ...target });
     return;
   }
 
-  const nativeTrajectory = rustBridge.computeBezierTrajectory(start, target, currentSpeedProfile);
-  if (nativeTrajectory !== null) {
-    for (let i = 0; i < nativeTrajectory.length; i++) {
-      const step = nativeTrajectory[i];
-      await page.mouse.move(step.x, step.y);
-      if (step.delayMs > 0) {
-        await new Promise(r => setTimeout(r, step.delayMs));
-      }
-    }
+  const start = { ...getPageCursorPos(page) };
+  const dx = target.x - start.x;
+  const dy = target.y - start.y;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance < 4) {
+    await page.mouse.move(target.x, target.y);
     setPageCursorPos(page, { ...target });
     return;
+  }
+
+  if (currentSpeedProfile !== 'turbo') {
+    const nativeTrajectory = rustBridge.computeBezierTrajectory(start, target, currentSpeedProfile);
+    if (nativeTrajectory !== null) {
+      for (let i = 0; i < nativeTrajectory.length; i++) {
+        const step = nativeTrajectory[i];
+        await page.mouse.move(step.x, step.y);
+        if (step.delayMs > 0) {
+          await new Promise(r => setTimeout(r, step.delayMs));
+        }
+      }
+      setPageCursorPos(page, { ...target });
+      return;
+    }
   }
 
   // Unit perpendicular vector for arm/wrist arc simulation
@@ -461,13 +509,10 @@ export async function moveMouseSmoothly(page: Page, target: Point): Promise<void
     y: start.y + dy * 0.72 + perp.y * curvature * 0.6,
   };
 
-  if (typeof page.mouse?.move !== 'function') {
-    setPageCursorPos(page, { ...target });
-    return;
-  }
-
-  // Steps scaled via speed profile
-  const steps = currentSpeedProfile === 'fast'
+  // Steps scaled via speed profile (micro-Bezier curve preserved in turbo)
+  const steps = currentSpeedProfile === 'turbo'
+    ? Math.max(2, Math.min(4, Math.floor(distance / 120) + 2))
+    : currentSpeedProfile === 'fast'
     ? Math.max(3, Math.min(8, Math.floor(distance / 70)))
     : Math.max(5, Math.min(14, Math.floor(distance / 45)));
 
@@ -477,9 +522,11 @@ export async function moveMouseSmoothly(page: Page, target: Point): Promise<void
     const pt = evaluateCubicBezier(start, p1, p2, target, Math.min(1, Math.max(0, easedT)));
 
     await page.mouse.move(pt.x, pt.y);
-    const stepDelay = currentSpeedProfile === 'stealth'
+    const stepDelay = currentSpeedProfile === 'turbo'
+      ? Math.max(1, Math.round(sampleGaussian(1.8, 0.6)))
+      : currentSpeedProfile === 'stealth'
       ? Math.max(3, sampleGaussian(5, 1.2))
-      : (currentSpeedProfile === 'fast' ? Math.max(1, sampleGaussian(2.5, 0.7)) : 0);
+      : Math.max(1, sampleGaussian(2.5, 0.7));
     if (stepDelay > 0) {
       await new Promise(r => setTimeout(r, stepDelay));
     }
