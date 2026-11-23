@@ -511,8 +511,19 @@ export class SentinelWatchdog {
     console.error(' 👉 Solve in browser or reply via Discord DM with "/gbf <code>" (or "/gbf halt" to pause).');
     console.error('============================================================\n');
 
+    const urgentLines = [
+      '🚨 GBF PAUSED — Verification Challenge',
+      `Player: ${displayName}`,
+    ];
+    if (this.sessionContext.questName) urgentLines.push(`Quest: ${this.sessionContext.questName}`);
+    if (this.sessionContext.raidId) urgentLines.push(`Raid ID: ${this.sessionContext.raidId}`);
+    if (this.sessionContext.runNumber !== undefined) urgentLines.push(`Run: #${this.sessionContext.runNumber}`);
+    urgentLines.push('Check browser or Discord DM.');
+    const urgentSummary = urgentLines.join('\n');
+
     const enableDiscord = this.options.enableTwoWayDiscord !== false && discordDmRelay.isConfigured();
     const MAX_ATTEMPTS = 5;
+    let sentEmergencyPauseAlert = false;
 
     if (enableDiscord) {
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -538,6 +549,13 @@ export class SentinelWatchdog {
         if (!artifacts || !artifacts.fullScreenshot || artifacts.fullScreenshot.length === 0) {
           console.warn('[Sentinel] Could not capture screenshot artifacts. Falling back to browser wait.');
           break;
+        }
+
+        if (!sentEmergencyPauseAlert) {
+          sentEmergencyPauseAlert = true;
+          await this.alertRelay
+            .sendEmergencyAlert(urgentSummary, artifacts.fullScreenshot, { force: true, urgent: true })
+            .catch(() => null);
         }
 
         const contextWithAttempt: CaptchaContext = {
@@ -598,6 +616,13 @@ export class SentinelWatchdog {
           break;
         }
       }
+    }
+
+    if (!sentEmergencyPauseAlert) {
+      sentEmergencyPauseAlert = true;
+      await this.alertRelay
+        .sendEmergencyAlert(urgentSummary, undefined, { force: true, urgent: true })
+        .catch(() => null);
     }
 
     if (this.options.skipBrowserWaitOnHalt) {
