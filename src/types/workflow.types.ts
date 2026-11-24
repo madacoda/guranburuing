@@ -3,6 +3,10 @@ import {
   StepExecutionOutcomeStatus,
   StepStateSnapshot,
   StepExecutionReceipt,
+  StepHealthStatus,
+  StepHotspotStats,
+  StepAuditFindingCategory,
+  StepAuditRootCauseFinding,
   RunExecutionAuditReport
 } from '../domain/combat/combat.types.js';
 
@@ -10,6 +14,10 @@ export type {
   StepExecutionOutcomeStatus,
   StepStateSnapshot,
   StepExecutionReceipt,
+  StepHealthStatus,
+  StepHotspotStats,
+  StepAuditFindingCategory,
+  StepAuditRootCauseFinding,
   RunExecutionAuditReport
 };
 
@@ -158,7 +166,11 @@ export interface WorkflowTemplate {
   logPath?: string;         // Custom path to drop log (e.g. 'logs/gb-pbhl.md')
   interRunDelayMs?: number | [number, number]; // Explicit min-max or fixed delay between runs (with Gaussian jitter)
   delayBetweenRunsMs?: number | [number, number]; // Alias for interRunDelayMs
+  telemetryMode?: WorkflowTelemetryMode; // Per-step telemetry verbosity ('verbose' | 'summary' | 'off')
+  telemetryAutoQuietRuns?: number; // Consecutive clean runs on identical step pipeline before auto-promoting to 'summary' (default: 100, 0 disables)
 }
+
+export type WorkflowTelemetryMode = 'verbose' | 'summary' | 'off';
 
 /**
  * Returns true if the workflow template is a Guild War (Unite and Fight) quest or raid.
@@ -183,9 +195,11 @@ export function isGuildWarWorkflowTemplate(tmpl?: WorkflowTemplate | null): bool
     qUrl.includes('teamraid') ||
     qUrl.includes('980651') ||
     qUrl.includes('980681') ||
+    qUrl.includes('980701') ||
     qUrl.includes('947581') ||
     qId === '980651' ||
     qId === '980681' ||
+    qId === '980701' ||
     qId === '947581'
   );
 }

@@ -22,6 +22,7 @@ import {
   WorkflowStep,
   WorkflowRunResult,
   WorkflowSummary,
+  WorkflowTelemetryMode,
   isGuildWarWorkflowTemplate
 } from '../types/workflow.types.js';
 import { AccountRegistry } from '../auth/account-registry.js';
@@ -144,6 +145,7 @@ export class UniversalWorkflowEngine {
     });
 
     this.stepMonitor = new StepExecutionMonitorService(this.ctx);
+    this.stepMonitor.initializeTelemetryState();
 
     this.combatExecution = new CombatExecutionService(this.ctx, {
       combatResolution: this.combatResolution,
@@ -166,6 +168,10 @@ export class UniversalWorkflowEngine {
     });
 
     this.telemetry.setupResponseListener();
+  }
+
+  public setTelemetryMode(mode: WorkflowTelemetryMode, explicit = true): void {
+    this.stepMonitor.setTelemetryMode(mode, explicit);
   }
 
   // --- Dynamic property delegates for backward compatibility ---
@@ -430,9 +436,11 @@ export class UniversalWorkflowEngine {
 
       if (this.ctx.state.stopRequested) break;
 
-      console.log(`------------------------------------------------------------------------`);
-      console.log(`[${this.accountId}] [Run ${runNumber}] Initiating Workflow Run...`);
-      console.log(`------------------------------------------------------------------------`);
+      if (!this.stepMonitor.isQuietMode()) {
+        console.log(`------------------------------------------------------------------------`);
+        console.log(`[${this.accountId}] [Run ${runNumber}] Initiating Workflow Run...`);
+        console.log(`------------------------------------------------------------------------`);
+      }
 
       this.sentinel?.setSessionContext?.({
         accountId: this.accountId,
@@ -532,7 +540,13 @@ export class UniversalWorkflowEngine {
       }, true);
 
       // Phase 2: Execute step pipeline
+      (this.ctx.state as any).fatalStepAbort = false;
       const pipelineSuccess = await this.executeStepPipeline(runNumber);
+
+      if ((this.ctx.state as any).fatalStepAbort) {
+        console.error(`[Workflow] 🚨 [FATAL] Run ${runNumber} aborted due to fatal mandatory step failure. Halting workflow.`);
+        break;
+      }
 
       // Phase 3: Result settlement & rewards processing (combat mode only)
       if (this.template.mode !== 'routine') {
@@ -620,7 +634,26 @@ export class UniversalWorkflowEngine {
         }, true);
       }
 
-      console.log(`[Run ${runNumber}] Completed in ${(runDuration / 1000).toFixed(1)}s | Honors: ${this.ctx.state.currentScore.toLocaleString()} pt | Overall: ${totalCompleted}/${runs} runs`);
+      if (this.stepMonitor.isQuietMode()) {
+        const elapsedTotalMs = Date.now() - startTime;
+        const avgSec =
+          totalCompleted > 0 ? (elapsedTotalMs / totalCompleted / 1000).toFixed(1) : (runDuration / 1000).toFixed(1);
+        const statusIcon = (runAudit ? runAudit.perfectExecution : pipelineSuccess) ? '✅' : '⚠️';
+        const stepSummary =
+          !this.stepMonitor.isOffMode() && runAudit
+            ? ` | Steps: ${runAudit.confirmedSteps}/${runAudit.totalStepsExecuted}${runAudit.retriedSteps > 0 ? ` (Retries: ${runAudit.retriedSteps})` : ''}`
+            : '';
+        const honorsPart =
+          !this.isSoloQuest() && this.ctx.state.currentScore > 0
+            ? ` | Honors: ${this.ctx.state.currentScore.toLocaleString()} pt`
+            : '';
+        const totalLabel = runs === Infinity ? '∞' : runs;
+        console.log(
+          `[${this.accountId}] [Run ${runNumber}/${totalLabel}] ${statusIcon} ${(runDuration / 1000).toFixed(1)}s${stepSummary} | Avg: ${avgSec}s${honorsPart}`
+        );
+      } else {
+        console.log(`[Run ${runNumber}] Completed in ${(runDuration / 1000).toFixed(1)}s | Honors: ${this.ctx.state.currentScore.toLocaleString()} pt | Overall: ${totalCompleted}/${runs} runs`);
+      }
 
       // Proactive Renderer Memory Hygiene: Recycle tab every 50 runs to flush V8 heap & SwiftShader WebGL buffers
       if (
@@ -630,7 +663,9 @@ export class UniversalWorkflowEngine {
         !this.ctx.state.stopRequested &&
         typeof (this.page as any)?.__recycleTab === 'function'
       ) {
-        console.log(`[Workflow] ♻️ Proactive memory hygiene at Run ${totalCompleted}: Recycling GBF tab to flush renderer heap...`);
+        if (!this.stepMonitor.isQuietMode()) {
+          console.log(`[Workflow] ♻️ Proactive memory hygiene at Run ${totalCompleted}: Recycling GBF tab to flush renderer heap...`);
+        }
         await (this.page as any).__recycleTab(this.template.questUrl).catch(() => null);
       }
 
@@ -639,10 +674,12 @@ export class UniversalWorkflowEngine {
       await interRunHumanDelay({
         speedProfile: (this.template.speedProfile || getSpeedProfile() || 'fast') as SpeedProfile,
         customDelayMs: customInterRun,
-        humanMotor: this.template.humanMotor !== false
+        humanMotor: this.template.humanMotor !== false,
+        silent: this.stepMonitor.isQuietMode()
       });
     }
 
+    this.stepMonitor.flushLedgerIfDirty();
     const totalDurationMs = Date.now() - startTime;
     return {
       templateName: this.template.name,
@@ -749,7 +786,9 @@ export class UniversalWorkflowEngine {
           if (await this.combatResolution.isBattleEnded()) {
             if (!isPostBattleCleanup) {
               await this.combatResolution.syncCurrentHonors();
-              console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
+              if (!this.stepMonitor.isQuietMode()) {
+                console.log(`[Run ${runNumber}] Battle concluded before Step ${i + 1} (${stepAction}). Exiting combat pipeline early. Final Honors: ${this.ctx.state.currentScore.toLocaleString()} pt.`);
+              }
               return true;
             }
           }
@@ -757,7 +796,9 @@ export class UniversalWorkflowEngine {
 
         if (this.isSoloQuest() && i > 0 && !skipEarlyExitCheck) {
           if (!isPostBattleCleanup && (await this.combatResolution.isBattleEnded())) {
-            console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
+            if (!this.stepMonitor.isQuietMode()) {
+              console.log(`[Run ${runNumber}] 🏁 Solo Boss Defeated before Step ${i + 1} (${stepAction}). Exiting combat pipeline early.`);
+            }
             return true;
           }
         }
@@ -766,7 +807,9 @@ export class UniversalWorkflowEngine {
           const stepAction = step.code || step.action;
           const isDamagingOrCombatAction = stepAction === 'attack' || stepAction === 'tap_ready' || stepAction === 'skill' || stepAction === 'summon' || stepAction === 'quick_call' || stepAction === 'smart_full_auto' || stepAction === 'repeat';
           if (isDamagingOrCombatAction) {
-            console.log(`[Run ${runNumber}] Target score satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Skipping combat Step ${i + 1} (${stepAction}).`);
+            if (!this.stepMonitor.isQuietMode()) {
+              console.log(`[Run ${runNumber}] Target score satisfied (${this.ctx.state.currentScore.toLocaleString()} >= ${this.template.targetScore.toLocaleString()} pt). Skipping combat Step ${i + 1} (${stepAction}).`);
+            }
             continue;
           }
         }
@@ -781,7 +824,9 @@ export class UniversalWorkflowEngine {
           if (isCombatAction) {
             const enemy = await this.combatResolution.getAndLogEnemyHp();
             if (enemy && (enemy.isDefeated || enemy.hpPct <= raidExitHpThreshold)) {
-              console.log(`[Run ${runNumber}] 🏁 Raid HP cutoff reached (${enemy.hpPct.toFixed(1)}% <= ${raidExitHpThreshold}%). Ineffective to attack further; exiting combat pipeline early to check another raid.`);
+              if (!this.stepMonitor.isQuietMode()) {
+                console.log(`[Run ${runNumber}] 🏁 Raid HP cutoff reached (${enemy.hpPct.toFixed(1)}% <= ${raidExitHpThreshold}%). Ineffective to attack further; exiting combat pipeline early to check another raid.`);
+              }
               return true;
             }
           }
@@ -800,7 +845,9 @@ export class UniversalWorkflowEngine {
           }
         }
 
-        console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
+        if (!this.stepMonitor.isQuietMode()) {
+          console.log(`[Run ${runNumber}] Step ${i + 1}/${this.template.steps.length}: ${step.code || step.action}${step.waitForNetwork ? ` (awaiting ${step.waitForNetwork})` : ''}`);
+        }
 
         let success = await this.executeSingleStep(step, i + 1, runNumber);
 
@@ -825,8 +872,37 @@ export class UniversalWorkflowEngine {
         if (!success && !step.optional) {
           console.warn(`[Run ${runNumber}] Step ${i + 1} (${step.code || step.action}) failed all attempts.`);
           if (await this.combatResolution.isBattleEnded()) {
-            console.log(`[Run ${runNumber}] Battle already concluded. Proceeding to result resolution.`);
+            if (!this.stepMonitor.isQuietMode()) {
+              console.log(`[Run ${runNumber}] Battle already concluded. Proceeding to result resolution.`);
+            }
             return true;
+          }
+
+          const isSummonStep =
+            step.code === 'summon' ||
+            step.action === 'summon' ||
+            step.code === 'quick_call' ||
+            step.action === 'quick_call';
+          const stepNameLower = String(step.name || (step as any).summonName || '').toLowerCase();
+          const lastReceiptLabelLower = String(this.ctx.state.lastStepReceipt?.stepLabel || '').toLowerCase();
+          const isMandatoryDeathSummon =
+            isSummonStep &&
+            (stepNameLower.includes('death') ||
+              lastReceiptLabelLower.includes('death') ||
+              (this.isGuildWarQuest() && step.ensureCast && (step.slot === 3 || (step as any).summonSlot === 3)));
+
+          const isFatalGwEnsuredStep = Boolean(this.isGuildWarQuest() && step.ensureCast);
+
+          if (isMandatoryDeathSummon || isFatalGwEnsuredStep) {
+            const label = isMandatoryDeathSummon
+              ? `Mandatory Death Summon (Step ${i + 1}: ${step.name || 'Summon Slot 3'})`
+              : `Mandatory Ensured GW Step ${i + 1} (${step.name || step.code || step.action})`;
+            console.error(
+              `[Run ${runNumber}] 🚨 [FATAL] ${label} failed all attempts! Flagging as FATAL and aborting GW combat pipeline.`
+            );
+            (this.ctx.state as any).fatalStepAbort = true;
+            this.ctx.state.stopRequested = true;
+            return false;
           }
 
           const isCombatSkillOrSummon = step.code === 'skill' || step.action === 'skill' ||
@@ -932,11 +1008,13 @@ export class UniversalWorkflowEngine {
     const ok = await this.executeSingleStepInternal(step, stepNum, runNumber);
 
     const afterCount = this.ctx.state.currentRunStepReceipts?.length || 0;
-    if (!isContainerStep && afterCount === beforeCount) {
+    if (!isContainerStep && afterCount === beforeCount && !(this.stepMonitor.isOffMode() && ok)) {
       const isUtilityStep =
         actionCode === 'wait' ||
         actionCode === 'wait_random' ||
         actionCode === 'wait_randomize' ||
+        actionCode === 'wait_element' ||
+        actionCode === 'wait_full_load' ||
         actionCode === 'reload' ||
         actionCode === 'f5' ||
         actionCode === 'log_enemy_hp';
@@ -1116,6 +1194,9 @@ export class UniversalWorkflowEngine {
       case 'wait_element':
         if (step.target) {
           await this.page.waitForSelector(step.target, { visible: true, timeout: step.timeoutMs || 5000 }).catch(() => null);
+          if (step.target.includes('.btn-attack-start')) {
+            await this.combatResolution.ensureInitialCombatReady(step.timeoutMs || 8000);
+          }
         }
         return true;
 

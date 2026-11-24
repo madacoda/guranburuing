@@ -30,7 +30,7 @@ Each workflow execution adheres to a 3-phase lifecycle:
 
 ## 2. Anatomy of a Template (`templates/gb-pbhl.json`)
 
-Here is the exact structure of the Proto Bahamut HL burst template ([`templates/gb-pbhl.json`](file:///c:/laragon/www/gbf/templates/gb-pbhl.json)):
+Here is the exact structure of the Proto Bahamut HL burst template ([`templates/gb-pbhl.json`](../../templates/gb-pbhl.json)):
 
 ```json
 {
@@ -108,21 +108,28 @@ Triggers a specific character skill slot (1 to 4).
   "character": 4,
   "skill": 3,
   "targetCharacter": 1,
+  "ensureCast": true,
   "optional": true,
   "waitForNetwork": "ability_result.json"
 }
 ```
 - `character` (`1-4`): Character party slot from left to right (`1` = Main Character, `4` = Slot 4).
 - `skill` (`1-4`): Skill slot number (1 to 4).
-- `targetCharacter` (optional, `1-4`): If the skill targets an ally (e.g. Florence Skill 1 on MC), target character slot.
+- `targetCharacter` (optional, `1-4`): If the skill targets an ally (e.g. Florence Skill 1 on MC or Nier Skill 3 on MC), target character slot.
+- `ensureCast` (optional, `boolean`): Enforces server network/state confirmation with automatic popup/lockout retry loops. **In Guild War workflows (`isGuildWarWorkflowTemplate`), any `ensureCast: true` failure/cooldown skip is strictly FATAL** and aborts the run instead of continuing into a broken turn.
 - `optional` (optional, `boolean`): If `true`, does not fail or halt if skill is on cooldown.
 - `waitForNetwork` (optional, `string`): Waits for specific API payload (`"ability_result.json"`).
 
 ### 2. `quick_call` (Fire Quick Summon)
-Instantly triggers the designated Quick Summon button.
+Instantly triggers the designated Quick Summon button on the top combat HUD.
 ```json
-{ "code": "quick_call" }
+{
+  "code": "quick_call",
+  "ensureCast": true,
+  "waitForNetwork": "summon_result.json"
+}
 ```
+- Supports `ensureCast: true` and `waitForNetwork: "summon_result.json"`. When followed immediately by `reload`, fast-confirms on valid `summon_result.json` `scenario` payload so `F5` cancels the summon animation immediately.
 
 ### 3. `summon` (Call Sub-Aura Summon)
 Calls a summon from sub-slots 1 through 6.
@@ -130,10 +137,12 @@ Calls a summon from sub-slots 1 through 6.
 {
   "code": "summon",
   "slot": 2,
+  "ensureCast": true,
   "waitForNetwork": "summon_result.json"
 }
 ```
 - `slot` (`1-6`): Summon sub-slot to call (`1` = Main, `2-5` = Sub summons, `6` = Friend supporter).
+- `ensureCast` (optional, `boolean`): Mandatory confirmation; in Guild War workflows, any failed or unavailable ensured summon (`summon` or Death `quick_call`) aborts the run as FATAL.
 
 ### 4. `attack` (Normal Attack)
 Triggers normal attack button.
@@ -223,7 +232,7 @@ Waits for battle result screen, collects pending honors, dismisses level-up / we
 
 ## 4. How to Modify `templates/gb-pbhl.json`
 
-Suppose you want to customize [`templates/gb-pbhl.json`](file:///c:/laragon/www/gbf/templates/gb-pbhl.json) with your own tactical rotation:
+Suppose you want to customize [`templates/gb-pbhl.json`](../../templates/gb-pbhl.json) with your own tactical rotation:
 - Cast Character 4 Skill 3, then Character 1 Skill 1.
 - Fire Quick Summon (e.g. Yatima / Triple Zero).
 - Attack, reload, and repeat 3 times before checking honors.
@@ -366,7 +375,7 @@ This automatically registers:
 
 ## 7. Common Pitfalls & Senior Best Practices
 
-1. **Always End with `confirm_result`**: Every combat workflow must conclude with `{ "code": "confirm_result" }` to claim loot, handle AP recovery, and trigger the next iteration.
-2. **Reload After Attacks & Summons**: Granblue Fantasy combat animations can take 4–12 seconds. Adding `{ "code": "reload" }` after `{ "code": "attack" }` or `{ "code": "summon" }` saves 70%+ execution time.
-3. **Use `optional: true` for Situational Skills**: If a character skill may be on cooldown in subsequent turns, set `"optional": true` so the engine skips it without halting if unavailable.
-4. **Test in Windowed Mode First**: When testing a modified sequence, always run with `--windowed` first (`bun run gb-pbhl:windowed`) to inspect that the skills fire in the exact expected order.
+1. **Always End with `confirm_result`**: Every combat workflow must conclude with `{ "code": "confirm_result" }` to claim loot, handle AP recovery, and trigger the next iteration (mandatory in GW because even 1 unclaimed battle blocks starting the next quest).
+2. **Reload After Attacks & Summons (Including Swap Summons like Death)**: Granblue Fantasy combat animations can take 4–12 seconds, and mid-turn backline swaps (`Death -> Nier`) do not refresh `stage.pJsnData` or all HUD drawers until reloaded. Adding `{ "code": "reload" }` after `{ "code": "attack" }`, `{ "code": "summon" }`, or `{ "code": "quick_call" }` cuts animation time and syncs swapped characters cleanly.
+3. **Use `ensureCast: true` on Mandatory Steps & `optional: true` on Situational Skills**: Use `ensureCast: true` + `waitForNetwork` on critical burst skills, summons, Quick Calls, and attacks (fatal in GW). Set `"optional": true` for situational skills that may be on cooldown.
+4. **Test Live & Inspect Step Audit (`step:audit`)**: After running `--runs 1`, inspect `bun run step:audit <template>` (`data/step-audit-ledger.json`) to verify 100% step pass rate, retry counts, recast transitions, and upstream cascade diagnostics. For full DOM/API details, see [`strategies/principles/16_gbf_live_combat_dom_and_diagnostics.md`](../../strategies/principles/16_gbf_live_combat_dom_and_diagnostics.md).

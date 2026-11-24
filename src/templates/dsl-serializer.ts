@@ -24,11 +24,13 @@ function serializeStep(step: WorkflowStep, indent = ''): string {
       }
       return `${indent}c${step.character}s${step.skill}${ensureStr}${waitAttackStr}`;
     }
-    case 'summon':
+    case 'summon': {
+      const ensureStr = step.ensureCast ? ' (make sure clicked or casted)' : '';
       if (step.target && isNaN(Number(step.target))) {
-        return `${indent}summon ${step.target}`;
+        return `${indent}summon ${step.target}${ensureStr}`;
       }
-      return `${indent}summon #${step.slot || 1}`;
+      return `${indent}summon #${step.slot || 1}${ensureStr}`;
+    }
     case 'target_enemy':
       return `${indent}target ${step.enemyIndex || 1}`;
     case 'heal':

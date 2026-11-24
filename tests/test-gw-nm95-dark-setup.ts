@@ -74,7 +74,7 @@ async function run() {
   assert(baseFindingIds.has('subaura_beelzebub_wasted'), 'Flags Beelzebub Lv150 in Sub-Aura Slot 1');
   assert(baseFindingIds.has('subaura_bahamut_wasted'), 'Flags Bahamut Lv250 in Sub-Aura Slot 2');
   assert(baseFindingIds.has('opus_alpha_wasted'), 'Flags Dark Opus Alpha key wasted under Ereshkigal');
-  assert(baseFindingIds.has('fallen_sword_awakening'), 'Flags Fallen Sword Multiattack Lv1 awakening');
+  assert(!baseFindingIds.has('fallen_sword_awakening'), 'Must NOT raise false-positive Attack awakening finding for Fallen Sword');
 
   // Negative Test A: Contaminate Yatima Sub Slots 2-5 with callable Hades
   const pollutedDeck = JSON.parse(JSON.stringify(baseDeck));
@@ -117,7 +117,6 @@ async function run() {
     '2': { param: { id: '1510948871', level: '40' }, master: { id: '2040418000', name: 'Fediel' } }
   };
   idealDeck.pc.weapons['7'].skill2 = { name: 'β Revelation' };
-  idealDeck.pc.weapons['5'].param.arousal = { level: 4, form_name: 'Attack' };
   const idealAudit = GwNm95DarkSetupService.auditDeckData(idealDeck);
   assert.strictEqual(idealAudit.findings.length, 0, 'Fully upgraded Deck 133 passes with 0 defects');
   console.log('  ✅ [PASS] All positive and negative deck audit gates verified');

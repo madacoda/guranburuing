@@ -1,7 +1,7 @@
 // src/engines/universal/combat-resolution.service.ts
 import { HTTPResponse, Page } from 'puppeteer-core';
 import { humanizedClick, logNormalDelay, sampleGaussian, sampleHumanDelayMs, getSpeedProfile } from '../../human-motor.js';
-import { UniversalContext } from './types.js';
+import { UniversalContext, isQuietTelemetryContext } from './types.js';
 import { config } from '../../config.js';
 import { isSoloWorkflowTemplate } from '../../types/workflow.types.js';
 import { LootTrackerService } from '../../services/telemetry/loot-tracker.service.js';
@@ -109,12 +109,14 @@ export class CombatResolutionService {
 
       if (result.score > this.ctx.state.currentScore) {
         this.ctx.state.currentScore = result.score;
-        if (this.ctx.template.targetScore) {
-          const target = this.ctx.template.targetScore;
-          const pct = ((this.ctx.state.currentScore / target) * 100).toFixed(1);
-          console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${target.toLocaleString()} pt (${pct}%)`);
-        } else {
-          console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+        if (!isQuietTelemetryContext(this.ctx)) {
+          if (this.ctx.template.targetScore) {
+            const target = this.ctx.template.targetScore;
+            const pct = ((this.ctx.state.currentScore / target) * 100).toFixed(1);
+            console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} / ${target.toLocaleString()} pt (${pct}%)`);
+          } else {
+            console.log(`[Honors] Synced: ${this.ctx.state.currentScore.toLocaleString()} pt`);
+          }
         }
       }
       return this.ctx.state.currentScore;
@@ -301,13 +303,15 @@ export class CombatResolutionService {
         const deltaDmg = lastHp > info.currentHp ? lastHp - info.currentHp : 0;
         (this.ctx.state as any).lastLoggedEnemyHp = info.currentHp;
 
-        const hpStr = info.maxHp > 0 ? `${info.currentHp.toLocaleString()} / ${info.maxHp.toLocaleString()}` : `${info.hpPct.toFixed(1)}%`;
-        const pctStr = `${info.hpPct.toFixed(1)}%`;
-        const deltaStr = deltaDmg > 0 ? ` [-${deltaDmg.toLocaleString()} DMG]` : '';
-        const noteStr = contextNote ? ` [${contextNote}]` : '';
-        const statusStr = info.isDefeated ? ' [DEFEATED]' : '';
+        if (!isQuietTelemetryContext(this.ctx)) {
+          const hpStr = info.maxHp > 0 ? `${info.currentHp.toLocaleString()} / ${info.maxHp.toLocaleString()}` : `${info.hpPct.toFixed(1)}%`;
+          const pctStr = `${info.hpPct.toFixed(1)}%`;
+          const deltaStr = deltaDmg > 0 ? ` [-${deltaDmg.toLocaleString()} DMG]` : '';
+          const noteStr = contextNote ? ` [${contextNote}]` : '';
+          const statusStr = info.isDefeated ? ' [DEFEATED]' : '';
 
-        console.log(`[Combat:Enemy] 👾 Enemy: ${info.name} | Remaining HP: ${hpStr} (${pctStr})${deltaStr}${statusStr}${noteStr}`);
+          console.log(`[Combat:Enemy] 👾 Enemy: ${info.name} | Remaining HP: ${hpStr} (${pctStr})${deltaStr}${statusStr}${noteStr}`);
+        }
         return info;
       }
       return null;
@@ -412,27 +416,46 @@ export class CombatResolutionService {
           return false;
         }
 
-        // 3. Frontline character portraits mounted in DOM
+        // 3. Turn & stage state must be initialized (never exit during Turn 0 intro setup when stage is present)
+        if (stage && (pJsn || gStatus)) {
+          const currentTurn = Number(pJsn?.turn ?? gStatus?.turn ?? 1);
+          if (currentTurn < 1) return false;
+        }
+
+        // 4. Frontline character portraits mounted in DOM
         const char0 = document.querySelector('.lis-character0.btn-command-character, .lis-character0, [pos="0"].btn-command-character') as HTMLElement;
         const hasChar0 = !!(char0 && char0.offsetParent !== null);
 
-        // 4. Combat buttons readiness
-        const atkBtn = document.querySelector('.btn-attack-start') as HTMLElement;
-        const hasAtk = atkBtn && atkBtn.offsetWidth > 0 && (atkBtn.classList.contains('display-on') || !atkBtn.classList.contains('display-off'));
+        // 5. Combat buttons readiness (Attack button must explicitly have .display-on in real browser DOM, and Summon button if present must be visible)
+        const atkBtn = document.querySelector('.btn-attack-start') as HTMLElement | null;
+        const isMockDom = Boolean(atkBtn && atkBtn.offsetWidth === undefined);
+        const hasAtk = Boolean(
+          atkBtn &&
+            (isMockDom
+              ? !atkBtn.classList?.contains('display-off')
+              : atkBtn.offsetWidth > 0 &&
+                atkBtn.classList?.contains('display-on') &&
+                !atkBtn.classList?.contains('display-off') &&
+                !atkBtn.classList?.contains('lock'))
+        );
 
-        const qsBtn = document.querySelector('.btn-quick-summon, .btn-quick-call') as HTMLElement;
-        const hasQs = qsBtn && qsBtn.offsetWidth > 0;
+        const sumBtn = document.querySelector('.btn-command-summon') as HTMLElement | null;
+        const hasSumReady = !sumBtn || isMockDom || (sumBtn.offsetParent !== null && (sumBtn.offsetWidth === undefined || sumBtn.offsetWidth > 0));
 
-        const isLocked = gStatus ? (Boolean(gStatus.lock) || Boolean(gStatus.btn_lock) || Boolean(gStatus.attacking)) : false;
+        const isLocked = gStatus
+          ? Boolean(gStatus.lock || gStatus.btn_lock || gStatus.attacking || gStatus.ability_turn || gStatus.summon_turn)
+          : false;
 
-        return (hasAtk || hasQs) && hasChar0 && !isLocked;
+        return hasAtk && hasSumReady && hasChar0 && !isLocked;
       }, isManual, isSolo, config.TICKER_FPS, caMode).catch(() => false);
 
       if (isReady) {
         if (!isTurbo) {
           await logNormalDelay(250, 0.12);
         }
-        await this.getAndLogEnemyHp('Battle Start');
+        if (!isQuietTelemetryContext(this.ctx)) {
+          await this.getAndLogEnemyHp('Battle Start');
+        }
         return;
       }
 
@@ -562,7 +585,9 @@ export class CombatResolutionService {
       }, targetWave).catch(() => ({ currentWave: 1, ready: false }));
 
       if (waveState.ready) {
-        console.log(`[Combat] 🌊 Wave ${waveState.currentWave}/${targetWave} active and ready for input.`);
+        if (!isQuietTelemetryContext(this.ctx)) {
+          console.log(`[Combat] 🌊 Wave ${waveState.currentWave}/${targetWave} active and ready for input.`);
+        }
         return true;
       }
 
@@ -950,9 +975,9 @@ export class CombatResolutionService {
         const cjs = (window as any).createjs;
         if (cjs?.Tween?.tick) cjs.Tween.tick(1500, false);
 
-        // Close quest-launch confirmation modals strictly via Close/Cancel
+        // Close quest-launch confirmation and summon detail modals strictly via Close/Cancel (NEVER click .btn-usual-ok on .pop-summon-detail!)
         const closeOnlyBtns = Array.from(document.querySelectorAll(
-          '.pop-pro-quest-list .btn-usual-close, .pop-bulk-pro-confirm .btn-usual-close, .pop-pro-quest-skip .btn-usual-close, .pop-pro-quest-skip .btn-usual-cancel, .pop-treasure-raid .btn-usual-close, .pop-treasure-raid .btn-usual-cancel, .pop-stamina .btn-usual-cancel'
+          '.pop-summon-detail .btn-usual-cancel, .pop-summon-detail .btn-usual-close, .pop-summon-detail .btn-close, .pop-select-member .btn-usual-cancel, .pop-pro-quest-list .btn-usual-close, .pop-bulk-pro-confirm .btn-usual-close, .pop-pro-quest-skip .btn-usual-close, .pop-pro-quest-skip .btn-usual-cancel, .pop-treasure-raid .btn-usual-close, .pop-treasure-raid .btn-usual-cancel, .pop-stamina .btn-usual-cancel'
         )) as HTMLElement[];
         for (const btn of closeOnlyBtns) {
           if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
@@ -964,7 +989,7 @@ export class CombatResolutionService {
         }
 
         const popBtns = Array.from(document.querySelectorAll(
-          '.pop-usual .btn-close, .pop-usual:not(.pop-pro-quest-list):not(.pop-bulk-pro-confirm):not(.pop-pro-quest-skip):not(.pop-treasure-raid):not(.pop-start-assist):not(.pop-stamina) .btn-usual-ok, .pop-usual .btn-usual-cancel, .prt-popup-header .btn-close, .btn-usual-close'
+          '.pop-usual .btn-close, .pop-usual .btn-usual-cancel, .pop-usual:not(.pop-summon-detail):not(.pop-select-member):not(.pop-pro-quest-list):not(.pop-bulk-pro-confirm):not(.pop-pro-quest-skip):not(.pop-treasure-raid):not(.pop-start-assist):not(.pop-stamina) .btn-usual-ok, .prt-popup-header .btn-close, .btn-usual-close'
         )) as HTMLElement[];
         for (const btn of popBtns) {
           if (btn.offsetParent !== null && window.getComputedStyle(btn).display !== 'none') {
@@ -1028,7 +1053,9 @@ export class CombatResolutionService {
             await this.checkAndDismissProcessingTurnPopup();
           }
           if (await this.isBattleEnded()) {
-            console.log(`[Combat:Solo] 🏆 Boss defeated on cleanup turn ${cleanupTurn}!`);
+            if (!isQuietTelemetryContext(this.ctx)) {
+              console.log(`[Combat:Solo] 🏆 Boss defeated on cleanup turn ${cleanupTurn}!`);
+            }
             break;
           }
         }
@@ -1036,7 +1063,9 @@ export class CombatResolutionService {
     }
 
     if (isLingerCombat && await this.isBattleEnded()) {
-      console.log('[Workflow] Battle ended but still on combat hash. Reloading to transition to result screen...');
+      if (!isQuietTelemetryContext(this.ctx)) {
+        console.log('[Workflow] Battle ended but still on combat hash. Reloading to transition to result screen...');
+      }
       await Promise.all([
         this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => null),
         this.page.evaluate(() => location.reload()).catch(() => null)
@@ -1105,14 +1134,18 @@ export class CombatResolutionService {
 
     if (isAssistRaid) {
       if (isStillCombatHash) {
-        console.log('[Workflow] Multi-raid rotation burst completed. Returning to #quest/assist for next raid...');
+        if (!isQuietTelemetryContext(this.ctx)) {
+          console.log('[Workflow] Multi-raid rotation burst completed. Returning to #quest/assist for next raid...');
+        }
         await this.page.evaluate(() => { window.location.hash = '#quest/assist'; }).catch(() => null);
         await logNormalDelay(800, 0.15);
       }
     } else if (isReplicard) {
       const stageHash = this.getReplicardStageHash();
       if (isStillCombatHash || curHash.includes('result') || !curHash.includes('replicard/stage')) {
-        console.log(`[Workflow] Replicard battle concluded. Heading to stage map (${stageHash}) for reward settlement...`);
+        if (!isQuietTelemetryContext(this.ctx)) {
+          console.log(`[Workflow] Replicard battle concluded. Heading to stage map (${stageHash}) for reward settlement...`);
+        }
         await this.page.evaluate((hash: string) => {
           if (window.location.hash === hash) {
             window.location.reload();
@@ -1126,7 +1159,9 @@ export class CombatResolutionService {
       await this.waitForAndDismissReplicardStagePopups(6000);
     } else if (isStillCombatHash || curHash.includes('result')) {
       const destHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : '#quest/index';
-      console.log(`[Workflow] Quest concluded. Returning to quest URL (${destHash})...`);
+      if (!isQuietTelemetryContext(this.ctx)) {
+        console.log(`[Workflow] Quest concluded. Returning to quest URL (${destHash})...`);
+      }
       await this.page.evaluate((hash: string) => { window.location.hash = hash; }, destHash).catch(() => null);
       await logNormalDelay(600, 0.15);
     }
@@ -1193,7 +1228,9 @@ export class CombatResolutionService {
     let anyDismissed = false;
     let cleanCycles = 0;
 
-    console.log('[Replicard] Awaiting stage settlement & reward popups...');
+    if (!isQuietTelemetryContext(this.ctx)) {
+      console.log('[Replicard] Awaiting stage settlement & reward popups...');
+    }
     await logNormalDelay(600, 0.1);
 
     while (Date.now() - startTime < maxWaitMs) {
@@ -1236,7 +1273,9 @@ export class CombatResolutionService {
       if (dismissed) {
         anyDismissed = true;
         cleanCycles = 0;
-        console.log('[Replicard] Dismissed stage reward / Sephira popup modal.');
+        if (!isQuietTelemetryContext(this.ctx)) {
+          console.log('[Replicard] Dismissed stage reward / Sephira popup modal.');
+        }
         await logNormalDelay(700, 0.15);
       } else {
         cleanCycles++;
@@ -1294,20 +1333,26 @@ export class CombatResolutionService {
         }).catch(() => false);
 
         if (isFreshTurn1) {
-          console.log(`[Workflow] Active combat at Turn 1 detected (${hash}). Preserving for workflow pipeline execution.`);
+          if (!isQuietTelemetryContext(this.ctx)) {
+            console.log(`[Workflow] Active combat at Turn 1 detected (${hash}). Preserving for workflow pipeline execution.`);
+          }
           return;
         }
 
         const isAssistRaid = this.ctx.template.questUrl.includes('assist') || (this.ctx.template.raidSlots && this.ctx.template.raidSlots.length > 0);
         if (isAssistRaid) {
-          console.log(`[Workflow] In multi-raid assist mode. Exiting lingering raid (${hash}) to #quest/assist...`);
+          if (!isQuietTelemetryContext(this.ctx)) {
+            console.log(`[Workflow] In multi-raid assist mode. Exiting lingering raid (${hash}) to #quest/assist...`);
+          }
           await this.syncCurrentHonors();
           await this.page.evaluate(() => { window.location.hash = '#quest/assist'; }).catch(() => null);
           await logNormalDelay(800, 0.15);
           break;
         }
 
-        console.log(`[Workflow] Lingering raid detected (${hash}). Resolving battle turn...`);
+        if (!isQuietTelemetryContext(this.ctx)) {
+          console.log(`[Workflow] Lingering raid detected (${hash}). Resolving battle turn...`);
+        }
         await new Promise(r => setTimeout(r, 200));
         await this.dismissCombatDrawersAndPopups();
 
@@ -1374,19 +1419,25 @@ export class CombatResolutionService {
           return;
         }
         if (url.includes('normal_attack_result.json')) {
-          console.log('[Combat] Normal attack registered by server.');
+          if (!isQuietTelemetryContext(this.ctx)) {
+            console.log('[Combat] Normal attack registered by server.');
+          }
           finish(true);
           return;
         }
         if (url.includes('summon_result.json')) {
-          console.log('[Combat] Summon action registered by server.');
+          if (!isQuietTelemetryContext(this.ctx)) {
+            console.log('[Combat] Summon action registered by server.');
+          }
           finish(true);
           return;
         }
         if (url.includes('ability_result.json')) {
           hasSeenSkill = true;
           lastActionTime = Date.now();
-          console.log('[Combat] Full Auto skill cast registered. Awaiting next skill or normal attack...');
+          if (!isQuietTelemetryContext(this.ctx)) {
+            console.log('[Combat] Full Auto skill cast registered. Awaiting next skill or normal attack...');
+          }
         }
       };
 
@@ -1396,7 +1447,9 @@ export class CombatResolutionService {
       const pollInterval = setInterval(async () => {
         if (resolved || isPolling) return;
         if (hasSeenSkill && (Date.now() - lastActionTime > 2500)) {
-          console.log('[Combat] Full Auto skill sequence completed and settled.');
+          if (!isQuietTelemetryContext(this.ctx)) {
+            console.log('[Combat] Full Auto skill sequence completed and settled.');
+          }
           finish(true);
           return;
         }
@@ -1476,7 +1529,8 @@ export class CombatResolutionService {
           const json = await res.json().catch(() => null);
           if (resolved) return;
 
-          if (json && ((json.popup && !Array.isArray(json.scenario)) || json.result === 'ng' || json.error)) {
+          const hasNonEmptyScenario = Array.isArray(json?.scenario) && json.scenario.length > 0;
+          if (json && ((json.popup && !hasNonEmptyScenario) || json.result === 'ng' || json.error)) {
             resolved = true;
             clearTimeout(timer);
             this.page.off('response', responseHandler);

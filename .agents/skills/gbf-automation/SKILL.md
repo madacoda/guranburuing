@@ -476,4 +476,25 @@ If the user reports that their account is performing an action (e.g. hosting Gal
 ### 3. Transparent Command Announcements:
 - **ALWAYS announce any command before executing it**. Clearly inform the operator of what command is being executed, on which machine (local vs VPS), and why.
 
+---
+
+## 10. Combat Verification & Step Audit Honesty Rule (Mandatory)
+
+1. **Never Claim "All Fixed" Before Live Game & Step Audit Proof**:
+   - Mock tests, dry-runs, and TypeScript builds only prove code compilation and mock behavior — they do **NOT** prove an in-game GBF combat rotation is fixed.
+   - **NEVER** tell the operator `"Yes, all fixed now"` or claim a combat/summon/skill bug is resolved until live in-game execution receipts (`data/step-audit-ledger.json` via `bun run step:audit`) confirm the step actually executed in the live browser with zero unexpected skips or timeouts.
+   - Until live audit data confirms the fix, state clearly: *"Code patch applied and unit tests pass — pending live in-game run + `bun run step:audit` verification."*
+2. **Real-Time Step Audit Ledger (`data/step-audit-ledger.json`)**:
+   - `StepExecutionMonitorService` writes step receipts in real time after every step.
+   - Always check `bun run step:audit <workflow>` (or `data/step-audit-ledger.json`) to verify actual per-step pass rate, retry count, recast transition, and root-cause findings before declaring success.
+3. **No Per-Template Mock-DOM Test Bloat**:
+   - Do **not** create standalone mock-DOM test files (`tests/test-<template>.ts`) for new workflow templates or combat fixes.
+   - Fake/mock DOMs diverge from live GBF DOM/Zepto/CreateJS state and hide real bugs instead of fixing them.
+   - Rely on `bun run workflow:validate`, `bun run typecheck`, and live CDP telemetry (`bun run step:audit`) rather than writing brittle template mock tests.
+4. **GBF Live Combat Mechanics & 1-Pass Forensic Triage**:
+   - Always consult [`.agents/rules/gbf-combat-diagnostics.md`](file:///c:/laragon/www/guranburuing/.agents/rules/gbf-combat-diagnostics.md), [`strategies/principles/16_gbf_live_combat_dom_and_diagnostics.md`](file:///c:/laragon/www/guranburuing/strategies/principles/16_gbf_live_combat_dom_and_diagnostics.md), and the evidence-reviewed post-mortem [`strategies/COMBAT_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md`](file:///c:/laragon/www/guranburuing/strategies/COMBAT_FAILURE_ROOT_CAUSES_AND_SOLUTIONS.md) before modifying combat step handlers.
+   - Follow the 1-pass diagnostic flow: (1) inspect `bun run step:audit <workflow>` / `data/step-audit-ledger.json`, (2) filter out False Positives (`0->0` on `CONFIRMED_NETWORK` buffs, Attack-Reload server lockout retries) and trace downstream skill skips/timeouts back to the **earliest** upstream failure (e.g., failed Death/backline swap or missing post-swap `reload`), (3) verify selectors & `stage.gGameStatus` on the **live Chrome CDP page**, (4) patch the narrowest engine layer, and (5) confirm across **>= 2 consecutive fresh 100% HP live runs** (`--runs 2`) + `bun run step:audit` (never treat a single resumed mid-turn Run 1 as full proof).
+   - Enforce Guild War strict rules: any `ensureCast: true` step in GW (`summon`, `quick_call`, `skill`, `attack`) is strictly **FATAL** (never skip silently), and `confirm_result` cannot be deferred across GW runs due to the 1-unclaimed-battle cap (`未確認バトル`).
+
+
 

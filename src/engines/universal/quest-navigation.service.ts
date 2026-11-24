@@ -1,6 +1,6 @@
 // src/engines/universal/quest-navigation.service.ts
 import { Page } from 'puppeteer-core';
-import { UniversalContext } from './types.js';
+import { UniversalContext, isQuietTelemetryContext } from './types.js';
 import { MilestoneSweeperService } from './milestone-sweeper.service.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
 import { ScreenDiagnosticService } from './screen-diagnostic.service.js';
@@ -65,8 +65,12 @@ export class QuestNavigationService {
       await this.deps.combatResolution.waitForAndDismissReplicardStagePopups(2500);
     }
 
+    const quiet = isQuietTelemetryContext(this.ctx);
+
     if (initHash.includes('result')) {
-      console.log(`[${this.ctx.accountId}] Lingering result screen detected (${initHash}). Settling rewards and proceeding...`);
+      if (!quiet) {
+        console.log(`[${this.ctx.accountId}] Lingering result screen detected (${initHash}). Settling rewards and proceeding...`);
+      }
       await this.deps.combatResolution.handleConfirmResult();
       const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
       await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
@@ -74,7 +78,9 @@ export class QuestNavigationService {
     }
 
     const isCombatHash = /^#(raid(_multi|_semi)?|battle)\/\d+/.test(initHash) || initHash.includes('replicard/battle');
-    console.log(`[${this.ctx.accountId}] [Nav] initHash="${initHash}", isCombat=${isCombatHash}`);
+    if (!quiet) {
+      console.log(`[${this.ctx.accountId}] [Nav] initHash="${initHash}", isCombat=${isCombatHash}`);
+    }
 
     if (isCombatHash) {
       await this.page.waitForFunction(() => {
@@ -88,7 +94,9 @@ export class QuestNavigationService {
 
       const battleEnded = await this.deps.combatResolution.isBattleEnded();
       if (battleEnded) {
-        console.log(`[${this.ctx.accountId}] Concluded battle detected (${initHash}). Clearing dead combat state and navigating to quest start...`);
+        if (!quiet) {
+          console.log(`[${this.ctx.accountId}] Concluded battle detected (${initHash}). Clearing dead combat state and navigating to quest start...`);
+        }
         await this.deps.combatResolution.handleConfirmResult();
         const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
         await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
@@ -132,19 +140,27 @@ export class QuestNavigationService {
           combatStatus = await readStatus();
         }
 
-        console.log(`[${this.ctx.accountId}] [Nav] combatStatus: turn=${combatStatus.turn}, wave=${combatStatus.wave}, isDead=${combatStatus.isDead}, hasAliveBoss=${combatStatus.hasAliveBoss}`, JSON.stringify((combatStatus as any).debug));
+        if (!quiet) {
+          console.log(`[${this.ctx.accountId}] [Nav] combatStatus: turn=${combatStatus.turn}, wave=${combatStatus.wave}, isDead=${combatStatus.isDead}, hasAliveBoss=${combatStatus.hasAliveBoss}`, JSON.stringify((combatStatus as any).debug));
+        }
 
         if (combatStatus.isDead) {
-          console.log(`[${this.ctx.accountId}] Enemy already defeated in battle (${initHash}). Concluding result...`);
+          if (!quiet) {
+            console.log(`[${this.ctx.accountId}] Enemy already defeated in battle (${initHash}). Concluding result...`);
+          }
           await this.deps.combatResolution.handleConfirmResult();
           const targetHash = targetUrl.includes('#') ? '#' + targetUrl.split('#')[1] : targetUrl;
           await this.page.evaluate((h: string) => { window.location.hash = h; }, targetHash).catch(() => null);
           await logNormalDelay(600, 0.15);
         } else if ((combatStatus.turn === 0 || combatStatus.turn === 1) && combatStatus.wave === 1 && combatStatus.hasAliveBoss) {
-          console.log(`[${this.ctx.accountId}] Fresh active combat detected at Turn ${combatStatus.turn} Wave 1 (${initHash}). Starting combat pipeline directly...`);
+          if (!quiet) {
+            console.log(`[${this.ctx.accountId}] Fresh active combat detected at Turn ${combatStatus.turn} Wave 1 (${initHash}). Starting combat pipeline directly...`);
+          }
           return true;
         } else {
-          console.log(`[${this.ctx.accountId}] Lingering in-progress battle detected (${initHash} | Turn ${combatStatus.turn}). Auto-finishing to clear state for fresh workflow runs...`);
+          if (!quiet) {
+            console.log(`[${this.ctx.accountId}] Lingering in-progress battle detected (${initHash} | Turn ${combatStatus.turn}). Auto-finishing to clear state for fresh workflow runs...`);
+          }
           await this.deps.combatResolution.resolveLingeringState();
         }
       }
@@ -195,7 +211,9 @@ export class QuestNavigationService {
         await logNormalDelay(600, 0.15);
       } else if (!viewStatus.hasSupporterCards && !viewStatus.hasDeckConfirmation && !viewStatus.hasModal && viewStatus.isEventHub) {
         // We are on an event page without the supporter cards mounted: force a page reload to mount the supporter route
-        console.log(`[${this.ctx.accountId}] Event hub view detected while targeting supporter selection. Reloading to mount supporter cards...`);
+        if (!quiet) {
+          console.log(`[${this.ctx.accountId}] Event hub view detected while targeting supporter selection. Reloading to mount supporter cards...`);
+        }
         await this.page.evaluate(() => window.location.reload()).catch(() => null);
         await logNormalDelay(800, 0.15);
       }
@@ -235,7 +253,9 @@ export class QuestNavigationService {
       }).catch(() => false);
 
       if (hasRestartModal) {
-        console.log(`[${this.ctx.accountId}] [Resume] Suspended quest in progress modal detected (.popRestartQuest). Resuming battle...`);
+        if (!quiet) {
+          console.log(`[${this.ctx.accountId}] [Resume] Suspended quest in progress modal detected (.popRestartQuest). Resuming battle...`);
+        }
         await this.deps.combatResolution.waitForBattleToMount(10000);
         const combatStatus = await this.page.evaluate(() => {
           const stage = (window as any).stage;
@@ -250,17 +270,23 @@ export class QuestNavigationService {
         }).catch(() => ({ turn: 1, isDead: false }));
 
         if (combatStatus.isDead || (await this.deps.combatResolution.isBattleEnded())) {
-          console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is already concluded. Settling results...`);
+          if (!quiet) {
+            console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is already concluded. Settling results...`);
+          }
           await this.deps.combatResolution.handleConfirmResult();
           continue;
         }
 
         if (combatStatus.turn === 0 || combatStatus.turn === 1) {
-          console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is at Turn ${combatStatus.turn}. Starting combat pipeline directly.`);
+          if (!quiet) {
+            console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is at Turn ${combatStatus.turn}. Starting combat pipeline directly.`);
+          }
           return true;
         }
 
-        console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is on Turn ${combatStatus.turn}. Resolving lingering battle to start fresh...`);
+        if (!quiet) {
+          console.log(`[${this.ctx.accountId}] [Resume] Resumed battle is on Turn ${combatStatus.turn}. Resolving lingering battle to start fresh...`);
+        }
         await this.deps.combatResolution.resolveLingeringState();
         continue;
       }

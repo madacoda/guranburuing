@@ -1,0 +1,216 @@
+{
+  "name": "GW NM150 - Dark Farm",
+  "description": "GW NM150 Dark 3-turn enforced burst rotation (S1_BETA_23_NO_C2S2): Wait Full Load -> Call Summon 6 (Hades) -> Reload -> C2S1 -> C2S2 -> C3S1 -> C4S2 -> Attack T1 -> Reload T1 -> C4S3 -> Attack T2 -> Reload T2 -> C4S1 (Hexcat Echoing Fellwind) -> Quick Call (Yatima) -> Reload -> C4S1 (Nier) -> C4S3 to C1 -> C4S4 -> C2S1 -> C2S3 -> Attack T3 -> Reload T3 -> Confirm Result",
+  "mode": "combat",
+  "questUrl": "https://game.granbluefantasy.jp/#quest/supporter/980701/1/0/10116",
+  "questId": "980701",
+  "element": "Dark",
+  "isSolo": true,
+  "supporterPriority": [
+    "Hades"
+  ],
+  "humanMotor": true,
+  "stopOnCaptcha": true,
+  "autoElixir": true,
+  "defaultRuns": 1000,
+  "speedProfile": "turbo",
+  "telemetryMode": "off",
+  "steps": [
+    {
+      "id": "step_0_wait_full_load",
+      "name": "Wait for Combat Loading & Buttons Interactable",
+      "code": "wait_element",
+      "action": "wait_element",
+      "target": ".btn-attack-start",
+      "timeoutMs": 8000
+    },
+    {
+      "id": "step_1_summon_6",
+      "name": "Call Summon 6 (Hades, Ensured)",
+      "code": "summon",
+      "action": "summon",
+      "slot": 6,
+      "ensureCast": true,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "id": "step_2_reload_post_hades",
+      "name": "Reload F5 (Post-Hades Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_3_c2s1",
+      "name": "Character 2 Skill 1 (C2S1 War Eternal +, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_4_c2s2",
+      "name": "Character 2 Skill 2 (C2S2 Wages of Sin +, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_5_c3s1",
+      "name": "Character 3 Skill 1 (C3S1 Gate of Sin ++, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 3,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_6_c4s2",
+      "name": "Character 4 Skill 2 (C4S2 Release Clawvalry, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 2,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_7_attack_t1",
+      "name": "Execute Attack (Turn 1, Ensured)",
+      "code": "attack",
+      "action": "attack",
+      "ensureCast": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_8_reload_t1",
+      "name": "Reload F5 (Turn 1 Post-Attack Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_9_c4s3",
+      "name": "Character 4 Skill 3 (C4S3 Emerald Mischief, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 3,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_10_attack_t2",
+      "name": "Execute Attack (Turn 2, Ensured)",
+      "code": "attack",
+      "action": "attack",
+      "ensureCast": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_11_reload_t2",
+      "name": "Reload F5 (Turn 2 Post-Attack Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_12_c4s1_pre_death",
+      "name": "Character 4 Skill 1 (C4S1 Hexcat Echoing Fellwind +, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_13_quick_call",
+      "name": "Quick Call Summon (Yatima -> Death + Versusia, Ensured)",
+      "code": "quick_call",
+      "action": "quick_call",
+      "ensureCast": true,
+      "waitForNetwork": "summon_result.json"
+    },
+    {
+      "id": "step_14_reload_post_death",
+      "name": "Reload F5 (Post-Death Animation Cancel & Nier Swap Sync)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_15_c4s1_post_death",
+      "name": "Character 4 Skill 1 (C4S1 Nier Field, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_16_c4s3_to_c1",
+      "name": "Character 4 Skill 3 on Character 1 (C4S3 -> C1 Last Love, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 3,
+      "targetCharacter": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_17_c4s4",
+      "name": "Character 4 Skill 4 (C4S4 Eternal Vow, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 4,
+      "skill": 4,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_18_c2s1_t3",
+      "name": "Character 2 Skill 1 (C2S1 War Eternal + Turn 3, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 1,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_19_c2s3_t3",
+      "name": "Character 2 Skill 3 (C2S3 Diva Satanica, Ensured)",
+      "code": "skill",
+      "action": "skill",
+      "character": 2,
+      "skill": 3,
+      "ensureCast": true,
+      "waitForNetwork": "ability_result.json"
+    },
+    {
+      "id": "step_20_attack_t3",
+      "name": "Execute Attack (Turn 3 Kill, Ensured)",
+      "code": "attack",
+      "action": "attack",
+      "ensureCast": true,
+      "waitForNetwork": "normal_attack_result.json"
+    },
+    {
+      "id": "step_21_reload_t3",
+      "name": "Reload F5 (Turn 3 Post-Attack Animation Cancel)",
+      "code": "reload",
+      "action": "reload"
+    },
+    {
+      "id": "step_22_confirm",
+      "name": "Confirm Battle Result & Rerun",
+      "code": "confirm_result",
+      "action": "confirm_result"
+    }
+  ]
+}

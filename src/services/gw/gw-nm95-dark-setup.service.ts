@@ -40,7 +40,6 @@ export interface GwNm95DarkDeckAudit {
   hasFalsehood: boolean;
   hasEternalSignature: boolean;
   hasPainOfDeath: boolean;
-  hasFallenSwordAtkLv4: boolean;
   hasSarielSubAura: boolean;
   hasFedielOrUlbHadesSubAura: boolean;
   hasSummerBelialSub: boolean;
@@ -447,25 +446,6 @@ export class GwNm95DarkSetupService {
       });
     }
 
-    const fallenSword = weapons.find(
-      w => w.masterId === '1040014300' || w.name.toLowerCase().includes('fallen sword')
-    );
-    const hasFallenSwordAtkLv4 = Boolean(
-      fallenSword &&
-        fallenSword.arousalForm?.toLowerCase() === 'attack' &&
-        (fallenSword.arousalLevel ?? 0) >= 4
-    );
-    if (fallenSword && !hasFallenSwordAtkLv4) {
-      findings.push({
-        id: 'fallen_sword_awakening',
-        severity: 'OPTIMIZATION_OPPORTUNITY',
-        category: 'weapon_grid',
-        title: `Fallen Sword Awakening (${fallenSword.arousalForm || 'None'} Lv${fallenSword.arousalLevel ?? 1}) suboptimal`,
-        detail: 'Multiattack Lv1 provides 0% bonus, while Death + Ereshkigal already guarantee 100% TA.',
-        actionableFix: 'Re-awaken Fallen Sword to Attack Lv4 (+35% ATK) for +2.0M consistency.'
-      });
-    }
-
     const hasPainOfDeath = weapons.some(
       w => w.masterId === '1040113200' || w.name.toLowerCase().includes('pain of death')
     );
@@ -504,7 +484,6 @@ export class GwNm95DarkSetupService {
       hasFalsehood,
       hasEternalSignature,
       hasPainOfDeath,
-      hasFallenSwordAtkLv4,
       hasSarielSubAura,
       hasFedielOrUlbHadesSubAura,
       hasSummerBelialSub,
@@ -569,9 +548,6 @@ export class GwNm95DarkSetupService {
     if (audit.hasOpusBeta) {
       projectedPlayerPhaseDamage += includeEwiyarS2 ? 5_500_000 : 4_500_000;
     }
-    if (audit.hasFallenSwordAtkLv4) {
-      projectedPlayerPhaseDamage += 2_000_000;
-    }
 
     const projectedOverkillMargin = projectedPlayerPhaseDamage - GW_NM95_DARK_BOSS_HP;
     const killsInPlayerPhase = projectedOverkillMargin >= 0;
@@ -610,7 +586,7 @@ export class GwNm95DarkSetupService {
   }
 
   /**
-   * Selects `'fast'` (5-skill) when player-phase overkill margin is >= 4.5M (e.g. Sariel + Opus Beta/Atk4),
+   * Selects `'fast'` (5-skill) when player-phase overkill margin is >= 4.5M (e.g. Sariel + Opus Beta),
    * or `'safe'` (6-skill) when Sariel alone already pushes 141M+ without grid edits.
    */
   public static recommendProfile(sims: GwNm95DarkSimulationResult[]): GwNm95DarkProfileId {

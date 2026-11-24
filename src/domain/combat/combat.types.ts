@@ -58,6 +58,7 @@ export interface StepExecutionReceipt {
   stepNumber: number;
   stepCode: string;
   stepLabel: string;
+  ensureCast?: boolean;
   status: StepExecutionOutcomeStatus;
   verified: boolean;
   attempts: number;
@@ -72,17 +73,64 @@ export interface StepExecutionReceipt {
   reason?: string;
 }
 
+export type StepHealthStatus = 'HEALTHY' | 'RETRY_HEAVY' | 'SKIP_ANOMALY' | 'FAILING';
+
+export interface StepHotspotStats {
+  stepNumber: number;
+  stepCode: string;
+  stepLabel: string;
+  ensureCast: boolean;
+  executions: number;
+  confirmedCount: number;
+  firstTryCount: number;
+  retriedCount: number;
+  totalExtraAttempts: number;
+  cooldownSkipCount: number;
+  ensuredCooldownSkipCount: number;
+  koSkipCount: number;
+  failedCount: number;
+  noopMutationCount: number;
+  totalDurationMs: number;
+  avgDurationMs: number;
+  maxDurationMs: number;
+  failureRatePct: number;
+  retryRatePct: number;
+  skipRatePct: number;
+  healthStatus: StepHealthStatus;
+  lastReason?: string;
+  diagnosticHint?: string;
+}
+
+export type StepAuditFindingCategory =
+  | 'UNOPENED_SUMMON_TRAY'
+  | 'FAILED_CHARACTER_SWAP_CASCADE'
+  | 'ENSURED_STEP_SKIPPED'
+  | 'HIGH_RETRY_LOCK_CONTENTION'
+  | 'NOOP_CAST_RESPONSE'
+  | 'STEP_TIMEOUT';
+
+export interface StepAuditRootCauseFinding {
+  stepNumber: number;
+  stepLabel: string;
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  category: StepAuditFindingCategory;
+  summary: string;
+  downstreamStepNumbers?: number[];
+}
+
 export interface RunExecutionAuditReport {
   runNumber: number;
   totalStepsPlanned: number;
   totalStepsExecuted: number;
   confirmedSteps: number;
   skippedCooldownSteps: number;
+  ensuredCooldownSkips?: number;
   retriedSteps: number;
   failedSteps: number;
   unacknowledgedSteps: number;
   perfectExecution: boolean;
   receipts: StepExecutionReceipt[];
+  findings?: StepAuditRootCauseFinding[];
 }
 
 export interface AttackInvocationOutcome {

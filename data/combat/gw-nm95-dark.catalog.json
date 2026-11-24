@@ -147,7 +147,7 @@
         "name": "Fallen Sword Lv150",
         "masterId": "1040014300",
         "role": "Optimus Stamina + Might III Beatstick",
-        "notes": "Currently Multiattack Lv1 (0% active bonus). Upgrade to Attack Awakening Lv4 (+35% ATK) for +2M stability."
+        "notes": "Awakening options are Multiattack (+20% DA / +10% TA) or Healing (+30% Heal Cap / +10% Debuff Res) only — no Attack type exists. Keep Multiattack Lv1 and do not spend Cages under Ereshkigal/Death GTA."
       },
       {
         "slot": 6,
@@ -246,14 +246,6 @@
         "estimatedDamageGain": 5000000,
         "priority": "HIGH_GRID_UPGRADE",
         "reason": "Boosts Nier's 2x 6-hit Eternal Vow auto-nukes, MC Celestial Dominion 2-hit nuke, and Ewiyar S2 nuke; enables 5-Skill Turbo with huge overkill."
-      },
-      {
-        "weaponName": "Fallen Sword Lv150 Awakening",
-        "currentState": "Multiattack Lv1 (0% active bonus)",
-        "recommendedState": "Attack Awakening Lv4 (+35% ATK)",
-        "estimatedDamageGain": 2000000,
-        "priority": "MEDIUM_GRID_UPGRADE",
-        "reason": "Stabilizes damage cap for Ilsa and Nier against Demeter 15 DEF without needing Miserable Mist or Ewiyar S2."
       }
     ]
   },

@@ -71,7 +71,7 @@ const RX_ACT_EXIT_HP = /^(?:exit|finish|stop)[\s_]*(?:if[\s_]*)?(?:enemy[\s_]*)?
 const RX_ACT_ATTACK_UNTIL_HONOR = /^(?:check[\s_]*(?:the[\s_]*)?honor[\s_]*and[\s_]*)?(?:keep[\s_]*)?attack(?:ing)?[\s_]*until[\s_]*honor/i;
 const RX_ACT_SKILL_TARGET = /^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)\s*(?:on|->|target(?:ed\s+on)?|to)\s*(?:c|char|character)?\s*(\d)$/i;
 const RX_ACT_SKILL = /^(?:(?:char(?:acter)?|c)[\s_]*(\d)|skill[\s_]*(\d)|(\d))[-\s_]*(?:skill[\s_]*|s)?(\d)$/i;
-const RX_ACT_SUMMON = /^(?:summon|call)(?:[\s_]+(?:number|slot|no\.?|#))?[\s_]*#?([a-zA-Z0-9_\-]+)$/i;
+const RX_ACT_SUMMON = /^(?:summon|call)(?:[\s_]+(?:summon|call))?(?:[\s_]+(?:number|slot|no\.?|#))?[\s_]*#?([a-zA-Z0-9_\-]+)$/i;
 const RX_DIGITS_ONLY = /^\d+$/;
 const RX_ACT_TARGET_ENEMY = /(?:target(?:[\s_]*enemy)?|select[\s_]+enemy|enemy)[\s_]*(\d+)/i;
 const RX_ACT_HEAL = /(?:heal|potion)[\s_]*(green|blue|elixir)/i;
@@ -580,12 +580,14 @@ export function parseSingleDslAction(
     }
     if (fastToken.opcode === 5) {
       const slot = fastToken.arg1;
+      const hasEnsure = fastToken.arg3 === 1 || RX_ENSURE_COMMENT.test(line);
       return {
         id: `step_${stepIndex}`,
-        name: `Invoke Summon Slot ${slot}`,
+        name: `Invoke Summon Slot ${slot}${hasEnsure ? ' (Ensured)' : ''}`,
         code: 'summon',
         action: 'summon',
         slot,
+        ...(hasEnsure ? { ensureCast: true } : {}),
         waitForNetwork: 'summon_result.json'
       };
     }
@@ -1091,11 +1093,12 @@ export function parseSingleDslAction(
     const target = isNum ? undefined : param.toLowerCase();
     return {
       id: `step_${stepIndex}`,
-      name: isNum ? `Invoke Summon Slot ${slot}` : `Invoke Summon (${param})`,
+      name: `${isNum ? `Invoke Summon Slot ${slot}` : `Invoke Summon (${param})`}${hasEnsureComment ? ' (Ensured)' : ''}`,
       code: 'summon',
       action: 'summon',
       slot,
       ...(target ? { target } : {}),
+      ...(hasEnsureComment ? { ensureCast: true } : {}),
       waitForNetwork: 'summon_result.json'
     };
   }

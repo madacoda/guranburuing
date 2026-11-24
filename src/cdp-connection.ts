@@ -350,8 +350,8 @@ export class CdpConnectionManager {
           pageTitle = await this.gbfPage.title().catch(() => 'Granblue Fantasy');
         }
 
-        // Production VPS Optimization Gate (Mute audio, lite canvas graphics, mobile touch viewport)
-        if (config.isProduction || config.AUTO_MUTE_GAME) {
+        // Production VPS / Headless Optimization Gate (Mute audio, lite canvas graphics, optional rAF cap)
+        if (config.isProduction || config.AUTO_MUTE_GAME || isHeadless) {
           await this.optimizePageEnvironment(this.gbfPage);
         }
 
@@ -487,8 +487,47 @@ export class CdpConnectionManager {
     }
   }
 
-  public async optimizePageEnvironment(page: Page): Promise<void> {
-    const headlessCpuDietScript = `
+  /**
+   * Builds the headless/VPS page optimization script.
+   * Preserves CSS diet, 1x1 battle sprite interceptor, and 1-FPS Canvas/WebGL paint gating;
+   * throttles requestAnimationFrame only when 0 < rafFps < 60 (VPS CPU guard).
+   */
+  public static buildPageDietScript(rafFps: number = config.HEADLESS_RAF_FPS): string {
+    const clampedFps = Number.isFinite(rafFps) ? Math.max(0, Math.min(120, Math.round(rafFps))) : 60;
+    const shouldThrottleRaf = clampedFps > 0 && clampedFps < 60;
+    const targetFrameMs = shouldThrottleRaf ? Math.max(16, Math.round(1000 / clampedFps)) : 16;
+
+    const rafBlock = shouldThrottleRaf
+      ? `
+        // 3. Decouple requestAnimationFrame from Chromium's 60Hz Viz DisplayScheduler (--type=gpu-process):
+        // Replacing native window.requestAnimationFrame with a ${clampedFps} FPS (${targetFrameMs}ms) setTimeout timer prevents Blink
+        // from setting NeedsBeginFrame=true at 60Hz in --type=gpu-process, cutting SwiftShader/Viz compositor CPU
+        // on low-CPU VPS instances while passing performance.now() to CreateJS.
+        if (!window.__gbf_raf_throttler_installed__ && !window.__gbfRafThrottled15Fps) {
+          window.__gbf_raf_throttler_installed__ = true;
+          window.__gbfRafTargetFps = ${clampedFps};
+          ${clampedFps === 15 ? 'window.__gbfRafThrottled15Fps = true;' : ''}
+          try {
+            let lastRafMs = 0;
+            window.requestAnimationFrame = function(cb) {
+              const now = performance.now();
+              const wait = Math.max(16, ${targetFrameMs} - Math.max(0, now - lastRafMs));
+              return window.setTimeout(function() {
+                lastRafMs = performance.now();
+                cb(lastRafMs);
+              }, wait);
+            };
+            window.cancelAnimationFrame = function(id) {
+              window.clearTimeout(id);
+            };
+          } catch (e) {}
+        }`
+      : `
+        // Native 60Hz requestAnimationFrame preserved for maximum CreateJS skill animation speed;
+        // sprite 1x1 GIF diet + 1-FPS Canvas/WebGL paint gate below keep headless CPU minimal.
+        window.__gbfRafTargetFps = 60;`;
+
+    return `
       (() => {
         try {
           localStorage.setItem('sound_bgm_volume', '0');
@@ -571,31 +610,9 @@ export class CdpConnectionManager {
             }
           } catch (e) {}
         }
+${rafBlock}
 
-        // 3. Decouple requestAnimationFrame from Chromium's 60Hz Viz DisplayScheduler (--type=gpu-process):
-        // Replacing native window.requestAnimationFrame with a 15 FPS (66ms) setTimeout timer prevents Blink
-        // from setting NeedsBeginFrame=true at 60Hz in --type=gpu-process, cutting SwiftShader/Viz compositor CPU by ~85%
-        // while passing performance.now() so CreateJS TweenJS/MovieClip animations advance at 100% real-time speed.
-        if (!window.__gbf_raf_throttler_installed__ && !window.__gbfRafThrottled15Fps) {
-          window.__gbf_raf_throttler_installed__ = true;
-          window.__gbfRafThrottled15Fps = true;
-          try {
-            let lastRafMs = 0;
-            window.requestAnimationFrame = function(cb) {
-              const now = performance.now();
-              const wait = Math.max(16, 66 - Math.max(0, now - lastRafMs));
-              return window.setTimeout(function() {
-                lastRafMs = performance.now();
-                cb(lastRafMs);
-              }, wait);
-            };
-            window.cancelAnimationFrame = function(id) {
-              window.clearTimeout(id);
-            };
-          } catch (e) {}
-        }
-
-        // 3. Canvas 2D & WebGL (SwiftShader) Software Rasterizer Diet:
+        // 4. Canvas 2D & WebGL (SwiftShader) Software Rasterizer Diet:
         // Only rasterize pixels onto <canvas> (2D or WebGL) during a 35ms window once per 1000ms (~1 FPS paint).
         // Eliminates ~96.5% of CPU bitmap blitting and SwiftShader WebGL shader calls in --type=gpu-process,
         // while keeping 100% of CreateJS TweenJS/Timeline ticks and game state transitions running at full speed.
@@ -659,6 +676,16 @@ export class CdpConnectionManager {
         }
       })();
     `;
+  }
+
+  public async optimizePageEnvironment(page: Page, options?: { rafFps?: number }): Promise<void> {
+    if ((page as any).__gbfPageEnvOptimized && options?.rafFps === undefined) {
+      return;
+    }
+    (page as any).__gbfPageEnvOptimized = true;
+
+    const rafFps = options?.rafFps ?? config.HEADLESS_RAF_FPS;
+    const headlessCpuDietScript = CdpConnectionManager.buildPageDietScript(rafFps);
 
     try {
       // Persist on Puppeteer's main Page CDP session (NEVER detach, or Chromium wipes addScriptToEvaluateOnNewDocument on F5 reload!)
@@ -678,7 +705,7 @@ export class CdpConnectionManager {
       }
 
       // 4. Headless / Production CDP Audio & Font Stream Diet on persistent Page session:
-      if (config.HEADLESS || config.isProduction) {
+      if (config.HEADLESS || config.isProduction || this.lastIsHeadless) {
         const persistentClient = typeof (page as any)._client === 'function' ? (page as any)._client() : null;
         if (persistentClient && typeof persistentClient.send === 'function') {
           await persistentClient.send('Network.enable', {
@@ -807,10 +834,10 @@ export class CdpConnectionManager {
         // 4. If freshPage was created on active browser, initialize and rebind
         if (freshPage && this.browser) {
           await installMobageSessionImmunity(freshPage);
-          await freshPage.goto(lastUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
-          if (config.isProduction || config.AUTO_MUTE_GAME) {
+          if (config.isProduction || config.AUTO_MUTE_GAME || this.lastIsHeadless) {
             await this.optimizePageEnvironment(freshPage);
           }
+          await freshPage.goto(lastUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
           this.installRendererFreezeWatchdog(freshPage, activePort);
           this.gbfPage = freshPage;
 
@@ -866,10 +893,10 @@ export class CdpConnectionManager {
       if (!newPage) return oldPage;
 
       await installMobageSessionImmunity(newPage);
-      await newPage.goto(destUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
-      if (config.isProduction || config.AUTO_MUTE_GAME) {
+      if (config.isProduction || config.AUTO_MUTE_GAME || this.lastIsHeadless) {
         await this.optimizePageEnvironment(newPage);
       }
+      await newPage.goto(destUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null);
       this.installRendererFreezeWatchdog(newPage, activePort);
       this.gbfPage = newPage;
 

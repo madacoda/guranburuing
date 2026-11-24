@@ -82,7 +82,7 @@ Live `/party/deck/133` `effect_value_info` and verbatim `/weapon/weapon/{id}` to
 | **Passive A-Side Echo** | Highest source only | `20%` from Opus `Deceitful Fallacy` (`Falsehood`) | Overrides `Causality Driver`'s `4.5%` `Oblivion's Deathstrike` (confirmed in live packet: Ilsa hits `4` instances/auto instead of `5`). Keep `Causality Driver` strictly for `+30%` Optimus Exalto. |
 | **General DMG Cap (`04_icon_dmg_cap`)** | `20%` | **`20%` (`is_max: true`)** (`2x PnS 14%` + `Pain of Death 5%` + `Parazonium Atk4 5%`) | Further cap must come from **summon sub-auras (`Sariel +15%`)** and **character buffs (`Ilsa S1 +15%`)**. |
 | **Resonator 4-Group Gate** | `>= 4` same weapon type | **4 Axes:** `Ereshkigal`, `2x Pain and Suffering`, `Scythe of Darkherald` | **Do NOT remove `Scythe of Darkherald` without replacing it with another Axe**, or `Eternal Signature`'s `+7%` Special Cap shuts off! |
-| **Fallen Sword Awakening** | Lv 4 Max | Currently `Multiattack Lv1` (`0%` active bonus) | Re-awaken to **`Attack Lv4` (`+35%` ATK)** for `+2.0M` damage consistency on C2/C4 normals. |
+| **Fallen Sword Awakening** | Lv 4 Max (`Multiattack` / `Healing` only) | Currently `Multiattack Lv1` | Only `Multiattack` (`+20%` DA / `+10%` TA) and `Healing` (`+30%` Heal Cap / `+10%` Debuff Res) exist—there is **no** `Attack` option. Because `Ereshkigal` + `Death` already guarantee `100%` TA, keep `Multiattack Lv1` and save Cages. |
 
 ---
 
@@ -146,7 +146,7 @@ Switching `speedProfile` from `"fast"` to **`"turbo"`** in `templates/gw-nm95-da
 
 | Profile | Rotation (`speedProfile: "turbo"`) | Est. Clear Time | Projected Player Phase | Pre-Requisite |
 | :--- | :--- |---:|---:| :--- |
-| **Option A (`fast`, 5-Skill)** | `quick_call` -> `reload` -> `C4S1` -> `C4S4` -> `C3S1` -> `C2S1` -> `C2S3` -> `attack` -> `reload` -> `confirm_result` | **`18–23s`** | **`~135.8M+`** | **`Sariel Lv150`** + (`Opus β` OR `Fallen Sword Atk Lv4`) |
+| **Option A (`fast`, 5-Skill)** | `quick_call` -> `reload` -> `C4S1` -> `C4S4` -> `C3S1` -> `C2S1` -> `C2S3` -> `attack` -> `reload` -> `confirm_result` | **`18–23s`** | **`~135.8M+`** | **`Sariel Lv150`** + **`Opus β`** |
 | **Option B (`safe`, 6-Skill)** | Prepend `C4S2` (`Release the Clawvalry! +`) before Option A | **`22–26s`** | **`~141.1M+`** | **`Sariel Lv150` swap only** (zero weapon grid change) |
 
 > [!TIP]

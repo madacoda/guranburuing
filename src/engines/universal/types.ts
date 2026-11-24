@@ -4,6 +4,7 @@ import { SentinelWatchdog } from '../../sentinel-watchdog.js';
 import {
   WorkflowTemplate,
   WorkflowRunResult,
+  WorkflowTelemetryMode,
   StepExecutionReceipt,
   RunExecutionAuditReport
 } from '../../types/workflow.types.js';
@@ -46,10 +47,15 @@ export interface UniversalWorkflowState {
   activeStepNum?: number;
   lastStepReceipt?: StepExecutionReceipt | null;
   currentRunStepReceipts?: StepExecutionReceipt[];
+  sessionStepReceipts?: StepExecutionReceipt[];
   lastRunAuditReport?: RunExecutionAuditReport | null;
   totalPerfectRuns?: number;
   totalStepRetries?: number;
   totalFailedSteps?: number;
+  telemetryMode?: WorkflowTelemetryMode;
+  telemetryExplicit?: boolean;
+  consecutiveCleanRuns?: number;
+  pipelineHash?: string;
 }
 
 export interface UniversalContext {
@@ -91,4 +97,14 @@ export interface QuestStartRecoveryResult {
   reason: string;
   isFatal: boolean;
   capturePath?: string;
+}
+
+export function isQuietTelemetryContext(ctx?: UniversalContext | null): boolean {
+  const mode = ctx?.state?.telemetryMode || ctx?.template?.telemetryMode || 'verbose';
+  return mode === 'summary' || mode === 'off';
+}
+
+export function isOffTelemetryContext(ctx?: UniversalContext | null): boolean {
+  const mode = ctx?.state?.telemetryMode || ctx?.template?.telemetryMode || 'verbose';
+  return mode === 'off';
 }

@@ -9,7 +9,7 @@ import { SentinelWatchdog } from '../sentinel-watchdog.js';
 import { TemplateParser } from '../templates/template-parser.js';
 import { UniversalWorkflowEngine } from '../engines/universal-workflow.engine.js';
 import { AccountConfig } from '../types/account.types.js';
-import { WorkflowTemplate } from '../types/workflow.types.js';
+import { WorkflowTemplate, WorkflowTelemetryMode } from '../types/workflow.types.js';
 
 async function promptUser(question: string): Promise<string> {
   const rl = readline.createInterface({
@@ -113,7 +113,40 @@ function handleExportJson(templateName: string): void {
 
 async function main() {
   const args = process.argv.slice(2);
-  const positionalArgs = args.filter(a => !a.startsWith('--'));
+  let cliTelemetryMode: WorkflowTelemetryMode | undefined;
+  const positionalArgs: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--quiet' || a === '-q') {
+      cliTelemetryMode = 'summary';
+      continue;
+    }
+    if (a.startsWith('--telemetry=')) {
+      const val = a.slice('--telemetry='.length).toLowerCase().trim();
+      if (val === 'verbose' || val === 'summary' || val === 'off') {
+        cliTelemetryMode = val;
+      }
+      continue;
+    }
+    if (a === '--telemetry') {
+      const val = (args[i + 1] || '').toLowerCase().trim();
+      if (val === 'verbose' || val === 'summary' || val === 'off') {
+        cliTelemetryMode = val;
+        i++;
+      }
+      continue;
+    }
+    if (a === '--account' || a === '--template' || a === '--runs' || a === '-n' || a === '--validate' || a === '-v' || a === '--export-json') {
+      if (args[i + 1] && !args[i + 1].startsWith('-')) {
+        i++;
+      }
+      continue;
+    }
+    if (!a.startsWith('-')) {
+      positionalArgs.push(a);
+    }
+  }
 
   // Command: --validate
   if (args.includes('--validate') || args.includes('-v')) {
@@ -278,11 +311,18 @@ async function main() {
   const sentinel = new SentinelWatchdog(page);
 
   const engine = new UniversalWorkflowEngine(page, sentinel, template, account.id);
+  if (cliTelemetryMode) {
+    engine.setTelemetryMode(cliTelemetryMode, true);
+  }
+  console.log(
+    `[WorkflowRunner] 📊 Telemetry Mode: ${engine.stepMonitor.getTelemetryMode().toUpperCase()} (Clean Streak: ${engine.ctx.state.consecutiveCleanRuns || 0})\n`
+  );
   await engine.ensureViewportAndMobile();
 
   cdpManager.onReconnect((newPage) => {
     sentinel.updatePage(newPage);
     engine.updatePage(newPage);
+    engine.ensureViewportAndMobile().catch(() => null);
   });
 
   // Graceful Ctrl+C handling

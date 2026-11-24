@@ -324,6 +324,8 @@ export interface InterRunDelayOptions {
   humanMotor?: boolean;
   /** Whether to allow automatic micro-breaks after many continuous runs (default: true outside test env) */
   allowMicroBreak?: boolean;
+  /** Suppress routine inter-run delay / micro-break console logs */
+  silent?: boolean;
 }
 
 /**
@@ -368,9 +370,11 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
     resetFatigue(clearRatio);
     fatigueState.totalMicroBreaksTaken++;
 
-    console.log(
-      `[HumanMotor] ☕ Simulated micro-break after ${runsBeforeBreak} continuous runs: ${breakDuration}ms (fatigue ${prevFatigue.toFixed(2)} -> ${fatigueState.fatigueLevel.toFixed(2)})...`
-    );
+    if (!options.silent) {
+      console.log(
+        `[HumanMotor] ☕ Simulated micro-break after ${runsBeforeBreak} continuous runs: ${breakDuration}ms (fatigue ${prevFatigue.toFixed(2)} -> ${fatigueState.fatigueLevel.toFixed(2)})...`
+      );
+    }
     await new Promise(r => setTimeout(r, breakDuration));
     return breakDuration;
   }
@@ -388,13 +392,17 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
       const center = low + span * (0.5 + fatigue * 0.08);
       const jittered = Math.max(low, Math.min(high, center + sampleGaussian(0, span * 0.18)));
       const duration = Math.round(jittered);
-      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${duration}ms (explicit range [${low}, ${high}]ms, fatigue=${fatigue.toFixed(2)})...`);
+      if (!options.silent) {
+        console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${duration}ms (explicit range [${low}, ${high}]ms, fatigue=${fatigue.toFixed(2)})...`);
+      }
       await new Promise(r => setTimeout(r, duration));
       return duration;
     } else if (typeof options.customDelayMs === 'number' && options.customDelayMs > 0) {
       const base = options.customDelayMs * (1.0 + fatigue * 0.10);
       const jittered = Math.max(Math.round(options.customDelayMs * 0.5), Math.round(base + sampleGaussian(0, base * 0.12)));
-      console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${jittered}ms (target ${options.customDelayMs}ms, fatigue=${fatigue.toFixed(2)})...`);
+      if (!options.silent) {
+        console.log(`[HumanMotor] 🎲 Natural inter-run delay: ${jittered}ms (target ${options.customDelayMs}ms, fatigue=${fatigue.toFixed(2)})...`);
+      }
       await new Promise(r => setTimeout(r, jittered));
       return jittered;
     }
@@ -435,7 +443,9 @@ export async function interRunHumanDelay(options: InterRunDelayOptions = {}): Pr
   const maxCeil = profile === 'turbo' ? 1400 : (profile === 'fast' ? 4200 : 8800);
   const finalDuration = Math.round(Math.max(minFloor, Math.min(maxCeil, duration)));
 
-  console.log(`[HumanMotor] 🎲 Natural inter-run pause: ${finalDuration}ms (${profile.toUpperCase()} profile, fatigue=${fatigue.toFixed(2)})...`);
+  if (!options.silent) {
+    console.log(`[HumanMotor] 🎲 Natural inter-run pause: ${finalDuration}ms (${profile.toUpperCase()} profile, fatigue=${fatigue.toFixed(2)})...`);
+  }
   await new Promise(r => setTimeout(r, finalDuration));
   return finalDuration;
 }

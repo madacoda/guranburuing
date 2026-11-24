@@ -1,11 +1,18 @@
 // src/engines/universal/step-execution-monitor.service.ts
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Page } from 'puppeteer-core';
 import { UniversalContext } from './types.js';
 import {
+  WorkflowTemplate,
   WorkflowStep,
+  WorkflowTelemetryMode,
   StepExecutionOutcomeStatus,
   StepStateSnapshot,
   StepExecutionReceipt,
+  StepHotspotStats,
+  StepAuditRootCauseFinding,
   RunExecutionAuditReport
 } from '../../types/workflow.types.js';
 import { CombatResolutionService } from './combat-resolution.service.js';
@@ -29,7 +36,97 @@ export interface SkillVerificationProbe {
  * and maintains a structured per-step execution ledger and run audit report.
  */
 export class StepExecutionMonitorService {
+  private rollingByStep = new Map<number, StepHotspotStats>();
+  private totalReceiptsRecorded = 0;
+  private runsAuditedCount = 0;
+  private ledgerDirty = false;
+
   constructor(private ctx: UniversalContext) {}
+
+  /**
+   * Computes a deterministic short hash of the template's compiled step pipeline
+   * so battle-tested auto-quiet promotion resets cleanly when steps change.
+   */
+  public static computePipelineHash(template?: WorkflowTemplate | null): string {
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(template?.steps || []))
+      .digest('hex')
+      .slice(0, 12);
+  }
+
+  /**
+   * Initializes telemetry mode and restores pipeline-hash-scoped clean-run streak
+   * from data/step-audit-ledger.json once per workflow session.
+   */
+  public initializeTelemetryState(explicitMode?: WorkflowTelemetryMode, customLedgerPath?: string): void {
+    const configured = explicitMode || this.ctx.template?.telemetryMode;
+    if (configured === 'off') {
+      this.ctx.state.telemetryMode = 'off';
+      this.ctx.state.telemetryExplicit = true;
+      this.ctx.state.consecutiveCleanRuns = 0;
+      return;
+    }
+
+    const pipelineHash = StepExecutionMonitorService.computePipelineHash(this.ctx.template);
+    this.ctx.state.pipelineHash = pipelineHash;
+
+    const accId = this.ctx.accountId || 'default';
+    let priorClean = 0;
+    if (accId !== 'test-acc' || customLedgerPath) {
+      try {
+        const ledgerPath = customLedgerPath || path.resolve(process.cwd(), 'data', 'step-audit-ledger.json');
+        if (fs.existsSync(ledgerPath)) {
+          const existing = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+          const templateName = this.ctx.template?.name || 'Unknown Workflow';
+          const entry = existing[`${templateName}::${accId}`];
+          if (entry && entry.pipelineHash === pipelineHash) {
+            priorClean = Number(entry.consecutiveCleanRuns || 0);
+          }
+        }
+      } catch {
+        priorClean = 0;
+      }
+    }
+
+    this.ctx.state.consecutiveCleanRuns = priorClean;
+
+    if (configured) {
+      this.ctx.state.telemetryMode = configured;
+      this.ctx.state.telemetryExplicit = true;
+      return;
+    }
+
+    const threshold = this.ctx.template?.telemetryAutoQuietRuns ?? 100;
+    if (threshold > 0 && priorClean >= threshold) {
+      this.ctx.state.telemetryMode = 'summary';
+      this.ctx.state.telemetryExplicit = false;
+      console.log(
+        `[Monitor] ⚡ Battle-tested workflow (${priorClean} clean runs on hash ${pipelineHash}); auto-enabling summary telemetry (per-run report). Pass --telemetry=verbose to inspect steps.`
+      );
+    } else {
+      this.ctx.state.telemetryMode = 'verbose';
+      this.ctx.state.telemetryExplicit = false;
+    }
+  }
+
+  public setTelemetryMode(mode: WorkflowTelemetryMode, explicit = true): void {
+    this.ctx.state.telemetryMode = mode;
+    this.ctx.state.telemetryExplicit = explicit;
+  }
+
+  public getTelemetryMode(): WorkflowTelemetryMode {
+    return this.ctx.state.telemetryMode || this.ctx.template?.telemetryMode || 'verbose';
+  }
+
+  public isQuietMode(): boolean {
+    const mode = this.getTelemetryMode();
+    return mode === 'summary' || mode === 'off';
+  }
+
+  public isOffMode(): boolean {
+    return this.getTelemetryMode() === 'off';
+  }
 
   private get page(): Page {
     return this.ctx.page;
@@ -100,6 +197,19 @@ export class StepExecutionMonitorService {
     const netSeq = this.ctx.state.networkSequenceId || 0;
     const honors = this.ctx.state.currentScore || 0;
     const fallbackTurn = this.ctx.state.currentTurn || 1;
+
+    if (this.isOffMode()) {
+      return {
+        timestamp: Date.now(),
+        turn: fallbackTurn,
+        wave: 1,
+        bossHp: 0,
+        bossMaxHp: 0,
+        bossHpPct: 100,
+        honors,
+        networkSequenceId: netSeq
+      };
+    }
 
     try {
       const raw = await this.page.evaluate(
@@ -409,6 +519,7 @@ export class StepExecutionMonitorService {
       stepNumber: params.stepNumber,
       stepCode,
       stepLabel,
+      ensureCast: Boolean(params.step.ensureCast),
       status: params.status,
       verified: params.verified,
       attempts: Math.max(1, params.attempts),
@@ -423,11 +534,48 @@ export class StepExecutionMonitorService {
       reason: params.reason
     };
 
+    const isFailure =
+      !receipt.verified ||
+      receipt.status === 'FAILED_TIMEOUT' ||
+      receipt.status === 'UNACKNOWLEDGED_CONTINUED';
+
+    if (this.isOffMode()) {
+      this.ctx.state.lastStepReceipt = receipt;
+      if (!receipt.verified) {
+        this.ctx.state.totalFailedSteps = (this.ctx.state.totalFailedSteps || 0) + 1;
+      }
+      if (isFailure) {
+        if (!this.ctx.state.currentRunStepReceipts) {
+          this.ctx.state.currentRunStepReceipts = [];
+        }
+        this.ctx.state.currentRunStepReceipts.push(receipt);
+        if (!params.silent) {
+          const attemptTag =
+            receipt.attempts > 1 ? `Attempts: ${receipt.attempts} (Enforced Retry)` : `Attempt: 1`;
+          const reasonTag = receipt.reason ? ` | Note: ${receipt.reason}` : '';
+          console.log(
+            `[Monitor] ❌ Step ${receipt.stepNumber} [${receipt.stepLabel}]: ${receipt.status} | ${attemptTag} | ${receipt.durationMs}ms${reasonTag}`
+          );
+        }
+      }
+      return receipt;
+    }
+
     if (!this.ctx.state.currentRunStepReceipts) {
       this.ctx.state.currentRunStepReceipts = [];
     }
+    if (!this.ctx.state.sessionStepReceipts) {
+      this.ctx.state.sessionStepReceipts = [];
+    }
     this.ctx.state.currentRunStepReceipts.push(receipt);
+    this.ctx.state.sessionStepReceipts.push(receipt);
+    if (this.ctx.state.sessionStepReceipts.length > 500) {
+      this.ctx.state.sessionStepReceipts.shift();
+    }
     this.ctx.state.lastStepReceipt = receipt;
+
+    this.totalReceiptsRecorded++;
+    this.updateRollingHotspot(receipt);
 
     if (receipt.attempts > 1) {
       this.ctx.state.totalStepRetries = (this.ctx.state.totalStepRetries || 0) + (receipt.attempts - 1);
@@ -436,7 +584,7 @@ export class StepExecutionMonitorService {
       this.ctx.state.totalFailedSteps = (this.ctx.state.totalFailedSteps || 0) + 1;
     }
 
-    if (!params.silent) {
+    if (!params.silent && (!this.isQuietMode() || isFailure)) {
       const icon = receipt.verified
         ? receipt.status.startsWith('SKIPPED')
           ? '⏭️'
@@ -457,12 +605,34 @@ export class StepExecutionMonitorService {
   }
 
   /**
-   * Finalizes the run's step execution ledger into an aggregated audit report.
+   * Finalizes the run's step execution ledger into an aggregated audit report,
+   * runs root-cause cascade diagnostics, and persists session hotspot telemetry.
    */
   public finalizeRun(runNumber: number, totalStepsPlanned: number): RunExecutionAuditReport {
     const receipts = this.ctx.state.currentRunStepReceipts || [];
+    if (this.isOffMode() && receipts.length === 0) {
+      this.ctx.state.totalPerfectRuns = (this.ctx.state.totalPerfectRuns || 0) + 1;
+      const report: RunExecutionAuditReport = {
+        runNumber,
+        totalStepsPlanned,
+        totalStepsExecuted: 0,
+        confirmedSteps: 0,
+        skippedCooldownSteps: 0,
+        ensuredCooldownSkips: 0,
+        retriedSteps: 0,
+        failedSteps: 0,
+        unacknowledgedSteps: 0,
+        perfectExecution: true,
+        receipts: [],
+        findings: []
+      };
+      this.ctx.state.lastRunAuditReport = report;
+      return report;
+    }
+
     let confirmedSteps = 0;
     let skippedCooldownSteps = 0;
+    let ensuredCooldownSkips = 0;
     let retriedSteps = 0;
     let failedSteps = 0;
     let unacknowledgedSteps = 0;
@@ -476,6 +646,9 @@ export class StepExecutionMonitorService {
         confirmedSteps++;
       } else if (r.status === 'SKIPPED_COOLDOWN') {
         skippedCooldownSteps++;
+        if (r.ensureCast) {
+          ensuredCooldownSkips++;
+        }
       } else if (r.status === 'UNACKNOWLEDGED_CONTINUED') {
         unacknowledgedSteps++;
       } else if (r.status === 'FAILED_TIMEOUT' || !r.verified) {
@@ -486,9 +659,26 @@ export class StepExecutionMonitorService {
       }
     }
 
-    const perfectExecution = failedSteps === 0 && unacknowledgedSteps === 0;
+    const findings = StepExecutionMonitorService.diagnoseReceipts(receipts);
+    const hasCriticalFinding = findings.some(f => f.severity === 'CRITICAL');
+    const perfectExecution = failedSteps === 0 && unacknowledgedSteps === 0 && !hasCriticalFinding;
     if (perfectExecution) {
       this.ctx.state.totalPerfectRuns = (this.ctx.state.totalPerfectRuns || 0) + 1;
+      this.ctx.state.consecutiveCleanRuns = (this.ctx.state.consecutiveCleanRuns || 0) + 1;
+    } else {
+      this.ctx.state.consecutiveCleanRuns = 0;
+    }
+
+    this.runsAuditedCount = Math.max(this.runsAuditedCount, runNumber, 1);
+
+    if (!this.ctx.state.telemetryExplicit && this.getTelemetryMode() === 'verbose') {
+      const threshold = this.ctx.template?.telemetryAutoQuietRuns ?? 100;
+      if (threshold > 0 && (this.ctx.state.consecutiveCleanRuns || 0) >= threshold) {
+        this.ctx.state.telemetryMode = 'summary';
+        console.log(
+          `[Monitor] ⚡ Reached ${threshold} consecutive clean runs; switching to summary telemetry (per-run report).`
+        );
+      }
     }
 
     const report: RunExecutionAuditReport = {
@@ -497,22 +687,627 @@ export class StepExecutionMonitorService {
       totalStepsExecuted: receipts.length,
       confirmedSteps,
       skippedCooldownSteps,
+      ensuredCooldownSkips,
       retriedSteps,
       failedSteps,
       unacknowledgedSteps,
       perfectExecution,
-      receipts: [...receipts]
+      receipts: [...receipts],
+      findings
     };
 
     this.ctx.state.lastRunAuditReport = report;
 
     if (receipts.length > 0) {
-      const statusBadge = perfectExecution ? 'PERFECT ✅' : 'DEGRADED ⚠️';
-      console.log(
-        `[Monitor] 📊 [Run ${runNumber} Step Audit] ${statusBadge} | Confirmed: ${confirmedSteps}/${receipts.length} | Enforced Retries: ${retriedSteps} | Cooldown Skips: ${skippedCooldownSteps} | Failed/Unack: ${failedSteps + unacknowledgedSteps}`
-      );
+      const mode = this.getTelemetryMode();
+      const shouldPrintAudit = !perfectExecution || !this.isQuietMode();
+      if (shouldPrintAudit) {
+        const statusBadge = perfectExecution ? 'PERFECT ✅' : 'DEGRADED ⚠️';
+        console.log(
+          `[Monitor] 📊 [Run ${runNumber} Step Audit] ${statusBadge} | Confirmed: ${confirmedSteps}/${receipts.length} | Enforced Retries: ${retriedSteps} | Cooldown Skips: ${skippedCooldownSteps} | Failed/Unack: ${failedSteps + unacknowledgedSteps}`
+        );
+        if (findings.length > 0 && (!perfectExecution || ensuredCooldownSkips > 0)) {
+          for (const f of findings) {
+            const badge = f.severity === 'CRITICAL' ? '🚨' : f.severity === 'WARNING' ? '⚠️' : 'ℹ️';
+            console.log(`[Monitor] ${badge} [Audit Root-Cause] Step ${f.stepNumber} [${f.stepLabel}]: ${f.summary}`);
+          }
+        }
+      }
+
+      this.ledgerDirty = true;
+      const shouldFlush =
+        mode === 'verbose' ||
+        (mode === 'summary' &&
+          (runNumber % 10 === 0 || !perfectExecution || Boolean(this.ctx.state.stopRequested)));
+      if (shouldFlush) {
+        this.persistSessionAuditLedger();
+      }
     }
 
     return report;
+  }
+
+  /**
+   * Flushes any pending summary-mode audit ledger updates before shutdown.
+   */
+  public flushLedgerIfDirty(customPath?: string): void {
+    if (this.ledgerDirty && this.getTelemetryMode() !== 'off') {
+      this.persistSessionAuditLedger(customPath);
+    }
+  }
+
+  /**
+   * Returns aggregated per-step hotspot statistics across all runs recorded in this session in O(steps).
+   */
+  public getSessionStepHotspots(): StepHotspotStats[] {
+    if (this.rollingByStep.size > 0) {
+      return Array.from(this.rollingByStep.values())
+        .sort((a, b) => a.stepNumber - b.stepNumber)
+        .map(h => ({ ...h }));
+    }
+    return StepExecutionMonitorService.aggregateHotspots(this.ctx.state.sessionStepReceipts || []);
+  }
+
+  /**
+   * Persists the session's aggregated step audit ledger to data/step-audit-ledger.json.
+   */
+  public persistSessionAuditLedger(customPath?: string): void {
+    try {
+      const accId = this.ctx.accountId || 'default';
+      if (accId === 'test-acc' && !customPath) return;
+      const receipts = this.ctx.state.sessionStepReceipts || [];
+      if (this.totalReceiptsRecorded === 0 && receipts.length === 0) return;
+
+      const ledgerPath = customPath || path.resolve(process.cwd(), 'data', 'step-audit-ledger.json');
+      const dir = path.dirname(ledgerPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      let existing: Record<string, any> = {};
+      if (fs.existsSync(ledgerPath)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+        } catch {
+          existing = {};
+        }
+      }
+
+      const templateName = this.ctx.template?.name || 'Unknown Workflow';
+      const key = `${templateName}::${accId}`;
+      const pipelineHash =
+        this.ctx.state.pipelineHash || StepExecutionMonitorService.computePipelineHash(this.ctx.template);
+      const hotspots = this.getSessionStepHotspots();
+      const findings = StepExecutionMonitorService.diagnoseReceipts(this.ctx.state.currentRunStepReceipts || receipts);
+
+      existing[key] = {
+        templateName,
+        accountId: accId,
+        pipelineHash,
+        consecutiveCleanRuns: this.ctx.state.consecutiveCleanRuns || 0,
+        updatedAt: new Date().toISOString(),
+        totalRunsAudited: this.runsAuditedCount || 1,
+        totalStepReceipts: this.totalReceiptsRecorded || receipts.length,
+        hotspots,
+        latestFindings: findings
+      };
+
+      fs.writeFileSync(ledgerPath, JSON.stringify(existing, null, 2), 'utf8');
+      this.ledgerDirty = false;
+    } catch {
+      // Non-fatal telemetry write
+    }
+  }
+
+  private updateRollingHotspot(receipt: StepExecutionReceipt): void {
+    let h = this.rollingByStep.get(receipt.stepNumber);
+    if (!h) {
+      h = {
+        stepNumber: receipt.stepNumber,
+        stepCode: receipt.stepCode,
+        stepLabel: receipt.stepLabel,
+        ensureCast: Boolean(receipt.ensureCast),
+        executions: 0,
+        confirmedCount: 0,
+        firstTryCount: 0,
+        retriedCount: 0,
+        totalExtraAttempts: 0,
+        cooldownSkipCount: 0,
+        ensuredCooldownSkipCount: 0,
+        koSkipCount: 0,
+        failedCount: 0,
+        noopMutationCount: 0,
+        totalDurationMs: 0,
+        avgDurationMs: 0,
+        maxDurationMs: 0,
+        failureRatePct: 0,
+        retryRatePct: 0,
+        skipRatePct: 0,
+        healthStatus: 'HEALTHY'
+      };
+      this.rollingByStep.set(receipt.stepNumber, h);
+    }
+
+    h.stepCode = receipt.stepCode;
+    h.stepLabel = receipt.stepLabel;
+    h.ensureCast = h.ensureCast || Boolean(receipt.ensureCast);
+    h.executions++;
+    h.totalDurationMs += receipt.durationMs;
+    if (receipt.durationMs > h.maxDurationMs) h.maxDurationMs = receipt.durationMs;
+    if (receipt.reason) h.lastReason = receipt.reason;
+
+    const isConfirmed =
+      receipt.status === 'CONFIRMED_NETWORK' ||
+      receipt.status === 'CONFIRMED_STATE_MUTATION' ||
+      receipt.status === 'CONFIRMED_DIRECT';
+
+    if (isConfirmed) {
+      h.confirmedCount++;
+      if (receipt.attempts === 1) h.firstTryCount++;
+      if (
+        (receipt.stepCode === 'summon' || receipt.stepCode === 'skill') &&
+        receipt.recastTransition === '0->0' &&
+        !receipt.stateMutated &&
+        receipt.damageDealt === 0
+      ) {
+        h.noopMutationCount++;
+      }
+    } else if (receipt.status === 'SKIPPED_COOLDOWN') {
+      h.cooldownSkipCount++;
+      if (receipt.ensureCast) h.ensuredCooldownSkipCount++;
+    } else if (receipt.status === 'SKIPPED_KO') {
+      h.koSkipCount++;
+    } else if (receipt.status === 'FAILED_TIMEOUT' || receipt.status === 'UNACKNOWLEDGED_CONTINUED' || !receipt.verified) {
+      h.failedCount++;
+    }
+
+    if (receipt.attempts > 1) {
+      h.retriedCount++;
+      h.totalExtraAttempts += receipt.attempts - 1;
+    }
+
+    const derived = StepExecutionMonitorService.computeHotspotHealth(h);
+    h.avgDurationMs = derived.avgDurationMs;
+    h.failureRatePct = derived.failureRatePct;
+    h.retryRatePct = derived.retryRatePct;
+    h.skipRatePct = derived.skipRatePct;
+    h.healthStatus = derived.healthStatus;
+    h.diagnosticHint = derived.diagnosticHint;
+  }
+
+  private static computeHotspotHealth(stats: {
+    stepCode: string;
+    executions: number;
+    retriedCount: number;
+    totalExtraAttempts: number;
+    cooldownSkipCount: number;
+    ensuredCooldownSkipCount: number;
+    koSkipCount: number;
+    failedCount: number;
+    noopMutationCount: number;
+    totalDurationMs: number;
+    lastReason?: string;
+  }): Pick<
+    StepHotspotStats,
+    'avgDurationMs' | 'failureRatePct' | 'retryRatePct' | 'skipRatePct' | 'healthStatus' | 'diagnosticHint'
+  > {
+    const { executions } = stats;
+    const avgDurationMs = executions > 0 ? Math.round(stats.totalDurationMs / executions) : 0;
+    const failureRatePct = executions > 0 ? Number(((stats.failedCount / executions) * 100).toFixed(1)) : 0;
+    const retryRatePct = executions > 0 ? Number(((stats.retriedCount / executions) * 100).toFixed(1)) : 0;
+    const skipRatePct =
+      executions > 0 ? Number((((stats.cooldownSkipCount + stats.koSkipCount) / executions) * 100).toFixed(1)) : 0;
+
+    let healthStatus: StepHotspotStats['healthStatus'] = 'HEALTHY';
+    let diagnosticHint: string | undefined;
+
+    if (stats.failedCount > 0) {
+      healthStatus = 'FAILING';
+      diagnosticHint = stats.lastReason || 'Step timed out or failed network/state verification';
+    } else if (stats.ensuredCooldownSkipCount > 0 || (stats.cooldownSkipCount > 0 && stats.stepCode === 'summon')) {
+      healthStatus = 'SKIP_ANOMALY';
+      diagnosticHint =
+        stats.stepCode === 'summon' && avgDurationMs < 150
+          ? 'Summon skipped in <150ms (summon tray not opened or slot misread as unavailable)'
+          : stats.lastReason || 'Ensured step skipped on cooldown (missing prerequisite swap or cooldown reset)';
+    } else if (retryRatePct >= 50 || (executions > 0 && stats.totalExtraAttempts / executions >= 1.5)) {
+      healthStatus = 'RETRY_HEAVY';
+      diagnosticHint = `High enforced retry count (${stats.totalExtraAttempts} extra taps across ${executions} run(s)); previous animation/reload lock contention`;
+    } else if (stats.noopMutationCount > 0 && stats.stepCode === 'summon') {
+      healthStatus = 'SKIP_ANOMALY';
+      diagnosticHint = 'Summon reported network response with Recast 0->0 and 0 state mutation';
+    }
+
+    return { avgDurationMs, failureRatePct, retryRatePct, skipRatePct, healthStatus, diagnosticHint };
+  }
+
+  /**
+   * Aggregates an array of StepExecutionReceipts (across 1 or N runs) into per-step reliability hotspot stats.
+   */
+  public static aggregateHotspots(receipts: StepExecutionReceipt[]): StepHotspotStats[] {
+    const byStep = new Map<number, StepExecutionReceipt[]>();
+    for (const r of receipts) {
+      const arr = byStep.get(r.stepNumber) || [];
+      arr.push(r);
+      byStep.set(r.stepNumber, arr);
+    }
+
+    const stats: StepHotspotStats[] = [];
+    for (const [stepNumber, list] of Array.from(byStep.entries()).sort((a, b) => a[0] - b[0])) {
+      const sample = list[list.length - 1];
+      const executions = list.length;
+      let confirmedCount = 0;
+      let firstTryCount = 0;
+      let retriedCount = 0;
+      let totalExtraAttempts = 0;
+      let cooldownSkipCount = 0;
+      let ensuredCooldownSkipCount = 0;
+      let koSkipCount = 0;
+      let failedCount = 0;
+      let noopMutationCount = 0;
+      let totalDurationMs = 0;
+      let maxDurationMs = 0;
+      let lastReason: string | undefined;
+
+      for (const r of list) {
+        totalDurationMs += r.durationMs;
+        if (r.durationMs > maxDurationMs) maxDurationMs = r.durationMs;
+        if (r.reason) lastReason = r.reason;
+
+        const isConfirmed =
+          r.status === 'CONFIRMED_NETWORK' ||
+          r.status === 'CONFIRMED_STATE_MUTATION' ||
+          r.status === 'CONFIRMED_DIRECT';
+
+        if (isConfirmed) {
+          confirmedCount++;
+          if (r.attempts === 1) firstTryCount++;
+          if (
+            (r.stepCode === 'summon' || r.stepCode === 'skill') &&
+            r.recastTransition === '0->0' &&
+            !r.stateMutated &&
+            r.damageDealt === 0
+          ) {
+            noopMutationCount++;
+          }
+        } else if (r.status === 'SKIPPED_COOLDOWN') {
+          cooldownSkipCount++;
+          if (r.ensureCast) ensuredCooldownSkipCount++;
+        } else if (r.status === 'SKIPPED_KO') {
+          koSkipCount++;
+        } else if (r.status === 'FAILED_TIMEOUT' || r.status === 'UNACKNOWLEDGED_CONTINUED' || !r.verified) {
+          failedCount++;
+        }
+
+        if (r.attempts > 1) {
+          retriedCount++;
+          totalExtraAttempts += r.attempts - 1;
+        }
+      }
+
+      const ensureCast = list.some(r => Boolean(r.ensureCast));
+      const avgDurationMs = executions > 0 ? Math.round(totalDurationMs / executions) : 0;
+      const failureRatePct = executions > 0 ? Number(((failedCount / executions) * 100).toFixed(1)) : 0;
+      const retryRatePct = executions > 0 ? Number(((retriedCount / executions) * 100).toFixed(1)) : 0;
+      const skipRatePct =
+        executions > 0 ? Number((((cooldownSkipCount + koSkipCount) / executions) * 100).toFixed(1)) : 0;
+
+      let healthStatus: StepHotspotStats['healthStatus'] = 'HEALTHY';
+      let diagnosticHint: string | undefined;
+
+      if (failedCount > 0) {
+        healthStatus = 'FAILING';
+        diagnosticHint = lastReason || 'Step timed out or failed network/state verification';
+      } else if (ensuredCooldownSkipCount > 0 || (cooldownSkipCount > 0 && sample.stepCode === 'summon')) {
+        healthStatus = 'SKIP_ANOMALY';
+        diagnosticHint =
+          sample.stepCode === 'summon' && avgDurationMs < 150
+            ? 'Summon skipped in <150ms (summon tray not opened or slot misread as unavailable)'
+            : lastReason || 'Ensured step skipped on cooldown (missing prerequisite swap or cooldown reset)';
+      } else if (retryRatePct >= 50 || (executions > 0 && totalExtraAttempts / executions >= 1.5)) {
+        healthStatus = 'RETRY_HEAVY';
+        diagnosticHint = `High enforced retry count (${totalExtraAttempts} extra taps across ${executions} run(s)); previous animation/reload lock contention`;
+      } else if (noopMutationCount > 0 && sample.stepCode === 'summon') {
+        healthStatus = 'SKIP_ANOMALY';
+        diagnosticHint = 'Summon reported network response with Recast 0->0 and 0 state mutation';
+      }
+
+      stats.push({
+        stepNumber,
+        stepCode: sample.stepCode,
+        stepLabel: sample.stepLabel,
+        ensureCast,
+        executions,
+        confirmedCount,
+        firstTryCount,
+        retriedCount,
+        totalExtraAttempts,
+        cooldownSkipCount,
+        ensuredCooldownSkipCount,
+        koSkipCount,
+        failedCount,
+        noopMutationCount,
+        totalDurationMs,
+        avgDurationMs,
+        maxDurationMs,
+        failureRatePct,
+        retryRatePct,
+        skipRatePct,
+        healthStatus,
+        lastReason,
+        diagnosticHint
+      });
+    }
+
+    return stats;
+  }
+
+  /**
+   * Performs automated forensic root-cause analysis on a sequence of step receipts from a run.
+   * Detects unopened summon trays, failed Death/backline swap cascades, ensured step cooldown skips,
+   * and post-cast / post-reload input lock contention.
+   */
+  public static diagnoseReceipts(receipts: StepExecutionReceipt[]): StepAuditRootCauseFinding[] {
+    const findings: StepAuditRootCauseFinding[] = [];
+    if (!receipts || receipts.length === 0) return findings;
+
+    const cascadeVictimStepNums = new Set<number>();
+
+    for (let i = 0; i < receipts.length; i++) {
+      const r = receipts[i];
+
+      // 1. Premature Summon Tray Skip (e.g. Step 1 Hades skipped in 12ms)
+      if (
+        r.stepCode === 'summon' &&
+        r.status === 'SKIPPED_COOLDOWN' &&
+        (r.durationMs <= 150 || (r.reason && r.reason.toLowerCase().includes('unavailable in tray')))
+      ) {
+        findings.push({
+          stepNumber: r.stepNumber,
+          stepLabel: r.stepLabel,
+          severity: 'CRITICAL',
+          category: 'UNOPENED_SUMMON_TRAY',
+          summary: `Summon skipped in ${r.durationMs}ms ("${r.reason || 'unavailable in tray'}") without opening .prt-command-summon.summon-on tray.`
+        });
+        continue;
+      }
+
+      // 2. Failed Death / Character Swap Cascade Detection
+      const isDeathOrSwapSummon =
+        (r.stepCode === 'summon' || r.stepCode === 'quick_call') &&
+        (r.stepLabel.toLowerCase().includes('death') || r.stepLabel.includes('Slot 3'));
+
+      if (isDeathOrSwapSummon) {
+        const downstreamVictims: number[] = [];
+        let passedSingleReload = false;
+        // Look ahead at subsequent skill steps in the same turn (crossing at most one post-summon reload)
+        for (let j = i + 1; j < receipts.length; j++) {
+          const next = receipts[j];
+          if (next.stepCode === 'reload') {
+            if (!passedSingleReload) {
+              passedSingleReload = true;
+              continue;
+            }
+            break;
+          }
+          if (next.stepCode === 'attack' || next.stepCode === 'confirm_result') {
+            break;
+          }
+          if (
+            next.stepCode === 'skill' &&
+            (next.status === 'SKIPPED_COOLDOWN' || next.status === 'FAILED_TIMEOUT' || !next.verified)
+          ) {
+            downstreamVictims.push(next.stepNumber);
+          }
+        }
+
+        const summonNoOp =
+          r.recastTransition === '0->0' && r.damageDealt === 0 && downstreamVictims.length >= 2;
+        if (summonNoOp || (!r.verified && downstreamVictims.length > 0)) {
+          for (const v of downstreamVictims) cascadeVictimStepNums.add(v);
+          findings.push({
+            stepNumber: r.stepNumber,
+            stepLabel: r.stepLabel,
+            severity: 'CRITICAL',
+            category: 'FAILED_CHARACTER_SWAP_CASCADE',
+            downstreamStepNumbers: downstreamVictims,
+            summary: `Summon did not execute KO/backline swap (Recast: ${r.recastTransition || '0->0'}, Dmg: ${r.damageDealt}); C4 stayed unswapped and caused cascade failure/skips on Steps [${downstreamVictims.join(', ')}].`
+          });
+          continue;
+        }
+      }
+
+      // 3. Explicit Step Timeout / Failure
+      if (r.status === 'FAILED_TIMEOUT' || r.status === 'UNACKNOWLEDGED_CONTINUED' || !r.verified) {
+        const isCascade = cascadeVictimStepNums.has(r.stepNumber);
+        findings.push({
+          stepNumber: r.stepNumber,
+          stepLabel: r.stepLabel,
+          severity: 'CRITICAL',
+          category: 'STEP_TIMEOUT',
+          summary: isCascade
+            ? `Failed (${r.status} in ${r.durationMs}ms) as downstream consequence of failed C4 backline swap (slot lacked 4th skill).`
+            : `Step failed (${r.status} after ${r.attempts} attempt(s), ${r.durationMs}ms): ${r.reason || 'Unconfirmed'}`
+        });
+        continue;
+      }
+
+      // 4. Ensured Step Skipped on Cooldown
+      if (
+        r.status === 'SKIPPED_COOLDOWN' &&
+        (r.ensureCast || cascadeVictimStepNums.has(r.stepNumber))
+      ) {
+        const isCascade = cascadeVictimStepNums.has(r.stepNumber);
+        findings.push({
+          stepNumber: r.stepNumber,
+          stepLabel: r.stepLabel,
+          severity: isCascade ? 'WARNING' : 'CRITICAL',
+          category: 'ENSURED_STEP_SKIPPED',
+          summary: isCascade
+            ? `Skipped on cooldown (${r.recastTransition || 'cd'}) because Death summon did not KO C4 to bring in Nier / trigger ally-KO cooldown reset.`
+            : `Ensured step skipped on cooldown (${r.reason || r.recastTransition || 'on cooldown'}).`
+        });
+        continue;
+      }
+
+      // 5. High Retry Count (Input Lock / Scenario Settle Contention)
+      if (r.attempts >= 3 && (r.stepCode === 'skill' || r.stepCode === 'summon' || r.stepCode === 'quick_call')) {
+        findings.push({
+          stepNumber: r.stepNumber,
+          stepLabel: r.stepLabel,
+          severity: 'WARNING',
+          category: 'HIGH_RETRY_LOCK_CONTENTION',
+          summary: `Required ${r.attempts} enforced attempts (${r.durationMs}ms); skill tapped while previous ability scenario or post-reload lock was still settling.`
+        });
+      }
+    }
+
+    return findings;
+  }
+
+  /**
+   * Parses raw console log text containing "[Monitor]" lines into structured StepExecutionReceipt objects.
+   * Allows auditing any live or historical terminal log paste directly.
+   */
+  public static parseMonitorLogText(logText: string): StepExecutionReceipt[] {
+    const receipts: StepExecutionReceipt[] = [];
+    const lines = logText.split(/\r?\n/);
+    let currentRun = 1;
+
+    const rxRunHeader = /\[Run\s+(\d+)\]/i;
+    const rxMonitorStep =
+      /\[Monitor\]\s+(?:✅|⏭️|❌)\s+Step\s+(\d+)\s+\[([^\]]+)\]:\s+([A-Z_]+)\s+\|\s+Attempts?:\s+(\d+)(?:\s+\(Enforced Retry\))?(?:\s+\|\s+Recast:\s+([^\s|]+))?(?:\s+\|\s+Dmg:\s+([0-9,]+))?\s+\|\s+(\d+)ms(?:\s+\|\s+Note:\s+(.+))?/i;
+
+    const seenInRun = new Set<string>();
+
+    for (const line of lines) {
+      const runMatch = line.match(rxRunHeader);
+      if (runMatch) {
+        currentRun = parseInt(runMatch[1], 10) || currentRun;
+      }
+
+      const m = line.match(rxMonitorStep);
+      if (!m) continue;
+
+      const stepNumber = parseInt(m[1], 10);
+      const stepLabel = m[2].trim();
+      const status = m[3].trim() as StepExecutionOutcomeStatus;
+      const attempts = parseInt(m[4], 10) || 1;
+      const recastTransition = m[5]?.trim();
+      const damageDealt = m[6] ? parseInt(m[6].replace(/,/g, ''), 10) || 0 : 0;
+      const durationMs = parseInt(m[7], 10) || 0;
+      const reason = m[8]?.trim();
+
+      let stepCode = 'custom';
+      if (stepLabel.startsWith('SKILL')) stepCode = 'skill';
+      else if (stepLabel.startsWith('SUMMON')) stepCode = 'summon';
+      else if (stepLabel.startsWith('QUICK_CALL')) stepCode = 'quick_call';
+      else if (stepLabel.startsWith('ATTACK')) stepCode = 'attack';
+      else if (stepLabel.startsWith('RELOAD')) stepCode = 'reload';
+      else if (stepLabel.startsWith('CONFIRM_RESULT')) stepCode = 'confirm_result';
+
+      const verified = status !== 'FAILED_TIMEOUT' && status !== 'UNACKNOWLEDGED_CONTINUED';
+      const networkConfirmed = status === 'CONFIRMED_NETWORK';
+      const stateMutated =
+        status === 'CONFIRMED_STATE_MUTATION' ||
+        damageDealt > 0 ||
+        Boolean(
+          recastTransition &&
+            recastTransition.includes('->') &&
+            recastTransition.split('->')[0] !== recastTransition.split('->')[1]
+        );
+
+      // Deduplicate in-step retry failure lines for the same (run, stepNumber) by keeping the final outcome or accumulating attempts
+      const dedupKey = `${currentRun}::${stepNumber}::${stepCode}`;
+      if (seenInRun.has(dedupKey) && status === 'FAILED_TIMEOUT') {
+        const prevIdx = receipts.findIndex(
+          r => r.runNumber === currentRun && r.stepNumber === stepNumber && r.stepCode === stepCode
+        );
+        if (prevIdx !== -1) {
+          receipts[prevIdx].attempts += attempts;
+          receipts[prevIdx].durationMs += durationMs;
+          continue;
+        }
+      }
+      seenInRun.add(dedupKey);
+
+      receipts.push({
+        runNumber: currentRun,
+        stepNumber,
+        stepCode,
+        stepLabel,
+        ensureCast: true,
+        status,
+        verified,
+        attempts,
+        durationMs,
+        damageDealt,
+        honorsGained: 0,
+        networkConfirmed,
+        stateMutated,
+        recastTransition,
+        reason
+      });
+    }
+
+    return receipts;
+  }
+
+  /**
+   * Formats a human-readable Step Reliability & Root-Cause Audit Table.
+   */
+  public static formatAuditReportTable(
+    hotspots: StepHotspotStats[],
+    findings: StepAuditRootCauseFinding[],
+    title = 'Workflow Step Execution & Failure Audit'
+  ): string {
+    const out: string[] = [];
+    out.push('========================================================================================');
+    out.push(`  🔍 ${title}`);
+    out.push('========================================================================================');
+
+    if (hotspots.length === 0) {
+      out.push('  No monitored step receipts found.');
+      out.push('========================================================================================');
+      return out.join('\n');
+    }
+
+    out.push(
+      '  Step | Health       | Action / Label                           | Pass% | Retry% | Skip% | AvgMs'
+    );
+    out.push(
+      '  -----+--------------+------------------------------------------+-------+--------+-------+-------'
+    );
+
+    for (const h of hotspots) {
+      const stepStr = `#${h.stepNumber}`.padEnd(4);
+      const badge =
+        h.healthStatus === 'FAILING'
+          ? '❌ FAILING   '
+          : h.healthStatus === 'SKIP_ANOMALY'
+          ? '⏭️ SKIP_ANOM '
+          : h.healthStatus === 'RETRY_HEAVY'
+          ? '🔄 RETRY_HVY '
+          : '✅ HEALTHY   ';
+      const labelStr = h.stepLabel.length > 40 ? h.stepLabel.slice(0, 37) + '...' : h.stepLabel.padEnd(40);
+      const passPct = `${((h.confirmedCount / Math.max(1, h.executions)) * 100).toFixed(0)}%`.padStart(5);
+      const retryPct = `${h.retryRatePct.toFixed(0)}%`.padStart(6);
+      const skipPct = `${h.skipRatePct.toFixed(0)}%`.padStart(5);
+      const avgMs = `${h.avgDurationMs}ms`.padStart(6);
+      out.push(`  ${stepStr} | ${badge} | ${labelStr} | ${passPct} | ${retryPct} | ${skipPct} | ${avgMs}`);
+    }
+
+    if (findings.length > 0) {
+      out.push('----------------------------------------------------------------------------------------');
+      out.push('  🚨 Root-Cause & Failure Cascade Diagnostics:');
+      for (const f of findings) {
+        const icon = f.severity === 'CRITICAL' ? '🚨 [CRITICAL]' : f.severity === 'WARNING' ? '⚠️ [WARNING] ' : 'ℹ️ [INFO]    ';
+        out.push(`  ${icon} Step #${f.stepNumber} (${f.stepLabel}):`);
+        out.push(`     -> ${f.summary}`);
+      }
+    }
+
+    out.push('========================================================================================');
+    return out.join('\n');
   }
 }

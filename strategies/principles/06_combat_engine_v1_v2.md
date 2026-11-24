@@ -115,24 +115,30 @@ In Battle System 2.0, combat is centered around boss **Omens** and reactive dama
 
 ---
 
-## 4. DOM Selectors for Combat Interactivity
+## 4. Verified DOM Selectors for Combat Interactivity
+
+> For full live DOM behavior, `stage.gGameStatus` flags, summon tray vs character drawer `.btn-command-back` gotchas, and cascade failure diagnostics, see **[Principle 16: Live Battle DOM, Server Sync & Forensic Combat Diagnostics](./16_gbf_live_combat_dom_and_diagnostics.md)**.
 
 ```
 +-------------------------------------------------------------------------+
 |                               Combat DOM Map                            |
-+-------------------------------------------------------------------------+
-| Element Description              | DOM Selector                         |
 +----------------------------------+--------------------------------------+
-| Main Attack Button               | `.btn-attack`                        |
+| Element Description              | Verified DOM Selector                |
++----------------------------------+--------------------------------------+
+| Main Attack / Ready Button       | `.btn-attack-start`                  |
 | Full Auto Toggle                 | `.btn-auto`, `.btn-ability-auto`     |
 | Semi Auto Toggle                 | `.btn-semi-auto`                     |
 | Charge Attack Toggle (Ougi Lock) | `.btn-lock`                          |
+| Shared Drawer / Tray Back Button | `.btn-command-back.display-on`       |
+| Summon Tray Open Button          | `.btn-command-summon` (`.summon-on`) |
+| Summon Tray & Cards (pos 1..6)   | `.prt-command-summon`, `.lis-summon` |
+| Summon Detail Confirm Button     | `.pop-summon-detail .btn-usual-ok.btn-summon-use` |
+| Quick Summon Button              | `.btn-quick-summon`, `#js-btn-quick-summon` |
 | Boss HP Display                  | `.prt-enemy-percent`, `.txt-enemy-hp`|
-| Character Guard Buttons (V2)     | `.btn-guard` (data-pos="1" to "4")   |
+| Character Guard Buttons (V2)     | `.btn-guard` (`data-pos="1"` to `"4"`) |
 | Fatal Chain Button (V2)          | `.btn-fatal-chain`                   |
-| Boss Omen Container (V2)         | `.prt-boss-action`, `.txt-boss-action|
-| Skill Cards                      | `.lis-ability`                       |
-| Summon Deck Toggle               | `.btn-summon-tab`                    |
+| Boss Omen Container (V2)         | `.prt-boss-action`, `.txt-boss-action` |
+| Skill Cards (`pos` 0..3 / 1..4)  | `.lis-ability`, `.ability-character-num-<c>-<s>` |
 +----------------------------------+--------------------------------------+
 ```
 

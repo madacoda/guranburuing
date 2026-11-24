@@ -17,7 +17,8 @@ This repository (`guranburuing`) treats all template files in `templates/*.json`
 3. **Dynamic Universal Engine Execution**:
    - `UniversalWorkflowEngine` must dynamically execute ANY valid sequence of steps defined by the user.
    - If a template includes `confirm_result` in its pipeline, the engine respects it and must not run redundant finisher turns or duplicate conclusion handlers.
-   - The engine must gracefully skip unavailable skills/summons when on cooldown without throwing fatal errors.
+   - For non-ensured or `optional: true` steps, the engine gracefully skips unavailable skills/summons when on cooldown without throwing fatal errors.
+   - **Guild War Fatal Guard**: Any step with `ensureCast: true` inside a Guild War template (`isGuildWarWorkflowTemplate`) is strictly **FATAL** (including mandatory `summon`, `quick_call`, `skill`, and `attack` steps) — never silently skip cooldown/unavailable/unconfirmed states; abort the combat pipeline immediately and flag `fatalStepAbort`.
 
 4. **Zero Duplicate Workflows Under Different Names**:
    - Each workflow template file on disk must define a distinct, unique automation pipeline.

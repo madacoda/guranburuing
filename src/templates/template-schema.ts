@@ -379,6 +379,8 @@ export const WorkflowTemplateSchema = z.object({
   evaluatorStrategy: z.enum(['honor', 'otk_burst', 'leech', 'farm']).optional().default('honor'),
   adaptive: z.boolean().optional(),
   logPath: z.string().optional(),
+  telemetryMode: z.enum(['verbose', 'summary', 'off']).optional(),
+  telemetryAutoQuietRuns: z.number().int().min(0).optional(),
   steps: z.array(WorkflowStepSchema).min(1, 'Template must contain at least 1 workflow step')
 }).transform(val => {
   // Synchronize aliases

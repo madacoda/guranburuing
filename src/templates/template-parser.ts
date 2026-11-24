@@ -200,6 +200,12 @@ const CANONICAL_ALIASES: Readonly<Record<string, string>> = {
   'gw-dark-nm95': 'gw-nm95-dark',
   'nm95-dark': 'gw-nm95-dark',
   'dark-nm95': 'gw-nm95-dark',
+  'gw-nm150-dark': 'gw-nm150-dark',
+  'gw-dark-nm150': 'gw-nm150-dark',
+  'nm150-dark': 'gw-nm150-dark',
+  'dark-nm150': 'gw-nm150-dark',
+  'gw-nm150': 'gw-nm150-dark',
+  'nm150': 'gw-nm150-dark',
 };
 
 const RX_TEMPLATE_EXT = /\.(json|txt|dsl|yaml|yml)$/i;
