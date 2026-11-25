@@ -36,7 +36,7 @@ flowchart TD
     `[Enforcer] Summon slot 6 detail popup did not open on attempt 1/4..3/4` -> `FAILED_TIMEOUT | Attempts: 4 | 5337ms` -> outer recovery `5341ms` -> `[FATAL] Mandatory Ensured GW Step 2`.
   - Earlier Run 1 log: Hades skipped in `12ms` (`unavailable in tray`).
 - **Mechanism:** Live GBF CSS slides `.prt-command-summon` off-screen rather than setting `display: none`. Tray children (`.lis-summon`) retain `offsetParent !== null` and `offsetWidth > 0` even when closed. Checking `slotEl.offsetWidth > 0` caused Phase B (`handleSummon`) to evaluate `isSummonOpen = true` and tap `.btn-command-summon` **0 times**.
-- **Solution (`[combat-execution.service.ts](file:///c:/laragon/www/guranburuing/src/engines/universal/combat-execution.service.ts)` `handleSummon`):**
+- **Solution ([combat-execution.service.ts](../src/engines/universal/combat-execution.service.ts) `handleSummon`):**
   - Phase A waits until `.btn-command-back.display-on` is OFF (closing any prior character drawer without trusting `.lis-summon` geometry).
   - Phase B taps `.btn-command-summon`, waits strictly for `.btn-command-back.display-on` / `.summon-on` / `.summon-show`, pauses `60ms` (turbo) / `100ms` (normal) for slide-in settle, then taps `.lis-summon` (falling back to `humanizedClick` on `summonAttempt >= 2`).
 - **Evidence (Verification Status):**
@@ -77,14 +77,14 @@ flowchart TD
 
 ### RC-4: HTTP 200 `{ popup, scenario: [] }` Treated as Successful Server Confirmation
 - **Mechanism:** When Cygames rejects an action due to turn lockout or concurrent access, `ability_result.json` / `summon_result.json` often returns **HTTP 200** with `{ popup: {...}, scenario: [] }` instead of an HTTP 4xx/5xx error. Treating any HTTP 200 as `resolved: true` caused silent no-op steps.
-- **Solution (`[combat-resolution.service.ts](file:///c:/laragon/www/guranburuing/src/engines/universal/combat-resolution.service.ts)` `waitForNetworkResponseAndPayload`):**
+- **Solution ([combat-resolution.service.ts](../src/engines/universal/combat-resolution.service.ts) `waitForNetworkResponseAndPayload`):**
   - Requires `hasNonEmptyScenario = Array.isArray(json?.scenario) && json.scenario.length > 0`.
   - Returns `{ resolved: false, json, isPopupLockout: true }` whenever `(json.popup && !hasNonEmptyScenario) || json.result === 'ng' || json.error`.
 
 ### RC-5: Mandatory GW Failure Treated as Non-Fatal (`UNACKNOWLEDGED_CONTINUED`)
 - **Evidence (Failure):**
   - Live failure logs where Step 12 Death failed (`0/4` tries), yet the engine logged `⚠️ Non-fatal combat action failure... Continuing combat pipeline` and attacked Demeter down to `60.7%` or `39.4%` HP before triggering fruitless cleanup attacks.
-- **Solution (`[universal-workflow.engine.ts](file:///c:/laragon/www/guranburuing/src/engines/universal-workflow.engine.ts)`):**
+- **Solution ([universal-workflow.engine.ts](../src/engines/universal-workflow.engine.ts)):**
   - `isFatalGwEnsuredStep = Boolean(this.isGuildWarQuest() && step.ensureCast)` (plus `isMandatoryDeathSummon` covering both `summon` and `quick_call`) sets `fatalStepAbort = true` and `stopRequested = true`, immediately halting the pipeline.
 - **Evidence (Verified Live):** Run 2 Hades timeout immediately logged `🚨 [FATAL] Mandatory Ensured GW Step 2 ... Flagging as FATAL and aborting GW combat pipeline` and moved browser to standby.
 
@@ -96,7 +96,7 @@ flowchart TD
 - **Mechanism:** `handleReload` already awaits `waitForCombatInputReady`, so post-`Quick Call` reload unlocks on Attempt 1. After an **Attack**, however, Cygames enforces an **account-wide server lockout timer** (~`1.01s` base + Normal/CA chain duration). `C4S3` and `C4S1` hit the tail end of server attack lockout after F5 finishes; the existing popup-dismiss/retry loop handles it cleanly in 1 step invocation (~3.0–3.7s).
 
 ### RC-7 `[RESOLVED — PENDING LIVE VERIFICATION]`: Synchronous Per-Step Audit Ledger Disk Flush & Quiet Mode
-- **Evidence (`[step-execution-monitor.service.ts](file:///c:/laragon/www/guranburuing/src/engines/universal/step-execution-monitor.service.ts)`):**
+- **Evidence ([step-execution-monitor.service.ts](../src/engines/universal/step-execution-monitor.service.ts)):**
   - Previously, `recordStepReceipt()` called `this.persistSessionAuditLedger()` on **every single step** (`fs.readFileSync` + `JSON.parse` + $O(N)$ `aggregateHotspots(allSessionReceipts)` + `Math.max(...receipts.map(...))` + `fs.writeFileSync`).
   - `CombatExecutionService` also logged `getAndLogEnemyHp()` after every cast/reload even after `captureCombatSnapshot()` (`postState`) read HP.
 - **Solution:**

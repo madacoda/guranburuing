@@ -81,10 +81,12 @@ class GwMeatDarkMockPage {
   public mouseMoves = 0;
   public mouseDowns = 0;
   public mouseUps = 0;
+  public bossHp = 25400000;
+  public currentHash = '#raid_multi/980651001';
   public tappedReadyCoords: { x: number; y: number }[] = [];
 
   public url() {
-    return 'https://game.granbluefantasy.jp/#raid_multi/980651001';
+    return `https://game.granbluefantasy.jp/${this.currentHash}`;
   }
 
   public viewport() {
@@ -159,6 +161,7 @@ class GwMeatDarkMockPage {
             click: () => {
               self.manualAttackClicks++;
               setTimeout(() => {
+                self.bossHp = 0;
                 self.emitResponse('https://game.granbluefantasy.jp/rest/multiraid/normal_attack_result.json', {
                   user_point: 126120,
                   turn: 2,
@@ -186,15 +189,18 @@ class GwMeatDarkMockPage {
 
     (globalThis as any).window = {
       location: {
-        hash: '#raid_multi/980651001',
+        hash: self.currentHash,
         reload: () => {
           self.reloadCalls++;
+          if (self.bossHp <= 0) {
+            self.currentHash = '#result_multi/980651001';
+          }
         }
       },
       getComputedStyle: () => ({ display: 'block', visibility: 'visible' }),
       stage: {
-        gGameStatus: { lock: false, attacking: false, turn: 1, boss: { param: [{ hp: 25400000, hpmax: 25400000 }] } },
-        pJsnData: { turn: 1, boss: { param: [{ hp: 25400000, hpmax: 25400000 }] } }
+        gGameStatus: { lock: false, attacking: false, turn: 1, boss: { param: [{ hp: self.bossHp, hpmax: 25400000 }] } },
+        pJsnData: { turn: 1, boss: { param: [{ hp: self.bossHp, hpmax: 25400000 }] } }
       }
     };
     (globalThis as any).location = (globalThis as any).window.location;
@@ -211,6 +217,7 @@ class GwMeatDarkMockPage {
               self.readyVisible = false;
               if (self.autoAttackTriggeredByReady) {
                 setTimeout(() => {
+                  self.bossHp = 0;
                   self.emitResponse('https://game.granbluefantasy.jp/rest/multiraid/normal_attack_result.json', {
                     user_point: 126120,
                     turn: 2,

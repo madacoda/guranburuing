@@ -334,6 +334,11 @@ const TEST_SUITES: TestSuite[] = [
     name: 'Black Friday 2026 VPS Stock & Price Monitor Tests',
     file: 'tests/test-bf-vps-monitor.ts',
     description: 'Verify Contabo SvelteKit IIFE, OVH catalog API, OrangeVPS WHMCS/cart, GreenCloud, ExtraVM, ShockHosting, LightNode, Vultr parsers, diff detection, and Discord digest formatting'
+  },
+  {
+    name: 'CDP Headless rAF FPS & Tab Recycle Optimization Tests',
+    file: 'tests/test-cdp-raf-fps.ts',
+    description: 'Verify HEADLESS_RAF_FPS local/prod defaults, 15/30/60fps diet script generation, and pre-goto recycleTab optimization'
   }
 ];
 
